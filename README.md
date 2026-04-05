@@ -1,6 +1,6 @@
 # BattleFleet-Arena
 
-Browser-Multiplayer (Three.js + Colyseus + Node.js) laut `PRD.md` und `Project_Plan.md`. Stand: **Task 2** (serverseitige Bewegung, gemeinsamer Raum, Debug-Overlay inkl. Ping).
+Browser-Multiplayer (Three.js + Colyseus + Node.js) laut `PRD.md` und `Project_Plan.md`. Stand: **Task 5 (MVP)** — **Primär-Artillerie** (Plan A: geplanter Einschlag, **0,5 s** Cooldown, Bogen/Streuung), **HP** & Tod (**Disconnect**; Respawn = Task 6); plus Task 2–4 (Netz, Interpolation, AO & Inseln).
 
 ## Voraussetzungen
 
@@ -51,8 +51,11 @@ npm run build
 
 1. `npm run dev` starten.
 2. Zwei Browser-Tabs auf die Client-URL öffnen.
-3. Beide sollten im gleichen Raum („battle“) erscheinen; Schiffsbewegung des anderen sichtbar (Updates ~20 Hz).
+3. Beide sollten im gleichen Raum („battle“) erscheinen; das **andere** Schiff sollte sich dank Interpolation **flüssiger** bewegen als die Roh-Snapshot-Rate (~20 Hz); das eigene Schiff folgt der autoritativen Server-Pose.
 4. Debug-Overlay: **FPS**, **Raum**, **Spielerzahl**, **Ping** (Roundtrip ping/pong ~2 s).
+5. **Karte (Task 4):** Rote Linie = AO-Grenze; **Inseln** als grün/braune „Tupfer“. Gegen eine Insel fahren → das Schiff bleibt an der **Kreis-Kollision** außen (serverseitig).
+6. **OOB:** Über die rote Grenze hinaus → englische Warnung + Countdown; **10 s** nicht zurück → Verbindungsende (Zerstörung laut Design); bei Rückkehr innerhalb der Zeit verschwindet die Warnung.
+7. **Artillerie (Task 5):** **Linke Maustaste halten** (Dauerfeuer mit serverseitigem Cooldown **0,5 s**) — Ziel im Bug-Feuerbogen (**±120°**, **240°** Sektor); serverseitig Streuung & Splash-Schaden. Client: Kugel-Animation + **VFX nach Trefferart** (`water` / `hit` / `island`); **Cull-Kreis** um das eigene Schiff (sichtbares Ortho-Fenster + Marge) — Flug nur wenn Start **oder** Ziel im Kreis, Splash nur wenn Einschlag im Kreis (Kugel wird immer bereinigt). Gegner-**HP** im Cockpit, bei **0** Ende mit Meldung (Respawn = Task 6).
 
 ## Projektstruktur (Monorepo)
 
@@ -60,11 +63,11 @@ npm run build
 |--------|--------|
 | `client/` | Vite, Three.js, Colyseus-Client |
 | `server/` | Colyseus, `BattleRoom`, Express-HTTP |
-| `shared/` | `@colyseus/schema` (`BattleState` / `PlayerState`), `shipMovement` (gemeinsame Physik mit Server) |
-| `docs/` | `ARCHITECTURE.md` — Ist-Architektur & Bewegungsmodell |
+| `shared/` | Schema, `shipMovement`, `mapBounds`, `islands`, **`artillery`** (Feuerlogik-Helfer) |
+| `docs/` | `ARCHITECTURE.md` — Ist-Architektur inkl. **Task 5** (Artillerie, HP, Client-VFX-Culling) |
 
 ## Weiterführend
 
-- `Project_Plan.md` — Tasks & Mehnsteine  
+- `Project_Plan.md` — Tasks & Meilensteine  
 - `docs/ARCHITECTURE.md` — Detaillierte technische Beschreibung  
 - `PRD.md` — Produktspezifikation  

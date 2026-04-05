@@ -4,6 +4,8 @@ export type InputSample = {
   rudderInput: number;
   aimWorldX: number;
   aimWorldZ: number;
+  /** True solange **LMB gehalten** (Servertakt entscheidet über Cooldown / Dauerfeuer). */
+  primaryFire: boolean;
 };
 
 /**
@@ -40,6 +42,22 @@ export function createInputHandlers(
   };
   canvas.addEventListener("pointermove", onMove);
 
+  let lmbHeld = false;
+  const onPointerDown = (e: PointerEvent): void => {
+    if (e.button === 0) {
+      lmbHeld = true;
+    }
+  };
+  const onPointerUp = (e: PointerEvent): void => {
+    if (e.button === 0) {
+      lmbHeld = false;
+    }
+  };
+  canvas.addEventListener("pointerdown", onPointerDown);
+  canvas.addEventListener("pointerup", onPointerUp);
+  canvas.addEventListener("pointercancel", onPointerUp);
+  window.addEventListener("pointerup", onPointerUp);
+
   function sample(): InputSample {
     let throttle = 0;
     if (keys.has("KeyW")) throttle += 1;
@@ -52,11 +70,13 @@ export function createInputHandlers(
     rudderInput = Math.max(-1, Math.min(1, rudderInput));
 
     const hit = getGroundPoint(mouseNdcX, mouseNdcY);
+    const primaryFire = lmbHeld;
     return {
       throttle,
       rudderInput,
       aimWorldX: hit?.x ?? 0,
       aimWorldZ: hit?.z ?? 0,
+      primaryFire,
     };
   }
 
@@ -66,6 +86,10 @@ export function createInputHandlers(
       window.removeEventListener("keydown", onDown);
       window.removeEventListener("keyup", onUp);
       canvas.removeEventListener("pointermove", onMove);
+      canvas.removeEventListener("pointerdown", onPointerDown);
+      canvas.removeEventListener("pointerup", onPointerUp);
+      canvas.removeEventListener("pointercancel", onPointerUp);
+      window.removeEventListener("pointerup", onPointerUp);
     },
   };
 }

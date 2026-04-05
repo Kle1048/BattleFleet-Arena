@@ -12,9 +12,9 @@ Dieses Dokument bricht die MVP-Anforderungen aus `PRD.md` in **inkrementelle Tas
 |------|------------------|---------------------|
 | 1 | Offline-Boot, Szene, schiffsähnliche Steuerung | Ein Schiff auf der Karte steuern |
 | 2 | **Abgeschlossen** — Colyseus, Schema, Join/Leave, 20 Hz-Server, Aim+Ping | Zwei Tabs, beide Schiffe + Peilung sichtbar; Overlay inkl. Ping |
-| 3 | Client-Interpolation für entfernte Spieler | Flüssige Darstellung bei State-Updates |
-| 4 | Eine Map mit Inseln, Kollision Schiff/Projektil vs. Insel | An Inseln abprallen, keine Durchfahrt |
-| 5 | Artillerie, Feuerbögen, HP, Schaden, Tod | Auf Gegner schießen, HP & Zerstörung |
+| 3 | **Abgeschlossen** — Client-Interpolation für entfernte Spieler | Flüssige Darstellung bei State-Updates |
+| 4 | **Abgeschlossen** (MVP) — AO, 5 Kreis-Inseln, Schiff↔Insel-Kollision, OOB | Grenze, Inseln, Blockieren; außerhalb 10 s → Kick |
+| 5 | **Abgeschlossen** (MVP) — Artillerie Plan A, Bogen, Splash, HP, Tod (kein Respawn) | LMB, zwei Tabs, HP↓, Kill → Disconnect |
 | 6 | Respawn, Spawn-Schutz, faire Spawn-Punkte | Nach Tod wieder einsteigen |
 | 7 | Lenkflugkörper (ASuM), Homing, Limits | Sekundärfeuer testen |
 | 8 | Torpedos (einfach, langsamer) | Torpedo-Verhalten |
@@ -67,13 +67,13 @@ Dieses Dokument bricht die MVP-Anforderungen aus `PRD.md` in **inkrementelle Tas
 | Optional: Basis-**Klassen-Tag** im Schema | *Offen (bewusst; „ggf.“ im Plan)* |
 | Darstellung: Peilung (**Aim**) aller Spieler (Linien-Debug, Vorbild Geschütztürme) | Erfüllt |
 
-**Hinweis:** Bewegung wirkt bei 20 Hz State noch **ruckelig** — glätten ist **Task 3 (Interpolation)**.
+**Hinweis:** Netto-Updates der replizierten Pose sind **~20 Hz**. **Task 3** glättet die **Darstellung der Fremdspieler** (Interpolation); der **lokale** Spieler nutzt weiterhin die direkte Server-Pose pro Frame (ohne clientseitige Bewegungs-Vorhersage).
 
-**Docs:** `README.md`, `docs/ARCHITECTURE.md` (Stand Task 2).
+**Docs:** `README.md`, `docs/ARCHITECTURE.md` (fortlaufend aktualisiert).
 
 ---
 
-## Task 3 — Interpolation
+## Task 3 — Interpolation — **abgeschlossen**
 
 **Ziele:**
 
@@ -82,21 +82,55 @@ Dieses Dokument bricht die MVP-Anforderungen aus `PRD.md` in **inkrementelle Tas
 
 **Test:** Zwei Tabs, Bewegung wirkt flüssig bei 20 Hz Netzwerk-Updates.
 
+**Ist / Abnahme Task 3:**
+
+| Ziel | Status |
+|------|--------|
+| Fremdspieler: `prev`/`next` Snapshot mit Patch-Zeitstempel | Erfüllt (`remoteInterpolation.ts`, `advanceIfPoseChanged` nur bei Pose-Änderung) |
+| Linear / Winkel-Interpolation inkl. `rudder`, `aimX`/`aimZ` | Erfüllt |
+| Render-Zeit = `now − 100 ms` (Puffer ~2× 20 Hz-Tick) | Erfüllt (`DEFAULT_INTERPOLATION_DELAY_MS`) |
+| Lokaler Spieler: reine Serverpose (MVP) | Erfüllt |
+| `remoteInterp`-Eintrag bei Leave entfernen | Erfüllt |
+
+**Docs:** `docs/ARCHITECTURE.md` (inkl. nachfolgender Tasks).
+
 ---
 
-## Task 4 — Map & Insel-Kollision
+## Task 4 — Map & Insel-Kollision — **abgeschlossen (MVP-Scope)**
 
-**Ziele:**
+**Ziele (Plan / PRD):**
 
-- Eine **Island-Cluster-Arena** (PRD): Polygon- oder Kreis-Inseln, konsistent Server + Client.
-- Kollision: Schiffe und (später) Projektile/Insel.
-- Bounds optional (Open Sea mit weichem oder hartem Rand).
+- **Island-Cluster-Arena:** Inseln konsistent Server + Client.
+- **Kollision:** Schiffe vs. Hindernis; Projektile/Insel später (ab Task 5).
+- **Bounds:** Harte Karte möglich — umgesetzt als **Area of Operations** + Abkommen = Zerstörung.
 
-**Test:** Gegen Insel fahren → blockiert; visuell erkennbare Landmasse.
+**Ist / Abnahme Task 4:**
+
+| Ziel | Status |
+|------|--------|
+| Gemeinsame Kartengrenze (Quadrat XZ), Server = maßgeblich | Erfüllt (`mapBounds.ts`, `isInsideOperationalArea`) |
+| Außerhalb AO: Warnung repliziert, 10 s dann Raum verlassen | Erfüllt (`oobCountdownSec`, `OOB_DESTROY_AFTER_MS`, `Protocol.WS_CLOSE_WITH_ERROR` + Reason) |
+| Client: sichtbare AO-Linie, OOB-HUD | Erfüllt (`createGameScene.ts`, `areaWarningHud.ts`, `main.ts`) |
+| Mehrere Inseln, unterschiedliche Größen | Erfüllt — **5** Einträge in `DEFAULT_MAP_ISLANDS` (Kreise, Radien 64–140) |
+| Schiff blockiert / schiebt aus Insel (serverseitig) | Erfüllt (`resolveShipIslandCollisions` nach `stepMovement` in `BattleRoom`) |
+| Client nutzt dieselben Inseldaten wie Server | Erfüllt — Import aus `@battlefleet/shared`, keine zweite „Geheim“-Karte |
+| Debug-kompakte Karte | Erfüllt — `AREA_OF_OPERATIONS_HALF_EXTENT = 900`, Wasser ~`2.8 × H` |
+
+**Bewusst nicht Teil von Task 4 (Follow-up):**
+
+- Kreise statt Polygon-Inseln (PRD erlaubt vereinfachte Geometrie; Polygone optional später).
+- **Keine** Kollision **Projektil ↔ Insel** (ergibt sich mit Task 5).
+- Spawn nur platzieren (Ring ~140 um Null); keine automatische „freie Spawn“-Validierung gegen jede Insel-Änderung.
+
+**Test:** Über rote AO-Linie → engl. Warnung + Countdown → Kick. Gegen grüne/braune Inseln fahren → Schiff bleibt außerhalb der Kreis-Hülle. Zwei Tabs → gegnerische Schiffe verhalten sich identisch (serverseitige Kollision).
+
+**Docs:** `docs/ARCHITECTURE.md` (Stand Task 4), `README.md`.
+
+**Nächster planmäßiger Task:** **Task 6** (Respawn & Spawn-Schutz).
 
 ---
 
-## Task 5 — Artillerie & HP
+## Task 5 — Artillerie & HP — **abgeschlossen (MVP)**
 
 **Ziele:**
 
@@ -104,7 +138,27 @@ Dieses Dokument bricht die MVP-Anforderungen aus `PRD.md` in **inkrementelle Tas
 - Vereinfachte Flugzeit oder Hit-Scan mit Delay (PRD-konform, nicht volle Ballistik).
 - HP, Schaden, Zerstörung; Kill-Events.
 
-**Test:** Spieler 2 oder Dummy-Ziel beschießen → HP sinkt, Zerstörung möglich.
+**Ist / Abnahme Task 5:**
+
+| Ziel | Status |
+|------|--------|
+| Primär: **0,5 s** Cooldown, Server validiert | Erfüllt (`ARTILLERY_PRIMARY_COOLDOWN_MS`, `primaryReadyAtMs`) |
+| Feuerbogen, Min/Max-Reichweite | Erfüllt (`shared/artillery.ts`, `isInForwardArc`, `clampedLandPoint`) |
+| **Streuung** ± Winkel / ± Distanz | Erfüllt (`ARTILLERY_SPREAD_*`) |
+| **Plan A:** geplanter Einschlag + Flugzeit | Erfüllt (`pendingShells`, `impactAtMs`, `computeFlightMs`) |
+| **Inseln:** Schuss **ohne** LOS/Lande-Sperre (MVP-Anpassung) | Erfüllt — `tryComputeArtillerySalvo` prüft Inseln nicht; Helfer `lineOfSightBlockedByIslands` / `pointInAnyIsland` nur noch für andere Zwecke bzw. VFX-Einstufung |
+| Splash-Schaden, kein Self-Hit | Erfüllt (`ARTILLERY_SPLASH_RADIUS`, Owner ausgenommen) |
+| **HP** im Schema, Tod | Erfüllt (`hp`/`maxHp`, `leave` Reason `destroyed_in_combat`) |
+| Client: **LMB** (halten), Events **`artyFired`/`artyImpact`** inkl. **`kind`** (Wasser/Treffer/Ufer), VFX | Erfüllt (`keyboardMouse.ts`, `artilleryFx.ts`) |
+| Client: **VFX-Culling** (Kreis um Eigenschaft, Start/oder Ziel / Einschlag; `skipSplash`) | Erfüllt (`main.ts`, `createGameScene.ts`) |
+| HUD: HP, Feuer-Cooldown | Erfüllt (`cockpitHud`) |
+| Feuerbogen-Visual (lokal) | Erfüllt (`shipVisual.ts` + `ARTILLERY_ARC_HALF_ANGLE_RAD`) |
+
+**Noch nicht (Task 6+):** Respawn, Kill-Feed, Score, Granate↔Insel eigene Entität, sekundäre Waffen.
+
+**Test:** Zwei Tabs; Gegner mit Bug in Richtung Ziel; **LMB** → Einschlag sichtbar, HP sinkt; bei 0 Disconnect mit Hinweis.
+
+**Docs:** `docs/ARCHITECTURE.md`, `README.md`.
 
 ---
 

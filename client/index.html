@@ -94,15 +94,18 @@
         position: absolute; top: 0; bottom: 0; height: 100%;
         border-radius: 3px;
       }
+      .cockpit-track-hp .cockpit-fill-hp { min-width: 3px; }
+      .cockpit-primary-cd { font-variant-numeric: tabular-nums; font-weight: 600; color: #ffc9a0; font-size: 13px; }
     </style>
   </head>
   <body>
-    <div id="title">BattleFleet-Arena — Task 2: Multiplayer (Colyseus)</div>
+    <div id="title">BattleFleet-Arena — Task 5: Artillerie (MVP)</div>
     <div id="app"></div>
     <div id="hud">
       <div>W / S — Gas zurück / voraus</div>
       <div>A / D — Ruder links / rechts</div>
-      <div>Mausbewegung — Blick / Zielrichtung (reiner Anzeige)</div>
+      <div>Mausbewegung — Zielrichtung (Feuerbogen zum Bug)</div>
+      <div>Linke Maustaste — Primär / Artillerie (0,5 s Cooldown)</div>
     </div>
     <script type="module" src="/src/main.ts"></script>
   </body>

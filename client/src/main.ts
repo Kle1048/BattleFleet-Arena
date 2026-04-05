@@ -1,5 +1,6 @@
 /**
- * Task 2: Colyseus-Client — autoritative Pose vom Server, Input per Message „input“.
+ * Task 2–5: Colyseus-Client — autoritative Pose, Input (inkl. primaryFire / LMB), Interpolation,
+ * OOB-Warnung, Artillerie-VFX (artyFired, artyImpact, Client-Culling, skipSplash).
  *
  * Join **ohne** Root-Schema-Argument: State per **Reflection** (vom Server-Handshake).
  * Kein `BattleState` aus `@battlefleet/shared` übergeben — mit Vite-Alias + zweiter Schema-Kopie
@@ -12,7 +13,11 @@ import { Client } from "colyseus.js";
 import type { PlayerState } from "@battlefleet/shared";
 import { DESTROYER_LIKE_MVP } from "@battlefleet/shared";
 import {
+  ARTILLERY_FX_CULL_MARGIN,
+  artilleryFxCullRadiusSq,
+  cameraPivotXZ,
   createGameScene,
+  orthoVisibleHalfExtents,
   resizeCamera,
   updateFollowCamera,
 } from "./game/scene/createGameScene";
@@ -20,6 +25,15 @@ import { createShipVisual, rudderRotationRad, type ShipVisual } from "./game/sce
 import { createInputHandlers } from "./game/input/keyboardMouse";
 import { createCockpitHud } from "./game/hud/cockpitHud";
 import { createDebugOverlay } from "./game/hud/debugOverlay";
+import { createAreaWarningHud } from "./game/hud/areaWarningHud";
+import { createArtilleryFx } from "./game/effects/artilleryFx";
+import {
+  DEFAULT_INTERPOLATION_DELAY_MS,
+  advanceIfPoseChanged,
+  createInterpolationBuffer,
+  sampleInterpolatedPose,
+  type InterpolationBuffer,
+} from "./game/network/remoteInterpolation";
 
 /**
  * Colyseus-HTTP-Basis (Matchmaking + WS-Auflösung).
@@ -82,6 +96,8 @@ function getGroundPoint(ndcX: number, ndcY: number): { x: number; z: number } | 
 const input = createInputHandlers(renderer.domElement, getGroundPoint);
 const cockpit = createCockpitHud();
 const debugOverlay = createDebugOverlay();
+const areaWarningHud = createAreaWarningHud();
+const artilleryFx = createArtilleryFx(scene);
 
 resizeCamera(camera, window.innerWidth, window.innerHeight);
 window.addEventListener("resize", () => {
@@ -91,7 +107,18 @@ window.addEventListener("resize", () => {
 
 type NetPlayer = Pick<
   PlayerState,
-  "id" | "x" | "z" | "headingRad" | "speed" | "rudder" | "aimX" | "aimZ"
+  | "id"
+  | "x"
+  | "z"
+  | "headingRad"
+  | "speed"
+  | "rudder"
+  | "aimX"
+  | "aimZ"
+  | "oobCountdownSec"
+  | "hp"
+  | "maxHp"
+  | "primaryCooldownSec"
 >;
 
 type WireBattleState = { playerList: ArraySchema<NetPlayer> };
@@ -159,6 +186,37 @@ async function bootstrap(): Promise<void> {
   let playerListHandlersBoundTo: ArraySchema<NetPlayer> | null = null;
   let pingMs: number | null = null;
 
+  /**
+   * **Client-VFX-Culling (Artillerie)** — gleiches Muster später für andere Welt-VFX nutzbar:
+   *
+   * - **Cull-Kreis:** Mitte = eigenes Schiff, Radius = **Maximum** der Abstände Schiff → **jeweils**
+   *   eine der vier Ecken des sichtbaren Ortho-Rechtecks (Kamera-Pivot ± Halbexten) + Marge
+   *   (`ARTILLERY_FX_CULL_MARGIN`) — das Viewport-Rechteck liegt vollständig im Kreis.
+   * - **`artyFired`:** Render **nur**, wenn **Startpunkt ODER Zielpunkt** im Kreis liegt (einer reicht).
+   * - **`artyImpact`:** Splash **nur**, wenn **Einschlag (x,z)** im Kreis liegt; die Kugel wird immer
+   *   entfernt (`skipSplash`), damit kein Geister-Mesh bleibt.
+   */
+  let artyFxCullShipX = 0;
+  let artyFxCullShipZ = 0;
+  let artyFxCullRadiusSq = Number.POSITIVE_INFINITY;
+
+  function isArtyWorldPointInCullRange(wx: number, wz: number): boolean {
+    const dx = wx - artyFxCullShipX;
+    const dz = wz - artyFxCullShipZ;
+    return dx * dx + dz * dz <= artyFxCullRadiusSq;
+  }
+
+  function shouldRenderArtyFiredClientVfx(
+    fromX: number,
+    fromZ: number,
+    toX: number,
+    toZ: number,
+  ): boolean {
+    return (
+      isArtyWorldPointInCullRange(fromX, fromZ) || isArtyWorldPointInCullRange(toX, toZ)
+    );
+  }
+
   room.onMessage("pong", (payload: { clientTime?: number }) => {
     const t = Number(payload?.clientTime);
     if (Number.isFinite(t)) {
@@ -176,13 +234,73 @@ async function bootstrap(): Promise<void> {
     console.warn("[colyseus]", code, message);
   });
 
-  room.onLeave((code) => {
+  /** @colyseus/core Protocol.WS_CLOSE_WITH_ERROR */
+  const WS_CLOSE_WITH_ERROR = 4002;
+
+  room.onLeave((code, reason) => {
     window.clearInterval(pingIntervalId);
     pingMs = null;
-    colyseusWarn = `Verbindung beendet (${code}). Seite neu laden.`;
+    const r = String(reason ?? "");
+    if (code === WS_CLOSE_WITH_ERROR && r.includes("left_operational_area")) {
+      colyseusWarn =
+        "Destroyed: left the Area of Operations. Reload the page to play again.";
+    } else if (code === WS_CLOSE_WITH_ERROR && r.includes("destroyed_in_combat")) {
+      colyseusWarn = "Destroyed in combat. Reload the page to play again.";
+    } else {
+      colyseusWarn = `Verbindung beendet (${code}). Seite neu laden.`;
+    }
+  });
+
+  room.onMessage("artyFired", (msg: unknown) => {
+    const m = msg as {
+      shellId?: number;
+      ownerId?: string;
+      fromX?: number;
+      fromZ?: number;
+      toX?: number;
+      toZ?: number;
+      flightMs?: number;
+    };
+    if (
+      typeof m?.shellId === "number" &&
+      typeof m?.ownerId === "string" &&
+      typeof m?.fromX === "number" &&
+      typeof m?.fromZ === "number" &&
+      typeof m?.toX === "number" &&
+      typeof m?.toZ === "number" &&
+      typeof m?.flightMs === "number"
+    ) {
+      if (!shouldRenderArtyFiredClientVfx(m.fromX, m.fromZ, m.toX, m.toZ)) return;
+      artilleryFx.onFired({
+        shellId: m.shellId,
+        ownerId: m.ownerId,
+        fromX: m.fromX,
+        fromZ: m.fromZ,
+        toX: m.toX,
+        toZ: m.toZ,
+        flightMs: m.flightMs,
+      });
+    }
+  });
+
+  room.onMessage("artyImpact", (msg: unknown) => {
+    const m = msg as { shellId?: number; x?: number; z?: number; kind?: string };
+    if (
+      typeof m?.shellId === "number" &&
+      typeof m?.x === "number" &&
+      typeof m?.z === "number"
+    ) {
+      const raw = m.kind;
+      const kind =
+        raw === "water" || raw === "hit" || raw === "island" ? raw : undefined;
+      const skipSplash = !isArtyWorldPointInCullRange(m.x, m.z);
+      artilleryFx.onImpact({ shellId: m.shellId, x: m.x, z: m.z, kind }, { skipSplash });
+    }
   });
 
   const visuals = new Map<string, ShipVisual>();
+  /** Nur Fremdspieler: Puffer für Positions-/Peilungs-Interpolation. */
+  const remoteInterp = new Map<string, InterpolationBuffer>();
 
   const addVisual = (sessionId: string): void => {
     if (visuals.has(sessionId)) return;
@@ -207,12 +325,24 @@ async function bootstrap(): Promise<void> {
         vis.group.clear();
       }
       visuals.delete(player.id);
+      remoteInterp.delete(player.id);
     });
   };
 
   room.onStateChange(() => {
     stateSyncCount += 1;
     bindPlayerListHandlers();
+    const t = performance.now();
+    const list = playerListOf(room);
+    for (const p of list) {
+      if (p.id === mySessionId) continue;
+      let buf = remoteInterp.get(p.id);
+      if (!buf) {
+        remoteInterp.set(p.id, createInterpolationBuffer(p, t));
+      } else {
+        advanceIfPoseChanged(buf, p, t);
+      }
+    }
   });
   bindPlayerListHandlers();
 
@@ -262,19 +392,50 @@ async function bootstrap(): Promise<void> {
 
     const samp = input.sample();
     const me = getPlayer(playerList, mySessionId);
+    if (me) {
+      const { halfW, halfH } = orthoVisibleHalfExtents(window.innerWidth, window.innerHeight);
+      const pivot = cameraPivotXZ(me.x, me.z, me.headingRad);
+      artyFxCullShipX = me.x;
+      artyFxCullShipZ = me.z;
+      artyFxCullRadiusSq = artilleryFxCullRadiusSq(
+        me.x,
+        me.z,
+        pivot.x,
+        pivot.z,
+        halfW,
+        halfH,
+        ARTILLERY_FX_CULL_MARGIN,
+      );
+    } else {
+      artyFxCullRadiusSq = Number.POSITIVE_INFINITY;
+    }
 
     for (const [sessionId, vis] of visuals) {
       const p = getPlayer(playerList, sessionId);
       if (!p) continue;
-      vis.group.position.set(p.x, 0, p.z);
-      vis.group.rotation.y = p.headingRad;
-      vis.rudderLine.rotation.y = rudderRotationRad(p.rudder);
 
-      /** Local: Maus (sofort); Remote: `aimX/aimZ` aus Server (~20 Hz) — gleiche Peilung für alle sichtbar. */
-      const aimWx = sessionId === mySessionId ? samp.aimWorldX : p.aimX;
-      const aimWz = sessionId === mySessionId ? samp.aimWorldZ : p.aimZ;
-      const yawAim = Math.atan2(aimWx - p.x, aimWz - p.z);
-      vis.aimLine.rotation.y = yawAim - p.headingRad;
+      if (sessionId === mySessionId) {
+        /** MVP Task 3: lokaler Spieler — direkte Server-Pose (autoritativ). */
+        vis.group.position.set(p.x, 0, p.z);
+        vis.group.rotation.y = p.headingRad;
+        vis.rudderLine.rotation.y = rudderRotationRad(p.rudder);
+        const aimWx = samp.aimWorldX;
+        const aimWz = samp.aimWorldZ;
+        const yawAim = Math.atan2(aimWx - p.x, aimWz - p.z);
+        vis.aimLine.rotation.y = yawAim - p.headingRad;
+      } else {
+        let buf = remoteInterp.get(sessionId);
+        if (!buf) {
+          buf = createInterpolationBuffer(p, now);
+          remoteInterp.set(sessionId, buf);
+        }
+        const r = sampleInterpolatedPose(buf, now, DEFAULT_INTERPOLATION_DELAY_MS);
+        vis.group.position.set(r.x, 0, r.z);
+        vis.group.rotation.y = r.headingRad;
+        vis.rudderLine.rotation.y = rudderRotationRad(r.rudder);
+        const yawAim = Math.atan2(r.aimX - r.x, r.aimZ - r.z);
+        vis.aimLine.rotation.y = yawAim - r.headingRad;
+      }
 
       if (sessionId === mySessionId && me) {
         updateFollowCamera(camera, p.x, p.z, p.headingRad);
@@ -284,6 +445,7 @@ async function bootstrap(): Promise<void> {
           rudderInput: samp.rudderInput,
           aimX: samp.aimWorldX,
           aimZ: samp.aimWorldZ,
+          primaryFire: samp.primaryFire,
         });
 
         cockpit.update({
@@ -292,9 +454,16 @@ async function bootstrap(): Promise<void> {
           throttle: samp.throttle,
           rudder: p.rudder,
           headingRad: p.headingRad,
+          hp: p.hp,
+          maxHp: p.maxHp,
+          primaryCooldownSec: p.primaryCooldownSec,
         });
       }
     }
+
+    artilleryFx.update(now);
+
+    areaWarningHud.update(me?.oobCountdownSec ?? 0);
 
     renderer.render(scene, camera);
     requestAnimationFrame(frame);

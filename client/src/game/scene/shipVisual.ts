@@ -1,4 +1,5 @@
 import * as THREE from "three";
+import { ARTILLERY_ARC_HALF_ANGLE_RAD } from "@battlefleet/shared";
 import { RUDDER_DEFLECTION_DEG, SHIP_BOW_Z, SHIP_STERN_Z } from "./createGameScene";
 
 const DECK_Y = 1.2;
@@ -78,6 +79,37 @@ export function createShipVisual(options: { isLocal: boolean }): ShipVisual {
     }),
   );
   group.add(aimLine);
+
+  if (options.isLocal) {
+    const arcRadius = 145;
+    const segments = 32;
+    const arcPts: THREE.Vector3[] = [];
+    for (let i = 0; i <= segments; i++) {
+      const u = i / segments;
+      const ang =
+        -ARTILLERY_ARC_HALF_ANGLE_RAD + u * (2 * ARTILLERY_ARC_HALF_ANGLE_RAD);
+      arcPts.push(new THREE.Vector3(Math.sin(ang) * arcRadius, aimY, Math.cos(ang) * arcRadius));
+    }
+    const arcGeom = new THREE.BufferGeometry().setFromPoints(arcPts);
+    const arcMat = new THREE.LineBasicMaterial({
+      color: 0xff9900,
+      transparent: true,
+      opacity: 0.32,
+      fog: false,
+      depthTest: true,
+    });
+    group.add(new THREE.Line(arcGeom, arcMat));
+    const edgePts = (
+      a: number,
+    ): [THREE.Vector3, THREE.Vector3] => [
+      new THREE.Vector3(0, aimY, 0),
+      new THREE.Vector3(Math.sin(a) * arcRadius, aimY, Math.cos(a) * arcRadius),
+    ];
+    for (const a of [-ARTILLERY_ARC_HALF_ANGLE_RAD, ARTILLERY_ARC_HALF_ANGLE_RAD]) {
+      const g = new THREE.BufferGeometry().setFromPoints(edgePts(a));
+      group.add(new THREE.Line(g, arcMat));
+    }
+  }
 
   return { group, aimLine, rudderLine };
 }

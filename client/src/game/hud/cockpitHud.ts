@@ -8,6 +8,9 @@ export type CockpitHudUpdate = {
   throttle: number;
   rudder: number;
   headingRad: number;
+  hp: number;
+  maxHp: number;
+  primaryCooldownSec: number;
 };
 
 function degFromHeading(headingRad: number): number {
@@ -58,6 +61,16 @@ export function createCockpitHud(): { update: (u: CockpitHudUpdate) => void } {
             <div class="cockpit-fill cockpit-fill-rudder"></div>
           </div>
         </div>
+        <div class="cockpit-row cockpit-row-bar">
+          <span class="cockpit-label">HP</span>
+          <div class="cockpit-track cockpit-track-hp">
+            <div class="cockpit-fill cockpit-fill-hp"></div>
+          </div>
+        </div>
+        <div class="cockpit-row">
+          <span class="cockpit-label">Feuer</span>
+          <span class="cockpit-primary-cd">—</span>
+        </div>
       </div>
     </div>
   `;
@@ -67,6 +80,8 @@ export function createCockpitHud(): { update: (u: CockpitHudUpdate) => void } {
   const courseEl = wrap.querySelector(".cockpit-course") as HTMLElement;
   const fillThrottle = wrap.querySelector(".cockpit-fill-throttle") as HTMLElement;
   const fillRudder = wrap.querySelector(".cockpit-fill-rudder") as HTMLElement;
+  const fillHp = wrap.querySelector(".cockpit-fill-hp") as HTMLElement;
+  const primaryCdEl = wrap.querySelector(".cockpit-primary-cd") as HTMLElement;
 
   document.body.appendChild(wrap);
 
@@ -83,7 +98,16 @@ export function createCockpitHud(): { update: (u: CockpitHudUpdate) => void } {
   }
 
   return {
-    update({ speed, maxSpeed, throttle, rudder, headingRad }: CockpitHudUpdate): void {
+    update({
+      speed,
+      maxSpeed,
+      throttle,
+      rudder,
+      headingRad,
+      hp,
+      maxHp,
+      primaryCooldownSec,
+    }: CockpitHudUpdate): void {
       const deg = degFromHeading(headingRad);
       card.style.transform = `rotate(${-deg}deg)`;
 
@@ -107,6 +131,22 @@ export function createCockpitHud(): { update: (u: CockpitHudUpdate) => void } {
 
       const speedRatio = maxSpeed > 0 ? Math.min(1, Math.abs(speed) / maxSpeed) : 0;
       wrap.style.setProperty("--speed-glow", String(0.15 + speedRatio * 0.55));
+
+      const hpRatio = maxHp > 0 ? Math.max(0, Math.min(1, hp / maxHp)) : 0;
+      fillHp.style.left = "0%";
+      fillHp.style.width = `${hpRatio * 100}%`;
+      fillHp.style.background =
+        hpRatio > 0.35
+          ? "linear-gradient(90deg, rgba(80,200,120,0.4), rgba(120,255,160,0.95))"
+          : "linear-gradient(90deg, rgba(255,200,80,0.5), rgba(255,90,90,0.95))";
+
+      if (primaryCooldownSec > 0.05) {
+        primaryCdEl.textContent = `${primaryCooldownSec.toFixed(1)} s`;
+        primaryCdEl.style.opacity = "0.9";
+      } else {
+        primaryCdEl.textContent = "bereit";
+        primaryCdEl.style.opacity = "0.55";
+      }
     },
   };
 }

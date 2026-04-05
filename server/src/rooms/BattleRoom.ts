@@ -1,12 +1,24 @@
-import { Client, Room } from "@colyseus/core";
+import { Protocol, Room } from "@colyseus/core";
+import type { Client } from "@colyseus/core";
 import {
+  AREA_OF_OPERATIONS_HALF_EXTENT,
+  ARTILLERY_DAMAGE,
+  ARTILLERY_PLAYER_MAX_HP,
+  ARTILLERY_PRIMARY_COOLDOWN_MS,
+  ARTILLERY_SPLASH_RADIUS,
   BattleState,
+  DEFAULT_MAP_ISLANDS,
   DESTROYER_LIKE_MVP,
+  OOB_DESTROY_AFTER_MS,
   PlayerState,
   ShipMovementState,
   createShipState,
+  isInsideOperationalArea,
+  resolveShipIslandCollisions,
   smoothRudder,
   stepMovement,
+  tryComputeArtillerySalvo,
+  classifyArtilleryImpactVisual,
 } from "@battlefleet/shared";
 
 const TICK_HZ = 20;
@@ -16,6 +28,8 @@ export type InputPayload = {
   rudderInput: number;
   aimX?: number;
   aimZ?: number;
+  /** True solange LMB gehalten (Client); `tryPrimaryFire` feuert nur nach Ablauf des Cooldowns. */
+  primaryFire?: boolean;
 };
 
 type SimEntry = {
@@ -23,6 +37,17 @@ type SimEntry = {
   lastRudderInput: number;
   aimX: number;
   aimZ: number;
+  oobSinceMs: number | null;
+  /** Date.now() ab dem Primärfeuer erlaubt ist. */
+  primaryReadyAtMs: number;
+};
+
+type PendingShell = {
+  impactAtMs: number;
+  landX: number;
+  landZ: number;
+  ownerSessionId: string;
+  shellId: number;
 };
 
 function clampUnit(n: number): number {
@@ -31,12 +56,12 @@ function clampUnit(n: number): number {
 
 export class BattleRoom extends Room<BattleState> {
   private readonly cfg = DESTROYER_LIKE_MVP;
-  /** Nicht im Schema: reine Server-Simulation. */
   private sim = new Map<string, SimEntry>();
+  private pendingShells: PendingShell[] = [];
+  private nextShellId = 1;
 
   onCreate() {
     this.setState(new BattleState());
-    /** Matchmaking-Reservierung länger als Default (15s), sonst „seat reservation expired“ bei Dev/HMR/langsamen WS. */
     this.setSeatReservationTime(60);
     console.log("[BattleRoom] onCreate, roomId=%s", this.roomId);
 
@@ -54,6 +79,10 @@ export class BattleRoom extends Room<BattleState> {
       const az = payload.aimZ;
       if (typeof ax === "number" && Number.isFinite(ax)) row.aimX = ax;
       if (typeof az === "number" && Number.isFinite(az)) row.aimZ = az;
+
+      if (payload.primaryFire === true) {
+        this.tryPrimaryFire(client, row);
+      }
     });
 
     this.setSimulationInterval((timeDelta) => {
@@ -74,7 +103,14 @@ export class BattleRoom extends Room<BattleState> {
     const ship = createShipState(spawnX, spawnZ);
     const aimX = spawnX;
     const aimZ = spawnZ + 80;
-    this.sim.set(client.sessionId, { ship, lastRudderInput: 0, aimX, aimZ });
+    this.sim.set(client.sessionId, {
+      ship,
+      lastRudderInput: 0,
+      aimX,
+      aimZ,
+      oobSinceMs: null,
+      primaryReadyAtMs: 0,
+    });
 
     const ps = new PlayerState();
     ps.id = client.sessionId;
@@ -85,6 +121,10 @@ export class BattleRoom extends Room<BattleState> {
     ps.rudder = ship.rudder;
     ps.aimX = aimX;
     ps.aimZ = aimZ;
+    ps.oobCountdownSec = 0;
+    ps.hp = ARTILLERY_PLAYER_MAX_HP;
+    ps.maxHp = ARTILLERY_PLAYER_MAX_HP;
+    ps.primaryCooldownSec = 0;
     this.state.playerList.push(ps);
     console.log(
       "[BattleRoom] onJoin sessionId=%s playerList.length=%d roomId=%s",
@@ -104,9 +144,97 @@ export class BattleRoom extends Room<BattleState> {
         break;
       }
     }
+    this.pendingShells = this.pendingShells.filter(
+      (s) => s.ownerSessionId !== client.sessionId,
+    );
+  }
+
+  private tryPrimaryFire(client: Client, row: SimEntry): void {
+    const now = Date.now();
+    if (now < row.primaryReadyAtMs) return;
+
+    const salvo = tryComputeArtillerySalvo(
+      row.ship.x,
+      row.ship.z,
+      row.ship.headingRad,
+      row.aimX,
+      row.aimZ,
+    );
+    if (!salvo.ok) return;
+
+    row.primaryReadyAtMs = now + ARTILLERY_PRIMARY_COOLDOWN_MS;
+    const shellId = this.nextShellId++;
+    this.pendingShells.push({
+      impactAtMs: now + salvo.flightMs,
+      landX: salvo.landX,
+      landZ: salvo.landZ,
+      ownerSessionId: client.sessionId,
+      shellId,
+    });
+
+    this.broadcast("artyFired", {
+      shellId,
+      ownerId: client.sessionId,
+      fromX: row.ship.x,
+      fromZ: row.ship.z,
+      toX: salvo.landX,
+      toZ: salvo.landZ,
+      flightMs: salvo.flightMs,
+    });
+  }
+
+  private resolveShellImpacts(now: number): Client[] {
+    const toKill: Client[] = [];
+    const stay: PendingShell[] = [];
+    const splashSq = ARTILLERY_SPLASH_RADIUS * ARTILLERY_SPLASH_RADIUS;
+
+    for (const sh of this.pendingShells) {
+      if (sh.impactAtMs > now) {
+        stay.push(sh);
+        continue;
+      }
+
+      let damagedAnyEnemy = false;
+      for (const p of this.state.playerList) {
+        if (p.id === sh.ownerSessionId) continue;
+        if (p.hp <= 0) continue;
+        const dx = p.x - sh.landX;
+        const dz = p.z - sh.landZ;
+        if (dx * dx + dz * dz > splashSq) continue;
+        damagedAnyEnemy = true;
+        p.hp = Math.max(0, p.hp - ARTILLERY_DAMAGE);
+        if (p.hp <= 0) {
+          const c = this.clients.getById(p.id);
+          if (c) toKill.push(c);
+        }
+      }
+
+      const kind = classifyArtilleryImpactVisual(
+        sh.landX,
+        sh.landZ,
+        damagedAnyEnemy,
+        DEFAULT_MAP_ISLANDS,
+      );
+      this.broadcast("artyImpact", {
+        shellId: sh.shellId,
+        x: sh.landX,
+        z: sh.landZ,
+        kind,
+      });
+    }
+
+    this.pendingShells = stay;
+    return toKill;
   }
 
   private physicsStep(dt: number): void {
+    const now = Date.now();
+    const half = AREA_OF_OPERATIONS_HALF_EXTENT;
+
+    const killFromArtillery = this.resolveShellImpacts(now);
+    const artKillClients = new Set(killFromArtillery);
+    const clientsToObliterate: Client[] = [...artKillClients];
+
     for (const [sessionId, row] of this.sim) {
       row.ship.rudder = smoothRudder(
         row.ship.rudder,
@@ -115,6 +243,7 @@ export class BattleRoom extends Room<BattleState> {
         dt,
       );
       stepMovement(row.ship, this.cfg, dt);
+      resolveShipIslandCollisions(row.ship, DEFAULT_MAP_ISLANDS);
 
       let p: PlayerState | undefined;
       for (const entry of this.state.playerList) {
@@ -131,7 +260,42 @@ export class BattleRoom extends Room<BattleState> {
         p.rudder = row.ship.rudder;
         p.aimX = row.aimX;
         p.aimZ = row.aimZ;
+
+        p.primaryCooldownSec = Math.max(
+          0,
+          (row.primaryReadyAtMs - now) / 1000,
+        );
+
+        const inside = isInsideOperationalArea(row.ship.x, row.ship.z, half);
+        if (inside) {
+          row.oobSinceMs = null;
+          p.oobCountdownSec = 0;
+        } else {
+          if (row.oobSinceMs == null) {
+            row.oobSinceMs = now;
+          }
+          const elapsed = now - row.oobSinceMs;
+          if (elapsed >= OOB_DESTROY_AFTER_MS) {
+            p.oobCountdownSec = 0;
+            const c = this.clients.getById(sessionId);
+            if (c) {
+              clientsToObliterate.push(c);
+            }
+          } else {
+            p.oobCountdownSec = Math.max(0, (OOB_DESTROY_AFTER_MS - elapsed) / 1000);
+          }
+        }
       }
+    }
+
+    const kicked = new Set<Client>();
+    for (const c of clientsToObliterate) {
+      if (kicked.has(c)) continue;
+      kicked.add(c);
+      const reason = artKillClients.has(c)
+        ? "destroyed_in_combat"
+        : "left_operational_area";
+      c.leave(Protocol.WS_CLOSE_WITH_ERROR, reason);
     }
   }
 }
