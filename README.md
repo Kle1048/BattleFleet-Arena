@@ -1,6 +1,6 @@
 # BattleFleet-Arena
 
-Browser-Multiplayer (Three.js + Colyseus + Node.js) laut `PRD.md` und `Project_Plan.md`. Enthält **Task 2–8 (MVP)** — Netz, Interpolation, AO & Inseln, **Primär-Artillerie** (Plan A), **HP** & **Respawn** mit `lifeState` (**5 s** Timer, **3 s** Spawn-Schutz ohne Splash-Schaden). **Außerhalb AO** nach **10 s** dasselbe wie Kampftod (kein Disconnect).
+Browser-Multiplayer (Three.js + Colyseus + Node.js) laut `PRD.md` und `Project_Plan.md`. Enthält **Task 2–9 (MVP)** — Netz, Interpolation, AO & Inseln, **Primär-Artillerie** (Plan A), **HP** & **Respawn** mit `lifeState` (**5 s** Timer, **3 s** Spawn-Schutz ohne Splash-Schaden), **ASuM**, **Torpedo**, **SAM/CIWS** (nur gegen eingehende ASuM). **Außerhalb AO** nach **10 s** dasselbe wie Kampftod (kein Disconnect).
 
 ## Voraussetzungen
 
@@ -59,7 +59,9 @@ npm run build
 
 8. **Torpedo (Task 8):** Taste **Q** oder **mittlere Maustaste halten** — ein Torpedo in **Peilrichtung**, **geradeaus** (ohne Homing), langsamer als ASuM. Max. **1** aktiv, **~7,5 s** Cooldown (**Torpedo** im Cockpit). Insel- und AO-Detonation wie ASuM.
 
-9. **Artillerie (Task 5) & Leben (Task 6):** **Linke Maustaste halten** (Cooldown **0,5 s**), Ziel im Bug-Feuerbogen (**±120°**). Bei **HP 0** (Treffer oder OOB-Timeout): zentrale Meldung „Zerstört …“, **Wrack**-Darstellung, Cockpit-**Respawn** (~**5 s**), dann **Spawn-Schutz** (~**3 s**, kein Splash-Schaden; Schießen erlaubt). Verbindung bleibt bestehen.
+9. **Luftabwehr (Task 9 — SAM + CIWS):** Automatisch gegen **eingehende ASuM** (Zielrichtung des Geschosses → Verteidiger mit `targetId` oder nächster Gegner im **SAM**-Gürtel). **SAM**-Reichweite **100 m**, **CIWS** **50 m** (serverseitig; SAM vor CIWS, Wahrscheinlichkeit + Cooldowns in `shared/airDefense.ts`). **Torpedos** werden **nicht** abgefangen. Server: `airDefenseFire` (Feuer), im **nächsten Tick** Wurf → bei Treffer `airDefenseIntercept` und Rakete weg; Client: VFX/Puls (`airDefenseFx.ts`).
+
+10. **Artillerie (Task 5) & Leben (Task 6):** **Linke Maustaste halten** (Cooldown **0,5 s**), Ziel im Bug-Feuerbogen (**±120°**). Bei **HP 0** (Treffer oder OOB-Timeout): zentrale Meldung „Zerstört …“, **Wrack**-Darstellung, Cockpit-**Respawn** (~**5 s**), dann **Spawn-Schutz** (~**3 s**, kein Splash-Schaden; Schießen erlaubt). Verbindung bleibt bestehen.
 
 ## Projektstruktur (Monorepo)
 
@@ -67,8 +69,8 @@ npm run build
 |--------|--------|
 | `client/` | Vite, Three.js, Colyseus-Client |
 | `server/` | Colyseus, `BattleRoom`, Express-HTTP |
-| `shared/` | Schema (**`missileList`**, **`torpedoList`**), `shipMovement`, `mapBounds`, `islands`, **`artillery`**, **`aswm`**, **`torpedo`**, **`playerLife`**, **`respawn`** |
-| `docs/` | `ARCHITECTURE.md` — Task **7–8** (ASuM, Torpedo) |
+| `shared/` | Schema (**`missileList`**, **`torpedoList`**), `shipMovement`, `mapBounds`, `islands`, **`artillery`**, **`aswm`**, **`torpedo`**, **`airDefense`**, **`playerLife`**, **`respawn`** |
+| `docs/` | `ARCHITECTURE.md` — Task **7–9** (ASuM, Torpedo, SAM/CIWS) |
 
 ## Weiterführend
 

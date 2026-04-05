@@ -213,8 +213,10 @@ export function tryComputeArtillerySalvo(
   aimX: number,
   aimZ: number,
   rng: () => number = Math.random,
+  /** Task 12 — klassenabhängiger Bug-Bogen (Standard = ±120°). */
+  arcHalfAngleRad: number = ARTILLERY_ARC_HALF_ANGLE_RAD,
 ): ArtilleryFireResult {
-  if (!isInForwardArc(shipX, shipZ, headingRad, aimX, aimZ, ARTILLERY_ARC_HALF_ANGLE_RAD)) {
+  if (!isInForwardArc(shipX, shipZ, headingRad, aimX, aimZ, arcHalfAngleRad)) {
     return { ok: false, reason: "out_of_arc" };
   }
 
@@ -240,7 +242,7 @@ export function tryComputeArtillerySalvo(
   const bow = forwardXZ(headingRad);
   const aimAngle = Math.atan2(dir.x, dir.z);
   const bowAngle = Math.atan2(bow.x, bow.z);
-  if (Math.abs(shortestAngleDelta(bowAngle, aimAngle)) > ARTILLERY_ARC_HALF_ANGLE_RAD + 1e-3) {
+  if (Math.abs(shortestAngleDelta(bowAngle, aimAngle)) > arcHalfAngleRad + 1e-3) {
     return { ok: false, reason: "spread_out_of_arc" };
   }
 

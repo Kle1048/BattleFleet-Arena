@@ -19,9 +19,9 @@ Dieses Dokument bricht die MVP-Anforderungen aus `PRD.md` in **inkrementelle Tas
 | 7 | **Abgeschlossen** (MVP ASuM) — Feuerrichtung, Kegel ±30°/210 m, Homing, Insel-Detonation | RMB, HUD **ASuM**, Einschlag `hit`/`island`/`oob` |
 | 8 | **Abgeschlossen** (MVP) — Torpedos geradeaus, langsamer, Insel/AO | **Q** oder **Mittelklick**, HUD **Torpedo** |
 | 9 | **Abgeschlossen** (MVP) — SAM + CIWS (logische Interception) | Eingehende **ASuM** teils **`airDefenseIntercept`** (Ring SAM blau / CIWS gelb); Torpedos nicht |
-| 10 | Match-Timer, Score, Kills/Assists, Endscreen | 12-Minuten-Match, Siegerliste |
-| 11 | In-Match-XP, Level 1–10, Stat-Skalierung, Fähigkeiten (MVP) | Level-Up im HUD |
-| 12 | 3 Schiffsklassen, Klassenauswahl, HUD/Audio-Polish | Voller MVP-Flow |
+| 10 | **Abgeschlossen** (MVP) — Match-Timer via `MATCH_DURATION_SEC` (derzeit **1 min** Test; PRD 12 min), Score (**100**/Kill) | Kein Assist: **letzter Treffer** erhält den Kill; OOB ohne Punkte |
+| 11 | **Abgeschlossen** (MVP Kern) — XP/Level 1–10 pro Leben, Stat-Skalierung, Tod → Reset | Level + XP + Toast im Cockpit; keine extra „Fähigkeiten“-Skills |
+| 12 | **Abgeschlossen** (MVP) — **FAC / Zerstörer / Kreuzer**, Join-Option **`shipClass`**, Stats/Bogen/Silhouette, Web-Audio | Klassen-Overlay → Match; HUD **Klasse**; Sounds: Feuer, Treffer nah, Level, OOB |
 
 **Querschnitt ab Task 2:** Debug-Overlay (**FPS**, **Ping**, **Room-ID**, Spielerzahl) — umgesetzt.
 
@@ -183,7 +183,7 @@ Dieses Dokument bricht die MVP-Anforderungen aus `PRD.md` in **inkrementelle Tas
 
 **Test:** Zwei Tabs; einen auf 0 HP — Countdown, Respawn, Schutz-Anzeige, wieder verwundbar. Optional: AO für **10 s** missachten → gleicher Respawn wie bei Treffer. Progression (Level-Reset) kommt in Task 11.
 
-**Nächster planmäßiger Task:** **Task 10** (Match, Score, Ende).
+**Nächster planmäßiger Task:** **Task 7** (ASuM).
 
 ---
 
@@ -234,7 +234,7 @@ Dieses Dokument bricht die MVP-Anforderungen aus `PRD.md` in **inkrementelle Tas
 
 **Test:** Zwei Tabs; **Q** oder Mittelklick — Torpedo in Peilrichtung, deutlich langsamer als ASuM; Treffer auf Gegner; Aufprall auf **Insel** / **AO-Rand**.
 
-**Nächster planmäßiger Task:** **Task 10** (Match, Score, Ende).
+**Nächster planmäßiger Task:** **Task 9** (SAM/CIWS).
 
 ---
 
@@ -252,48 +252,86 @@ Dieses Dokument bricht die MVP-Anforderungen aus `PRD.md` in **inkrementelle Tas
 |------|--------|
 | `shared/airDefense.ts`: Reichweiten, Cooldowns, **`pickAirDefenseEngagementLayer`** / **`rollAirDefenseHit`**; Feuer vs. Wurf 1 Tick getrennt | Erfüllt |
 | Server `SimEntry`: `adSamNextAtMs` / `adCiwsNextAtMs`; Join/Respawn **0**; nur bei tatsächlichem Wurf Cooldown | Erfüllt (`BattleRoom`) |
-| **`stepMissiles`:** vor Schiffstreffer — Air Defense gegen **ASuM** bei **`m.targetId`** oder **nächster Gegner in SAM-Reichweite**; bei Erfolg **`airDefenseIntercept`** (`weapon: "aswm"`, `defenderX`/`defenderZ`) + Rakete entfernen | Erfüllt |
+| **`stepMissiles`:** vor Schiffstreffer — bei Eintritt/bereitem Layer **`airDefenseFire`** (Pending pro Rakete); **nächster Tick** `rollAirDefenseHit` → Treffer **`airDefenseIntercept`** (`weapon: "aswm"`, `defenderX`/`defenderZ`) + Rakete entfernen; Fehlschuss nur Cooldown. Verteidigung **`m.targetId`** oder **nächster Gegner in SAM-Reichweite** | Erfüllt |
 | **Torpedos:** keine SAM/CIWS (Unterwasser / außerhalb Rollenmodell) | Erfüllt |
 | Client: **`airDefenseFire`** → Flug-VFX; **`airDefenseIntercept`** → Burst + HUD-Puls (`airDefenseFx`, `main.ts` `*`) | Erfüllt |
 
 **Test:** Salven und Einzelraketen — teils Abfang, teils Treffer.
 
----
-
-## Task 10 — Match, Score, Ende
-
-**Ziele:**
-
-- FFA, max. 16 Spieler, **12 Minuten** Timer.
-- Punkte: Kill 100, Assist 40 (Assist-Attribution serverseitig aus letzten Schadensgebern).
-- Match-Ende: Scoreboard, Requeue / Play again.
-
-**Test:** Vollständiger Match-Durchlauf bis Timer.
+**Nächster planmäßiger Task:** **Task 10** (Match, Score, Ende).
 
 ---
 
-## Task 11 — In-Match-Progression
+## Task 10 — Match, Score, Ende — **abgeschlossen (MVP)**
 
 **Ziele:**
 
-- XP-Schwellen wie PRD (Level 1–10 pro Leben).
-- Bei Tod: Reset auf Level 1.
-- Pro Level: HP, Reload, leichte Mobilität/Abwehr; optional Meilensteine Level 3/5/7/10 mit einfachen Fähigkeiten.
+- FFA, max. 16 Spieler, Match-Dauer **`shared/match.ts` → `MATCH_DURATION_SEC`** (aktuell **60 s** zum Testen; Produktziel PRD **12 min**), ab `BattleRoom`-Erstellung.
+- Punkte: **Kill 100** — **kein Assist**; der Spieler mit dem **tödlichen Treffer** (Artillerie / ASuM / Torpedo) erhält Score + Kill-Zähler. **OOB**-Tod: keine Punkte.
+- Match-Ende: Kampf stoppt (keine neuen Treffer/Projektile), **`matchEnded`** + Scoreboard, **Erneut spielen** (Reload → neuer Raum).
 
-**Test:** XP durch Kills/Assists, Level-Up sichtbar im HUD.
+**Ist / Abnahme Task 10:**
+
+| Ziel | Status |
+|------|--------|
+| `shared/match.ts` — Dauer, `SCORE_PER_KILL`, Hilfen | Erfüllt |
+| `BattleState`: `matchPhase`, `matchRemainingSec`; `PlayerState`: `score`, `kills` | Erfüllt (`schema.ts`) |
+| Server: Timer, `endMatch`, Kill nur bei Combat-Tod mit Killer-Id | Erfüllt (`BattleRoom.ts`) |
+| Client: Cockpit Matchzeit + Punkte, `matchEndHud` | Erfüllt |
+
+**Test:** Match bis 0:00; Scoreboard; zweiter Tab zeigt konsistente Punkte nach Kill.
+
+**Nächster planmäßiger Task:** **Task 11** (In-Match-Progression).
 
 ---
 
-## Task 12 — Schiffsklassen & UX/Audio
+## Task 11 — In-Match-Progression — **abgeschlossen (MVP Kern)**
 
 **Ziele:**
 
-- Drei Klassen: **FAC**, **Destroyer**, **Cruiser** — unterscheidbare Stats, Bögen, Defensive, Silhouette.
-- Vor Match: Klassenwahl, dann Quick-Join in offenen Raum.
-- HUD: HP, Level, XP, Cooldowns, Bögen in/out, Timer, Score, Meldungen.
-- Mindest-Audio: Waffen, Treffer, Level-Up, Warnungen (PRD 24).
+- XP-Schwellen Level **1–10** pro Leben (`shared/progression.ts`, Kill = **100 XP** — wie Match-Score-Granularität, kein Assist).
+- Bei **Tod** (Kampf oder OOB): **Level 1**, **XP 0**, Basismax-HP.
+- Pro Level: **max HP ↑**, **kürzere** Primär-/ASuM-/Torpedo-CD, **etwas** mehr Top-Speed & Drehrate, **etwas weniger** eingehenden Schaden.
+- *(Optional PRD: Meilenstein-Fähigkeiten L3/5/7/10 — nicht umgesetzt; nur passive Skalierung.)*
 
-**Test:** End-to-end wie MVP-Akzeptanzkriterien im PRD.
+**Ist / Abnahme Task 11:**
+
+| Ziel | Status |
+|------|--------|
+| `PlayerState`: `level`, `xp`; `progression.ts` Schwellen & Helfer | Erfüllt |
+| Kill → XP + Level-Up-Schleife, HP-Bonus bei Up (`grantXpForKill`) | Erfüllt (`BattleRoom`) |
+| Waffen-CD / Movement / Schadensreduktion vom Level | Erfüllt |
+| Client: Cockpit **Level** + ** XP** (`a/b` bis nächstes Level), Toast bei Aufstieg | Erfüllt (`main.ts`, `cockpitHud`) |
+| Neues Leben / `resetMatchForNewRound`: Progression zurück | Erfüllt |
+
+**Test:** Kill Gegner → XP steigt; bei Schwelle Level-Up + Toast; sterben → wieder L1/0 XP.
+
+**Nächster planmäßiger Task:** **Task 12** (Schiffsklassen & UX/Audio).
+
+---
+
+## Task 12 — Schiffsklassen & UX/Audio — **abgeschlossen (MVP)**
+
+**Ziele:**
+
+- Drei Klassen: **FAC**, **Zerstörer**, **Kreuzer** — unterscheidbare Stats, Bug-Bogen, Schadens-Mitigation, **Skalierung der Silhouette** (`shipVisual`).
+- Vor Match: **Klassenwahl** (`classPicker`), dann `joinOrCreate("battle", { shipClass })` — Server `onJoin(..., options)`.
+- HUD: weiter **Level, XP, Cooldowns, Match, Punkte** + Zeile **Klasse**.
+- **Web-Audio (minimal):** eigener Artillerie-Schuss, ASuM, Torpedo, Treffer in der Nähe, Level-Up, OOB-Warnung (einmal pro Grenzübertritt).
+
+**Ist / Abnahme Task 12:**
+
+| Ziel | Status |
+|------|--------|
+| `shared/shipClass.ts` — Profile, `normalizeShipClassId`, `getShipClassProfile` | Erfüllt |
+| `PlayerState.shipClass`; Artillerie `tryComputeArtillerySalvo(..., arcHalf)` | Erfüllt |
+| Server: Movement/HP-Basis/CD/ASuM-Cap/Torpedo-Cap/Schaden pro Klasse | Erfüllt (`BattleRoom`) |
+| Client: Picker, Silhouette + lokaler Feuerbogen, Cockpit **Klasse** | Erfüllt |
+| `gameAudio.ts` — Kurz-Töne an Events | Erfüllt (`main.ts`) |
+
+**Test:** Zwei Tabs, unterschiedliche Klassen — sichtbare Größen-/Bogen-Unterschiede; Join nur nach Auswahl.
+
+**Hinweis:** Voller PRD-MVP (Menü, Klassen **Cruiser**-Benennung engl. im Code `cruiser`) — für spätere Lobby/Persistenz offen.
 
 ---
 
@@ -305,7 +343,7 @@ Erfolg, wenn u. a.:
 - Schiffsbewegung gewichtet, Waffen responsiv, **Bögen** spürbar.
 - Artillerie, Raketen, Torpedos, SAM/CIWS funktionieren stabil.
 - XP/Level pro Leben, Tod setzt Progress zurück.
-- HUD und 12-Minuten-Match ohne systemische Abstürze.
+- HUD und Match bis Timer-Ende ohne systemische Abstürze.
 
 ---
 

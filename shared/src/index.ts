@@ -8,3 +8,7 @@ export * from "./respawn";
 export * from "./aswm";
 export * from "./torpedo";
 export * from "./airDefense";
+export * from "./match";
+export * from "./progression";
+export * from "./shipClass";
+export * from "./displayName";

@@ -1,6 +1,8 @@
 import { ArraySchema, Schema, defineTypes } from "@colyseus/schema";
 import { ARTILLERY_PLAYER_MAX_HP } from "./artillery";
+import { MATCH_DURATION_SEC, MATCH_PHASE_RUNNING } from "./match";
 import { PlayerLifeState } from "./playerLife";
+import { SHIP_CLASS_DESTROYER } from "./shipClass";
 
 /**
  * Keine Klassenfeld-Initialisierer (`id = ""`, `playerList = new ArraySchema()`) bei target ES2022:
@@ -39,6 +41,18 @@ export class PlayerState extends Schema {
   declare secondaryCooldownSec: number;
   /** Sekunden bis Torpedo bereit (~20 Hz). Task 8. */
   declare torpedoCooldownSec: number;
+  /** Task 10 — Punktestand (nur Kills, kein Assist). */
+  declare score: number;
+  /** Task 10 — Kills (tödlicher Treffer). */
+  declare kills: number;
+  /** Task 11 — Level 1…10 im aktuellen Leben. */
+  declare level: number;
+  /** Task 11 — kumulative XP im aktuellen Leben. */
+  declare xp: number;
+  /** Task 12 — `fac` | `destroyer` | `cruiser` (Klassenwahl beim Join). */
+  declare shipClass: string;
+  /** Anzeigename (Lobby), serverbereinigt, max. Länge s. `displayName.ts`. */
+  declare displayName: string;
 
   constructor() {
     super();
@@ -59,6 +73,12 @@ export class PlayerState extends Schema {
     this.spawnProtectionSec = 0;
     this.secondaryCooldownSec = 0;
     this.torpedoCooldownSec = 0;
+    this.score = 0;
+    this.kills = 0;
+    this.level = 1;
+    this.xp = 0;
+    this.shipClass = SHIP_CLASS_DESTROYER;
+    this.displayName = "";
   }
 }
 
@@ -80,6 +100,12 @@ defineTypes(PlayerState, {
   spawnProtectionSec: "number",
   secondaryCooldownSec: "number",
   torpedoCooldownSec: "number",
+  score: "number",
+  kills: "number",
+  level: "number",
+  xp: "number",
+  shipClass: "string",
+  displayName: "string",
 });
 
 /** Replizierte Lenkflugkörper (Task 7); Server autoritativ. */
@@ -142,12 +168,18 @@ export class BattleState extends Schema {
   declare playerList: ArraySchema<PlayerState>;
   declare missileList: ArraySchema<MissileState>;
   declare torpedoList: ArraySchema<TorpedoState>;
+  /** Task 10 — `running` | `ended`. */
+  declare matchPhase: string;
+  /** Task 10 — verbleibende Sekunden (~20 Hz), 0 wenn beendet. */
+  declare matchRemainingSec: number;
 
   constructor() {
     super();
     this.playerList = new ArraySchema<PlayerState>();
     this.missileList = new ArraySchema<MissileState>();
     this.torpedoList = new ArraySchema<TorpedoState>();
+    this.matchPhase = MATCH_PHASE_RUNNING;
+    this.matchRemainingSec = MATCH_DURATION_SEC;
   }
 }
 
@@ -155,4 +187,6 @@ defineTypes(BattleState, {
   playerList: [PlayerState],
   missileList: [MissileState],
   torpedoList: [TorpedoState],
+  matchPhase: "string",
+  matchRemainingSec: "number",
 });

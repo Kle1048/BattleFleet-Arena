@@ -32,7 +32,7 @@ BattleFleet-Arena/
 │       ├── artillery.ts    # Feuerbogen, Streuung, Flugzeit; Insel-Helfer für VFX-Klassifikation (Schuss ohne Insel-Sperre)
 │       ├── aswm.ts        # Task 7: ASuM Homing, Zielwahl, Konstanten
 │       ├── torpedo.ts     # Task 8: Torpedo geradeaus, Spawn, Konstanten
-│       ├── airDefense.ts  # Task 9: SAM/CIWS `attemptAirDefense`, Reichweiten, Cooldowns
+│       ├── airDefense.ts  # Task 9: SAM/CIWS Layer-Pick + Roll, Reichweiten (100/50 m), Cooldowns
 │       ├── playerLife.ts  # PlayerLifeState, Invarianten, Schaden/Feuer/Physik-Gates
 │       ├── respawn.ts      # tryPickRespawnPosition (AO, Insel-Marge, Mindestabstand)
 │       └── shipMovement.ts # stepMovement, smoothRudder, Config (Server + Zielbild Client)
@@ -51,7 +51,7 @@ BattleFleet-Arena/
 | `schema.ts` | `BattleState` (`playerList`, **`missileList`**, **`torpedoList`**), `PlayerState` (…, **`secondaryCooldownSec`**, **`torpedoCooldownSec`**), **`MissileState`**, **`TorpedoState`** |
 | `aswm.ts` | Start **Feuerrichtung** (Schiff→Aim); Suchkegel **±30°** + Tiefe **`ASWM_ACQUIRE_CONE_LENGTH`** um **aktuelle** Flugrichtung; `pickAswmAcquisitionTarget`, `spawnAswmFromFireDirection`, `stepAswmMissile`; Konstanten inkl. `ASWM_ISLAND_COLLISION_RADIUS` |
 | `torpedo.ts` | `spawnTorpedoFromFireDirection`, `stepTorpedoStraight` — langsamer als ASuM, **ohne Homing**; `TORPEDO_*` Konstanten inkl. Inselradius |
-| `airDefense.ts` | `pickAirDefenseEngagementLayer` / `rollAirDefenseHit` / Cooldowns: **SAM** vor **CIWS**; **Feuer** und **Wurf** um einen Simulationstick versetzt (`airDefenseFire` → nächster Tick Roll); `AD_SAM_RANGE` / `AD_CIWS_RANGE` |
+| `airDefense.ts` | `pickAirDefenseEngagementLayer` / `rollAirDefenseHit` / Cooldowns: **SAM** vor **CIWS**; **Feuer** und **Wurf** um einen Simulationstick versetzt (`airDefenseFire` → nächster Tick Roll); Reichweiten **100 m** (**SAM**) / **50 m** (**CIWS**) — `AD_SAM_RANGE` / `AD_CIWS_RANGE` |
 | `playerLife.ts` | `PlayerLifeState`, `canTakeArtillerySplashDamage`, `canUsePrimaryWeapon`, `participatesInWorldSimulation`, `assertPlayerLifeInvariant` |
 | `respawn.ts` | `tryPickRespawnPosition` (AO, Inselfreiheit, Abstand zu anderen Schiffen) |
 | `mapBounds.ts` | `AREA_OF_OPERATIONS_HALF_EXTENT`, `OOB_DESTROY_AFTER_MS`, `isInsideOperationalArea` |

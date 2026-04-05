@@ -107,3 +107,10 @@ export function shortSessionIdForMessage(id: string): string {
   if (id.length <= 10) return id;
   return `${id.slice(0, 4)}…${id.slice(-4)}`;
 }
+
+/** Schema-`displayName` (falls gesetzt), sonst gekürzte Session-ID. */
+export function playerDisplayLabel(p: { id: string; displayName?: string }): string {
+  const n = typeof p.displayName === "string" ? p.displayName.trim() : "";
+  if (n.length > 0) return n;
+  return shortSessionIdForMessage(p.id);
+}

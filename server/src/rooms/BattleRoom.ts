@@ -4,29 +4,25 @@ import {
   AREA_OF_OPERATIONS_HALF_EXTENT,
   ARTILLERY_DAMAGE,
   ARTILLERY_PLAYER_MAX_HP,
-  ARTILLERY_PRIMARY_COOLDOWN_MS,
   ARTILLERY_SPLASH_RADIUS,
-  ASWM_COOLDOWN_MS,
   ASWM_DAMAGE,
   ASWM_HIT_RADIUS,
   ASWM_ISLAND_COLLISION_RADIUS,
   ASWM_LIFETIME_MS,
-  ASWM_MAX_PER_OWNER,
   type AswmTargetCandidate,
   BattleState,
   DEFAULT_MAP_ISLANDS,
   DESTROYER_LIKE_MVP,
   MissileState,
   OOB_DESTROY_AFTER_MS,
-  TORPEDO_COOLDOWN_MS,
   TORPEDO_DAMAGE,
   TORPEDO_HIT_RADIUS,
   TORPEDO_ISLAND_COLLISION_RADIUS,
   TORPEDO_LIFETIME_MS,
-  TORPEDO_MAX_PER_OWNER,
   TorpedoState,
   PlayerLifeState,
   PlayerState,
+  type ShipMovementConfig,
   ShipMovementState,
   assertPlayerLifeInvariant,
   canTakeArtillerySplashDamage,
@@ -55,6 +51,23 @@ import {
   stepMovement,
   tryComputeArtillerySalvo,
   tryPickRespawnPosition,
+  MATCH_DURATION_MS,
+  MATCH_PHASE_ENDED,
+  MATCH_PHASE_RUNNING,
+  SCORE_PER_KILL,
+  isValidKillAttribution,
+  PROGRESSION_XP_PER_KILL,
+  progressionIncomingDamageFactor,
+  progressionLevelFromTotalXp,
+  progressionMaxHpForLevel,
+  progressionMovementScale,
+  progressionPrimaryCooldownMs,
+  progressionSecondaryCooldownMs,
+  progressionTorpedoCooldownMs,
+  sanitizePlayerDisplayName,
+  getShipClassProfile,
+  shipClassBaseMaxHp,
+  normalizeShipClassId,
 } from "@battlefleet/shared";
 
 const TICK_HZ = 20;
@@ -127,15 +140,24 @@ export class BattleRoom extends Room<BattleState> {
     number,
     { defenderId: string; layer: AirDefenseLayer }
   >();
+  /** Task 10 — absolutes Ende (Date.now()); läuft ab Raum-Erstellung. */
+  private matchEndsAtMs = 0;
+  private matchEndBroadcastSent = false;
 
   onCreate() {
     this.setState(new BattleState());
+    this.matchEndsAtMs = Date.now() + MATCH_DURATION_MS;
+    this.matchEndBroadcastSent = false;
     this.setSeatReservationTime(60);
     console.log("[BattleRoom] onCreate, roomId=%s", this.roomId);
 
     this.onMessage("ping", (client, payload: { clientTime?: number }) => {
       const t = Number(payload?.clientTime);
       client.send("pong", { clientTime: Number.isFinite(t) ? t : 0 });
+    });
+
+    this.onMessage("playAgain", () => {
+      this.resetMatchForNewRound(Date.now());
     });
 
     this.onMessage("input", (client, payload: InputPayload) => {
@@ -177,7 +199,36 @@ export class BattleRoom extends Room<BattleState> {
     return undefined;
   }
 
-  onJoin(client: Client) {
+  private movementCfgForPlayer(p: PlayerState): ShipMovementConfig {
+    const prof = getShipClassProfile(p.shipClass);
+    const s = progressionMovementScale(p.level);
+    const b = this.cfg;
+    return {
+      ...b,
+      maxSpeed: b.maxSpeed * prof.movementSpeedMul * s.maxSpeedFactor,
+      maxTurnRateRad: b.maxTurnRateRad * prof.turnRateMul * s.maxTurnRateFactor,
+      forwardAccel: b.forwardAccel * prof.accelMul,
+      backwardAccel: b.backwardAccel * prof.accelMul,
+    };
+  }
+
+  /** Task 11 — nach Kill (serverseitig, nur Leben-Progression). */
+  private grantXpForKill(killer: PlayerState): void {
+    const baseHp = shipClassBaseMaxHp(killer.shipClass);
+    killer.xp += PROGRESSION_XP_PER_KILL;
+    const targetLevel = progressionLevelFromTotalXp(killer.xp);
+    while (killer.level < targetLevel) {
+      killer.level += 1;
+      const mx = progressionMaxHpForLevel(killer.level, baseHp);
+      const d = mx - killer.maxHp;
+      killer.maxHp = mx;
+      killer.hp = Math.min(killer.hp + d, killer.maxHp);
+    }
+  }
+
+  onJoin(client: Client, options?: { shipClass?: string; displayName?: string }) {
+    const shipClass = normalizeShipClassId(options?.shipClass);
+    const displayName = sanitizePlayerDisplayName(options?.displayName);
     const index = this.clients.length - 1;
     const angle = index * 2.5132741228718345;
     const r = 140;
@@ -212,14 +263,21 @@ export class BattleRoom extends Room<BattleState> {
     ps.aimX = aimX;
     ps.aimZ = aimZ;
     ps.oobCountdownSec = 0;
-    ps.hp = ARTILLERY_PLAYER_MAX_HP;
-    ps.maxHp = ARTILLERY_PLAYER_MAX_HP;
+    ps.shipClass = shipClass;
+    ps.displayName = displayName;
+    ps.level = 1;
+    ps.xp = 0;
+    const baseHp = shipClassBaseMaxHp(shipClass);
+    ps.maxHp = progressionMaxHpForLevel(1, baseHp);
+    ps.hp = ps.maxHp;
     ps.primaryCooldownSec = 0;
     ps.lifeState = PlayerLifeState.Alive;
     ps.respawnCountdownSec = 0;
     ps.spawnProtectionSec = 0;
     ps.secondaryCooldownSec = 0;
     ps.torpedoCooldownSec = 0;
+    ps.score = 0;
+    ps.kills = 0;
     this.state.playerList.push(ps);
     assertPlayerLifeInvariant(ps.lifeState, ps.hp, ps.maxHp);
     console.log(
@@ -261,11 +319,32 @@ export class BattleRoom extends Room<BattleState> {
     }
   }
 
-  private enterAwaitingRespawn(sessionId: string, now: number): void {
+  private enterAwaitingRespawn(
+    sessionId: string,
+    now: number,
+    opts?: { killerSessionId?: string },
+  ): void {
     const row = this.sim.get(sessionId);
     const p = this.findPlayer(sessionId);
     if (!row || !p) return;
 
+    const killerId = opts?.killerSessionId;
+    if (
+      this.state.matchPhase === MATCH_PHASE_RUNNING &&
+      killerId != null &&
+      isValidKillAttribution(killerId, sessionId)
+    ) {
+      const killer = this.findPlayer(killerId);
+      if (killer) {
+        killer.score += SCORE_PER_KILL;
+        killer.kills += 1;
+        this.grantXpForKill(killer);
+      }
+    }
+
+    p.level = 1;
+    p.xp = 0;
+    p.maxHp = progressionMaxHpForLevel(1, shipClassBaseMaxHp(p.shipClass));
     p.hp = 0;
     p.lifeState = PlayerLifeState.AwaitingRespawn;
     p.respawnCountdownSec = RESPAWN_DELAY_MS / 1000;
@@ -283,6 +362,126 @@ export class BattleRoom extends Room<BattleState> {
     row.adCiwsNextAtMs = 0;
     this.pendingShells = this.pendingShells.filter((s) => s.ownerSessionId !== sessionId);
     assertPlayerLifeInvariant(p.lifeState, p.hp, p.maxHp);
+  }
+
+  private isMatchCombatActive(): boolean {
+    return this.state.matchPhase === MATCH_PHASE_RUNNING;
+  }
+
+  private updateMatchTimer(now: number): void {
+    if (this.matchEndBroadcastSent) {
+      this.state.matchRemainingSec = 0;
+      return;
+    }
+    const remMs = this.matchEndsAtMs - now;
+    this.state.matchRemainingSec = Math.max(0, Math.ceil(remMs / 1000));
+    if (now >= this.matchEndsAtMs) {
+      this.endMatch();
+    }
+  }
+
+  private clearAllMissilesAndTorpedoes(): void {
+    const ml = this.state.missileList;
+    while (ml.length > 0) {
+      const i = ml.length - 1;
+      const m = ml.at(i);
+      if (m) this.removeMissileAt(i, m.missileId);
+      else ml.deleteAt(i);
+    }
+    const tl = this.state.torpedoList;
+    while (tl.length > 0) {
+      const i = tl.length - 1;
+      const t = tl.at(i);
+      if (t) this.removeTorpedoAt(i, t.torpedoId);
+      else tl.deleteAt(i);
+    }
+    this.adPendingRollByMissileId.clear();
+  }
+
+  /** Kein weiterer Kampf-Schaden / Projektile; Clients zeigen Scoreboard. */
+  private endMatch(): void {
+    if (this.matchEndBroadcastSent) return;
+    this.matchEndBroadcastSent = true;
+    this.state.matchPhase = MATCH_PHASE_ENDED;
+    this.state.matchRemainingSec = 0;
+    this.pendingShells = [];
+    this.clearAllMissilesAndTorpedoes();
+    this.broadcast("matchEnded", {} as Record<string, never>);
+    console.log("[BattleRoom] match ended roomId=%s", this.roomId);
+  }
+
+  /**
+   * Nach Task-10-Ende: neue Runde im **gleichen** Raum (vermeidet „Reload → sofort wieder Scoreboard“).
+   * Nur gültig, wenn das Match bereits beendet war.
+   */
+  private resetMatchForNewRound(now: number): void {
+    if (this.state.matchPhase !== MATCH_PHASE_ENDED) return;
+
+    this.pendingShells = [];
+    this.clearAllMissilesAndTorpedoes();
+    this.matchEndBroadcastSent = false;
+    this.matchEndsAtMs = now + MATCH_DURATION_MS;
+    this.state.matchPhase = MATCH_PHASE_RUNNING;
+    const remMs = this.matchEndsAtMs - now;
+    this.state.matchRemainingSec = Math.max(0, Math.ceil(remMs / 1000));
+
+    let idx = 0;
+    for (const p of this.state.playerList) {
+      const row = this.sim.get(p.id);
+      if (!row) continue;
+
+      const angle = idx * 2.5132741228718345;
+      const r = 140;
+      const spawnX = Math.cos(angle) * r;
+      const spawnZ = Math.sin(angle) * r;
+      const headingRad = Math.atan2(-spawnX, -spawnZ);
+
+      row.ship.x = spawnX;
+      row.ship.z = spawnZ;
+      row.ship.headingRad = headingRad;
+      row.ship.speed = 0;
+      row.ship.throttle = 0;
+      row.ship.rudder = 0;
+      row.lastRudderInput = 0;
+      row.aimX = spawnX;
+      row.aimZ = spawnZ + 80;
+      row.oobSinceMs = null;
+      row.primaryReadyAtMs = 0;
+      row.secondaryReadyAtMs = 0;
+      row.torpedoReadyAtMs = 0;
+      row.adSamNextAtMs = 0;
+      row.adCiwsNextAtMs = 0;
+      row.respawnAtMs = null;
+      row.invulnerableUntilMs = now + SPAWN_PROTECTION_DURATION_MS;
+
+      p.x = spawnX;
+      p.z = spawnZ;
+      p.headingRad = headingRad;
+      p.speed = 0;
+      p.rudder = 0;
+      p.aimX = row.aimX;
+      p.aimZ = row.aimZ;
+      p.oobCountdownSec = 0;
+      p.level = 1;
+      p.xp = 0;
+      const baseHpR = shipClassBaseMaxHp(p.shipClass);
+      p.maxHp = progressionMaxHpForLevel(1, baseHpR);
+      p.hp = p.maxHp;
+      p.primaryCooldownSec = 0;
+      p.secondaryCooldownSec = 0;
+      p.torpedoCooldownSec = 0;
+      p.lifeState = PlayerLifeState.SpawnProtected;
+      p.respawnCountdownSec = 0;
+      p.spawnProtectionSec = SPAWN_PROTECTION_DURATION_MS / 1000;
+      p.score = 0;
+      p.kills = 0;
+
+      assertPlayerLifeInvariant(p.lifeState, p.hp, p.maxHp);
+      idx++;
+    }
+
+    this.broadcast("matchRestarted", {} as Record<string, never>);
+    console.log("[BattleRoom] match restarted roomId=%s", this.roomId);
   }
 
   private performRespawn(sessionId: string, now: number): void {
@@ -339,8 +538,11 @@ export class BattleRoom extends Room<BattleState> {
     p.rudder = 0;
     p.aimX = row.aimX;
     p.aimZ = row.aimZ;
-    p.hp = ARTILLERY_PLAYER_MAX_HP;
-    p.maxHp = ARTILLERY_PLAYER_MAX_HP;
+    p.level = 1;
+    p.xp = 0;
+    const baseHpResp = shipClassBaseMaxHp(p.shipClass);
+    p.maxHp = progressionMaxHpForLevel(1, baseHpResp);
+    p.hp = p.maxHp;
     p.lifeState = PlayerLifeState.SpawnProtected;
     p.respawnCountdownSec = 0;
     p.spawnProtectionSec = SPAWN_PROTECTION_DURATION_MS / 1000;
@@ -381,22 +583,26 @@ export class BattleRoom extends Room<BattleState> {
   }
 
   private tryPrimaryFire(client: Client, row: SimEntry): void {
+    if (!this.isMatchCombatActive()) return;
     const p = this.findPlayer(client.sessionId);
     if (!p || !canUsePrimaryWeapon(p.lifeState)) return;
 
     const now = Date.now();
     if (now < row.primaryReadyAtMs) return;
 
+    const arc = getShipClassProfile(p.shipClass).artilleryArcHalfAngleRad;
     const salvo = tryComputeArtillerySalvo(
       row.ship.x,
       row.ship.z,
       row.ship.headingRad,
       row.aimX,
       row.aimZ,
+      Math.random,
+      arc,
     );
     if (!salvo.ok) return;
 
-    row.primaryReadyAtMs = now + ARTILLERY_PRIMARY_COOLDOWN_MS;
+    row.primaryReadyAtMs = now + progressionPrimaryCooldownMs(p.level);
     const shellId = this.nextShellId++;
     this.pendingShells.push({
       impactAtMs: now + salvo.flightMs,
@@ -418,17 +624,19 @@ export class BattleRoom extends Room<BattleState> {
   }
 
   private trySecondaryFire(client: Client, row: SimEntry): void {
+    if (!this.isMatchCombatActive()) return;
     const p = this.findPlayer(client.sessionId);
     if (!p || !canUsePrimaryWeapon(p.lifeState)) return;
 
     const now = Date.now();
     if (now < row.secondaryReadyAtMs) return;
 
+    const aswmCap = getShipClassProfile(p.shipClass).aswmMaxPerOwner;
     let owned = 0;
     for (const m of this.state.missileList) {
       if (m.ownerId === client.sessionId) owned++;
     }
-    if (owned >= ASWM_MAX_PER_OWNER) return;
+    if (owned >= aswmCap) return;
 
     const pose = spawnAswmFromFireDirection(
       row.ship.x,
@@ -447,22 +655,28 @@ export class BattleRoom extends Room<BattleState> {
     ms.headingRad = pose.headingRad;
     this.state.missileList.push(ms);
     this.missileSpawnedAt.set(missileId, now);
-    row.secondaryReadyAtMs = now + ASWM_COOLDOWN_MS;
+    const profS = getShipClassProfile(p.shipClass);
+    const secCd = Math.round(
+      progressionSecondaryCooldownMs(p.level) * profS.aswmCooldownFactor,
+    );
+    row.secondaryReadyAtMs = now + Math.max(900, secCd);
     this.broadcast("aswmFired", { missileId, ownerId: client.sessionId });
   }
 
   private tryTorpedoFire(client: Client, row: SimEntry): void {
+    if (!this.isMatchCombatActive()) return;
     const p = this.findPlayer(client.sessionId);
     if (!p || !canUsePrimaryWeapon(p.lifeState)) return;
 
     const now = Date.now();
     if (now < row.torpedoReadyAtMs) return;
 
+    const torpCap = getShipClassProfile(p.shipClass).torpedoMaxPerOwner;
     let owned = 0;
     for (const t of this.state.torpedoList) {
       if (t.ownerId === client.sessionId) owned++;
     }
-    if (owned >= TORPEDO_MAX_PER_OWNER) return;
+    if (owned >= torpCap) return;
 
     const pose = spawnTorpedoFromFireDirection(
       row.ship.x,
@@ -480,7 +694,11 @@ export class BattleRoom extends Room<BattleState> {
     ts.headingRad = pose.headingRad;
     this.state.torpedoList.push(ts);
     this.torpedoSpawnedAt.set(torpedoId, now);
-    row.torpedoReadyAtMs = now + TORPEDO_COOLDOWN_MS;
+    const profT = getShipClassProfile(p.shipClass);
+    const torpCd = Math.round(
+      progressionTorpedoCooldownMs(p.level) * profT.torpedoCooldownFactor,
+    );
+    row.torpedoReadyAtMs = now + Math.max(2000, torpCd);
     this.broadcast("torpedoFired", { torpedoId, ownerId: client.sessionId });
   }
 
@@ -698,9 +916,14 @@ export class BattleRoom extends Room<BattleState> {
         const victim = this.findPlayer(hitId);
         if (victim) {
           const wasNotDead = victim.lifeState !== PlayerLifeState.AwaitingRespawn;
-          victim.hp = Math.max(0, victim.hp - ASWM_DAMAGE);
+          const aswmDmg = Math.round(
+            ASWM_DAMAGE *
+              progressionIncomingDamageFactor(victim.level) *
+              getShipClassProfile(victim.shipClass).incomingDamageTakenMul,
+          );
+          victim.hp = Math.max(0, victim.hp - aswmDmg);
           if (victim.hp <= 0 && wasNotDead) {
-            this.enterAwaitingRespawn(victim.id, now);
+            this.enterAwaitingRespawn(victim.id, now, { killerSessionId: m.ownerId });
           }
         }
         this.broadcast("aswmImpact", {
@@ -772,9 +995,14 @@ export class BattleRoom extends Room<BattleState> {
         const victim = this.findPlayer(hitId);
         if (victim) {
           const wasNotDead = victim.lifeState !== PlayerLifeState.AwaitingRespawn;
-          victim.hp = Math.max(0, victim.hp - TORPEDO_DAMAGE);
+          const torpDmg = Math.round(
+            TORPEDO_DAMAGE *
+              progressionIncomingDamageFactor(victim.level) *
+              getShipClassProfile(victim.shipClass).incomingDamageTakenMul,
+          );
+          victim.hp = Math.max(0, victim.hp - torpDmg);
           if (victim.hp <= 0 && wasNotDead) {
-            this.enterAwaitingRespawn(victim.id, now);
+            this.enterAwaitingRespawn(victim.id, now, { killerSessionId: t.ownerId });
           }
         }
         this.broadcast("torpedoImpact", {
@@ -806,9 +1034,14 @@ export class BattleRoom extends Room<BattleState> {
         const dz = p.z - sh.landZ;
         if (dx * dx + dz * dz > splashSq) continue;
         const wasNotDead = p.lifeState !== PlayerLifeState.AwaitingRespawn;
-        p.hp = Math.max(0, p.hp - ARTILLERY_DAMAGE);
+        const artyDmg = Math.round(
+          ARTILLERY_DAMAGE *
+            progressionIncomingDamageFactor(p.level) *
+            getShipClassProfile(p.shipClass).incomingDamageTakenMul,
+        );
+        p.hp = Math.max(0, p.hp - artyDmg);
         if (p.hp <= 0 && wasNotDead) {
-          this.enterAwaitingRespawn(p.id, now);
+          this.enterAwaitingRespawn(p.id, now, { killerSessionId: sh.ownerSessionId });
         }
         damagedAnyEnemy = true;
       }
@@ -834,7 +1067,13 @@ export class BattleRoom extends Room<BattleState> {
     const now = Date.now();
     const half = AREA_OF_OPERATIONS_HALF_EXTENT;
 
-    this.resolveShellImpacts(now);
+    this.updateMatchTimer(now);
+    const combatActive = this.isMatchCombatActive();
+    if (combatActive) {
+      this.resolveShellImpacts(now);
+    } else {
+      this.pendingShells = [];
+    }
     this.processLifeTransitions(now);
 
     for (const [sessionId, row] of this.sim) {
@@ -848,7 +1087,7 @@ export class BattleRoom extends Room<BattleState> {
           this.cfg.rudderResponsiveness,
           dt,
         );
-        stepMovement(row.ship, this.cfg, dt);
+        stepMovement(row.ship, this.movementCfgForPlayer(p), dt);
         resolveShipIslandCollisions(row.ship, DEFAULT_MAP_ISLANDS);
       }
 
@@ -887,7 +1126,9 @@ export class BattleRoom extends Room<BattleState> {
       }
     }
 
-    this.stepMissiles(dt, now);
-    this.stepTorpedoes(dt, now);
+    if (combatActive) {
+      this.stepMissiles(dt, now);
+      this.stepTorpedoes(dt, now);
+    }
   }
 }

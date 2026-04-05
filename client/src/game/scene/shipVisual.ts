@@ -1,5 +1,5 @@
 import * as THREE from "three";
-import { ARTILLERY_ARC_HALF_ANGLE_RAD, PlayerLifeState } from "@battlefleet/shared";
+import { getShipClassProfile, PlayerLifeState } from "@battlefleet/shared";
 import { RUDDER_DEFLECTION_DEG, SHIP_BOW_Z, SHIP_STERN_Z } from "./createGameScene";
 
 const DECK_Y = 1.2;
@@ -133,8 +133,10 @@ export function setShipVisualLifeState(
  * **Peilung (Ziellinie):** immer sichtbar — Local orange (Maus, sofort), Remote cyan (State vom Server).
  * Dient als Debug-Vorbild für spätere **drehbare Geschütztürme** (jeder Spieler eigene Aim-Achse).
  */
-export function createShipVisual(options: { isLocal: boolean }): ShipVisual {
+export function createShipVisual(options: { isLocal: boolean; shipClassId?: string }): ShipVisual {
+  const prof = getShipClassProfile(options.shipClassId);
   const group = new THREE.Group();
+  group.scale.setScalar(prof.hullScale);
 
   const halfBeam = 15;
   const hullGeom = new THREE.BufferGeometry();
@@ -192,12 +194,12 @@ export function createShipVisual(options: { isLocal: boolean }): ShipVisual {
   if (options.isLocal) {
     weaponGuideGroup = new THREE.Group();
     const arcRadius = 145;
+    const arcHalf = prof.artilleryArcHalfAngleRad;
     const segments = 32;
     const arcPts: THREE.Vector3[] = [];
     for (let i = 0; i <= segments; i++) {
       const u = i / segments;
-      const ang =
-        -ARTILLERY_ARC_HALF_ANGLE_RAD + u * (2 * ARTILLERY_ARC_HALF_ANGLE_RAD);
+      const ang = -arcHalf + u * (2 * arcHalf);
       arcPts.push(new THREE.Vector3(Math.sin(ang) * arcRadius, aimY, Math.cos(ang) * arcRadius));
     }
     const arcGeom = new THREE.BufferGeometry().setFromPoints(arcPts);
@@ -215,7 +217,7 @@ export function createShipVisual(options: { isLocal: boolean }): ShipVisual {
       new THREE.Vector3(0, aimY, 0),
       new THREE.Vector3(Math.sin(a) * arcRadius, aimY, Math.cos(a) * arcRadius),
     ];
-    for (const a of [-ARTILLERY_ARC_HALF_ANGLE_RAD, ARTILLERY_ARC_HALF_ANGLE_RAD]) {
+    for (const a of [-arcHalf, arcHalf]) {
       const g = new THREE.BufferGeometry().setFromPoints(edgePts(a));
       weaponGuideGroup.add(new THREE.Line(g, arcMat));
     }

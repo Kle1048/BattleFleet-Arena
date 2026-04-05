@@ -1,5 +1,5 @@
 /**
- * Brücken-Overlay: Peilung als 000°…359° (0° = Nord), Kompassrose dreht mit −Kurs damit Nord fest zur Karte passt.
+ * Brücken-Overlay: Kurs als 000°…359° (0° = Nord), Fahrt, Waffen-Cooldowns, Match/Punkte.
  */
 
 export type CockpitHudUpdate = {
@@ -19,6 +19,19 @@ export type CockpitHudUpdate = {
   respawnCountdownSec: number;
   /** Verbleibender Spawn-Schutz in Sekunden (`spawn_protected`). */
   spawnProtectionSec: number;
+  /** Task 10 — verbleibende Matchzeit (Sekunden). */
+  matchRemainingSec: number;
+  /** Task 10 — eigene Punkte / Kills. */
+  score: number;
+  kills: number;
+  /** Task 11 — Level im aktuellen Leben (1…10). */
+  level: number;
+  /** Task 11 — XP bis nächstes Level, z. B. `45 / 130` oder `MAX`. */
+  xpLine: string;
+  /** Task 12 — Klassen-Kurzname (HUD). */
+  shipClassLabel: string;
+  /** Lobby-Anzeigename (oder gekürzte Session-ID). */
+  playerDisplayName: string;
 };
 
 function degFromHeading(headingRad: number): number {
@@ -36,17 +49,15 @@ export function createCockpitHud(): { update: (u: CockpitHudUpdate) => void } {
   wrap.setAttribute("aria-label", "Fahrt-Anzeige");
   wrap.innerHTML = `
     <div class="cockpit-panel">
-      <div class="cockpit-compass-wrap">
-        <div class="cockpit-lubber"></div>
-        <div class="cockpit-compass-card">
-          <span class="cockpit-mk" style="--a:0">N</span>
-          <span class="cockpit-mk" style="--a:90">O</span>
-          <span class="cockpit-mk" style="--a:180">S</span>
-          <span class="cockpit-mk" style="--a:270">W</span>
-        </div>
-        <div class="cockpit-compass-ring"></div>
-      </div>
       <div class="cockpit-readouts">
+        <div class="cockpit-row">
+          <span class="cockpit-label">Name</span>
+          <span class="cockpit-player-name">—</span>
+        </div>
+        <div class="cockpit-row">
+          <span class="cockpit-label">Klasse</span>
+          <span class="cockpit-ship-class">Zerstörer</span>
+        </div>
         <div class="cockpit-row">
           <span class="cockpit-label">Fahrt</span>
           <span class="cockpit-speed"><span class="cockpit-speed-val">0</span><span class="cockpit-speed-unit"> kn</span></span>
@@ -76,6 +87,14 @@ export function createCockpitHud(): { update: (u: CockpitHudUpdate) => void } {
           </div>
         </div>
         <div class="cockpit-row">
+          <span class="cockpit-label">Level</span>
+          <span class="cockpit-level">1</span>
+        </div>
+        <div class="cockpit-row">
+          <span class="cockpit-label">XP</span>
+          <span class="cockpit-xp">0 / 100</span>
+        </div>
+        <div class="cockpit-row">
           <span class="cockpit-label">Feuer</span>
           <span class="cockpit-primary-cd">—</span>
         </div>
@@ -91,11 +110,20 @@ export function createCockpitHud(): { update: (u: CockpitHudUpdate) => void } {
           <span class="cockpit-label">Status</span>
           <span class="cockpit-life-status">—</span>
         </div>
+        <div class="cockpit-row">
+          <span class="cockpit-label">Match</span>
+          <span class="cockpit-match-time">—</span>
+        </div>
+        <div class="cockpit-row">
+          <span class="cockpit-label">Punkte</span>
+          <span class="cockpit-match-score"><span class="cockpit-score-val">0</span> <span class="cockpit-kills">(0)</span></span>
+        </div>
       </div>
     </div>
   `;
 
-  const card = wrap.querySelector(".cockpit-compass-card") as HTMLElement;
+  const playerNameEl = wrap.querySelector(".cockpit-player-name") as HTMLElement;
+  const shipClassEl = wrap.querySelector(".cockpit-ship-class") as HTMLElement;
   const speedVal = wrap.querySelector(".cockpit-speed-val") as HTMLElement;
   const courseEl = wrap.querySelector(".cockpit-course") as HTMLElement;
   const fillThrottle = wrap.querySelector(".cockpit-fill-throttle") as HTMLElement;
@@ -106,8 +134,20 @@ export function createCockpitHud(): { update: (u: CockpitHudUpdate) => void } {
   const torpedoCdEl = wrap.querySelector(".cockpit-torpedo-cd") as HTMLElement;
   const lifeRow = wrap.querySelector(".cockpit-row-life") as HTMLElement;
   const lifeStatusEl = wrap.querySelector(".cockpit-life-status") as HTMLElement;
+  const matchTimeEl = wrap.querySelector(".cockpit-match-time") as HTMLElement;
+  const scoreValEl = wrap.querySelector(".cockpit-score-val") as HTMLElement;
+  const killsSpan = wrap.querySelector(".cockpit-kills") as HTMLElement;
+  const levelEl = wrap.querySelector(".cockpit-level") as HTMLElement;
+  const xpEl = wrap.querySelector(".cockpit-xp") as HTMLElement;
 
   document.body.appendChild(wrap);
+
+  function formatMatchTime(totalSec: number): string {
+    const s = Math.max(0, Math.floor(totalSec));
+    const m = Math.floor(s / 60);
+    const r = s % 60;
+    return `${m}:${r.toString().padStart(2, "0")}`;
+  }
 
   function setCenterBar(el: HTMLElement, value: number): void {
     const v = Math.max(-1, Math.min(1, value));
@@ -135,9 +175,18 @@ export function createCockpitHud(): { update: (u: CockpitHudUpdate) => void } {
       torpedoCooldownSec,
       respawnCountdownSec,
       spawnProtectionSec,
+      matchRemainingSec,
+      score,
+      kills,
+      level,
+      xpLine,
+      shipClassLabel,
+      playerDisplayName,
     }: CockpitHudUpdate): void {
       const deg = degFromHeading(headingRad);
-      card.style.transform = `rotate(${-deg}deg)`;
+
+      playerNameEl.textContent = playerDisplayName;
+      shipClassEl.textContent = shipClassLabel;
 
       const spd = Math.round(speed);
       speedVal.textContent = `${spd}`;
@@ -204,6 +253,12 @@ export function createCockpitHud(): { update: (u: CockpitHudUpdate) => void } {
         lifeRow.classList.add("hidden");
         lifeStatusEl.textContent = "—";
       }
+
+      matchTimeEl.textContent = formatMatchTime(matchRemainingSec);
+      scoreValEl.textContent = `${score}`;
+      killsSpan.textContent = `(${kills})`;
+      levelEl.textContent = `${level}`;
+      xpEl.textContent = xpLine;
     },
   };
 }

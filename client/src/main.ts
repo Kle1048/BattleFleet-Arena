@@ -11,7 +11,16 @@ import * as THREE from "three";
 import type { ArraySchema } from "@colyseus/schema";
 import { Client } from "colyseus.js";
 import type { MissileState, PlayerState, TorpedoState } from "@battlefleet/shared";
-import { DESTROYER_LIKE_MVP, PlayerLifeState } from "@battlefleet/shared";
+import {
+  DESTROYER_LIKE_MVP,
+  getShipClassProfile,
+  MATCH_DURATION_SEC,
+  MATCH_PHASE_ENDED,
+  PlayerLifeState,
+  PROGRESSION_MAX_LEVEL,
+  progressionMovementScale,
+  progressionXpToNextLevel,
+} from "@battlefleet/shared";
 import {
   ARTILLERY_FX_CULL_MARGIN,
   artilleryFxCullRadiusSq,
@@ -30,7 +39,12 @@ import {
 import { createInputHandlers } from "./game/input/keyboardMouse";
 import { createCockpitHud } from "./game/hud/cockpitHud";
 import { createDebugOverlay } from "./game/hud/debugOverlay";
-import { createGameMessageHud, shortSessionIdForMessage } from "./game/hud/gameMessageHud";
+import { createMatchEndHud } from "./game/hud/matchEndHud";
+import {
+  createGameMessageHud,
+  playerDisplayLabel,
+  shortSessionIdForMessage,
+} from "./game/hud/gameMessageHud";
 import { createArtilleryFx } from "./game/effects/artilleryFx";
 import { createMissileFx } from "./game/effects/missileFx";
 import { createTorpedoFx } from "./game/effects/torpedoFx";
@@ -39,6 +53,8 @@ import {
   playAirDefenseHitBurst,
   showAirDefenseScreenPulse,
 } from "./game/effects/airDefenseFx";
+import { gameAudio } from "./game/audio/gameAudio";
+import { pickShipLobbyChoice } from "./game/ui/classPicker";
 import {
   DEFAULT_INTERPOLATION_DELAY_MS,
   advanceIfPoseChanged,
@@ -138,6 +154,12 @@ type NetPlayer = Pick<
   | "spawnProtectionSec"
   | "secondaryCooldownSec"
   | "torpedoCooldownSec"
+  | "score"
+  | "kills"
+  | "level"
+  | "xp"
+  | "shipClass"
+  | "displayName"
 >;
 
 type NetMissile = Pick<
@@ -151,6 +173,8 @@ type WireBattleState = {
   playerList: ArraySchema<NetPlayer>;
   missileList?: ArraySchema<NetMissile>;
   torpedoList?: ArraySchema<NetTorpedo>;
+  matchPhase?: string;
+  matchRemainingSec?: number;
 };
 
 function playerListOf(room: { state: unknown }): ArraySchema<NetPlayer> {
@@ -171,6 +195,15 @@ function missileListOf(room: { state: unknown }): ArraySchema<NetMissile> | null
 function torpedoListOf(room: { state: unknown }): ArraySchema<NetTorpedo> | null {
   const st = room.state as Partial<WireBattleState> | null | undefined;
   return st?.torpedoList ?? null;
+}
+
+function readMatchTimer(room: { state: unknown }): { phase: string; remainingSec: number } {
+  const st = room.state as Partial<WireBattleState> | null | undefined;
+  const phase = typeof st?.matchPhase === "string" ? st.matchPhase : "running";
+  const raw = st?.matchRemainingSec;
+  const remainingSec =
+    typeof raw === "number" && Number.isFinite(raw) ? raw : MATCH_DURATION_SEC;
+  return { phase, remainingSec };
 }
 
 function getPlayer(list: ArraySchema<NetPlayer>, sessionId: string): NetPlayer | undefined {
@@ -231,12 +264,23 @@ async function bootstrap(): Promise<void> {
   });
 
   const client = new Client(COLYSEUS_URL);
+  const lobby = await pickShipLobbyChoice();
+  gameAudio.unlockFromUserGesture();
   const room = await withTimeout(
-    client.joinOrCreate("battle"),
+    client.joinOrCreate("battle", {
+      shipClass: lobby.shipClass,
+      displayName: lobby.displayName,
+    }),
     15_000,
     "Keine Antwort vom Spiel-Server.",
   );
   const mySessionId = room.sessionId;
+  const matchEndHud = createMatchEndHud(() => {
+    void room.leave().finally(() => {
+      window.location.reload();
+    });
+  });
+  let lastHudLevel = 1;
   const joinedAt = performance.now();
   let stateSyncCount = 0;
   let playerListHandlersBoundTo: ArraySchema<NetPlayer> | null = null;
@@ -338,6 +382,7 @@ async function bootstrap(): Promise<void> {
         toZ: m.toZ,
         flightMs: m.flightMs,
       });
+      if (m.ownerId === mySessionId) gameAudio.primaryFire();
     }
   });
 
@@ -353,6 +398,28 @@ async function bootstrap(): Promise<void> {
         raw === "water" || raw === "hit" || raw === "island" ? raw : undefined;
       const skipSplash = !isArtyWorldPointInCullRange(m.x, m.z);
       artilleryFx.onImpact({ shellId: m.shellId, x: m.x, z: m.z, kind }, { skipSplash });
+      if (kind === "hit") {
+        const loc = getPlayer(playerListOf(room), mySessionId);
+        if (loc) {
+          const dx = m.x - loc.x;
+          const dz = m.z - loc.z;
+          if (dx * dx + dz * dz < 300 * 300) gameAudio.hitNear();
+        }
+      }
+    }
+  });
+
+  room.onMessage("aswmFired", (msg: unknown) => {
+    const m = msg as { ownerId?: string };
+    if (typeof m?.ownerId === "string" && m.ownerId === mySessionId) {
+      gameAudio.missileFire();
+    }
+  });
+
+  room.onMessage("torpedoFired", (msg: unknown) => {
+    const m = msg as { ownerId?: string };
+    if (typeof m?.ownerId === "string" && m.ownerId === mySessionId) {
+      gameAudio.torpedoFire();
     }
   });
 
@@ -423,9 +490,12 @@ async function bootstrap(): Promise<void> {
   /** Nur Fremdspieler: Puffer für Positions-/Peilungs-Interpolation. */
   const remoteInterp = new Map<string, InterpolationBuffer>();
 
-  const addVisual = (sessionId: string): void => {
+  const addVisual = (sessionId: string, shipClassId?: string): void => {
     if (visuals.has(sessionId)) return;
-    const vis = createShipVisual({ isLocal: sessionId === mySessionId });
+    const vis = createShipVisual({
+      isLocal: sessionId === mySessionId,
+      shipClassId,
+    });
     scene.add(vis.group);
     visuals.set(sessionId, vis);
   };
@@ -437,7 +507,8 @@ async function bootstrap(): Promise<void> {
     playerListHandlersBoundTo = list;
     /** Zweites Argument `true`: bestehende Einträge sofort (z. B. nach Ersatz der ArraySchema). */
     list.onAdd((player) => {
-      addVisual(player.id);
+      const sc = typeof player.shipClass === "string" ? player.shipClass : undefined;
+      addVisual(player.id, sc);
     }, true);
     list.onRemove((player) => {
       const vis = visuals.get(player.id);
@@ -469,6 +540,7 @@ async function bootstrap(): Promise<void> {
 
   let fpsFrames = 0;
   let lastFpsTick = performance.now();
+  let lastOobCountdown = 0;
 
   function frame(now: number): void {
     const playerList = playerListOf(room);
@@ -507,7 +579,8 @@ async function bootstrap(): Promise<void> {
     /** Nach ROOM_STATE können Callbacks fehlen — fehlende Meshes nachziehen. */
     if (visuals.size !== playerList.length) {
       for (const p of playerList) {
-        addVisual(p.id);
+        const sc = typeof p.shipClass === "string" ? p.shipClass : undefined;
+        addVisual(p.id, sc);
       }
     }
 
@@ -524,7 +597,7 @@ async function bootstrap(): Promise<void> {
           gameMessageHud.showToast("Zerstört — Warte auf Respawn …", "danger", 5500);
         } else {
           gameMessageHud.showToast(
-            `Spieler ${shortSessionIdForMessage(p.id)} zerstört`,
+            `${playerDisplayLabel(p)} zerstört`,
             "info",
             5000,
           );
@@ -540,7 +613,42 @@ async function bootstrap(): Promise<void> {
 
     const samp = input.sample();
     const me = getPlayer(playerList, mySessionId);
+    const { phase: matchPhase, remainingSec: matchRemainingSecRaw } = readMatchTimer(room);
+    const matchEnded = matchPhase === MATCH_PHASE_ENDED;
+
+    if (matchEnded) {
+      const rows: {
+        sessionId: string;
+        displayName: string;
+        score: number;
+        kills: number;
+      }[] = [];
+      for (const p of playerList) {
+        rows.push({
+          sessionId: p.id,
+          displayName: typeof p.displayName === "string" ? p.displayName : "",
+          score: typeof p.score === "number" ? p.score : 0,
+          kills: typeof p.kills === "number" ? p.kills : 0,
+        });
+      }
+      rows.sort(
+        (a, b) =>
+          b.score - a.score ||
+          b.kills - a.kills ||
+          a.sessionId.localeCompare(b.sessionId),
+      );
+      matchEndHud.show(rows, mySessionId);
+    } else {
+      matchEndHud.hide();
+    }
+
     if (me) {
+      const oobSec = me.oobCountdownSec ?? 0;
+      if (oobSec > 0 && lastOobCountdown <= 0 && !matchEnded) {
+        gameAudio.warning();
+      }
+      lastOobCountdown = oobSec;
+
       const { halfW, halfH } = orthoVisibleHalfExtents(window.innerWidth, window.innerHeight);
       const pivot = cameraPivotXZ(me.x, me.z, me.headingRad);
       artyFxCullShipX = me.x;
@@ -592,7 +700,7 @@ async function bootstrap(): Promise<void> {
       if (sessionId === mySessionId && me) {
         updateFollowCamera(camera, p.x, p.z, p.headingRad);
 
-        if (me.lifeState !== PlayerLifeState.AwaitingRespawn) {
+        if (me.lifeState !== PlayerLifeState.AwaitingRespawn && !matchEnded) {
           room.send("input", {
             throttle: samp.throttle,
             rudderInput: samp.rudderInput,
@@ -604,9 +712,31 @@ async function bootstrap(): Promise<void> {
           });
         }
 
+        const progLevel = Math.min(
+          PROGRESSION_MAX_LEVEL,
+          Math.max(1, Math.floor(typeof me.level === "number" ? me.level : 1)),
+        );
+        const progXp = typeof me.xp === "number" ? me.xp : 0;
+        const xpSeg = progressionXpToNextLevel(progLevel, progXp);
+        const xpLine =
+          progLevel >= PROGRESSION_MAX_LEVEL
+            ? "MAX"
+            : `${xpSeg.intoLevel} / ${xpSeg.need}`;
+        const profShip = getShipClassProfile(me.shipClass);
+        const maxSp =
+          cfg.maxSpeed *
+          profShip.movementSpeedMul *
+          progressionMovementScale(progLevel).maxSpeedFactor;
+
+        if (progLevel > lastHudLevel) {
+          gameMessageHud.showToast(`Level ${progLevel}!`, "info", 2800);
+          gameAudio.levelUp();
+        }
+        lastHudLevel = progLevel;
+
         cockpit.update({
           speed: p.speed,
-          maxSpeed: cfg.maxSpeed,
+          maxSpeed: maxSp,
           throttle: samp.throttle,
           rudder: p.rudder,
           headingRad: p.headingRad,
@@ -617,6 +747,16 @@ async function bootstrap(): Promise<void> {
           torpedoCooldownSec: me.torpedoCooldownSec,
           respawnCountdownSec: me.respawnCountdownSec,
           spawnProtectionSec: me.spawnProtectionSec,
+          matchRemainingSec: matchEnded ? 0 : matchRemainingSecRaw,
+          score: typeof me.score === "number" ? me.score : 0,
+          kills: typeof me.kills === "number" ? me.kills : 0,
+          level: progLevel,
+          xpLine,
+          shipClassLabel: profShip.labelDe,
+          playerDisplayName:
+            typeof me.displayName === "string" && me.displayName.trim().length > 0
+              ? me.displayName.trim()
+              : shortSessionIdForMessage(me.id),
         });
       }
     }
