@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="de">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>BattleFleet-Arena</title>
+    <style>
+      * { box-sizing: border-box; margin: 0; padding: 0; }
+      html, body { width: 100%; height: 100%; overflow: hidden; background: #5ec8f5; }
+      #app { width: 100%; height: 100%; }
+      #hud {
+        position: fixed; left: 16px; bottom: 16px; color: #9fb8d4;
+        font-family: system-ui, sans-serif; font-size: 11px;
+        text-shadow: 0 1px 2px #000; pointer-events: none; line-height: 1.45;
+        opacity: 0.92; max-width: 200px;
+      }
+      #title {
+        position: fixed; top: 16px; left: 50%; transform: translateX(-50%);
+        color: #8ecfff; font-family: system-ui, sans-serif; font-size: 14px;
+        letter-spacing: 0.08em; text-transform: uppercase; opacity: 0.9;
+      }
+      .cockpit {
+        position: fixed; left: 50%; bottom: 12px; transform: translateX(-50%);
+        pointer-events: none; z-index: 10;
+        --speed-glow: 0.2;
+      }
+      .cockpit-panel {
+        display: flex; align-items: stretch; gap: 14px;
+        padding: 10px 14px 12px;
+        background: linear-gradient(180deg, rgba(12,28,52,0.92), rgba(8,18,36,0.96));
+        border: 1px solid rgba(120, 190, 255, 0.28);
+        border-radius: 10px;
+        box-shadow:
+          0 0 0 1px rgba(0,0,0,0.35) inset,
+          0 8px 28px rgba(0,0,0,0.45),
+          0 0 calc(18px + var(--speed-glow) * 22px) rgba(80, 170, 255, var(--speed-glow));
+        font-family: "Segoe UI", system-ui, sans-serif;
+      }
+      .cockpit-compass-wrap {
+        position: relative; width: 100px; height: 100px; flex-shrink: 0;
+        align-self: center;
+      }
+      .cockpit-compass-ring {
+        position: absolute; inset: 0; border-radius: 50%;
+        border: 2px solid rgba(100, 170, 220, 0.45);
+        box-shadow: inset 0 0 20px rgba(40, 100, 160, 0.25);
+      }
+      .cockpit-lubber {
+        position: absolute; left: 50%; top: 2px; transform: translateX(-50%);
+        width: 0; height: 0; z-index: 2;
+        border-left: 6px solid transparent; border-right: 6px solid transparent;
+        border-top: 10px solid #ffcc66;
+        filter: drop-shadow(0 1px 2px #000);
+      }
+      .cockpit-compass-card {
+        position: absolute; inset: 8px; border-radius: 50%;
+        background: radial-gradient(circle at 50% 45%, #1a3a5c 0%, #0d1f38 70%);
+        transform-origin: 50% 50%;
+        transition: transform 0.05s linear;
+      }
+      .cockpit-mk {
+        position: absolute; left: 50%; top: 50%;
+        width: 1.2em; margin-left: -0.6em; margin-top: -0.55em;
+        text-align: center;
+        font-size: 11px; font-weight: 700; color: #cfe8ff;
+        transform: rotate(calc(var(--a) * 1deg)) translateY(-36px) rotate(calc(var(--a) * -1deg));
+        text-shadow: 0 1px 2px #000;
+      }
+      .cockpit-readouts {
+        display: flex; flex-direction: column; justify-content: center;
+        gap: 8px; min-width: 168px;
+      }
+      .cockpit-row {
+        display: flex; align-items: baseline; justify-content: space-between;
+        gap: 12px; color: #b8d4ee; font-size: 12px;
+      }
+      .cockpit-label { opacity: 0.75; font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em; }
+      .cockpit-speed-val { font-size: 22px; font-weight: 700; font-variant-numeric: tabular-nums; color: #e8f4ff; }
+      .cockpit-speed-unit { font-size: 12px; opacity: 0.75; }
+      .cockpit-course { font-variant-numeric: tabular-nums; font-weight: 600; color: #9ee8c8; }
+      .cockpit-row-bar { align-items: center; }
+      .cockpit-row-bar .cockpit-label { align-self: center; }
+      .cockpit-track {
+        position: relative; flex: 1; height: 8px; border-radius: 4px;
+        background: rgba(255,255,255,0.06);
+        overflow: hidden;
+        border: 1px solid rgba(100, 160, 220, 0.2);
+      }
+      .cockpit-track-mid {
+        position: absolute; left: 50%; top: 0; bottom: 0; width: 1px;
+        background: rgba(255,255,255,0.35); transform: translateX(-50%); z-index: 1;
+      }
+      .cockpit-fill {
+        position: absolute; top: 0; bottom: 0; height: 100%;
+        border-radius: 3px;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="title">BattleFleet-Arena — Task 2: Multiplayer (Colyseus)</div>
+    <div id="app"></div>
+    <div id="hud">
+      <div>W / S — Gas zurück / voraus</div>
+      <div>A / D — Ruder links / rechts</div>
+      <div>Mausbewegung — Blick / Zielrichtung (reiner Anzeige)</div>
+    </div>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>
