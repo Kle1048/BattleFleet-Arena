@@ -1,4 +1,4 @@
-/** Pro Frame aus Tastatur + Maus; NDC wie WebGL (−1…1, Y oben positiv). */
+/** Pro Frame aus Tastatur + Maus; NDC wie WebGL (−1…1, Y oben positiv). Torpedo: **Q** + **Mittelklick**. */
 export type InputSample = {
   throttle: number;
   rudderInput: number;
@@ -6,6 +6,10 @@ export type InputSample = {
   aimWorldZ: number;
   /** True solange **LMB gehalten** (Servertakt entscheidet über Cooldown / Dauerfeuer). */
   primaryFire: boolean;
+  /** True solange **RMB gehalten** — ASuM (Task 7). */
+  secondaryFire: boolean;
+  /** Torpedo (Task 8): **Mittlere Maustaste** gehalten oder **Q**. */
+  torpedoFire: boolean;
 };
 
 /**
@@ -41,16 +45,33 @@ export function createInputHandlers(
     mouseNdcY = y;
   };
   canvas.addEventListener("pointermove", onMove);
+  canvas.addEventListener("contextmenu", (e) => e.preventDefault());
+  canvas.addEventListener("auxclick", (e) => e.preventDefault());
 
   let lmbHeld = false;
+  let rmbHeld = false;
+  let mmbHeld = false;
   const onPointerDown = (e: PointerEvent): void => {
     if (e.button === 0) {
       lmbHeld = true;
+    }
+    if (e.button === 1) {
+      mmbHeld = true;
+      e.preventDefault();
+    }
+    if (e.button === 2) {
+      rmbHeld = true;
     }
   };
   const onPointerUp = (e: PointerEvent): void => {
     if (e.button === 0) {
       lmbHeld = false;
+    }
+    if (e.button === 1) {
+      mmbHeld = false;
+    }
+    if (e.button === 2) {
+      rmbHeld = false;
     }
   };
   canvas.addEventListener("pointerdown", onPointerDown);
@@ -71,12 +92,16 @@ export function createInputHandlers(
 
     const hit = getGroundPoint(mouseNdcX, mouseNdcY);
     const primaryFire = lmbHeld;
+    const secondaryFire = rmbHeld;
+    const torpedoFire = mmbHeld || keys.has("KeyQ");
     return {
       throttle,
       rudderInput,
       aimWorldX: hit?.x ?? 0,
       aimWorldZ: hit?.z ?? 0,
       primaryFire,
+      secondaryFire,
+      torpedoFire,
     };
   }
 

@@ -1,6 +1,8 @@
-# Architektur — BattleFleet-Arena (Stand: **Task 5 MVP** — Artillerie Plan A, HP, Tod; Task 4 weiter gültig)
+# Architektur — BattleFleet-Arena (Stand: **Task 9 MVP** — SAM/CIWS + Task 8/7…)
 
 Dieses Dokument beschreibt die **Ist-Architektur** von Client und Server: **Three.js** im Browser, **Colyseus** auf Node, **`shared`** für Konstanten, **Inseln**, **Artillerie-Helfer** und **`shipMovement`**. **Bewegung**, **Schiff↔Insel** und **Artillerie-Treffer** laufen **serverseitig** (20 Hz).
+
+**Tod & Wiedereinstieg (konsolidiert):** Sowohl **Kampfschaden** (Splash bis HP 0) als auch **schweres Verlassen des AO** (Warnung + `OOB_DESTROY_AFTER_MS`, derzeit **10 s**) enden im selben Pfad **`enterAwaitingRespawn`** → **`performRespawn`** — kein Raum-Kick mehr über `left_operational_area`. Anzeige: Cockpit-Respawn/Spawn-Schutz, zentrale Meldungen (`gameMessageHud`), Wrack-Optik im 3D-Modell (`setShipVisualLifeState`).
 
 ---
 
@@ -15,8 +17,8 @@ BattleFleet-Arena/
 │           ├── scene/      # Three.js-Szene, Kamera, Wasser, Schiff-Meshes
 │           ├── input/      # Tastatur & Maus → Samples
 │           ├── network/    # remoteInterpolation.ts — Task 3
-│           ├── effects/    # artilleryFx.ts — Task 5 (nur Darstellung)
-│           └── hud/        # Cockpit, Debug-Overlay, areaWarningHud (OOB)
+│           ├── effects/    # artilleryFx, missileFx, torpedoFx, airDefenseFx (Task 7–9)
+│           └── hud/        # Cockpit, Debug-Overlay, gameMessageHud (OOB + Toasts)
 ├── server/                 # Colyseus + WebSocket-Transport
 │   └── src/
 │       ├── index.ts        # GameServer, Matchmaking „battle“
@@ -28,6 +30,11 @@ BattleFleet-Arena/
 │       ├── mapBounds.ts    # AREA_OF_OPERATIONS_HALF_EXTENT (Debug: klein), OOB-Zeit
 │       ├── islands.ts      # DEFAULT_MAP_ISLANDS, resolveShipIslandCollisions
 │       ├── artillery.ts    # Feuerbogen, Streuung, Flugzeit; Insel-Helfer für VFX-Klassifikation (Schuss ohne Insel-Sperre)
+│       ├── aswm.ts        # Task 7: ASuM Homing, Zielwahl, Konstanten
+│       ├── torpedo.ts     # Task 8: Torpedo geradeaus, Spawn, Konstanten
+│       ├── airDefense.ts  # Task 9: SAM/CIWS `attemptAirDefense`, Reichweiten, Cooldowns
+│       ├── playerLife.ts  # PlayerLifeState, Invarianten, Schaden/Feuer/Physik-Gates
+│       ├── respawn.ts      # tryPickRespawnPosition (AO, Insel-Marge, Mindestabstand)
 │       └── shipMovement.ts # stepMovement, smoothRudder, Config (Server + Zielbild Client)
 ├── docs/
 ├── PRD.md
@@ -41,9 +48,14 @@ BattleFleet-Arena/
 
 | Datei | Rolle |
 |--------|--------|
-| `schema.ts` | `BattleState`, `PlayerState`: Pose, Aim, `oobCountdownSec`, **`hp`**, **`maxHp`**, **`primaryCooldownSec`** |
+| `schema.ts` | `BattleState` (`playerList`, **`missileList`**, **`torpedoList`**), `PlayerState` (…, **`secondaryCooldownSec`**, **`torpedoCooldownSec`**), **`MissileState`**, **`TorpedoState`** |
+| `aswm.ts` | Start **Feuerrichtung** (Schiff→Aim); Suchkegel **±30°** + Tiefe **`ASWM_ACQUIRE_CONE_LENGTH`** um **aktuelle** Flugrichtung; `pickAswmAcquisitionTarget`, `spawnAswmFromFireDirection`, `stepAswmMissile`; Konstanten inkl. `ASWM_ISLAND_COLLISION_RADIUS` |
+| `torpedo.ts` | `spawnTorpedoFromFireDirection`, `stepTorpedoStraight` — langsamer als ASuM, **ohne Homing**; `TORPEDO_*` Konstanten inkl. Inselradius |
+| `airDefense.ts` | `pickAirDefenseEngagementLayer` / `rollAirDefenseHit` / Cooldowns: **SAM** vor **CIWS**; **Feuer** und **Wurf** um einen Simulationstick versetzt (`airDefenseFire` → nächster Tick Roll); `AD_SAM_RANGE` / `AD_CIWS_RANGE` |
+| `playerLife.ts` | `PlayerLifeState`, `canTakeArtillerySplashDamage`, `canUsePrimaryWeapon`, `participatesInWorldSimulation`, `assertPlayerLifeInvariant` |
+| `respawn.ts` | `tryPickRespawnPosition` (AO, Inselfreiheit, Abstand zu anderen Schiffen) |
 | `mapBounds.ts` | `AREA_OF_OPERATIONS_HALF_EXTENT`, `OOB_DESTROY_AFTER_MS`, `isInsideOperationalArea` |
-| `islands.ts` | `DEFAULT_MAP_ISLANDS` (5× Kreis), `resolveShipIslandCollisions`, `SHIP_ISLAND_COLLISION_RADIUS` |
+| `islands.ts` | `DEFAULT_MAP_ISLANDS` (5× Kreis), `resolveShipIslandCollisions`, `isInsideAnyIslandCircle`, `SHIP_ISLAND_COLLISION_RADIUS` |
 | `artillery.ts` | `tryComputeArtillerySalvo` (kein Insel-Block beim Feuern), `classifyArtilleryImpactVisual` (`artyImpact.kind`), Konstanten Cooldown/Splash/Schaden/Bogen (**±120°** = **240°**), Streuung |
 | `shipMovement.ts` | `stepMovement`, `smoothRudder`, `createShipState`, `DESTROYER_LIKE_MVP` |
 
@@ -61,23 +73,23 @@ BattleFleet-Arena/
 
 - **`onCreate`:** `setState(new BattleState())`, Nachrichten `input` / `ping`, **Simulation** `setSimulationInterval(..., 1000/20)` → **20 Hz**.
 - **`onJoin` / `onLeave`:** Eintrag in `sim` (Map sessionId → Schiffszustand + Input-Hilfen) sowie `playerList` im Schema.
-- **Imports:** `Room` / `Protocol` von **`@colyseus/core`** (siehe `server/package.json`); **`Client`** nur als **`import type`** (kein Laufzeit-Export im `colyseus`-Meta-Paket unter ESM).
-- **Artillerie (Task 5):** `input.primaryFire === true`, **solange die linke Maustaste gehalten** wird (pro Frame im Client-Sample) → bei jedem `input`-Tick **`tryPrimaryFire`**: nur wenn **`primaryReadyAtMs`** erreicht ist, wird `tryComputeArtillerySalvo` ausgewertet → bei Erfolg `pendingShells` + **`broadcast("artyFired")`** (Dauerfeuer: Cooldown **`ARTILLERY_PRIMARY_COOLDOWN_MS`** begrenzt die Schussfolge). **Feuerbogen:** Ziel muss im Bug-Sektor **`ARTILLERY_ARC_HALF_ANGLE_RAD`** liegen (**±120°** Halbwinkel = **240°** Gesamt). Pro Tick zuerst **`resolveShellImpacts`**: fällige Shells → **`artyImpact`** inkl. **`kind`** (VFX: Wasser / Treffer / Ufer), Splash-Radius (**`ARTILLERY_SPLASH_RADIUS`**), Schaden (**Owner ausgenommen**), `hp <= 0` → `leave(..., "destroyed_in_combat")`. Granaten-Queue wird bei `onLeave` des Schützen bereinigt.
+- **Imports:** `Room` von **`@colyseus/core`** (siehe `server/package.json`); **`Client`** nur als **`import type`** (kein Laufzeit-Export im `colyseus`-Meta-Paket unter ESM).
+- **Artillerie (Task 5) + Leben (Task 6) + ASuM (Task 7) + Torpedo (Task 8) + Air Defense (Task 9, nur ASuM):** `input.primaryFire` / **`input.secondaryFire`** / **`input.torpedoFire`**. ASuM: Start **Schiff→Aim**; Kegel **`pickAswmAcquisitionTarget`** + **`stepAswmMissile`**. **`stepMissiles`:** AO → Insel → AD: Eintritt + bereiter Layer → **`airDefenseFire`** (Pending); **nächster Tick** Trefferwurf → Treffer **`airDefenseIntercept`**, Fehlschuss nur Cooldown. Verteidiger: **`targetId`** oder `findClosestAirDefenseDefenderForMissile`. **Torpedos:** kein SAM/CIWS; **`torpedoFired`** / **`torpedoImpact`**.
 - **Pro Tick (Reihenfolge):**  
-  1. **`resolveShellImpacts(now)`** — Treffer & HP  
-  2. `smoothRudder`  
-  3. `stepMovement`  
-  4. `resolveShipIslandCollisions(ship, DEFAULT_MAP_ISLANDS)`  
-  5. `PlayerState`: Pose, Aim, `oobCountdownSec`, **`primaryCooldownSec`** aus `primaryReadyAtMs`  
-  6. OOB → ggf. `leave(..., "left_operational_area")`  
-- **Einsatzgebiet (Task 4):** Quadrat \([-H,H]\) auf **X** und **Z** mit `H = AREA_OF_OPERATIONS_HALF_EXTENT` (`mapBounds.ts`, **Debug: 900** → Kante 1800). Außerhalb: `oobSinceMs` / `oobCountdownSec`; nach **10 s** (`OOB_DESTROY_AFTER_MS`) → `client.leave(Protocol.WS_CLOSE_WITH_ERROR, "left_operational_area")`.
+  1. **`resolveShellImpacts(now)`** — Artillerie-Treffer  
+  2. **`processLifeTransitions(now)`** — Lebensphasen  
+  3. Pro Spieler: bei Bedarf Physik + OOB  
+  4. `PlayerState`: Pose, Cooldowns **`primary`/`secondary`**, Respawn-/Schutz-Felder  
+  5. **`stepMissiles(dt, now)`** — ASuM integrieren  
+  6. **`stepTorpedoes(dt, now)`** — Torpedos integrieren  
+- **Einsatzgebiet (Task 4):** Quadrat \([-H,H]\) auf **X** und **Z** mit `H = AREA_OF_OPERATIONS_HALF_EXTENT` (`mapBounds.ts`, **Debug: 900** → Kante 1800). Außerhalb: `oobSinceMs` / `oobCountdownSec`; nach **10 s** (`OOB_DESTROY_AFTER_MS`) → **Zerstörung** via `enterAwaitingRespawn` (nicht mehr Raum verlassen).
 - **Inseln:** `DEFAULT_MAP_ISLANDS` — **5** Kreise, gemeinsam mit Client; keine Schema-Replikation nötig, solange Definition statisch bleibt.
 - **Input (`input`):** `throttle`, `rudderInput`, `aimX`, `aimZ`, optional **`primaryFire`** (**true**, solange **LMB** gedrückt; Server entscheidet mit Cooldown, ob geschossen wird).
 - **Ping:** Client sendet `ping` mit `clientTime` (Performance-Zeitstempel); Server antwortet `pong` mit demselben Wert — Client misst RTT fürs Debug-Overlay.
 
 ### 2.3 Schema (`shared/src/schema.ts`)
 
-- **`PlayerState`:** `id`, Pose, `speed`, `rudder`, **`aimX`**, **`aimZ`**, **`oobCountdownSec`**, **`hp`**, **`maxHp`**, **`primaryCooldownSec`**.
+- **`PlayerState`:** wie oben in der Tabelle; zusätzlich **`lifeState`**, **`respawnCountdownSec`**, **`spawnProtectionSec`** (Task 6).
 - **ES2022 / `defineTypes`:** Keine Klassenfeld-Initialisierer für Schema-Felder — Zuweisungen im **`constructor()`** nach `super()`, damit `setParent` / `ReferenceTracker` korrekt verdrahtet sind (sonst Encoder-Fehler `getNextUniqueId`).
 
 ### 2.4 Client (`main.ts`)
@@ -87,8 +99,8 @@ BattleFleet-Arena/
 - **Lokaler Spieler:** sendet pro Frame `input` (Throttle, Rudder, Aim); **Schiffspose** (Position, Heading, Ruder) autoritativ aus dem Server-State; **Peilungslinie** (orange) unmittelbar aus Maus (`sample()`), bezogen auf Server-Position.
 - **Fremde Spieler (Task 3):** sichtbare Pose und Ruder sowie **cyan**-Ziellinie aus **`sampleInterpolatedPose`** (zwei Snapshots, Render-Zeit ≈ `now − 100 ms`); State-Patches weiter ~20 Hz.
 - **Interpolation-Puffer:** `remoteInterp` — bei `onStateChange` nur `advanceIfPoseChanged`, wenn sich Pose/Peilung gegenüber dem letzten Snapshot messbar ändert; bei `onRemove` Eintrag löschen.
-- **OOB-HUD:** `areaWarningHud` — roter Text + Countdown aus **`oobCountdownSec`** des lokalen Spielers; `onLeave`-Code **4002** + Reason `left_operational_area` → Hinweis „Destroyed…“.
-- **Artillerie:** `room.send("input", { …, primaryFire })` mit **`primaryFire` aus `keyboardMouse.sample()`** (LMB halten); Nachrichten **`artyFired`** / **`artyImpact`** (`kind`: `water` \| `hit` \| `island`) → `artilleryFx` (Kugel + typisierter Splash, nicht autoritativ). **4002** + **`destroyed_in_combat`**.
+- **Spiel-Meldungen:** `gameMessageHud` — **Anker oben Mitte** (`width`/`min-height`, typ. **12 %** von oben): Priorität **AO/OOB** (`oobCountdownSec`) → **Spawn-Schutz** (`spawnProtectionSec`, türkise Zeile + Sekunden) → **Toasts** (Zerstörung). Zusätzlich zeigt das **Cockpit** den Spawn-Schutz in der Status-Zeile. **Kein Panel-Hintergrund** — nur Text + **`text-shadow`**. Verbindungsfehler → Debug-Overlay **`warn`**. (Legacy: `left_operational_area`.)
+- **Waffen:** `input` mit **`primaryFire`** / **`secondaryFire`** / **`torpedoFire`** (`sample()`), **außer** **`awaiting_respawn`**. Nachrichten **`artyFired`**, **`artyImpact`**, **`aswmImpact`**, **`torpedoImpact`**, **`airDefenseFire`**, **`airDefenseIntercept`**. `missileList` / `torpedoList`; `missileFx` / `torpedoFx` + Cull für Einschlag-Flash wie Artillerie.
 - **Artillerie-VFX Culling (Client):** Kreis um Eigenschaft, Radius aus sichtbarem Ortho-Rechteck + Marge (`ARTILLERY_FX_CULL_MARGIN`, Helfer in `createGameScene.ts`). **`artyFired`:** zeichnen nur wenn **Start oder Ziel** im Kreis. **`artyImpact`:** Kugel immer cleanup; Splash nur wenn **Einschlag** im Kreis (`skipSplash`). Policy als Kommentar in `main.ts` beim Bootstrap — Analogon für spätere Welt-VFX möglich.
 - **Debug-Overlay:** FPS, gekürzte Room-ID, Spielerzahl, **Ping**; optional Warn-/Diagnosezeilen.
 
@@ -100,8 +112,8 @@ Pro Bild (`requestAnimationFrame`) — **ohne** clientseitige Schiffsphysik:
 
 1. **`playerList`** aus dem Raum-State lesen; fehlende `ShipVisual`s nachziehen.
 2. **Input** `sample()` (Gas, Ruder-Soll, Maus → Weltpunkt auf Meeresebene `Y = 0`).
-3. **Visuals:** **Lokaler Spieler:** Position/Kurs/Ruder direkt aus Server-State (autoritativ). **Fremdspieler:** `sampleInterpolatedPose` aus `remoteInterpolation.ts` — zuletzt/nächster Snapshot (Zeit beim State-Patch), Darstellung bei `performance.now() − 100 ms` linear/kurven-interpoliert (`headingRad` kürzester Bogen); Ruder und **Peilung** (`aimX`/`aimZ`) ebenfalls interpoliert; Ziellinie **cyan** aus interpolierter Pose.
-4. **Lokaler Spieler:** Kamera folgt **Server**-Pose, **`room.send("input", …)`** inkl. **`primaryFire`** (**LMB** gehalten = `true`, sonst `false`), Cockpit aus State + Input; **areaWarningHud**; **artilleryFx.update** pro Frame.
+3. **Visuals:** **Lokaler Spieler:** Position/Kurs/Ruder direkt aus Server-State (autoritativ). **Fremdspieler:** `sampleInterpolatedPose` aus `remoteInterpolation.ts` — zuletzt/nächster Snapshot (Zeit beim State-Patch), Darstellung bei `performance.now() − 100 ms` linear/kurven-interpoliert (`headingRad` kürzester Bogen); Ruder und **Peilung** (`aimX`/`aimZ`) ebenfalls interpoliert; Ziellinie **cyan** aus interpolierter Pose. Anschließend **`setShipVisualLifeState`** (`awaiting_respawn`: Wrack-Material, leichtes Absenken **Y**, lokaler **Feuerbogen** ausgeblendet).
+4. **Lokaler Spieler:** Kamera folgt **Server**-Pose, **`room.send("input", …)`** wenn nicht **`awaiting_respawn`**, Cockpit inkl. **Respawn / Spawn-Schutz** (`cockpitHud`); **`gameMessageHud.updateFrame`** (OOB / Zerstörungs-Toasts); **artilleryFx.update** pro Frame.
 5. **`renderer.render`**
 
 Bei neuem `onStateChange` wird pro Fremdspieler nur bei geänderter Pose (`posesEqual` mit Toleranz) `prev ← altes next`, `next ← neuer Snapshot` gesetzt — vermeidet „Zurückspringen“, wenn andere Felder patchen.
@@ -115,10 +127,13 @@ Bei neuem `onStateChange` wird pro Fremdspieler nur bei geänderter Pose (`poses
 | `game/scene/createGameScene.ts` | Wasser-/`Grid`-Extent `waterMapHalfExtent()` (**≈ 2.8×H**), AO-**Randlinie**, **Insel-Meshes** aus `DEFAULT_MAP_ISLANDS`, **Kamera** (`resizeCamera`, `updateFollowCamera`), **VFX-Cull:** `orthoVisibleHalfExtents`, `cameraPivotXZ`, `artilleryFxCullRadiusSq`, `ARTILLERY_FX_CULL_MARGIN` |
 | `shared/…/shipMovement.ts` | `stepMovement`, `smoothRudder`, `DESTROYER_LIKE_MVP` — **läuft auf dem Server** mit fester `dt` |
 | `game/input/keyboardMouse.ts` | W/S/A/D, NDC aus Maus, Raycast-Ergebnis; **`primaryFire`** = LMB gehalten (`pointerup` auch auf `window`, damit Loslassen außerhalb des Canvas zählt) |
-| `game/hud/cockpitHud.ts` | DOM-Cockpit |
+| `game/hud/cockpitHud.ts` | DOM-Cockpit inkl. Respawn-Timer & Spawn-Schutz |
 | `game/hud/debugOverlay.ts` | FPS, Raum, Spieler, Ping |
-| `game/hud/areaWarningHud.ts` | Meldung „Area of Operations“ + verbleibende Sekunden |
+| `game/hud/gameMessageHud.ts` | Zentrale Meldungen: OOB (Priorität) + Toasts; nur Text/Schatten, kein HUD-Kasten |
 | `game/effects/artilleryFx.ts` | Kugel-Interpolation; Einschlag-VFX nach `kind` (Wasser / Treffer / Insel-Ufer); Material **`depthTest: false`**, **`DoubleSide`** für sichtbare Ringe von oben; **`skipSplash`** ohne Cleanup-Verlust der Kugel |
+| `game/effects/missileFx.ts` | ASuM-Kegel-Mesh aus `missileList`; Ring-Flash bei `aswmImpact` (`hit` / `island` / `oob`); MVP ohne Trail/Rauch |
+| `game/effects/torpedoFx.ts` | Torpedo-Zylinder aus `torpedoList`; Ring-Flash bei `torpedoImpact` |
+| `game/effects/airDefenseFx.ts` | **`airDefenseFire`**: SAM-/CIWS-Flug **ohne** End-Ring; **`airDefenseIntercept`**: Ring + HUD-Puls; `renderOrder`/ohne DepthTest |
 | `game/network/remoteInterpolation.ts` | Zwei-Punkt-Interpolation, Render-Verzögerung 100 ms |
 
 ---
@@ -166,21 +181,21 @@ Details (Formeln, Grenzfälle): unverändert die gleiche Struktur wie im bisheri
 - **Gitter:** `GridHelper`, Auflösung skaliert mit `AREA_OF_OPERATIONS_HALF_EXTENT`.
 - **AO:** rote **Linie** auf Höhe `borderY ≈ 0.18`.
 - **Inseln:** fünf Gruppen, Namen `island_i1` … `island_i5` (Debug).
-- **Schiff (`shipVisual.ts`):** Dreieck-Hull, Ziellinie, Ruderstrich; **lokales Schiff** zusätzlich **Feuerbogen** (Bogen + Randstrahlen, Konstante **`ARTILLERY_ARC_HALF_ANGLE_RAD`** aus `@battlefleet/shared`, identisch zum Server). Kamera folgt lokalem Schiff.
+- **Schiff (`shipVisual.ts`):** Dreieck-Hull, Ziellinie, Ruderstrich; **lokales Schiff** zusätzlich **Feuerbogen** (`weaponGuideGroup`). Bei **`awaiting_respawn`**: Wrack-Optik, **−Y**; bei **`spawn_protected`**: türkises Hull-**Emissive**, mintfarbener Feuerbogen (lokal). Kamera folgt lokalem Schiff.
 
 ---
 
-## 8. Review-Hinweise (Stand Task 5)
+## 8. Review-Hinweise (Stand Task 9)
 
-- **Server bleibt maßgeblich** für Schussvalidierung (`tryComputeArtillerySalvo`), Treffer (`resolveShellImpacts`), HP und Disconnect.
+- **Server bleibt maßgeblich** für Schussvalidierung (`tryComputeArtillerySalvo`), Treffer (`resolveShellImpacts`), HP, **Lebensphasen**; schwere OOB-Verletzung löst wie Kampftod **Respawn** aus (kein automatischer Kick mehr dafür).
 - **Client-VFX** sind **dekorativ**: `artyFired` / `artyImpact` können theoretisch manipuliert werden — Spielstand nicht daraus leiten.
 - **Artillerie-Culling:** reduziert Mesh-/rAF-Last; **Netzwerk** schlägt weiter `broadcast` für alle Raum-Clients (kein Server-LOD). Schüsse, deren Bahn das sichtbare Rechteck schneidet, obwohl **Start und Ziel** außerhalb des Cull-Kreises liegen, werden nicht gezeichnet (selten).
-- **Granate ↔ Insel:** keine Kollisions-Simulation; Schüsse können visuell „durch“ Inseln fliegen (Konsistenz mit entfernter Insel-Sperre beim Feuern).
+- **Artillerie-Granate ↔ Insel:** keine Flug-Kollision; Schüsse können visuell „durch“ Inseln fliegen (`tryComputeArtillerySalvo` blockiert nicht). **ASuM & Torpedo:** serverseitig **Insel-Kreis** — Detonation mit `aswmImpact` / **`torpedoImpact`** **`island`** (kein Schiffs-Schaden durch Terrain).
 
 ---
 
 ## 9. Referenzen
 
-- `README.md` — Install, Dev, Build, Multiplayer- und **Task-4/5-Tests** (AO, Inseln, Artillerie)  
+- `README.md` — Install, Dev, Build, Multiplayer- und Kurztests (AO/OOB→Respawn, Inseln, Artillerie, Respawn)  
 - `PRD.md` — Produktvision, MVP, Netzwerk, Karte & Kollision  
-- `Project_Plan.md` — **Task 5 MVP abgeschlossen**; nächster Fokus **Task 6** (Respawn)  
+- `Project_Plan.md` — **Task 9 MVP (SAM/CIWS) abgeschlossen**; nächster Fokus **Task 10** (Match/Score)  

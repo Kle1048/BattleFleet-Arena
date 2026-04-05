@@ -11,6 +11,14 @@ export type CockpitHudUpdate = {
   hp: number;
   maxHp: number;
   primaryCooldownSec: number;
+  /** ASuM / Sekundär — Cooldown repliziert (Task 7). */
+  secondaryCooldownSec: number;
+  /** Torpedo — Cooldown repliziert (Task 8). */
+  torpedoCooldownSec: number;
+  /** Sekunden bis Respawn (nur `awaiting_respawn`, repliziert). */
+  respawnCountdownSec: number;
+  /** Verbleibender Spawn-Schutz in Sekunden (`spawn_protected`). */
+  spawnProtectionSec: number;
 };
 
 function degFromHeading(headingRad: number): number {
@@ -71,6 +79,18 @@ export function createCockpitHud(): { update: (u: CockpitHudUpdate) => void } {
           <span class="cockpit-label">Feuer</span>
           <span class="cockpit-primary-cd">—</span>
         </div>
+        <div class="cockpit-row">
+          <span class="cockpit-label">ASuM</span>
+          <span class="cockpit-secondary-cd">—</span>
+        </div>
+        <div class="cockpit-row">
+          <span class="cockpit-label">Torpedo</span>
+          <span class="cockpit-torpedo-cd">—</span>
+        </div>
+        <div class="cockpit-row cockpit-row-life hidden">
+          <span class="cockpit-label">Status</span>
+          <span class="cockpit-life-status">—</span>
+        </div>
       </div>
     </div>
   `;
@@ -82,6 +102,10 @@ export function createCockpitHud(): { update: (u: CockpitHudUpdate) => void } {
   const fillRudder = wrap.querySelector(".cockpit-fill-rudder") as HTMLElement;
   const fillHp = wrap.querySelector(".cockpit-fill-hp") as HTMLElement;
   const primaryCdEl = wrap.querySelector(".cockpit-primary-cd") as HTMLElement;
+  const secondaryCdEl = wrap.querySelector(".cockpit-secondary-cd") as HTMLElement;
+  const torpedoCdEl = wrap.querySelector(".cockpit-torpedo-cd") as HTMLElement;
+  const lifeRow = wrap.querySelector(".cockpit-row-life") as HTMLElement;
+  const lifeStatusEl = wrap.querySelector(".cockpit-life-status") as HTMLElement;
 
   document.body.appendChild(wrap);
 
@@ -107,6 +131,10 @@ export function createCockpitHud(): { update: (u: CockpitHudUpdate) => void } {
       hp,
       maxHp,
       primaryCooldownSec,
+      secondaryCooldownSec,
+      torpedoCooldownSec,
+      respawnCountdownSec,
+      spawnProtectionSec,
     }: CockpitHudUpdate): void {
       const deg = degFromHeading(headingRad);
       card.style.transform = `rotate(${-deg}deg)`;
@@ -146,6 +174,35 @@ export function createCockpitHud(): { update: (u: CockpitHudUpdate) => void } {
       } else {
         primaryCdEl.textContent = "bereit";
         primaryCdEl.style.opacity = "0.55";
+      }
+
+      if (secondaryCooldownSec > 0.05) {
+        secondaryCdEl.textContent = `${secondaryCooldownSec.toFixed(1)} s`;
+        secondaryCdEl.style.opacity = "0.9";
+      } else {
+        secondaryCdEl.textContent = "bereit";
+        secondaryCdEl.style.opacity = "0.55";
+      }
+
+      if (torpedoCooldownSec > 0.05) {
+        torpedoCdEl.textContent = `${torpedoCooldownSec.toFixed(1)} s`;
+        torpedoCdEl.style.opacity = "0.9";
+      } else {
+        torpedoCdEl.textContent = "bereit";
+        torpedoCdEl.style.opacity = "0.55";
+      }
+
+      if (respawnCountdownSec > 0.05) {
+        lifeRow.classList.remove("hidden");
+        lifeStatusEl.textContent = `Respawn in ${respawnCountdownSec.toFixed(1)} s`;
+        lifeStatusEl.style.opacity = "0.95";
+      } else if (spawnProtectionSec > 0.05) {
+        lifeRow.classList.remove("hidden");
+        lifeStatusEl.textContent = `Spawn-Schutz ${spawnProtectionSec.toFixed(1)} s`;
+        lifeStatusEl.style.opacity = "0.95";
+      } else {
+        lifeRow.classList.add("hidden");
+        lifeStatusEl.textContent = "—";
       }
     },
   };

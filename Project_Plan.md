@@ -13,12 +13,12 @@ Dieses Dokument bricht die MVP-Anforderungen aus `PRD.md` in **inkrementelle Tas
 | 1 | Offline-Boot, Szene, schiffsähnliche Steuerung | Ein Schiff auf der Karte steuern |
 | 2 | **Abgeschlossen** — Colyseus, Schema, Join/Leave, 20 Hz-Server, Aim+Ping | Zwei Tabs, beide Schiffe + Peilung sichtbar; Overlay inkl. Ping |
 | 3 | **Abgeschlossen** — Client-Interpolation für entfernte Spieler | Flüssige Darstellung bei State-Updates |
-| 4 | **Abgeschlossen** (MVP) — AO, 5 Kreis-Inseln, Schiff↔Insel-Kollision, OOB | Grenze, Inseln, Blockieren; außerhalb 10 s → Kick |
-| 5 | **Abgeschlossen** (MVP) — Artillerie Plan A, Bogen, Splash, HP, Tod (kein Respawn) | LMB, zwei Tabs, HP↓, Kill → Disconnect |
-| 6 | Respawn, Spawn-Schutz, faire Spawn-Punkte | Nach Tod wieder einsteigen |
-| 7 | Lenkflugkörper (ASuM), Homing, Limits | Sekundärfeuer testen |
-| 8 | Torpedos (einfach, langsamer) | Torpedo-Verhalten |
-| 9 | Abwehr: SAM + CIWS (logische Interception) | Raketen werden teilweise abgefangen |
+| 4 | **Abgeschlossen** (MVP) — AO, 5 Kreis-Inseln, Schiff↔Insel-Kollision, OOB | Grenze, Inseln, Blockieren; außerhalb 10 s → Zerstörung/Respawn (wie Task 6) |
+| 5 | **Abgeschlossen** (MVP) — Artillerie Plan A, Bogen, Splash, HP | LMB, zwei Tabs, HP↓; Tod/Respawn siehe Task 6 |
+| 6 | **Abgeschlossen** (MVP) — Respawn, Spawn-Schutz; OOB-Tod = gleicher Pfad wie Kampftod | Nach Tod/OOB-Timer wieder einsteigen |
+| 7 | **Abgeschlossen** (MVP ASuM) — Feuerrichtung, Kegel ±30°/210 m, Homing, Insel-Detonation | RMB, HUD **ASuM**, Einschlag `hit`/`island`/`oob` |
+| 8 | **Abgeschlossen** (MVP) — Torpedos geradeaus, langsamer, Insel/AO | **Q** oder **Mittelklick**, HUD **Torpedo** |
+| 9 | **Abgeschlossen** (MVP) — SAM + CIWS (logische Interception) | Eingehende **ASuM** teils **`airDefenseIntercept`** (Ring SAM blau / CIWS gelb); Torpedos nicht |
 | 10 | Match-Timer, Score, Kills/Assists, Endscreen | 12-Minuten-Match, Siegerliste |
 | 11 | In-Match-XP, Level 1–10, Stat-Skalierung, Fähigkeiten (MVP) | Level-Up im HUD |
 | 12 | 3 Schiffsklassen, Klassenauswahl, HUD/Audio-Polish | Voller MVP-Flow |
@@ -102,15 +102,15 @@ Dieses Dokument bricht die MVP-Anforderungen aus `PRD.md` in **inkrementelle Tas
 
 - **Island-Cluster-Arena:** Inseln konsistent Server + Client.
 - **Kollision:** Schiffe vs. Hindernis; Projektile/Insel später (ab Task 5).
-- **Bounds:** Harte Karte möglich — umgesetzt als **Area of Operations** + Abkommen = Zerstörung.
+- **Bounds:** Harte Karte möglich — umgesetzt als **Area of Operations** + **Abkommen:** zu lange außerhalb → **HP 0** und **Respawn** (wie Kampftod, `enterAwaitingRespawn`).
 
 **Ist / Abnahme Task 4:**
 
 | Ziel | Status |
 |------|--------|
 | Gemeinsame Kartengrenze (Quadrat XZ), Server = maßgeblich | Erfüllt (`mapBounds.ts`, `isInsideOperationalArea`) |
-| Außerhalb AO: Warnung repliziert, 10 s dann Raum verlassen | Erfüllt (`oobCountdownSec`, `OOB_DESTROY_AFTER_MS`, `Protocol.WS_CLOSE_WITH_ERROR` + Reason) |
-| Client: sichtbare AO-Linie, OOB-HUD | Erfüllt (`createGameScene.ts`, `areaWarningHud.ts`, `main.ts`) |
+| Außerhalb AO: Warnung repliziert, 10 s dann Zerstörung (HP 0, Respawn) | Erfüllt (`oobCountdownSec`, `OOB_DESTROY_AFTER_MS`, `enterAwaitingRespawn`) |
+| Client: sichtbare AO-Linie, OOB in zentraler Meldungsfläche | Erfüllt (`createGameScene.ts`, `gameMessageHud.ts`, `main.ts`) |
 | Mehrere Inseln, unterschiedliche Größen | Erfüllt — **5** Einträge in `DEFAULT_MAP_ISLANDS` (Kreise, Radien 64–140) |
 | Schiff blockiert / schiebt aus Insel (serverseitig) | Erfüllt (`resolveShipIslandCollisions` nach `stepMovement` in `BattleRoom`) |
 | Client nutzt dieselben Inseldaten wie Server | Erfüllt — Import aus `@battlefleet/shared`, keine zweite „Geheim“-Karte |
@@ -122,11 +122,9 @@ Dieses Dokument bricht die MVP-Anforderungen aus `PRD.md` in **inkrementelle Tas
 - **Keine** Kollision **Projektil ↔ Insel** (ergibt sich mit Task 5).
 - Spawn nur platzieren (Ring ~140 um Null); keine automatische „freie Spawn“-Validierung gegen jede Insel-Änderung.
 
-**Test:** Über rote AO-Linie → engl. Warnung + Countdown → Kick. Gegen grüne/braune Inseln fahren → Schiff bleibt außerhalb der Kreis-Hülle. Zwei Tabs → gegnerische Schiffe verhalten sich identisch (serverseitige Kollision).
+**Test:** Über rote AO-Linie → Warnung + Countdown → nach Ablauf Zerstörung mit Respawn (kein Raum-Kick). Gegen grüne/braune Inseln fahren → Schiff bleibt außerhalb der Kreis-Hülle. Zwei Tabs → gegnerische Schiffe verhalten sich identisch (serverseitige Kollision).
 
 **Docs:** `docs/ARCHITECTURE.md` (Stand Task 4), `README.md`.
-
-**Nächster planmäßiger Task:** **Task 6** (Respawn & Spawn-Schutz).
 
 ---
 
@@ -148,21 +146,21 @@ Dieses Dokument bricht die MVP-Anforderungen aus `PRD.md` in **inkrementelle Tas
 | **Plan A:** geplanter Einschlag + Flugzeit | Erfüllt (`pendingShells`, `impactAtMs`, `computeFlightMs`) |
 | **Inseln:** Schuss **ohne** LOS/Lande-Sperre (MVP-Anpassung) | Erfüllt — `tryComputeArtillerySalvo` prüft Inseln nicht; Helfer `lineOfSightBlockedByIslands` / `pointInAnyIsland` nur noch für andere Zwecke bzw. VFX-Einstufung |
 | Splash-Schaden, kein Self-Hit | Erfüllt (`ARTILLERY_SPLASH_RADIUS`, Owner ausgenommen) |
-| **HP** im Schema, Tod | Erfüllt (`hp`/`maxHp`, `leave` Reason `destroyed_in_combat`) |
+| **HP** im Schema, Tod | Erfüllt (`hp`/`maxHp`); Kampftod ohne Disconnect seit **Task 6** (`lifeState` / Respawn) |
 | Client: **LMB** (halten), Events **`artyFired`/`artyImpact`** inkl. **`kind`** (Wasser/Treffer/Ufer), VFX | Erfüllt (`keyboardMouse.ts`, `artilleryFx.ts`) |
 | Client: **VFX-Culling** (Kreis um Eigenschaft, Start/oder Ziel / Einschlag; `skipSplash`) | Erfüllt (`main.ts`, `createGameScene.ts`) |
 | HUD: HP, Feuer-Cooldown | Erfüllt (`cockpitHud`) |
 | Feuerbogen-Visual (lokal) | Erfüllt (`shipVisual.ts` + `ARTILLERY_ARC_HALF_ANGLE_RAD`) |
 
-**Noch nicht (Task 6+):** Respawn, Kill-Feed, Score, Granate↔Insel eigene Entität, sekundäre Waffen.
+**Noch nicht (post-MVP):** Kill-Feed, Score, Granate↔Insel-Kollision / Ballistik (Artillerie fliegt weiterhin ohne Insel-Block beim Feuern).
 
-**Test:** Zwei Tabs; Gegner mit Bug in Richtung Ziel; **LMB** → Einschlag sichtbar, HP sinkt; bei 0 Disconnect mit Hinweis.
+**Test:** Zwei Tabs; Gegner mit Bug in Richtung Ziel; **LMB** → Einschlag sichtbar, HP sinkt; Kampftod → siehe **Task 6** (Respawn, kein Pflicht-Disconnect).
 
 **Docs:** `docs/ARCHITECTURE.md`, `README.md`.
 
 ---
 
-## Task 6 — Respawn & Spawn-Schutz
+## Task 6 — Respawn & Spawn-Schutz — **abgeschlossen (MVP)**
 
 **Ziele:**
 
@@ -170,39 +168,93 @@ Dieses Dokument bricht die MVP-Anforderungen aus `PRD.md` in **inkrementelle Tas
 - **Spawn-Schutz** ~3 s, kein Schaden; optional: Schießen bricht Schutz ab (PRD).
 - Client-Feedback (Effekt).
 
-**Test:** Bewusst sterben, nach Respawn wieder Level-1-Leben (Progression kommt in Task 11).
+**Ist / Abnahme Task 6:**
+
+| Ziel | Status |
+|------|--------|
+| Explizite Phasen `alive` / `awaiting_respawn` / `spawn_protected` + Invarianten (`hp`↔`lifeState`) | Erfüllt (`shared/playerLife.ts`, `assertPlayerLifeInvariant` serverseitig) |
+| Replikation: `lifeState`, `respawnCountdownSec`, `spawnProtectionSec` | Erfüllt (`schema.ts`) |
+| Respawn-Timer **5 s**, Position AO + Abstand zu lebenden Gegnern, Fallback Join-Ring | Erfüllt (`respawn.ts`, `BattleRoom.performRespawn`) |
+| Spawn-Schutz **3 s**, kein Splash-Schaden (Primärfeuer während Schutz **erlaubt** — Schutz bricht nicht ab) | Erfüllt (`canTakeArtillerySplashDamage` nur `alive`) |
+| Kein `leave` bei Kampftod; schweres OOB ebenfalls **`enterAwaitingRespawn`** (kein `left_operational_area`-Kick) | Erfüllt (`BattleRoom`) |
+| Physik/OOB-Timer nur bei `alive`/`spawn_protected` | Erfüllt (`BattleRoom`, `participatesInWorldSimulation`) |
+| Client: HUD Respawn / Schutz; **gameMessageHud** (OOB + Toasts); Wrack-Optik `shipVisual` | Erfüllt (`cockpitHud`, `gameMessageHud`, `main.ts`, `shipVisual.ts`) |
+| Kein `input`-Spam im Tod (`awaiting_respawn`) | Erfüllt (`main.ts`) |
+
+**Test:** Zwei Tabs; einen auf 0 HP — Countdown, Respawn, Schutz-Anzeige, wieder verwundbar. Optional: AO für **10 s** missachten → gleicher Respawn wie bei Treffer. Progression (Level-Reset) kommt in Task 11.
+
+**Nächster planmäßiger Task:** **Task 10** (Match, Score, Ende).
 
 ---
 
-## Task 7 — Anti-Schiff-Lenkflugkörper
+## Task 7 — Anti-Schiff-Lenkflugkörper — **abgeschlossen (MVP)**
+
+**Ziele (PRD, gekürzt):**
+
+- Entitäten: Position, Heading, Lifetime, Zielwahl/Homing, Schaden, Trefferradius.
+- Limit gleichzeitig aktiver Raketen; Cooldown; Start entlang **Schiff→Aim**.
+- Client: Sekundärfeuer, HUD, sichtbarer Flugkörper; Einschlag-Feedback.
+- *(Optional PRD: Rauch/Trail — im MVP nicht umgesetzt.)*
+
+**Ist / Abnahme Task 7:**
+
+| Ziel | Status |
+|------|--------|
+| Replikation `missileList` (`MissileState`), `PlayerState.secondaryCooldownSec` | Erfüllt (`schema.ts`) |
+| Homing; Suchkegel **±30°** um **aktuelle** Flugrichtung; Erfassungstiefe **`ASWM_ACQUIRE_CONE_LENGTH`** (210 m); Start `spawnAswmFromFireDirection` | Erfüllt (`shared/aswm.ts`) |
+| Geschwindigkeit/Drehrate/Radius/Schaden/Cooldown/Limit laut Konstanten; Simulation `stepAswmMissile` | Erfüllt (`aswm.ts`, `BattleRoom.stepMissiles`) |
+| AO: `aswmImpact` **`oob`**, FK entfernen | Erfüllt (`BattleRoom`) |
+| **Insel:** Kreis-Kollision wie Karte; Treffer = Detonation ohne Schiffs-HP, `aswmImpact` **`island`** | Erfüllt (`isInsideAnyIslandCircle`, `ASWM_ISLAND_COLLISION_RADIUS`) |
+| Schiffstreffer: Splash-ähnlich Radius, Schaden, `kind: "hit"`; kein Selber-Treffer Owner | Erfüllt (`BattleRoom`) |
+| Client: **RMB** `secondaryFire`, Cockpit **ASuM**-Cooldown; **`missileFx`**: nur Kegel-Mesh + Ring bei `aswmImpact` (kein Rauch/Trail im MVP) | Erfüllt (`main.ts`, `keyboardMouse.ts`, `cockpitHud.ts`, `missileFx.ts`) |
+
+**Noch nicht (Polish / später):** Schweif/Rauch; ggf. optimierte Visuelle für `island`/`oob`.
+
+**Test:** Zwei Tabs; **RMB** — FK startet in Peilrichtung; Ziel nur im **Kegel** (Winkel **und** max. 210 m vom FK); Homing mit begrenzter Wendigkeit; max. **2** aktiv; FK **detoniert auf Insel** (bläulicher Ring, kein HP-Schaden); **Grenze** = `oob`.
+
+---
+
+## Task 8 — Torpedos — **abgeschlossen (MVP)**
 
 **Ziele:**
 
-- Entitäten: Position, Heading, Speed, Lifetime, Ziel/Homing, Schaden, Radius.
-- Limit gleichzeitig aktiver Raketen; Cooldown; ggf. Bogen-Regeln für Starter.
-- Visuell: Rauch, Trail, Impact.
+- Langsamer als ASuM; **geradeaus** (kein Homing); weniger gleichzeitig aktiv.
+- Gleiche Feuerrichtung wie andere Waffen (**Schiff→Aim**); AO- und Insel-Detonation wie ASuM.
 
-**Test:** Rechte Maustaste / sekundärer Input → Rakete fliegt und trifft.
+**Ist / Abnahme Task 8:**
+
+| Ziel | Status |
+|------|--------|
+| Replikation `torpedoList` (`TorpedoState`), `PlayerState.torpedoCooldownSec` | Erfüllt (`schema.ts`) |
+| `shared/torpedo.ts`: `spawnTorpedoFromFireDirection`, `stepTorpedoStraight`, Konstanten | Erfüllt |
+| Server: `tryTorpedoFire`, `stepTorpedoes` (Lebensdauer, OOB, Insel, Treffer/Schaden), Leave-Cleanup | Erfüllt (`BattleRoom.ts`) |
+| Max. **1** aktiv pro Besitzer, Cooldown **7,5 s**; Schaden/Radien laut `torpedo.ts` | Erfüllt |
+| Client: **Q** oder **mittlere Maustaste** halten (`torpedoFire`), `torpedoFx`, `torpedoImpact`-VFX | Erfüllt (`keyboardMouse.ts`, `torpedoFx.ts`, `main.ts`) |
+| Cockpit-Zeile **Torpedo** | Erfüllt (`cockpitHud.ts`) |
+
+**Test:** Zwei Tabs; **Q** oder Mittelklick — Torpedo in Peilrichtung, deutlich langsamer als ASuM; Treffer auf Gegner; Aufprall auf **Insel** / **AO-Rand**.
+
+**Nächster planmäßiger Task:** **Task 10** (Match, Score, Ende).
 
 ---
 
-## Task 8 — Torpedos (einfach)
-
-**Ziele:**
-
-- Langsamer als Raketen; geradeaus oder einfache Führung; weniger gleichzeitige Aktive.
-
-**Test:** Eigenständiges Torpedo-Verhalten und Schaden bei Treffer.
-
----
-
-## Task 9 — Defensive Systeme (SAM + CIWS)
+## Task 9 — Defensive Systeme (SAM + CIWS) — **abgeschlossen (MVP)**
 
 **Ziele:**
 
 - **Schichten:** Bedrohung erkannt → SAM versucht Intercept → überlebende → CIWS.
 - Logik-basiert (keine massenhaften Bullet-Simulationen), Cooldowns, Quote/saturation-tauglich.
 - Events an Client für SFX/VFX (Abfangen, Nahbereichsfeuer).
+
+**Ist / Abnahme Task 9:**
+
+| Ziel | Status |
+|------|--------|
+| `shared/airDefense.ts`: Reichweiten, Cooldowns, **`pickAirDefenseEngagementLayer`** / **`rollAirDefenseHit`**; Feuer vs. Wurf 1 Tick getrennt | Erfüllt |
+| Server `SimEntry`: `adSamNextAtMs` / `adCiwsNextAtMs`; Join/Respawn **0**; nur bei tatsächlichem Wurf Cooldown | Erfüllt (`BattleRoom`) |
+| **`stepMissiles`:** vor Schiffstreffer — Air Defense gegen **ASuM** bei **`m.targetId`** oder **nächster Gegner in SAM-Reichweite**; bei Erfolg **`airDefenseIntercept`** (`weapon: "aswm"`, `defenderX`/`defenderZ`) + Rakete entfernen | Erfüllt |
+| **Torpedos:** keine SAM/CIWS (Unterwasser / außerhalb Rollenmodell) | Erfüllt |
+| Client: **`airDefenseFire`** → Flug-VFX; **`airDefenseIntercept`** → Burst + HUD-Puls (`airDefenseFx`, `main.ts` `*`) | Erfüllt |
 
 **Test:** Salven und Einzelraketen — teils Abfang, teils Treffer.
 

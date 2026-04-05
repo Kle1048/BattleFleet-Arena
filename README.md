@@ -1,6 +1,6 @@
 # BattleFleet-Arena
 
-Browser-Multiplayer (Three.js + Colyseus + Node.js) laut `PRD.md` und `Project_Plan.md`. Stand: **Task 5 (MVP)** — **Primär-Artillerie** (Plan A: geplanter Einschlag, **0,5 s** Cooldown, Bogen/Streuung), **HP** & Tod (**Disconnect**; Respawn = Task 6); plus Task 2–4 (Netz, Interpolation, AO & Inseln).
+Browser-Multiplayer (Three.js + Colyseus + Node.js) laut `PRD.md` und `Project_Plan.md`. Enthält **Task 2–8 (MVP)** — Netz, Interpolation, AO & Inseln, **Primär-Artillerie** (Plan A), **HP** & **Respawn** mit `lifeState` (**5 s** Timer, **3 s** Spawn-Schutz ohne Splash-Schaden). **Außerhalb AO** nach **10 s** dasselbe wie Kampftod (kein Disconnect).
 
 ## Voraussetzungen
 
@@ -54,8 +54,12 @@ npm run build
 3. Beide sollten im gleichen Raum („battle“) erscheinen; das **andere** Schiff sollte sich dank Interpolation **flüssiger** bewegen als die Roh-Snapshot-Rate (~20 Hz); das eigene Schiff folgt der autoritativen Server-Pose.
 4. Debug-Overlay: **FPS**, **Raum**, **Spielerzahl**, **Ping** (Roundtrip ping/pong ~2 s).
 5. **Karte (Task 4):** Rote Linie = AO-Grenze; **Inseln** als grün/braune „Tupfer“. Gegen eine Insel fahren → das Schiff bleibt an der **Kreis-Kollision** außen (serverseitig).
-6. **OOB:** Über die rote Grenze hinaus → englische Warnung + Countdown; **10 s** nicht zurück → Verbindungsende (Zerstörung laut Design); bei Rückkehr innerhalb der Zeit verschwindet die Warnung.
-7. **Artillerie (Task 5):** **Linke Maustaste halten** (Dauerfeuer mit serverseitigem Cooldown **0,5 s**) — Ziel im Bug-Feuerbogen (**±120°**, **240°** Sektor); serverseitig Streuung & Splash-Schaden. Client: Kugel-Animation + **VFX nach Trefferart** (`water` / `hit` / `island`); **Cull-Kreis** um das eigene Schiff (sichtbares Ortho-Fenster + Marge) — Flug nur wenn Start **oder** Ziel im Kreis, Splash nur wenn Einschlag im Kreis (Kugel wird immer bereinigt). Gegner-**HP** im Cockpit, bei **0** Ende mit Meldung (Respawn = Task 6).
+6. **OOB:** Über die rote Grenze hinaus → zentrale Meldungsfläche (Text + Countdown); **10 s** nicht zurück → **HP 0** und **Respawn** wie bei Kampftod (kein Raum-Kick); bei Rückkehr vorher verschwindet die Warnung.
+7. **ASuM (Task 7):** **Rechte Maustaste halten** — Start in **Peilrichtung** (Maus); Sucher **±30°** um die **Flugrichtung** mit **max. Erfassungstiefe** (shared: `ASWM_ACQUIRE_CONE_LENGTH`); nur Ziele in diesem Kegelsegment werden angeflogen. Raketen **detonieren auf Inseln** (serverseitig, ohne Schiffs-Schaden) und an der **AO-Grenze**. Max. **2** gleichzeitig, **~3,2 s** Cooldown (**ASuM** im Cockpit). Client: Kegel-Mesh + Einschlag-Ring (kein Rauch-Schweif im MVP).
+
+8. **Torpedo (Task 8):** Taste **Q** oder **mittlere Maustaste halten** — ein Torpedo in **Peilrichtung**, **geradeaus** (ohne Homing), langsamer als ASuM. Max. **1** aktiv, **~7,5 s** Cooldown (**Torpedo** im Cockpit). Insel- und AO-Detonation wie ASuM.
+
+9. **Artillerie (Task 5) & Leben (Task 6):** **Linke Maustaste halten** (Cooldown **0,5 s**), Ziel im Bug-Feuerbogen (**±120°**). Bei **HP 0** (Treffer oder OOB-Timeout): zentrale Meldung „Zerstört …“, **Wrack**-Darstellung, Cockpit-**Respawn** (~**5 s**), dann **Spawn-Schutz** (~**3 s**, kein Splash-Schaden; Schießen erlaubt). Verbindung bleibt bestehen.
 
 ## Projektstruktur (Monorepo)
 
@@ -63,8 +67,8 @@ npm run build
 |--------|--------|
 | `client/` | Vite, Three.js, Colyseus-Client |
 | `server/` | Colyseus, `BattleRoom`, Express-HTTP |
-| `shared/` | Schema, `shipMovement`, `mapBounds`, `islands`, **`artillery`** (Feuerlogik-Helfer) |
-| `docs/` | `ARCHITECTURE.md` — Ist-Architektur inkl. **Task 5** (Artillerie, HP, Client-VFX-Culling) |
+| `shared/` | Schema (**`missileList`**, **`torpedoList`**), `shipMovement`, `mapBounds`, `islands`, **`artillery`**, **`aswm`**, **`torpedo`**, **`playerLife`**, **`respawn`** |
+| `docs/` | `ARCHITECTURE.md` — Task **7–8** (ASuM, Torpedo) |
 
 ## Weiterführend
 

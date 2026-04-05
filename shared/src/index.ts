@@ -3,3 +3,8 @@ export * from "./schema";
 export * from "./mapBounds";
 export * from "./islands";
 export * from "./artillery";
+export * from "./playerLife";
+export * from "./respawn";
+export * from "./aswm";
+export * from "./torpedo";
+export * from "./airDefense";

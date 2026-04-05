@@ -20,7 +20,7 @@
         letter-spacing: 0.08em; text-transform: uppercase; opacity: 0.9;
       }
       .cockpit {
-        position: fixed; left: 50%; bottom: 12px; transform: translateX(-50%);
+        position: fixed; left: 16px; top: 16px;
         pointer-events: none; z-index: 10;
         --speed-glow: 0.2;
       }
@@ -96,16 +96,20 @@
       }
       .cockpit-track-hp .cockpit-fill-hp { min-width: 3px; }
       .cockpit-primary-cd { font-variant-numeric: tabular-nums; font-weight: 600; color: #ffc9a0; font-size: 13px; }
+      .cockpit-secondary-cd { font-variant-numeric: tabular-nums; font-weight: 600; color: #ffb8e8; font-size: 13px; }
+      .cockpit-life-status { font-variant-numeric: tabular-nums; font-weight: 600; color: #9ecbff; font-size: 13px; text-align: right; }
+      .cockpit-row-life.hidden { display: none; }
     </style>
   </head>
   <body>
-    <div id="title">BattleFleet-Arena — Task 5: Artillerie (MVP)</div>
+    <div id="title">BattleFleet-Arena — Task 7: ASuM (Lenkflugkörper)</div>
     <div id="app"></div>
     <div id="hud">
       <div>W / S — Gas zurück / voraus</div>
       <div>A / D — Ruder links / rechts</div>
       <div>Mausbewegung — Zielrichtung (Feuerbogen zum Bug)</div>
       <div>Linke Maustaste — Primär / Artillerie (0,5 s Cooldown)</div>
+      <div>Rechte Maustaste — ASuM halten (Cooldown, max. 2 aktiv)</div>
     </div>
     <script type="module" src="/src/main.ts"></script>
   </body>

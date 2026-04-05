@@ -32,6 +32,25 @@ const RESOLVE_ITERATIONS = 4;
 /**
  * Schiebt die Schiffsposition aus allen Insel-Kreisen heraus (serverseitig nach `stepMovement`).
  */
+/**
+ * Punkt (x,z) liegt in mindestens einem Insel-Kreis, erweitert um `objectRadius` (z. B. Flugkörper).
+ */
+export function isInsideAnyIslandCircle(
+  x: number,
+  z: number,
+  islands: readonly IslandCircle[],
+  objectRadius: number,
+): boolean {
+  const orad = Math.max(0, objectRadius);
+  for (const is of islands) {
+    const dx = x - is.x;
+    const dz = z - is.z;
+    const r = is.radius + orad;
+    if (dx * dx + dz * dz <= r * r) return true;
+  }
+  return false;
+}
+
 export function resolveShipIslandCollisions(
   ship: ShipMovementState,
   islands: readonly IslandCircle[],

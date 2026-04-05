@@ -1,6 +1,6 @@
 /**
- * Task 2–5: Colyseus-Client — autoritative Pose, Input (inkl. primaryFire / LMB), Interpolation,
- * OOB-Warnung, Artillerie-VFX (artyFired, artyImpact, Client-Culling, skipSplash).
+ * Colyseus-Client — Pose, Input (LMB Primär, **RMB ASuM**), Interpolation,
+ * **gameMessageHud**, Artillerie-, **ASuM** (`missileList`) + **Torpedos** (`torpedoList`), **SAM/CIWS** (`airDefenseFire` / `airDefenseIntercept`).
  *
  * Join **ohne** Root-Schema-Argument: State per **Reflection** (vom Server-Handshake).
  * Kein `BattleState` aus `@battlefleet/shared` übergeben — mit Vite-Alias + zweiter Schema-Kopie
@@ -10,8 +10,8 @@
 import * as THREE from "three";
 import type { ArraySchema } from "@colyseus/schema";
 import { Client } from "colyseus.js";
-import type { PlayerState } from "@battlefleet/shared";
-import { DESTROYER_LIKE_MVP } from "@battlefleet/shared";
+import type { MissileState, PlayerState, TorpedoState } from "@battlefleet/shared";
+import { DESTROYER_LIKE_MVP, PlayerLifeState } from "@battlefleet/shared";
 import {
   ARTILLERY_FX_CULL_MARGIN,
   artilleryFxCullRadiusSq,
@@ -21,12 +21,24 @@ import {
   resizeCamera,
   updateFollowCamera,
 } from "./game/scene/createGameScene";
-import { createShipVisual, rudderRotationRad, type ShipVisual } from "./game/scene/shipVisual";
+import {
+  createShipVisual,
+  rudderRotationRad,
+  setShipVisualLifeState,
+  type ShipVisual,
+} from "./game/scene/shipVisual";
 import { createInputHandlers } from "./game/input/keyboardMouse";
 import { createCockpitHud } from "./game/hud/cockpitHud";
 import { createDebugOverlay } from "./game/hud/debugOverlay";
-import { createAreaWarningHud } from "./game/hud/areaWarningHud";
+import { createGameMessageHud, shortSessionIdForMessage } from "./game/hud/gameMessageHud";
 import { createArtilleryFx } from "./game/effects/artilleryFx";
+import { createMissileFx } from "./game/effects/missileFx";
+import { createTorpedoFx } from "./game/effects/torpedoFx";
+import {
+  playAirDefenseFire,
+  playAirDefenseHitBurst,
+  showAirDefenseScreenPulse,
+} from "./game/effects/airDefenseFx";
 import {
   DEFAULT_INTERPOLATION_DELAY_MS,
   advanceIfPoseChanged,
@@ -96,8 +108,10 @@ function getGroundPoint(ndcX: number, ndcY: number): { x: number; z: number } | 
 const input = createInputHandlers(renderer.domElement, getGroundPoint);
 const cockpit = createCockpitHud();
 const debugOverlay = createDebugOverlay();
-const areaWarningHud = createAreaWarningHud();
+const gameMessageHud = createGameMessageHud();
 const artilleryFx = createArtilleryFx(scene);
+const missileFx = createMissileFx(scene);
+const torpedoFx = createTorpedoFx(scene);
 
 resizeCamera(camera, window.innerWidth, window.innerHeight);
 window.addEventListener("resize", () => {
@@ -119,9 +133,25 @@ type NetPlayer = Pick<
   | "hp"
   | "maxHp"
   | "primaryCooldownSec"
+  | "lifeState"
+  | "respawnCountdownSec"
+  | "spawnProtectionSec"
+  | "secondaryCooldownSec"
+  | "torpedoCooldownSec"
 >;
 
-type WireBattleState = { playerList: ArraySchema<NetPlayer> };
+type NetMissile = Pick<
+  MissileState,
+  "missileId" | "ownerId" | "targetId" | "x" | "z" | "headingRad"
+>;
+
+type NetTorpedo = Pick<TorpedoState, "torpedoId" | "ownerId" | "x" | "z" | "headingRad">;
+
+type WireBattleState = {
+  playerList: ArraySchema<NetPlayer>;
+  missileList?: ArraySchema<NetMissile>;
+  torpedoList?: ArraySchema<NetTorpedo>;
+};
 
 function playerListOf(room: { state: unknown }): ArraySchema<NetPlayer> {
   const st = room.state as Partial<WireBattleState> | null | undefined;
@@ -133,11 +163,37 @@ function playerListOf(room: { state: unknown }): ArraySchema<NetPlayer> {
   return st.playerList;
 }
 
+function missileListOf(room: { state: unknown }): ArraySchema<NetMissile> | null {
+  const st = room.state as Partial<WireBattleState> | null | undefined;
+  return st?.missileList ?? null;
+}
+
+function torpedoListOf(room: { state: unknown }): ArraySchema<NetTorpedo> | null {
+  const st = room.state as Partial<WireBattleState> | null | undefined;
+  return st?.torpedoList ?? null;
+}
+
 function getPlayer(list: ArraySchema<NetPlayer>, sessionId: string): NetPlayer | undefined {
   for (const p of list) {
     if (p.id === sessionId) return p;
   }
   return undefined;
+}
+
+function readFiniteNumber(v: unknown): number | null {
+  if (typeof v === "number" && Number.isFinite(v)) return v;
+  if (typeof v === "string" && v.trim() !== "") {
+    const n = Number(v);
+    if (Number.isFinite(n)) return n;
+  }
+  return null;
+}
+
+function readRecord(msg: unknown): Record<string, unknown> | null {
+  if (msg != null && typeof msg === "object" && !Array.isArray(msg)) {
+    return msg as Record<string, unknown>;
+  }
+  return null;
 }
 
 function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise<T> {
@@ -185,6 +241,8 @@ async function bootstrap(): Promise<void> {
   let stateSyncCount = 0;
   let playerListHandlersBoundTo: ArraySchema<NetPlayer> | null = null;
   let pingMs: number | null = null;
+  /** Für Toast „zerstört“ nur bei Übergang in `awaiting_respawn`. */
+  const lastLifeStateBySessionId = new Map<string, string>();
 
   /**
    * **Client-VFX-Culling (Artillerie)** — gleiches Muster später für andere Welt-VFX nutzbar:
@@ -298,6 +356,69 @@ async function bootstrap(): Promise<void> {
     }
   });
 
+  room.onMessage("aswmImpact", (msg: unknown) => {
+    const m = msg as { x?: number; z?: number; kind?: string };
+    if (typeof m?.x === "number" && typeof m?.z === "number") {
+      const kind = typeof m.kind === "string" ? m.kind : "hit";
+      if (!isArtyWorldPointInCullRange(m.x, m.z)) return;
+      missileFx.flashImpact(m.x, m.z, kind);
+    }
+  });
+
+  room.onMessage("torpedoImpact", (msg: unknown) => {
+    const m = msg as { x?: number; z?: number; kind?: string };
+    if (typeof m?.x === "number" && typeof m?.z === "number") {
+      const kind = typeof m.kind === "string" ? m.kind : "hit";
+      if (!isArtyWorldPointInCullRange(m.x, m.z)) return;
+      torpedoFx.flashImpact(m.x, m.z, kind);
+    }
+  });
+
+  /**
+   * Flugabwehr über `*`: **airDefenseFire** = Schuss (VFX-Flug), **airDefenseIntercept** = Treffer (Burst).
+   */
+  room.onMessage("*", (type: unknown, msg: unknown) => {
+    const t = String(type);
+    if (t !== "airDefenseFire" && t !== "airDefenseIntercept") return;
+    const rec = readRecord(msg);
+    if (!rec) return;
+    const x = readFiniteNumber(rec.x);
+    const z = readFiniteNumber(rec.z);
+    if (x == null || z == null) return;
+    if (String(rec.weapon) !== "aswm") return;
+    const layerRaw = String(rec.layer ?? "").toLowerCase();
+    if (layerRaw !== "sam" && layerRaw !== "ciws") return;
+    const layer = layerRaw as "sam" | "ciws";
+
+    if (t === "airDefenseIntercept") {
+      showAirDefenseScreenPulse(camera, document.body, x, z, layer);
+      playAirDefenseHitBurst(scene, x, z, layer);
+      return;
+    }
+
+    let fromX = readFiniteNumber(rec.defenderX);
+    let fromZ = readFiniteNumber(rec.defenderZ);
+    if (fromX == null || fromZ == null) {
+      const did = rec.defenderId;
+      if (typeof did !== "string") return;
+      const list = playerListOf(room);
+      let def: NetPlayer | undefined;
+      for (const p of list) {
+        if (p.id === did) {
+          def = p;
+          break;
+        }
+      }
+      if (!def) return;
+      const fx = readFiniteNumber(def.x);
+      const fz = readFiniteNumber(def.z);
+      if (fx == null || fz == null) return;
+      fromX = fx;
+      fromZ = fz;
+    }
+    playAirDefenseFire(scene, layer, fromX, fromZ, x, z);
+  });
+
   const visuals = new Map<string, ShipVisual>();
   /** Nur Fremdspieler: Puffer für Positions-/Peilungs-Interpolation. */
   const remoteInterp = new Map<string, InterpolationBuffer>();
@@ -390,6 +511,33 @@ async function bootstrap(): Promise<void> {
       }
     }
 
+    const presentIds = new Set<string>();
+    for (const p of playerList) {
+      presentIds.add(p.id);
+      const prev = lastLifeStateBySessionId.get(p.id);
+      if (
+        prev !== undefined &&
+        prev !== PlayerLifeState.AwaitingRespawn &&
+        p.lifeState === PlayerLifeState.AwaitingRespawn
+      ) {
+        if (p.id === mySessionId) {
+          gameMessageHud.showToast("Zerstört — Warte auf Respawn …", "danger", 5500);
+        } else {
+          gameMessageHud.showToast(
+            `Spieler ${shortSessionIdForMessage(p.id)} zerstört`,
+            "info",
+            5000,
+          );
+        }
+      }
+      lastLifeStateBySessionId.set(p.id, p.lifeState);
+    }
+    for (const id of lastLifeStateBySessionId.keys()) {
+      if (!presentIds.has(id)) {
+        lastLifeStateBySessionId.delete(id);
+      }
+    }
+
     const samp = input.sample();
     const me = getPlayer(playerList, mySessionId);
     if (me) {
@@ -414,9 +562,11 @@ async function bootstrap(): Promise<void> {
       const p = getPlayer(playerList, sessionId);
       if (!p) continue;
 
+      const wreckSinkY = p.lifeState === PlayerLifeState.AwaitingRespawn ? -4.2 : 0;
+
       if (sessionId === mySessionId) {
         /** MVP Task 3: lokaler Spieler — direkte Server-Pose (autoritativ). */
-        vis.group.position.set(p.x, 0, p.z);
+        vis.group.position.set(p.x, wreckSinkY, p.z);
         vis.group.rotation.y = p.headingRad;
         vis.rudderLine.rotation.y = rudderRotationRad(p.rudder);
         const aimWx = samp.aimWorldX;
@@ -430,23 +580,29 @@ async function bootstrap(): Promise<void> {
           remoteInterp.set(sessionId, buf);
         }
         const r = sampleInterpolatedPose(buf, now, DEFAULT_INTERPOLATION_DELAY_MS);
-        vis.group.position.set(r.x, 0, r.z);
+        vis.group.position.set(r.x, wreckSinkY, r.z);
         vis.group.rotation.y = r.headingRad;
         vis.rudderLine.rotation.y = rudderRotationRad(r.rudder);
         const yawAim = Math.atan2(r.aimX - r.x, r.aimZ - r.z);
         vis.aimLine.rotation.y = yawAim - r.headingRad;
       }
 
+      setShipVisualLifeState(vis, p.lifeState, sessionId === mySessionId);
+
       if (sessionId === mySessionId && me) {
         updateFollowCamera(camera, p.x, p.z, p.headingRad);
 
-        room.send("input", {
-          throttle: samp.throttle,
-          rudderInput: samp.rudderInput,
-          aimX: samp.aimWorldX,
-          aimZ: samp.aimWorldZ,
-          primaryFire: samp.primaryFire,
-        });
+        if (me.lifeState !== PlayerLifeState.AwaitingRespawn) {
+          room.send("input", {
+            throttle: samp.throttle,
+            rudderInput: samp.rudderInput,
+            aimX: samp.aimWorldX,
+            aimZ: samp.aimWorldZ,
+            primaryFire: samp.primaryFire,
+            secondaryFire: samp.secondaryFire,
+            torpedoFire: samp.torpedoFire,
+          });
+        }
 
         cockpit.update({
           speed: p.speed,
@@ -457,13 +613,53 @@ async function bootstrap(): Promise<void> {
           hp: p.hp,
           maxHp: p.maxHp,
           primaryCooldownSec: p.primaryCooldownSec,
+          secondaryCooldownSec: me.secondaryCooldownSec,
+          torpedoCooldownSec: me.torpedoCooldownSec,
+          respawnCountdownSec: me.respawnCountdownSec,
+          spawnProtectionSec: me.spawnProtectionSec,
         });
       }
     }
 
+    const missiles = missileListOf(room);
+    if (missiles) {
+      const poses: { missileId: number; x: number; z: number; headingRad: number }[] = [];
+      for (const mm of missiles) {
+        poses.push({
+          missileId: mm.missileId,
+          x: mm.x,
+          z: mm.z,
+          headingRad: mm.headingRad,
+        });
+      }
+      missileFx.syncFromState(poses);
+    } else {
+      missileFx.syncFromState([]);
+    }
+
+    const torpedoes = torpedoListOf(room);
+    if (torpedoes) {
+      const tPoses: { torpedoId: number; x: number; z: number; headingRad: number }[] = [];
+      for (const tt of torpedoes) {
+        tPoses.push({
+          torpedoId: tt.torpedoId,
+          x: tt.x,
+          z: tt.z,
+          headingRad: tt.headingRad,
+        });
+      }
+      torpedoFx.syncFromState(tPoses);
+    } else {
+      torpedoFx.syncFromState([]);
+    }
+
     artilleryFx.update(now);
 
-    areaWarningHud.update(me?.oobCountdownSec ?? 0);
+    gameMessageHud.updateFrame(
+      now,
+      me?.oobCountdownSec ?? 0,
+      me?.spawnProtectionSec ?? 0,
+    );
 
     renderer.render(scene, camera);
     requestAnimationFrame(frame);
