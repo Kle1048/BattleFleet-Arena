@@ -11,7 +11,7 @@ export function createGameRenderer(root: HTMLElement): THREE.WebGLRenderer {
 }
 
 export function bindRendererResize(
-  camera: THREE.OrthographicCamera,
+  camera: THREE.PerspectiveCamera,
   renderer: THREE.WebGLRenderer,
 ): void {
   resizeCamera(camera, window.innerWidth, window.innerHeight);

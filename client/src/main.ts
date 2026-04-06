@@ -8,8 +8,8 @@
  * `playerList`-Referenz nach jedem State-Wechsel neu binden (stale ArraySchema).
  */
 import * as THREE from "three";
-import { DESTROYER_LIKE_MVP, MATCH_PHASE_ENDED } from "@battlefleet/shared";
-import { createGameScene } from "./game/scene/createGameScene";
+import { DESTROYER_LIKE_MVP, MATCH_PHASE_ENDED, PlayerLifeState, getShipClassProfile } from "@battlefleet/shared";
+import { createGameScene, SHIP_STERN_Z } from "./game/scene/createGameScene";
 import { createInputHandlers } from "./game/input/keyboardMouse";
 import { createCockpitHud } from "./game/hud/cockpitHud";
 import { createDebugOverlay } from "./game/hud/debugOverlay";
@@ -20,6 +20,7 @@ import {
   shortSessionIdForMessage,
 } from "./game/hud/gameMessageHud";
 import { createArtilleryFx } from "./game/effects/artilleryFx";
+import { createFxSystem } from "./game/effects/fxSystem";
 import { createMissileFx } from "./game/effects/missileFx";
 import { createTorpedoFx } from "./game/effects/torpedoFx";
 import { gameAudio } from "./game/audio/gameAudio";
@@ -32,12 +33,28 @@ import { createVisualRuntime } from "./game/runtime/visualRuntime";
 import { createHudRuntime } from "./game/runtime/hudRuntime";
 import { createRuntimeShutdown } from "./game/runtime/runtimeShutdown";
 import { createAssetManager } from "./game/runtime/assetManager";
-import { AssetKeys, AssetUrls } from "./game/runtime/assetCatalog";
+import { renderToWorldX, worldToRenderX } from "./game/runtime/renderCoords";
+import {
+  MAX_SHIP_WAKES,
+  updateWaterMaterial,
+  updateWaterShipWakes,
+} from "./game/runtime/materialLibrary";
+import { createWakeTrailState, pushWakeTrailSample } from "./game/runtime/wakeTrail";
+import {
+  createInterpolationBuffer,
+  DEFAULT_INTERPOLATION_DELAY_MS,
+  sampleInterpolatedPose,
+} from "./game/network/remoteInterpolation";
+import {
+  createCameraCullRuntimeState,
+  isArtyWorldPointInCullRange,
+  shouldRenderArtyFiredClientVfx,
+} from "./game/runtime/cameraCullRuntime";
+import { disposeCameraShake, triggerCameraShake } from "./game/runtime/cameraShakeRuntime";
+import { createScreenFlashOverlay } from "./game/runtime/screenFlashRuntime";
 import {
   createFrameRuntimeState,
-  isArtyWorldPointInCullRange,
   runFrameRuntimeStep,
-  shouldRenderArtyFiredClientVfx,
 } from "./game/runtime/frameRuntime";
 import {
   getPlayer,
@@ -70,16 +87,18 @@ function getGroundPoint(ndcX: number, ndcY: number): { x: number; z: number } | 
   const out = new THREE.Vector3();
   const ok = raycaster.ray.intersectPlane(groundPlane, out);
   if (!ok) return null;
-  return { x: out.x, z: out.z };
+  return { x: renderToWorldX(out.x), z: out.z };
 }
 
 const input = createInputHandlers(renderer.domElement, getGroundPoint);
 const cockpit = createCockpitHud();
 const debugOverlay = createDebugOverlay();
 const gameMessageHud = createGameMessageHud();
-const artilleryFx = createArtilleryFx(scene);
-const missileFx = createMissileFx(scene);
-const torpedoFx = createTorpedoFx(scene);
+const fxSystem = createFxSystem(scene);
+const artilleryFx = createArtilleryFx(scene, fxSystem);
+const missileFx = createMissileFx(scene, fxSystem);
+const torpedoFx = createTorpedoFx(scene, fxSystem);
+const screenFlash = createScreenFlashOverlay();
 
 bindRendererResize(camera, renderer);
 
@@ -108,19 +127,6 @@ async function bootstrap(): Promise<void> {
   );
   const mySessionId = room.sessionId;
 
-  // R4 productive integration: load and apply a runtime texture via AssetManager + AssetCatalog.
-  const waterPattern = await assetManager.loadTexture(
-    AssetKeys.waterPatternGrid,
-    AssetUrls.waterPatternGrid,
-  );
-  waterPattern.wrapS = THREE.RepeatWrapping;
-  waterPattern.wrapT = THREE.RepeatWrapping;
-  waterPattern.repeat.set(42, 42);
-  waterPattern.anisotropy = renderer.capabilities.getMaxAnisotropy();
-  const waterMat = water.material as THREE.MeshStandardMaterial;
-  waterMat.map = waterPattern;
-  waterMat.needsUpdate = true;
-
   const matchEndHud = createMatchEndHud(() => {
     void room.leave().finally(() => {
       window.location.reload();
@@ -129,6 +135,8 @@ async function bootstrap(): Promise<void> {
   const joinedAt = performance.now();
   let pingMs: number | null = null;
   const frameRuntimeState = createFrameRuntimeState(1);
+  const cameraCullState = createCameraCullRuntimeState();
+  const wakeTrailsBySession = new Map<string, ReturnType<typeof createWakeTrailState>>();
 
   registerNetworkHandlers({
     room,
@@ -139,8 +147,8 @@ async function bootstrap(): Promise<void> {
     missileFx,
     torpedoFx,
     shouldRenderArtyFiredClientVfx: (fromX, fromZ, toX, toZ) =>
-      shouldRenderArtyFiredClientVfx(frameRuntimeState, fromX, fromZ, toX, toZ),
-    isArtyWorldPointInCullRange: (x, z) => isArtyWorldPointInCullRange(frameRuntimeState, x, z),
+      shouldRenderArtyFiredClientVfx(cameraCullState, fromX, fromZ, toX, toZ),
+    isArtyWorldPointInCullRange: (x, z) => isArtyWorldPointInCullRange(cameraCullState, x, z),
     playerListOf,
     findPlayerBySessionId: getPlayer,
     setPingMs: (next) => {
@@ -173,6 +181,13 @@ async function bootstrap(): Promise<void> {
     artilleryFx,
     missileFx,
     torpedoFx,
+    fxSystem,
+    {
+      dispose() {
+        screenFlash.dispose();
+        disposeCameraShake();
+      },
+    },
     assetManager,
     renderer,
   ]);
@@ -207,6 +222,7 @@ async function bootstrap(): Promise<void> {
           artillery: artilleryFx.getStats(),
           missile: missileFx.getStats(),
           torpedo: torpedoFx.getStats(),
+          fx: fxSystem.getStats(),
         },
       });
     }
@@ -222,6 +238,7 @@ async function bootstrap(): Promise<void> {
 
     runFrameRuntimeStep({
       now,
+      dtMs: frameTimeMs,
       camera,
       roomSendInput: (payload) => room.send("input", payload),
       mySessionId,
@@ -242,8 +259,93 @@ async function bootstrap(): Promise<void> {
       missileList: missileListOf(room),
       torpedoList: torpedoListOf(room),
       state: frameRuntimeState,
+      cameraCullState,
+      onShipDestroyed: (p) => {
+        fxSystem.spawnShipDestroyedExplosion(p.x, p.z);
+        const isSelf = p.id === mySessionId;
+        const me = getPlayer(playerList, mySessionId);
+        if (isSelf) {
+          screenFlash.trigger({ intensity: 1 });
+          triggerCameraShake({ durationMs: 520, amplitude: 15 });
+        } else if (me) {
+          const dist = Math.hypot(p.x - me.x, p.z - me.z);
+          if (dist < 340) {
+            const prox = 1 - dist / 340;
+            screenFlash.trigger({ intensity: 0.26 + 0.55 * prox });
+            triggerCameraShake({ durationMs: 220 + 280 * prox, amplitude: 4.5 + 12 * prox });
+          }
+        }
+      },
     });
 
+    fxSystem.update(frameTimeMs);
+
+    const presentIds = new Set<string>();
+    const wakeUpload: { trail: ReturnType<typeof createWakeTrailState>; strength: number }[] = [];
+    const minDistWakeSq = 5.5 * 5.5;
+
+    for (const p of playerList) {
+      presentIds.add(p.id);
+      if (p.lifeState === PlayerLifeState.AwaitingRespawn || matchEnded) {
+        wakeTrailsBySession.delete(p.id);
+        continue;
+      }
+      let trail = wakeTrailsBySession.get(p.id);
+      if (!trail) {
+        trail = createWakeTrailState();
+        wakeTrailsBySession.set(p.id, trail);
+      }
+
+      let wx: number;
+      let wz: number;
+      let h: number;
+      if (p.id === mySessionId) {
+        wx = p.x;
+        wz = p.z;
+        h = p.headingRad;
+      } else {
+        let buf = remoteInterp.get(p.id);
+        if (!buf) {
+          buf = createInterpolationBuffer(p, now);
+          remoteInterp.set(p.id, buf);
+        }
+        const r = sampleInterpolatedPose(buf, now, DEFAULT_INTERPOLATION_DELAY_MS);
+        wx = r.x;
+        wz = r.z;
+        h = r.headingRad;
+      }
+
+      const profWake = getShipClassProfile(p.shipClass);
+      const refSp = cfg.maxSpeed * profWake.movementSpeedMul;
+      const speedRatio = refSp > 0 ? Math.min(1, Math.max(0, p.speed / refSp)) : 0;
+      const moving = speedRatio > 0.06 ? 1 : 0;
+      const strength = speedRatio * speedRatio * moving;
+
+      const sinH = Math.sin(h);
+      const cosH = Math.cos(h);
+      const sz = SHIP_STERN_Z;
+      const sternRx = worldToRenderX(wx) - sz * sinH;
+      const sternZ = wz + sz * cosH;
+      pushWakeTrailSample(trail, sternRx, sternZ, minDistWakeSq);
+
+      if (trail.length >= 2 && strength >= 0.02) {
+        wakeUpload.push({ trail, strength });
+      }
+    }
+
+    for (const id of [...wakeTrailsBySession.keys()]) {
+      if (!presentIds.has(id)) {
+        wakeTrailsBySession.delete(id);
+      }
+    }
+
+    wakeUpload.sort((a, b) => b.strength - a.strength);
+    updateWaterShipWakes(
+      water.material as THREE.Material,
+      wakeUpload.slice(0, MAX_SHIP_WAKES),
+    );
+
+    updateWaterMaterial(water.material as THREE.Material, now);
     renderer.render(scene, camera);
     requestAnimationFrame(frame);
   }
@@ -286,6 +388,9 @@ bootstrap().catch((err) => {
     artilleryFx.dispose();
     missileFx.dispose();
     torpedoFx.dispose();
+    fxSystem.dispose();
+    screenFlash.dispose();
+    disposeCameraShake();
     assetManager.dispose();
     renderer.dispose();
   } catch {

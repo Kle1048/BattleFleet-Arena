@@ -1,4 +1,5 @@
 import * as THREE from "three";
+import { worldToRenderX } from "../runtime/renderCoords";
 
 /**
  * VFX-Maßstab: bewusst **größer** als reale Meter — Ortho (~320 m Halbhöhe) + Schiff ~40 m;
@@ -255,8 +256,10 @@ export function playAirDefenseFire(
   toZ: number,
 ): void {
   try {
-    if (layer === "sam") playSamIntercept(scene, fromX, fromZ, toX, toZ, false);
-    else playCiwsIntercept(scene, fromX, fromZ, toX, toZ, false);
+    const rx0 = worldToRenderX(fromX);
+    const rx1 = worldToRenderX(toX);
+    if (layer === "sam") playSamIntercept(scene, rx0, fromZ, rx1, toZ, false);
+    else playCiwsIntercept(scene, rx0, fromZ, rx1, toZ, false);
   } catch (e) {
     console.warn("[airDefenseFx] playAirDefenseFire", e);
   }
@@ -270,10 +273,11 @@ export function playAirDefenseHitBurst(
   layer: "sam" | "ciws",
 ): void {
   try {
+    const rx = worldToRenderX(x);
     if (layer === "sam") {
-      interceptRingFlash(scene, x, z, 0x88c8ff, 6, 22);
+      interceptRingFlash(scene, rx, z, 0x88c8ff, 6, 22);
     } else {
-      interceptRingFlash(scene, x, z, 0xffea90, 4, 15);
+      interceptRingFlash(scene, rx, z, 0xffea90, 4, 15);
     }
   } catch (e) {
     console.warn("[airDefenseFx] playAirDefenseHitBurst", e);
@@ -290,7 +294,7 @@ export function showAirDefenseScreenPulse(
   worldZ: number,
   layer: "sam" | "ciws",
 ): void {
-  const v = new THREE.Vector3(worldX, 1.4, worldZ);
+  const v = new THREE.Vector3(worldToRenderX(worldX), 1.4, worldZ);
   v.project(camera);
   if (v.z > 1) return;
   const px = (v.x * 0.5 + 0.5) * window.innerWidth;

@@ -1,6 +1,7 @@
 import * as THREE from "three";
 import { AREA_OF_OPERATIONS_HALF_EXTENT, DEFAULT_MAP_ISLANDS } from "@battlefleet/shared";
-import { VisualColorTokens, createWaterMaterial } from "../runtime/materialLibrary";
+import { VisualColorTokens, createWaterMaterial, setWaterIslands } from "../runtime/materialLibrary";
+import { worldToRenderX } from "../runtime/renderCoords";
 
 /**
  * Karten-Koordinaten (wie Seekarte, Y = hoch):
@@ -8,11 +9,66 @@ import { VisualColorTokens, createWaterMaterial } from "../runtime/materialLibra
  * - +X = Ost (Bildschirm rechts)
  * - −X = West (Bildschirm links)
  * - −Z = Süd (Bildschirm unten)
- * Three.js lookAt lässt standardmäßig +X links erscheinen; orthografisch left/right tauschen spiegelt X → Ost rechts.
+ * Three.js lookAt: senkrechte Draufsicht (90°), Norden oben (`camera.up = +Z`).
+ * Osten rechts wird über Render-Mapping (`worldToRenderX`) erreicht.
  */
 
 /** Sichtbarer Ruder-Einschlag am Heck: ±35° entsprechen Rudder ±1. */
 export const RUDDER_DEFLECTION_DEG = 35;
+/** Einheitlicher Overlay-Layer für UI-nahe Linien in der Welt. */
+export const OVERLAY_RENDER_ORDER = 90;
+
+type LightingPresetId = "midday_clear" | "golden_hour" | "stormy_haze";
+type LightingPreset = {
+  background: number;
+  fogColor: number | null;
+  fogNear: number;
+  fogFar: number;
+  ambientColor: number;
+  ambientIntensity: number;
+  sunColor: number;
+  sunIntensity: number;
+  sunPos: readonly [number, number, number];
+};
+
+const LIGHTING_PRESETS: Record<LightingPresetId, LightingPreset> = {
+  midday_clear: {
+    background: 0x53bce8,
+    fogColor: null,
+    fogNear: 0,
+    fogFar: 0,
+    ambientColor: 0xcfe9ff,
+    ambientIntensity: 0.56,
+    sunColor: 0xffffff,
+    sunIntensity: 0.98,
+    sunPos: [140, 1500, 220],
+  },
+  golden_hour: {
+    background: 0x66b9d8,
+    fogColor: 0xc6ad90,
+    fogNear: 380,
+    fogFar: 2100,
+    ambientColor: 0xffddb0,
+    ambientIntensity: 0.42,
+    sunColor: 0xffc37a,
+    sunIntensity: 1.08,
+    sunPos: [620, 520, 260],
+  },
+  stormy_haze: {
+    background: 0x3f6f8c,
+    fogColor: 0x55748b,
+    fogNear: 160,
+    fogFar: 1200,
+    ambientColor: 0x9ab6c8,
+    ambientIntensity: 0.66,
+    sunColor: 0xbdd6ea,
+    sunIntensity: 0.62,
+    sunPos: [-260, 720, -180],
+  },
+};
+
+/** Schnellumschalter für die gewünschte Stimmung. */
+const ACTIVE_LIGHTING_PRESET: LightingPresetId = "golden_hour";
 
 /** Dreieck-Schiff in lokaler XZ-Ebene; Bug bei +Z. */
 export const SHIP_BOW_Z = 28;
@@ -23,7 +79,7 @@ export const SHIP_CAMERA_PIVOT_LOCAL_Z = SHIP_BOW_Z - SHIP_LENGTH / 6;
 
 export type GameSceneBundle = {
   scene: THREE.Scene;
-  camera: THREE.OrthographicCamera;
+  camera: THREE.PerspectiveCamera;
   water: THREE.Mesh;
   ambient: THREE.AmbientLight;
   sun: THREE.DirectionalLight;
@@ -36,14 +92,28 @@ function waterMapHalfExtent(): number {
   return Math.round(AREA_OF_OPERATIONS_HALF_EXTENT * 2.8);
 }
 
-/** Halbe Bildhöhe in Welteinheiten (orthografisch, kein Zoom durch Distanz). */
+/** Referenz: halbe sichtbare „Karten“-Höhe in XZ (FX-Culling, Näherung). */
 export const ORTHO_VIEW_HALF_HEIGHT = 320;
+
+/** Nachschlag-Follow-Cam: Sichtfeld in Grad. */
+export const FOLLOW_CAM_FOV = 52;
+
+/** Blickpunkt-Höhe (Deck). */
+export const FOLLOW_CAM_LOOK_Y = 1.2;
+
+/** Senkrechte Draufsicht: Abstand Augpunkt → Blickpunkt entlang +Y. */
+export const FOLLOW_CAM_TOP_DOWN_HEIGHT = 820;
+
+/**
+ * Perspektive: sichtbare Bodenfläche ≠ achsenparalleles Rechteck — Culling-Rechteck vergrößern.
+ */
+export const PERSPECTIVE_ARTY_CULL_EXTENT_SCALE = 1.55;
 
 /** Zusatz zum größten Abstand Eigenschaft → Bildecken, damit Rand-Splashes nicht wegfallen. */
 export const ARTILLERY_FX_CULL_MARGIN = 56;
 
 /**
- * Halbbreite/-tiefe des sichtbaren Ortho-Rechtecks auf der XZ-Ebene (wie `resizeCamera`).
+ * Halbbreite/-tiefe eines XZ-Rechtecks um den Kamera-Pivot (Näherung für FX-Culling).
  */
 export function orthoVisibleHalfExtents(
   viewportWidth: number,
@@ -101,18 +171,18 @@ export function artilleryFxCullRadiusSq(
 }
 
 export function createGameScene(): GameSceneBundle {
+  const mood = LIGHTING_PRESETS[ACTIVE_LIGHTING_PRESET];
   const scene = new THREE.Scene();
-  /* Kein Himmel: leere Pixel wie Wasserfarbe (reine Draufsicht). */
-  const backdrop = VisualColorTokens.waterBase;
+  /* Kein Himmel: Hintergrundfarbe kommt aus dem Lichtpreset. */
+  const backdrop = mood.background;
   scene.background = new THREE.Color(backdrop);
-  scene.fog = null;
+  scene.fog =
+    mood.fogColor == null ? null : new THREE.Fog(new THREE.Color(mood.fogColor), mood.fogNear, mood.fogFar);
 
-  const halfH = ORTHO_VIEW_HALF_HEIGHT;
-  /* linker/rechter Rand wird in resizeCamera gespiegelt (Ost rechts); hier nur Platzhalter bis erster Resize. */
-  const camera = new THREE.OrthographicCamera(halfH, -halfH, halfH, -halfH, 0.5, 20000);
-  camera.position.set(0, 2000, 0);
+  const camera = new THREE.PerspectiveCamera(FOLLOW_CAM_FOV, 1, 1, 25_000);
+  camera.position.set(0, FOLLOW_CAM_LOOK_Y + FOLLOW_CAM_TOP_DOWN_HEIGHT, 0);
   camera.up.set(0, 0, 1);
-  camera.lookAt(0, 0, 0);
+  camera.lookAt(0, FOLLOW_CAM_LOOK_Y, 0);
 
   const MAP_HALF = waterMapHalfExtent();
 
@@ -122,59 +192,47 @@ export function createGameScene(): GameSceneBundle {
   const water = new THREE.Mesh(waterGeom, waterMat);
   water.rotation.x = -Math.PI / 2; /* Plane XY → XZ-Boden */
   water.receiveShadow = true;
-  scene.add(water);
-
-  /* Weltfestes Gitter (Norden = +Z): Fahrt gut erkennbar gegenüber dem Raster. */
-  const gridSize = MAP_HALF * 2;
-  const gridDivs = Math.max(48, Math.round(AREA_OF_OPERATIONS_HALF_EXTENT / 25));
-  const grid = new THREE.GridHelper(
-    gridSize,
-    gridDivs,
-    VisualColorTokens.gridMajor,
-    VisualColorTokens.gridMinor,
+  setWaterIslands(
+    waterMat,
+    DEFAULT_MAP_ISLANDS.map((is) => ({ x: worldToRenderX(is.x), z: is.z, radius: is.radius })),
   );
-  grid.position.y = 0.08;
-  grid.renderOrder = 1;
-  const gridMat = grid.material as THREE.LineBasicMaterial;
-  gridMat.transparent = true;
-  gridMat.opacity = 0.72;
-  gridMat.depthWrite = false;
-  scene.add(grid);
+  scene.add(water);
 
   /** Grenze des Einsatzgebiets (Task 4) — deckungsgleich mit Server-`AREA_OF_OPERATIONS_HALF_EXTENT`. */
   const opHalf = AREA_OF_OPERATIONS_HALF_EXTENT;
   const borderY = 0.18;
   const borderPts = [
-    new THREE.Vector3(-opHalf, borderY, -opHalf),
-    new THREE.Vector3(opHalf, borderY, -opHalf),
-    new THREE.Vector3(opHalf, borderY, opHalf),
-    new THREE.Vector3(-opHalf, borderY, opHalf),
-    new THREE.Vector3(-opHalf, borderY, -opHalf),
+    new THREE.Vector3(worldToRenderX(-opHalf), borderY, -opHalf),
+    new THREE.Vector3(worldToRenderX(opHalf), borderY, -opHalf),
+    new THREE.Vector3(worldToRenderX(opHalf), borderY, opHalf),
+    new THREE.Vector3(worldToRenderX(-opHalf), borderY, opHalf),
+    new THREE.Vector3(worldToRenderX(-opHalf), borderY, -opHalf),
   ];
   const borderGeom = new THREE.BufferGeometry().setFromPoints(borderPts);
   const borderMat = new THREE.LineBasicMaterial({
     color: VisualColorTokens.opsBorder,
     depthWrite: false,
+    depthTest: false,
     transparent: true,
     opacity: 0.88,
   });
   const opsAreaBorder = new THREE.Line(borderGeom, borderMat);
-  opsAreaBorder.renderOrder = 2;
+  opsAreaBorder.renderOrder = OVERLAY_RENDER_ORDER;
   scene.add(opsAreaBorder);
 
   /* Inseln — dieselben Daten wie Server (`DEFAULT_MAP_ISLANDS`). */
   for (const is of DEFAULT_MAP_ISLANDS) {
     const island = createIslandMesh(is.radius);
-    island.position.set(is.x, 0, is.z);
+    island.position.set(worldToRenderX(is.x), 0, is.z);
     island.name = `island_${is.id}`;
     scene.add(island);
   }
 
-  const ambient = new THREE.AmbientLight(0xc8e6ff, 0.62);
+  const ambient = new THREE.AmbientLight(mood.ambientColor, mood.ambientIntensity);
   scene.add(ambient);
-  const sun = new THREE.DirectionalLight(0xffffff, 0.88);
-  /* Leicht schräg von oben — liest sich trotzdem gut bei Top-Down. */
-  sun.position.set(80, 1400, 120);
+  const sun = new THREE.DirectionalLight(mood.sunColor, mood.sunIntensity);
+  /* Sonnenstand + Lichtfarbe kommen aus dem aktiven Stimmungs-Preset. */
+  sun.position.set(...mood.sunPos);
   sun.castShadow = true;
   scene.add(sun);
 
@@ -226,23 +284,17 @@ function createIslandMesh(radius: number): THREE.Group {
   return g;
 }
 
-/** left/right vertauscht: Standard-lookAt zeigt +X links; so liegt Ost (+X) rechts wie auf einer Karte. */
-export function resizeCamera(camera: THREE.OrthographicCamera, w: number, h: number): void {
-  const halfH = ORTHO_VIEW_HALF_HEIGHT;
-  const aspect = w / Math.max(h, 1);
-  camera.left = halfH * aspect;
-  camera.right = -halfH * aspect;
-  camera.top = halfH;
-  camera.bottom = -halfH;
+export function resizeCamera(camera: THREE.PerspectiveCamera, w: number, h: number): void {
+  camera.aspect = w / Math.max(h, 1);
   camera.updateProjectionMatrix();
 }
 
 /**
- * Echte Draufsicht: orthografisch, senkrecht von +Y.
- * Nord +Z oben, Ost +X rechts (nach left/right-Spiegelung). Blickpunkt = vorderes Drittel des Schiffs.
+ * Follow-Cam: lotrechte Draufsicht (90° zur XZ-Ebene), Blick auf vorderes-Schiff-Drittel (Pivot).
+ * `up = (0,0,1)` hält Norden oben; X wird per Render-Mapping gespiegelt.
  */
 export function updateFollowCamera(
-  camera: THREE.OrthographicCamera,
+  camera: THREE.PerspectiveCamera,
   shipX: number,
   shipZ: number,
   shipHeading: number,
@@ -252,10 +304,9 @@ export function updateFollowCamera(
   const pivotX = shipX + fwdX * SHIP_CAMERA_PIVOT_LOCAL_Z;
   const pivotZ = shipZ + fwdZ * SHIP_CAMERA_PIVOT_LOCAL_Z;
 
-  const camHeight = 2400;
-  const lookY = 1.2;
-
+  const lookY = FOLLOW_CAM_LOOK_Y;
   camera.up.set(0, 0, 1);
-  camera.position.set(pivotX, camHeight, pivotZ);
-  camera.lookAt(pivotX, lookY, pivotZ);
+  const rpivotX = worldToRenderX(pivotX);
+  camera.position.set(rpivotX, lookY + FOLLOW_CAM_TOP_DOWN_HEIGHT, pivotZ);
+  camera.lookAt(rpivotX, lookY, pivotZ);
 }

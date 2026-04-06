@@ -7,13 +7,6 @@ import {
   progressionMovementScale,
   progressionXpToNextLevel,
 } from "@battlefleet/shared";
-import {
-  ARTILLERY_FX_CULL_MARGIN,
-  artilleryFxCullRadiusSq,
-  cameraPivotXZ,
-  orthoVisibleHalfExtents,
-  updateFollowCamera,
-} from "../scene/createGameScene";
 import { rudderRotationRad, setShipVisualLifeState, type ShipVisual } from "../scene/shipVisual";
 import {
   DEFAULT_INTERPOLATION_DELAY_MS,
@@ -21,6 +14,13 @@ import {
   sampleInterpolatedPose,
 } from "../network/remoteInterpolation";
 import { toMissilePoses, toTorpedoPoses } from "./networkStateAdapter";
+import {
+  type CameraCullState,
+  refreshArtilleryCullFromLocalPlayer,
+  updateLocalFollowCameraFromPlayer,
+} from "./cameraCullRuntime";
+import { applyCameraShakeStep } from "./cameraShakeRuntime";
+import { worldToRenderX, worldToRenderYaw } from "./renderCoords";
 
 type NetPlayerLike = {
   id: string;
@@ -104,9 +104,6 @@ type FxLike = {
 type RuntimeState = {
   lastHudLevel: number;
   lastOobCountdown: number;
-  artyFxCullShipX: number;
-  artyFxCullShipZ: number;
-  artyFxCullRadiusSq: number;
   lastLifeStateBySessionId: Map<string, string>;
 };
 
@@ -114,27 +111,8 @@ export function createFrameRuntimeState(initialHudLevel = 1): RuntimeState {
   return {
     lastHudLevel: initialHudLevel,
     lastOobCountdown: 0,
-    artyFxCullShipX: 0,
-    artyFxCullShipZ: 0,
-    artyFxCullRadiusSq: Number.POSITIVE_INFINITY,
     lastLifeStateBySessionId: new Map<string, string>(),
   };
-}
-
-export function isArtyWorldPointInCullRange(state: RuntimeState, wx: number, wz: number): boolean {
-  const dx = wx - state.artyFxCullShipX;
-  const dz = wz - state.artyFxCullShipZ;
-  return dx * dx + dz * dz <= state.artyFxCullRadiusSq;
-}
-
-export function shouldRenderArtyFiredClientVfx(
-  state: RuntimeState,
-  fromX: number,
-  fromZ: number,
-  toX: number,
-  toZ: number,
-): boolean {
-  return isArtyWorldPointInCullRange(state, fromX, fromZ) || isArtyWorldPointInCullRange(state, toX, toZ);
 }
 
 export function runFrameRuntimeStep<
@@ -143,7 +121,8 @@ export function runFrameRuntimeStep<
   TTorpedo extends TorpedoLike,
 >(options: {
   now: number;
-  camera: THREE.OrthographicCamera;
+  dtMs: number;
+  camera: THREE.PerspectiveCamera;
   roomSendInput: (payload: {
     throttle: number;
     rudderInput: number;
@@ -171,9 +150,13 @@ export function runFrameRuntimeStep<
   missileList: ArraySchema<TMissile> | null;
   torpedoList: ArraySchema<TTorpedo> | null;
   state: RuntimeState;
+  cameraCullState: CameraCullState;
+  /** Schiff wechselt zu „zerstört“ (AwaitingRespawn); z. B. großes FX. */
+  onShipDestroyed?: (player: TPlayer) => void;
 }): { me: TPlayer | undefined } {
   const {
     now,
+    dtMs,
     camera,
     roomSendInput,
     mySessionId,
@@ -194,6 +177,8 @@ export function runFrameRuntimeStep<
     missileList,
     torpedoList,
     state,
+    cameraCullState,
+    onShipDestroyed,
   } = options;
 
   const presentIds = new Set<string>();
@@ -210,6 +195,7 @@ export function runFrameRuntimeStep<
       } else {
         gameMessageHud.showToast(`${toDisplayLabel(p)} zerstört`, "info", 5000);
       }
+      onShipDestroyed?.(p);
     }
     state.lastLifeStateBySessionId.set(p.id, p.lifeState);
   }
@@ -226,24 +212,7 @@ export function runFrameRuntimeStep<
       gameAudio.warning();
     }
     state.lastOobCountdown = oobSec;
-
-    const { halfW, halfH } = orthoVisibleHalfExtents(window.innerWidth, window.innerHeight);
-    const pivot = cameraPivotXZ(me.x, me.z, me.headingRad);
-    state.artyFxCullShipX = me.x;
-    state.artyFxCullShipZ = me.z;
-    state.artyFxCullRadiusSq = artilleryFxCullRadiusSq(
-      me.x,
-      me.z,
-      pivot.x,
-      pivot.z,
-      halfW,
-      halfH,
-      ARTILLERY_FX_CULL_MARGIN,
-    );
-  } else {
-    state.artyFxCullRadiusSq = Number.POSITIVE_INFINITY;
   }
-
   for (const [sessionId, vis] of visuals) {
     const p = getPlayer(playerList, sessionId);
     if (!p) continue;
@@ -251,11 +220,11 @@ export function runFrameRuntimeStep<
     const wreckSinkY = p.lifeState === PlayerLifeState.AwaitingRespawn ? -4.2 : 0;
 
     if (sessionId === mySessionId) {
-      vis.group.position.set(p.x, wreckSinkY, p.z);
-      vis.group.rotation.y = p.headingRad;
-      vis.rudderLine.rotation.y = rudderRotationRad(p.rudder);
+      vis.group.position.set(worldToRenderX(p.x), wreckSinkY, p.z);
+      vis.group.rotation.y = worldToRenderYaw(p.headingRad);
+      vis.rudderLine.rotation.y = -rudderRotationRad(p.rudder);
       const yawAim = Math.atan2(inputSample.aimWorldX - p.x, inputSample.aimWorldZ - p.z);
-      vis.aimLine.rotation.y = yawAim - p.headingRad;
+      vis.aimLine.rotation.y = -(yawAim - p.headingRad);
     } else {
       let buf = remoteInterp.get(sessionId);
       if (!buf) {
@@ -263,17 +232,17 @@ export function runFrameRuntimeStep<
         remoteInterp.set(sessionId, buf);
       }
       const r = sampleInterpolatedPose(buf, now, DEFAULT_INTERPOLATION_DELAY_MS);
-      vis.group.position.set(r.x, wreckSinkY, r.z);
-      vis.group.rotation.y = r.headingRad;
-      vis.rudderLine.rotation.y = rudderRotationRad(r.rudder);
+      vis.group.position.set(worldToRenderX(r.x), wreckSinkY, r.z);
+      vis.group.rotation.y = worldToRenderYaw(r.headingRad);
+      vis.rudderLine.rotation.y = -rudderRotationRad(r.rudder);
       const yawAim = Math.atan2(r.aimX - r.x, r.aimZ - r.z);
-      vis.aimLine.rotation.y = yawAim - r.headingRad;
+      vis.aimLine.rotation.y = -(yawAim - r.headingRad);
     }
 
     setShipVisualLifeState(vis, p.lifeState, sessionId === mySessionId);
 
     if (sessionId === mySessionId && me) {
-      updateFollowCamera(camera, p.x, p.z, p.headingRad);
+      updateLocalFollowCameraFromPlayer(camera, p);
 
       if (me.lifeState !== PlayerLifeState.AwaitingRespawn && !matchEnded) {
         roomSendInput({
@@ -333,6 +302,8 @@ export function runFrameRuntimeStep<
     }
   }
 
+  refreshArtilleryCullFromLocalPlayer(cameraCullState, me, window.innerWidth, window.innerHeight);
+
   if (missileList) {
     fx.missileFx.sync(toMissilePoses(missileList));
   } else {
@@ -345,10 +316,12 @@ export function runFrameRuntimeStep<
     fx.torpedoFx.sync([]);
   }
 
-  fx.missileFx.update(now, 0);
-  fx.torpedoFx.update(now, 0);
-  fx.artilleryFx.update(now, 0);
+  fx.missileFx.update(now, dtMs);
+  fx.torpedoFx.update(now, dtMs);
+  fx.artilleryFx.update(now, dtMs);
   gameMessageHud.updateFrame(now, me?.oobCountdownSec ?? 0, me?.spawnProtectionSec ?? 0);
+
+  applyCameraShakeStep(camera, dtMs);
 
   return { me };
 }

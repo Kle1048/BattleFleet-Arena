@@ -1,9 +1,61 @@
 import * as THREE from "three";
-import { getShipClassProfile, PlayerLifeState } from "@battlefleet/shared";
-import { RUDDER_DEFLECTION_DEG, SHIP_BOW_Z, SHIP_STERN_Z } from "./createGameScene";
+import { ARTILLERY_RANGE, getShipClassProfile, PlayerLifeState } from "@battlefleet/shared";
+import {
+  OVERLAY_RENDER_ORDER,
+  RUDDER_DEFLECTION_DEG,
+  SHIP_BOW_Z,
+  SHIP_STERN_Z,
+} from "./createGameScene";
 import { VisualColorTokens, createShipHullAliveMaterial } from "../runtime/materialLibrary";
 
 const DECK_Y = 1.2;
+/** Kiel knapp über der Wasseroberfläche — Rumpf als Prisma (Dreieck × Höhe in Y). */
+const HULL_KEEL_Y = 0.28;
+
+function createHullPrismGeometry(halfBeam: number): THREE.BufferGeometry {
+  const bowZ = SHIP_BOW_Z;
+  const sternZ = SHIP_STERN_Z;
+  const y0 = HULL_KEEL_Y;
+  const y1 = DECK_Y;
+  // Unten / oben: Bug +Z, Backbord −X, Steuerbord +X (wie bisher).
+  const positions = new Float32Array([
+    0,
+    y0,
+    bowZ,
+    -halfBeam,
+    y0,
+    sternZ,
+    halfBeam,
+    y0,
+    sternZ,
+    0,
+    y1,
+    bowZ,
+    -halfBeam,
+    y1,
+    sternZ,
+    halfBeam,
+    y1,
+    sternZ,
+  ]);
+  const indices = [
+    // Deck (+Y)
+    3, 4, 5,
+    // Kiel (−Y)
+    0, 2, 1,
+    // Backbord
+    0, 1, 4, 0, 4, 3,
+    // Steuerbord
+    0, 3, 5, 0, 5, 2,
+    // Heck
+    1, 2, 5, 1, 5, 4,
+  ];
+  const geom = new THREE.BufferGeometry();
+  geom.setAttribute("position", new THREE.BufferAttribute(positions, 3));
+  geom.setIndex(indices);
+  geom.computeVertexNormals();
+  return geom;
+}
 
 export type ShipVisual = {
   group: THREE.Group;
@@ -135,20 +187,7 @@ export function createShipVisual(options: { isLocal: boolean; shipClassId?: stri
   group.scale.setScalar(prof.hullScale);
 
   const halfBeam = 15;
-  const hullGeom = new THREE.BufferGeometry();
-  const positions = new Float32Array([
-    0,
-    DECK_Y,
-    SHIP_BOW_Z,
-    -halfBeam,
-    DECK_Y,
-    SHIP_STERN_Z,
-    halfBeam,
-    DECK_Y,
-    SHIP_STERN_Z,
-  ]);
-  hullGeom.setAttribute("position", new THREE.BufferAttribute(positions, 3));
-  hullGeom.computeVertexNormals();
+  const hullGeom = createHullPrismGeometry(halfBeam);
   const hull = new THREE.Mesh(hullGeom, hullAliveMaterial(options.isLocal));
   hull.castShadow = true;
   hull.receiveShadow = true;
@@ -188,12 +227,16 @@ export function createShipVisual(options: { isLocal: boolean; shipClassId?: stri
       depthTest: true,
     }),
   );
+  aimLine.renderOrder = OVERLAY_RENDER_ORDER;
+  const aimLineMat = aimLine.material as THREE.LineBasicMaterial;
+  aimLineMat.depthTest = false;
+  aimLineMat.depthWrite = false;
   group.add(aimLine);
 
   let weaponGuideGroup: THREE.Group | null = null;
   if (options.isLocal) {
     weaponGuideGroup = new THREE.Group();
-    const arcRadius = 145;
+    const arcRadius = ARTILLERY_RANGE;
     const arcHalf = prof.artilleryArcHalfAngleRad;
     const segments = 32;
     const arcPts: THREE.Vector3[] = [];
@@ -208,9 +251,12 @@ export function createShipVisual(options: { isLocal: boolean; shipClassId?: stri
       transparent: true,
       opacity: 0.32,
       fog: false,
-      depthTest: true,
+      depthTest: false,
+      depthWrite: false,
     });
-    weaponGuideGroup.add(new THREE.Line(arcGeom, arcMat));
+    const arcLine = new THREE.Line(arcGeom, arcMat);
+    arcLine.renderOrder = OVERLAY_RENDER_ORDER;
+    weaponGuideGroup.add(arcLine);
     const edgePts = (
       a: number,
     ): [THREE.Vector3, THREE.Vector3] => [
@@ -219,7 +265,9 @@ export function createShipVisual(options: { isLocal: boolean; shipClassId?: stri
     ];
     for (const a of [-arcHalf, arcHalf]) {
       const g = new THREE.BufferGeometry().setFromPoints(edgePts(a));
-      weaponGuideGroup.add(new THREE.Line(g, arcMat));
+      const edgeLine = new THREE.Line(g, arcMat);
+      edgeLine.renderOrder = OVERLAY_RENDER_ORDER;
+      weaponGuideGroup.add(edgeLine);
     }
     group.add(weaponGuideGroup);
   }

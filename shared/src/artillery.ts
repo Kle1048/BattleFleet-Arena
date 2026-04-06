@@ -13,8 +13,10 @@ export const ARTILLERY_SPLASH_RADIUS = 38;
 export const ARTILLERY_DAMAGE = 22;
 export const ARTILLERY_PLAYER_MAX_HP = 100;
 
-export const ARTILLERY_MIN_RANGE = 85;
-export const ARTILLERY_MAX_RANGE = 720;
+/** Artillerie-Reichweite: innerhalb frei zielen, darüber auf Max-Range begrenzen. */
+export const ARTILLERY_RANGE = 300;
+export const ARTILLERY_MIN_RANGE = 0;
+export const ARTILLERY_MAX_RANGE = ARTILLERY_RANGE;
 
 /** Halber Feuerbogen relativ zum Bug — **±120°** je Seite ⇒ **240°** Gesamtsektor. */
 export const ARTILLERY_ARC_HALF_ANGLE_RAD = (120 * Math.PI) / 180;

@@ -1,10 +1,17 @@
 import * as THREE from "three";
+import { ASWM_SPEED } from "@battlefleet/shared";
 import type { GameRenderer } from "../runtime/rendererContracts";
-import { VisualColorTokens, createMissileBodyMaterial } from "../runtime/materialLibrary";
+import { createMissileBodyMaterial } from "../runtime/materialLibrary";
+import { worldToRenderX, worldToRenderYaw } from "../runtime/renderCoords";
+import type { FxSystem } from "./fxSystem";
 
 const BODY_Y = 2.8;
 const MISSILE_CONE_HEIGHT = 12;
-const MAX_ACTIVE_IMPACT_RINGS = 48;
+
+/** Max. Vorlauf der sichtbaren Pose hinter dem letzten Sync (verhindert Sprünge / Flackern). */
+const MAX_EXTRAPOLATE_SEC = 0.14;
+/** Geschwindigkeit aus Deltas, begrenzt (Homing kurvt, Server-Tick variiert). */
+const MAX_TRAIL_VEL = ASWM_SPEED * 1.35;
 
 export type MissilePose = {
   missileId: number;
@@ -16,30 +23,26 @@ export type MissilePose = {
 type Entry = {
   group: THREE.Group;
   body: THREE.Mesh;
-};
-
-type ImpactRing = {
-  mesh: THREE.Mesh;
-  bornMs: number;
-  maxAgeMs: number;
-  initialOpacity: number;
-  growthPerMs: number;
-  active: boolean;
+  syncWorldX: number;
+  syncWorldZ: number;
+  headingRad: number;
+  velX: number;
+  velZ: number;
+  lastSyncMs: number;
+  trailSuppressUntilMs: number;
 };
 
 /**
- * ASuM: Körper aus repliziertem State; Einschlag-Ring bei Messages. (MVP: kein Schweif/Rauch.)
+ * ASuM: Körper aus repliziertem State; Einschlag über gemeinsames Partikel-FX.
  */
-export function createMissileFx(scene: THREE.Scene): {
+export function createMissileFx(scene: THREE.Scene, fx: FxSystem): {
   sync: (missiles: readonly MissilePose[]) => void;
   update: (nowMs: number, dtMs: number) => void;
   dispose: () => void;
   flashImpact: (x: number, z: number, kind: string) => void;
-  getStats: () => { activeMissiles: number; activeImpactRings: number; pooledImpactRings: number };
+  getStats: () => { activeMissiles: number };
 } & GameRenderer<MissilePose> {
   const byId = new Map<number, Entry>();
-  const impactRingPool: ImpactRing[] = [];
-  const activeImpactRings: ImpactRing[] = [];
 
   function removeMissileEntry(id: number): void {
     const e = byId.get(id);
@@ -63,38 +66,77 @@ export function createMissileFx(scene: THREE.Scene): {
     group.add(body);
 
     scene.add(group);
-    e = { group, body };
-    byId.set(id, e);
-    return e;
+    const created: Entry = {
+      group,
+      body,
+      syncWorldX: 0,
+      syncWorldZ: 0,
+      headingRad: 0,
+      velX: 0,
+      velZ: 0,
+      lastSyncMs: 0,
+      trailSuppressUntilMs: 0,
+    };
+    byId.set(id, created);
+    return created;
   }
 
   function sync(missiles: readonly MissilePose[]): void {
-      const keep = new Set<number>();
-      for (const m of missiles) {
-        keep.add(m.missileId);
-        const e = ensure(m.missileId);
-        e.group.position.set(m.x, 0, m.z);
-        e.group.rotation.y = m.headingRad;
-      }
-      for (const id of byId.keys()) {
-        if (!keep.has(id)) {
-          removeMissileEntry(id);
+    const keep = new Set<number>();
+    const now = performance.now();
+    for (const m of missiles) {
+      keep.add(m.missileId);
+      const isNew = !byId.has(m.missileId);
+      const e = ensure(m.missileId);
+
+      if (!isNew && e.lastSyncMs > 0) {
+        const dtSec = (now - e.lastSyncMs) * 0.001;
+        if (dtSec > 0.0008) {
+          let vx = (m.x - e.syncWorldX) / dtSec;
+          let vz = (m.z - e.syncWorldZ) / dtSec;
+          const sp = Math.hypot(vx, vz);
+          if (sp > MAX_TRAIL_VEL) {
+            const s = MAX_TRAIL_VEL / sp;
+            vx *= s;
+            vz *= s;
+          }
+          e.velX = vx;
+          e.velZ = vz;
         }
+      } else if (isNew) {
+        e.velX = 0;
+        e.velZ = 0;
+        e.trailSuppressUntilMs = now + 88;
       }
+
+      e.syncWorldX = m.x;
+      e.syncWorldZ = m.z;
+      e.headingRad = m.headingRad;
+      e.lastSyncMs = now;
+
+      if (isNew) {
+        fx.spawnMissileLaunchSmoke(m.x, m.z, m.headingRad);
+      }
+    }
+    for (const id of byId.keys()) {
+      if (!keep.has(id)) {
+        removeMissileEntry(id);
+      }
+    }
   }
 
-  function update(_nowMs: number, _dtMs: number): void {
-    for (let i = activeImpactRings.length - 1; i >= 0; i--) {
-      const r = activeImpactRings[i]!;
-      const age = _nowMs - r.bornMs;
-      const mat = r.mesh.material as THREE.MeshBasicMaterial;
-      mat.opacity = Math.max(0, r.initialOpacity * (1 - age / r.maxAgeMs));
-      r.mesh.scale.setScalar(1 + age * r.growthPerMs);
-      if (age >= r.maxAgeMs) {
-        r.active = false;
-        r.mesh.visible = false;
-        activeImpactRings.splice(i, 1);
-      }
+  function update(nowMs: number, dtMs: number): void {
+    const dt = Math.max(0, Math.min(dtMs, 80));
+    for (const e of byId.values()) {
+      const ago = Math.min(MAX_EXTRAPOLATE_SEC, Math.max(0, (nowMs - e.lastSyncMs) * 0.001));
+      const ex = e.syncWorldX + e.velX * ago;
+      const ez = e.syncWorldZ + e.velZ * ago;
+      e.group.position.set(worldToRenderX(ex), 0, ez);
+      e.group.rotation.y = worldToRenderYaw(e.headingRad);
+
+      if (nowMs < e.trailSuppressUntilMs) continue;
+      const n = Math.max(3, Math.min(9, Math.round(2.85 * (dt / 16.67))));
+      fx.spawnMissileTrailStreamTick(ex, ez, e.headingRad, n);
     }
   }
 
@@ -102,13 +144,6 @@ export function createMissileFx(scene: THREE.Scene): {
     for (const id of Array.from(byId.keys())) {
       removeMissileEntry(id);
     }
-    for (const r of [...impactRingPool, ...activeImpactRings]) {
-      scene.remove(r.mesh);
-      r.mesh.geometry.dispose();
-      (r.mesh.material as THREE.Material).dispose();
-    }
-    impactRingPool.length = 0;
-    activeImpactRings.length = 0;
   }
 
   return {
@@ -116,60 +151,10 @@ export function createMissileFx(scene: THREE.Scene): {
     update,
     dispose,
     getStats() {
-      return {
-        activeMissiles: byId.size,
-        activeImpactRings: activeImpactRings.length,
-        pooledImpactRings: impactRingPool.length - activeImpactRings.length,
-      };
+      return { activeMissiles: byId.size };
     },
     flashImpact(x, z, kind) {
-      while (activeImpactRings.length >= MAX_ACTIVE_IMPACT_RINGS) {
-        const dropped = activeImpactRings.shift();
-        if (!dropped) break;
-        dropped.active = false;
-        dropped.mesh.visible = false;
-      }
-      const hit = kind === "hit";
-      let ringEntry = impactRingPool.find((r) => !r.active);
-      if (!ringEntry) {
-        const mesh = new THREE.Mesh(
-          new THREE.RingGeometry(6, 18, 24),
-          new THREE.MeshBasicMaterial({
-            color: hit ? VisualColorTokens.missileImpactHit : VisualColorTokens.missileImpactWater,
-            transparent: true,
-            opacity: 0.85,
-            side: THREE.DoubleSide,
-            depthTest: false,
-            fog: false,
-          }),
-        );
-        mesh.rotation.x = -Math.PI / 2;
-        mesh.visible = false;
-        scene.add(mesh);
-        ringEntry = {
-          mesh,
-          bornMs: 0,
-          maxAgeMs: 320,
-          initialOpacity: 0.85,
-          growthPerMs: 0.004,
-          active: false,
-        };
-        impactRingPool.push(ringEntry);
-      }
-
-      const ring = ringEntry.mesh;
-      const mat = ring.material as THREE.MeshBasicMaterial;
-      mat.color.setHex(hit ? VisualColorTokens.missileImpactHit : VisualColorTokens.missileImpactWater);
-      mat.opacity = ringEntry.initialOpacity;
-      ring.rotation.x = -Math.PI / 2;
-      ring.position.set(x, 0.35, z);
-      ring.scale.setScalar(1);
-      ring.visible = true;
-      ringEntry.bornMs = performance.now();
-      ringEntry.active = true;
-      if (!activeImpactRings.includes(ringEntry)) {
-        activeImpactRings.push(ringEntry);
-      }
+      fx.spawnMissileImpact(x, z, kind);
     },
   };
 }

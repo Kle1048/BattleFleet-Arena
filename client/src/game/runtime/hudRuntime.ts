@@ -43,9 +43,10 @@ export function createHudRuntime(options: CreateHudRuntimeOptions): {
     fps: number;
     frameTimeMs?: number;
     perfMetrics?: {
-      artillery?: { activeShells: number; activeTransientFx: number; pooledTransientMeshes: number };
-      missile?: { activeMissiles: number; activeImpactRings: number; pooledImpactRings: number };
-      torpedo?: { activeTorpedoes: number; activeImpactRings: number; pooledImpactRings: number };
+      artillery?: { activeShells: number };
+      missile?: { activeMissiles: number };
+      torpedo?: { activeTorpedoes: number };
+      fx?: { activeParticles: number; pooledParticles: number };
     };
   }) => void;
   updateMatchEndHud: (params: {
@@ -84,9 +85,10 @@ export function createHudRuntime(options: CreateHudRuntimeOptions): {
           : "—";
       const perfLine =
         perfMetrics != null
-          ? `\nFX A[s:${perfMetrics.artillery?.activeShells ?? 0}|t:${perfMetrics.artillery?.activeTransientFx ?? 0}|p:${perfMetrics.artillery?.pooledTransientMeshes ?? 0}] ` +
-            `M[m:${perfMetrics.missile?.activeMissiles ?? 0}|i:${perfMetrics.missile?.activeImpactRings ?? 0}|p:${perfMetrics.missile?.pooledImpactRings ?? 0}] ` +
-            `T[t:${perfMetrics.torpedo?.activeTorpedoes ?? 0}|i:${perfMetrics.torpedo?.activeImpactRings ?? 0}|p:${perfMetrics.torpedo?.pooledImpactRings ?? 0}]`
+          ? `\nFX part[a:${perfMetrics.fx?.activeParticles ?? 0}|p:${perfMetrics.fx?.pooledParticles ?? 0}] ` +
+            `A[shells:${perfMetrics.artillery?.activeShells ?? 0}] ` +
+            `M[aswm:${perfMetrics.missile?.activeMissiles ?? 0}] ` +
+            `T[torp:${perfMetrics.torpedo?.activeTorpedoes ?? 0}]`
           : "";
       const frameLine =
         typeof frameTimeMs === "number" && Number.isFinite(frameTimeMs)

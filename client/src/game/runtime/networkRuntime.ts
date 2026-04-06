@@ -46,7 +46,7 @@ type ImpactFxLike = {
 type RegisterNetworkHandlersOptions<TPlayerList> = {
   room: RoomLike;
   mySessionId: string;
-  camera: THREE.OrthographicCamera;
+  camera: THREE.PerspectiveCamera;
   scene: THREE.Scene;
   artilleryFx: ArtilleryFxLike;
   missileFx: ImpactFxLike;
