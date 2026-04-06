@@ -1,5 +1,6 @@
 import * as THREE from "three";
 import { AREA_OF_OPERATIONS_HALF_EXTENT, DEFAULT_MAP_ISLANDS } from "@battlefleet/shared";
+import { VisualColorTokens, createWaterMaterial } from "../runtime/materialLibrary";
 
 /**
  * Karten-Koordinaten (wie Seekarte, Y = hoch):
@@ -102,7 +103,7 @@ export function artilleryFxCullRadiusSq(
 export function createGameScene(): GameSceneBundle {
   const scene = new THREE.Scene();
   /* Kein Himmel: leere Pixel wie Wasserfarbe (reine Draufsicht). */
-  const backdrop = 0x5ec8f5;
+  const backdrop = VisualColorTokens.waterBase;
   scene.background = new THREE.Color(backdrop);
   scene.fog = null;
 
@@ -117,13 +118,7 @@ export function createGameScene(): GameSceneBundle {
 
   /* Ebene Fläche — keine Vertex-Wellen; Bewegung auf dem Wasser später z. B. per Shader. */
   const waterGeom = new THREE.PlaneGeometry(MAP_HALF * 2, MAP_HALF * 2, 1, 1);
-  const waterMat = new THREE.MeshStandardMaterial({
-    color: 0x5ec8f5,
-    metalness: 0.08,
-    roughness: 0.42,
-    emissive: 0x0a3060,
-    emissiveIntensity: 0.12,
-  });
+  const waterMat = createWaterMaterial();
   const water = new THREE.Mesh(waterGeom, waterMat);
   water.rotation.x = -Math.PI / 2; /* Plane XY → XZ-Boden */
   water.receiveShadow = true;
@@ -132,7 +127,12 @@ export function createGameScene(): GameSceneBundle {
   /* Weltfestes Gitter (Norden = +Z): Fahrt gut erkennbar gegenüber dem Raster. */
   const gridSize = MAP_HALF * 2;
   const gridDivs = Math.max(48, Math.round(AREA_OF_OPERATIONS_HALF_EXTENT / 25));
-  const grid = new THREE.GridHelper(gridSize, gridDivs, 0xf0f8ff, 0x6ab8e8);
+  const grid = new THREE.GridHelper(
+    gridSize,
+    gridDivs,
+    VisualColorTokens.gridMajor,
+    VisualColorTokens.gridMinor,
+  );
   grid.position.y = 0.08;
   grid.renderOrder = 1;
   const gridMat = grid.material as THREE.LineBasicMaterial;
@@ -153,7 +153,7 @@ export function createGameScene(): GameSceneBundle {
   ];
   const borderGeom = new THREE.BufferGeometry().setFromPoints(borderPts);
   const borderMat = new THREE.LineBasicMaterial({
-    color: 0xff5522,
+    color: VisualColorTokens.opsBorder,
     depthWrite: false,
     transparent: true,
     opacity: 0.88,
@@ -184,13 +184,13 @@ export function createGameScene(): GameSceneBundle {
 function createIslandMesh(radius: number): THREE.Group {
   const g = new THREE.Group();
   const sand = new THREE.MeshStandardMaterial({
-    color: 0xc8b898,
+    color: VisualColorTokens.islandSand,
     metalness: 0.04,
     roughness: 0.88,
     fog: false,
   });
   const veg = new THREE.MeshStandardMaterial({
-    color: 0x3d6b45,
+    color: VisualColorTokens.islandVegetation,
     metalness: 0.02,
     roughness: 0.92,
     fog: false,
@@ -212,7 +212,7 @@ function createIslandMesh(radius: number): THREE.Group {
   const surf = new THREE.Mesh(
     new THREE.RingGeometry(radius * 0.94, radius * 1.02, 48),
     new THREE.MeshStandardMaterial({
-      color: 0xe0d4bc,
+      color: VisualColorTokens.islandShore,
       metalness: 0.02,
       roughness: 0.9,
       side: THREE.DoubleSide,
