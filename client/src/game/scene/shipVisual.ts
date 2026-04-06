@@ -1,11 +1,9 @@
 import * as THREE from "three";
 import { getShipClassProfile, PlayerLifeState } from "@battlefleet/shared";
 import { RUDDER_DEFLECTION_DEG, SHIP_BOW_Z, SHIP_STERN_Z } from "./createGameScene";
+import { VisualColorTokens, createShipHullAliveMaterial } from "../runtime/materialLibrary";
 
 const DECK_Y = 1.2;
-
-const LOCAL_HULL_ALIVE = 0x6a7a8e;
-const REMOTE_HULL_ALIVE = 0x8a909e;
 
 export type ShipVisual = {
   group: THREE.Group;
@@ -17,13 +15,7 @@ export type ShipVisual = {
 };
 
 function hullAliveMaterial(isLocal: boolean): THREE.MeshStandardMaterial {
-  return new THREE.MeshStandardMaterial({
-    color: isLocal ? LOCAL_HULL_ALIVE : REMOTE_HULL_ALIVE,
-    metalness: 0.12,
-    roughness: 0.72,
-    side: THREE.DoubleSide,
-    fog: false,
-  });
+  return createShipHullAliveMaterial(isLocal);
 }
 
 /**
@@ -42,12 +34,12 @@ export function setShipVisualLifeState(
   const rudderMat = vis.rudderLine.material as THREE.LineBasicMaterial;
 
   if (wreck) {
-    hullMat.color.setHex(0x2c2830);
+    hullMat.color.setHex(VisualColorTokens.shipHullWreck);
     hullMat.metalness = 0.04;
     hullMat.roughness = 0.92;
     hullMat.transparent = true;
     hullMat.opacity = 0.4;
-    hullMat.emissive.setHex(0x2a1018);
+    hullMat.emissive.setHex(VisualColorTokens.shipHullWreckEmissive);
     hullMat.emissiveIntensity = 0.45;
     hullMat.depthWrite = false;
 
@@ -64,17 +56,19 @@ export function setShipVisualLifeState(
   }
 
   if (shielded) {
-    hullMat.color.setHex(isLocal ? 0x4a7a88 : 0x5a8898);
+    hullMat.color.setHex(
+      isLocal ? VisualColorTokens.shipHullShieldedLocal : VisualColorTokens.shipHullShieldedRemote,
+    );
     hullMat.metalness = 0.18;
     hullMat.roughness = 0.55;
     hullMat.transparent = false;
     hullMat.opacity = 1;
     hullMat.depthWrite = true;
-    hullMat.emissive.setHex(0x00a090);
+    hullMat.emissive.setHex(VisualColorTokens.shipHullShieldedEmissive);
     hullMat.emissiveIntensity = 0.55;
 
     aimMat.transparent = true;
-    aimMat.color.setHex(isLocal ? 0xffcc66 : 0x66eeff);
+    aimMat.color.setHex(isLocal ? VisualColorTokens.shipAimShieldLocal : VisualColorTokens.shipAimShieldRemote);
     aimMat.opacity = isLocal ? 1 : 0.92;
 
     rudderMat.transparent = false;
@@ -86,7 +80,7 @@ export function setShipVisualLifeState(
         const l = o as THREE.Line;
         const m = l.material as THREE.LineBasicMaterial | undefined;
         if (m) {
-          m.color.setHex(0x66ffd0);
+          m.color.setHex(VisualColorTokens.shipGuideShield);
           m.opacity = 0.55;
           m.transparent = true;
         }
@@ -100,13 +94,15 @@ export function setShipVisualLifeState(
       const l = o as THREE.Line;
       const m = l.material as THREE.LineBasicMaterial | undefined;
       if (m) {
-        m.color.setHex(0xff9900);
+        m.color.setHex(VisualColorTokens.shipAimLocal);
         m.opacity = 0.32;
       }
     });
   }
 
-  hullMat.color.setHex(isLocal ? LOCAL_HULL_ALIVE : REMOTE_HULL_ALIVE);
+  hullMat.color.setHex(
+    isLocal ? VisualColorTokens.shipHullLocalAlive : VisualColorTokens.shipHullRemoteAlive,
+  );
   hullMat.metalness = 0.12;
   hullMat.roughness = 0.72;
   hullMat.emissive.setHex(0x000000);
@@ -115,7 +111,7 @@ export function setShipVisualLifeState(
   hullMat.opacity = 1;
   hullMat.depthWrite = true;
 
-  const aimColor = isLocal ? 0xff9900 : 0x33ddff;
+  const aimColor = isLocal ? VisualColorTokens.shipAimLocal : VisualColorTokens.shipAimRemote;
   const aimOpacity = isLocal ? 0.95 : 0.88;
   aimMat.color.setHex(aimColor);
   aimMat.opacity = aimOpacity;
@@ -165,7 +161,11 @@ export function createShipVisual(options: { isLocal: boolean; shipClassId?: stri
   ]);
   const rudderLine = new THREE.Line(
     rudderGeom,
-    new THREE.LineBasicMaterial({ color: 0xe02030, linewidth: 2, fog: false }),
+    new THREE.LineBasicMaterial({
+      color: VisualColorTokens.shipRudderLine,
+      linewidth: 2,
+      fog: false,
+    }),
   );
   rudderLine.position.set(0, 0, SHIP_STERN_Z);
   group.add(rudderLine);
@@ -176,7 +176,7 @@ export function createShipVisual(options: { isLocal: boolean; shipClassId?: stri
     new THREE.Vector3(0, aimY, 0),
     new THREE.Vector3(0, aimY, aimLen),
   ]);
-  const aimColor = options.isLocal ? 0xff9900 : 0x33ddff;
+  const aimColor = options.isLocal ? VisualColorTokens.shipAimLocal : VisualColorTokens.shipAimRemote;
   const aimOpacity = options.isLocal ? 0.95 : 0.88;
   const aimLine = new THREE.Line(
     aimGeom,
@@ -204,7 +204,7 @@ export function createShipVisual(options: { isLocal: boolean; shipClassId?: stri
     }
     const arcGeom = new THREE.BufferGeometry().setFromPoints(arcPts);
     const arcMat = new THREE.LineBasicMaterial({
-      color: 0xff9900,
+      color: VisualColorTokens.shipAimLocal,
       transparent: true,
       opacity: 0.32,
       fog: false,

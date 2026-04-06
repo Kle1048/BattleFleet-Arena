@@ -50,6 +50,16 @@ export function createCockpitHud(): { update: (u: CockpitHudUpdate) => void } {
   wrap.innerHTML = `
     <div class="cockpit-panel">
       <div class="cockpit-readouts">
+        <div class="cockpit-row cockpit-row-header" style="display:flex;align-items:center;gap:8px;margin-bottom:2px;">
+          <img
+            src="/assets/hud-command-icon.svg"
+            alt="Kommando-Icon"
+            width="20"
+            height="20"
+            style="display:block;filter:drop-shadow(0 1px 2px rgba(0,0,0,0.5));"
+          />
+          <span class="cockpit-header-title" style="font-weight:700;letter-spacing:0.02em;opacity:0.9;">Bridge</span>
+        </div>
         <div class="cockpit-row">
           <span class="cockpit-label">Name</span>
           <span class="cockpit-player-name">—</span>

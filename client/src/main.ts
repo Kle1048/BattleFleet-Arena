@@ -8,34 +8,8 @@
  * `playerList`-Referenz nach jedem State-Wechsel neu binden (stale ArraySchema).
  */
 import * as THREE from "three";
-import type { ArraySchema } from "@colyseus/schema";
-import { Client } from "colyseus.js";
-import type { MissileState, PlayerState, TorpedoState } from "@battlefleet/shared";
-import {
-  DESTROYER_LIKE_MVP,
-  getShipClassProfile,
-  MATCH_DURATION_SEC,
-  MATCH_PHASE_ENDED,
-  PlayerLifeState,
-  PROGRESSION_MAX_LEVEL,
-  progressionMovementScale,
-  progressionXpToNextLevel,
-} from "@battlefleet/shared";
-import {
-  ARTILLERY_FX_CULL_MARGIN,
-  artilleryFxCullRadiusSq,
-  cameraPivotXZ,
-  createGameScene,
-  orthoVisibleHalfExtents,
-  resizeCamera,
-  updateFollowCamera,
-} from "./game/scene/createGameScene";
-import {
-  createShipVisual,
-  rudderRotationRad,
-  setShipVisualLifeState,
-  type ShipVisual,
-} from "./game/scene/shipVisual";
+import { DESTROYER_LIKE_MVP, MATCH_PHASE_ENDED } from "@battlefleet/shared";
+import { createGameScene } from "./game/scene/createGameScene";
 import { createInputHandlers } from "./game/input/keyboardMouse";
 import { createCockpitHud } from "./game/hud/cockpitHud";
 import { createDebugOverlay } from "./game/hud/debugOverlay";
@@ -48,66 +22,44 @@ import {
 import { createArtilleryFx } from "./game/effects/artilleryFx";
 import { createMissileFx } from "./game/effects/missileFx";
 import { createTorpedoFx } from "./game/effects/torpedoFx";
-import {
-  playAirDefenseFire,
-  playAirDefenseHitBurst,
-  showAirDefenseScreenPulse,
-} from "./game/effects/airDefenseFx";
 import { gameAudio } from "./game/audio/gameAudio";
 import { pickShipLobbyChoice } from "./game/ui/classPicker";
+import { colyseusHttpBase, createColyseusClient, withTimeout } from "./game/runtime/sessionBootstrap";
+import { bindRendererResize, createGameRenderer } from "./game/runtime/rendererLifecycle";
+import { installGlobalRuntimeErrorHandlers } from "./game/runtime/runtimeErrors";
+import { registerNetworkHandlers } from "./game/runtime/networkRuntime";
+import { createVisualRuntime } from "./game/runtime/visualRuntime";
+import { createHudRuntime } from "./game/runtime/hudRuntime";
+import { createRuntimeShutdown } from "./game/runtime/runtimeShutdown";
+import { createAssetManager } from "./game/runtime/assetManager";
+import { AssetKeys, AssetUrls } from "./game/runtime/assetCatalog";
 import {
-  DEFAULT_INTERPOLATION_DELAY_MS,
-  advanceIfPoseChanged,
-  createInterpolationBuffer,
-  sampleInterpolatedPose,
-  type InterpolationBuffer,
-} from "./game/network/remoteInterpolation";
+  createFrameRuntimeState,
+  isArtyWorldPointInCullRange,
+  runFrameRuntimeStep,
+  shouldRenderArtyFiredClientVfx,
+} from "./game/runtime/frameRuntime";
+import {
+  getPlayer,
+  missileListOf,
+  playerListOf,
+  readMatchTimer,
+  torpedoListOf,
+} from "./game/runtime/stateAdapter";
 
-/**
- * Colyseus-HTTP-Basis (Matchmaking + WS-Auflösung).
- * „localhost“ → oft IPv6 (::1) in Firefox; viele Node-Bindings lauschen nur IPv4 → kein Join.
- * Loopback daher immer 127.0.0.1; CORS ist ok (Server spiegelt den echten Origin).
- * Nur bei echtem LAN-Host (z. B. Tablet) Seiten-Hostnamen verwenden.
- */
-function colyseusHttpBase(): string {
-  const fromEnv = import.meta.env.VITE_COLYSEUS_URL;
-  if (fromEnv != null && String(fromEnv).length > 0) {
-    return String(fromEnv).replace(/\/$/, "");
-  }
-  const pageHost =
-    typeof window !== "undefined" && window.location.hostname.length > 0
-      ? window.location.hostname
-      : "127.0.0.1";
-  const gameHost = normalizeHostForColyseus(pageHost);
-  return `http://${gameHost}:2567`;
-}
-
-function normalizeHostForColyseus(pageHostname: string): string {
-  const h = pageHostname.replace(/^\[|\]$/g, "").toLowerCase();
-  if (
-    h === "localhost" ||
-    h === "::1" ||
-    h === "0:0:0:0:0:0:0:1" ||
-    h === "127.0.0.1"
-  ) {
-    return "127.0.0.1";
-  }
-  return pageHostname;
-}
-
-const COLYSEUS_URL = colyseusHttpBase();
+const COLYSEUS_URL = colyseusHttpBase(
+  import.meta.env.VITE_COLYSEUS_URL,
+  typeof window !== "undefined" ? window.location.hostname : undefined,
+);
 
 const root = document.getElementById("app");
 if (!root) throw new Error("#app missing");
 
-const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: "high-performance" });
-renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-renderer.setSize(window.innerWidth, window.innerHeight);
-renderer.shadowMap.enabled = true;
-root.appendChild(renderer.domElement);
+const renderer = createGameRenderer(root);
+const assetManager = createAssetManager();
 
 const bundle = createGameScene();
-const { scene, camera } = bundle;
+const { scene, camera, water } = bundle;
 const cfg = DESTROYER_LIKE_MVP;
 
 const groundPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
@@ -129,127 +81,7 @@ const artilleryFx = createArtilleryFx(scene);
 const missileFx = createMissileFx(scene);
 const torpedoFx = createTorpedoFx(scene);
 
-resizeCamera(camera, window.innerWidth, window.innerHeight);
-window.addEventListener("resize", () => {
-  resizeCamera(camera, window.innerWidth, window.innerHeight);
-  renderer.setSize(window.innerWidth, window.innerHeight);
-});
-
-type NetPlayer = Pick<
-  PlayerState,
-  | "id"
-  | "x"
-  | "z"
-  | "headingRad"
-  | "speed"
-  | "rudder"
-  | "aimX"
-  | "aimZ"
-  | "oobCountdownSec"
-  | "hp"
-  | "maxHp"
-  | "primaryCooldownSec"
-  | "lifeState"
-  | "respawnCountdownSec"
-  | "spawnProtectionSec"
-  | "secondaryCooldownSec"
-  | "torpedoCooldownSec"
-  | "score"
-  | "kills"
-  | "level"
-  | "xp"
-  | "shipClass"
-  | "displayName"
->;
-
-type NetMissile = Pick<
-  MissileState,
-  "missileId" | "ownerId" | "targetId" | "x" | "z" | "headingRad"
->;
-
-type NetTorpedo = Pick<TorpedoState, "torpedoId" | "ownerId" | "x" | "z" | "headingRad">;
-
-type WireBattleState = {
-  playerList: ArraySchema<NetPlayer>;
-  missileList?: ArraySchema<NetMissile>;
-  torpedoList?: ArraySchema<NetTorpedo>;
-  matchPhase?: string;
-  matchRemainingSec?: number;
-};
-
-function playerListOf(room: { state: unknown }): ArraySchema<NetPlayer> {
-  const st = room.state as Partial<WireBattleState> | null | undefined;
-  if (!st?.playerList) {
-    throw new Error(
-      "room.state.playerList fehlt — Snapshot nicht angekommen oder Schema passt nicht.",
-    );
-  }
-  return st.playerList;
-}
-
-function missileListOf(room: { state: unknown }): ArraySchema<NetMissile> | null {
-  const st = room.state as Partial<WireBattleState> | null | undefined;
-  return st?.missileList ?? null;
-}
-
-function torpedoListOf(room: { state: unknown }): ArraySchema<NetTorpedo> | null {
-  const st = room.state as Partial<WireBattleState> | null | undefined;
-  return st?.torpedoList ?? null;
-}
-
-function readMatchTimer(room: { state: unknown }): { phase: string; remainingSec: number } {
-  const st = room.state as Partial<WireBattleState> | null | undefined;
-  const phase = typeof st?.matchPhase === "string" ? st.matchPhase : "running";
-  const raw = st?.matchRemainingSec;
-  const remainingSec =
-    typeof raw === "number" && Number.isFinite(raw) ? raw : MATCH_DURATION_SEC;
-  return { phase, remainingSec };
-}
-
-function getPlayer(list: ArraySchema<NetPlayer>, sessionId: string): NetPlayer | undefined {
-  for (const p of list) {
-    if (p.id === sessionId) return p;
-  }
-  return undefined;
-}
-
-function readFiniteNumber(v: unknown): number | null {
-  if (typeof v === "number" && Number.isFinite(v)) return v;
-  if (typeof v === "string" && v.trim() !== "") {
-    const n = Number(v);
-    if (Number.isFinite(n)) return n;
-  }
-  return null;
-}
-
-function readRecord(msg: unknown): Record<string, unknown> | null {
-  if (msg != null && typeof msg === "object" && !Array.isArray(msg)) {
-    return msg as Record<string, unknown>;
-  }
-  return null;
-}
-
-function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise<T> {
-  return new Promise((resolve, reject) => {
-    const id = window.setTimeout(() => {
-      reject(
-        new Error(
-          `${label} Prüfe: Server läuft? Firewall? Adresse ${COLYSEUS_URL}`,
-        ),
-      );
-    }, ms);
-    promise.then(
-      (v) => {
-        window.clearTimeout(id);
-        resolve(v);
-      },
-      (e) => {
-        window.clearTimeout(id);
-        reject(e);
-      },
-    );
-  });
-}
+bindRendererResize(camera, renderer);
 
 async function bootstrap(): Promise<void> {
   let colyseusWarn = "";
@@ -263,7 +95,7 @@ async function bootstrap(): Promise<void> {
     warn: `Verbinde…\n${COLYSEUS_URL}`,
   });
 
-  const client = new Client(COLYSEUS_URL);
+  const client = createColyseusClient(COLYSEUS_URL);
   const lobby = await pickShipLobbyChoice();
   gameAudio.unlockFromUserGesture();
   const room = await withTimeout(
@@ -272,534 +104,145 @@ async function bootstrap(): Promise<void> {
       displayName: lobby.displayName,
     }),
     15_000,
-    "Keine Antwort vom Spiel-Server.",
+    `Keine Antwort vom Spiel-Server. Prüfe: Server läuft? Firewall? Adresse ${COLYSEUS_URL}`,
   );
   const mySessionId = room.sessionId;
+
+  // R4 productive integration: load and apply a runtime texture via AssetManager + AssetCatalog.
+  const waterPattern = await assetManager.loadTexture(
+    AssetKeys.waterPatternGrid,
+    AssetUrls.waterPatternGrid,
+  );
+  waterPattern.wrapS = THREE.RepeatWrapping;
+  waterPattern.wrapT = THREE.RepeatWrapping;
+  waterPattern.repeat.set(42, 42);
+  waterPattern.anisotropy = renderer.capabilities.getMaxAnisotropy();
+  const waterMat = water.material as THREE.MeshStandardMaterial;
+  waterMat.map = waterPattern;
+  waterMat.needsUpdate = true;
+
   const matchEndHud = createMatchEndHud(() => {
     void room.leave().finally(() => {
       window.location.reload();
     });
   });
-  let lastHudLevel = 1;
   const joinedAt = performance.now();
-  let stateSyncCount = 0;
-  let playerListHandlersBoundTo: ArraySchema<NetPlayer> | null = null;
   let pingMs: number | null = null;
-  /** Für Toast „zerstört“ nur bei Übergang in `awaiting_respawn`. */
-  const lastLifeStateBySessionId = new Map<string, string>();
+  const frameRuntimeState = createFrameRuntimeState(1);
 
-  /**
-   * **Client-VFX-Culling (Artillerie)** — gleiches Muster später für andere Welt-VFX nutzbar:
-   *
-   * - **Cull-Kreis:** Mitte = eigenes Schiff, Radius = **Maximum** der Abstände Schiff → **jeweils**
-   *   eine der vier Ecken des sichtbaren Ortho-Rechtecks (Kamera-Pivot ± Halbexten) + Marge
-   *   (`ARTILLERY_FX_CULL_MARGIN`) — das Viewport-Rechteck liegt vollständig im Kreis.
-   * - **`artyFired`:** Render **nur**, wenn **Startpunkt ODER Zielpunkt** im Kreis liegt (einer reicht).
-   * - **`artyImpact`:** Splash **nur**, wenn **Einschlag (x,z)** im Kreis liegt; die Kugel wird immer
-   *   entfernt (`skipSplash`), damit kein Geister-Mesh bleibt.
-   */
-  let artyFxCullShipX = 0;
-  let artyFxCullShipZ = 0;
-  let artyFxCullRadiusSq = Number.POSITIVE_INFINITY;
-
-  function isArtyWorldPointInCullRange(wx: number, wz: number): boolean {
-    const dx = wx - artyFxCullShipX;
-    const dz = wz - artyFxCullShipZ;
-    return dx * dx + dz * dz <= artyFxCullRadiusSq;
-  }
-
-  function shouldRenderArtyFiredClientVfx(
-    fromX: number,
-    fromZ: number,
-    toX: number,
-    toZ: number,
-  ): boolean {
-    return (
-      isArtyWorldPointInCullRange(fromX, fromZ) || isArtyWorldPointInCullRange(toX, toZ)
-    );
-  }
-
-  room.onMessage("pong", (payload: { clientTime?: number }) => {
-    const t = Number(payload?.clientTime);
-    if (Number.isFinite(t)) {
-      pingMs = performance.now() - t;
-    }
-  });
-  const pingIntervalId = window.setInterval(() => {
-    room.send("ping", { clientTime: performance.now() });
-  }, 2_000);
-  room.send("ping", { clientTime: performance.now() });
-
-  room.onError((code, message) => {
-    const line = `[${code}] ${message ?? ""}`.trim();
-    colyseusWarn = line.length > 0 ? line : `Fehler-Code ${code}`;
-    console.warn("[colyseus]", code, message);
+  registerNetworkHandlers({
+    room,
+    mySessionId,
+    camera,
+    scene,
+    artilleryFx,
+    missileFx,
+    torpedoFx,
+    shouldRenderArtyFiredClientVfx: (fromX, fromZ, toX, toZ) =>
+      shouldRenderArtyFiredClientVfx(frameRuntimeState, fromX, fromZ, toX, toZ),
+    isArtyWorldPointInCullRange: (x, z) => isArtyWorldPointInCullRange(frameRuntimeState, x, z),
+    playerListOf,
+    findPlayerBySessionId: getPlayer,
+    setPingMs: (next) => {
+      pingMs = next;
+    },
+    setColyseusWarn: (next) => {
+      colyseusWarn = next;
+    },
+    onPrimaryFireByLocalPlayer: () => gameAudio.primaryFire(),
+    onHitNearLocalPlayer: () => gameAudio.hitNear(),
+    onMissileFireByLocalPlayer: () => gameAudio.missileFire(),
+    onTorpedoFireByLocalPlayer: () => gameAudio.torpedoFire(),
   });
 
-  /** @colyseus/core Protocol.WS_CLOSE_WITH_ERROR */
-  const WS_CLOSE_WITH_ERROR = 4002;
-
-  room.onLeave((code, reason) => {
-    window.clearInterval(pingIntervalId);
-    pingMs = null;
-    const r = String(reason ?? "");
-    if (code === WS_CLOSE_WITH_ERROR && r.includes("left_operational_area")) {
-      colyseusWarn =
-        "Destroyed: left the Area of Operations. Reload the page to play again.";
-    } else if (code === WS_CLOSE_WITH_ERROR && r.includes("destroyed_in_combat")) {
-      colyseusWarn = "Destroyed in combat. Reload the page to play again.";
-    } else {
-      colyseusWarn = `Verbindung beendet (${code}). Seite neu laden.`;
-    }
+  const visualRuntime = createVisualRuntime({
+    room,
+    scene,
+    mySessionId,
+    playerListOf,
   });
-
-  room.onMessage("artyFired", (msg: unknown) => {
-    const m = msg as {
-      shellId?: number;
-      ownerId?: string;
-      fromX?: number;
-      fromZ?: number;
-      toX?: number;
-      toZ?: number;
-      flightMs?: number;
-    };
-    if (
-      typeof m?.shellId === "number" &&
-      typeof m?.ownerId === "string" &&
-      typeof m?.fromX === "number" &&
-      typeof m?.fromZ === "number" &&
-      typeof m?.toX === "number" &&
-      typeof m?.toZ === "number" &&
-      typeof m?.flightMs === "number"
-    ) {
-      if (!shouldRenderArtyFiredClientVfx(m.fromX, m.fromZ, m.toX, m.toZ)) return;
-      artilleryFx.onFired({
-        shellId: m.shellId,
-        ownerId: m.ownerId,
-        fromX: m.fromX,
-        fromZ: m.fromZ,
-        toX: m.toX,
-        toZ: m.toZ,
-        flightMs: m.flightMs,
-      });
-      if (m.ownerId === mySessionId) gameAudio.primaryFire();
-    }
+  const hudRuntime = createHudRuntime({
+    debugOverlay,
+    matchEndHud,
+    mySessionId,
+    joinedAt,
   });
-
-  room.onMessage("artyImpact", (msg: unknown) => {
-    const m = msg as { shellId?: number; x?: number; z?: number; kind?: string };
-    if (
-      typeof m?.shellId === "number" &&
-      typeof m?.x === "number" &&
-      typeof m?.z === "number"
-    ) {
-      const raw = m.kind;
-      const kind =
-        raw === "water" || raw === "hit" || raw === "island" ? raw : undefined;
-      const skipSplash = !isArtyWorldPointInCullRange(m.x, m.z);
-      artilleryFx.onImpact({ shellId: m.shellId, x: m.x, z: m.z, kind }, { skipSplash });
-      if (kind === "hit") {
-        const loc = getPlayer(playerListOf(room), mySessionId);
-        if (loc) {
-          const dx = m.x - loc.x;
-          const dz = m.z - loc.z;
-          if (dx * dx + dz * dz < 300 * 300) gameAudio.hitNear();
-        }
-      }
-    }
-  });
-
-  room.onMessage("aswmFired", (msg: unknown) => {
-    const m = msg as { ownerId?: string };
-    if (typeof m?.ownerId === "string" && m.ownerId === mySessionId) {
-      gameAudio.missileFire();
-    }
-  });
-
-  room.onMessage("torpedoFired", (msg: unknown) => {
-    const m = msg as { ownerId?: string };
-    if (typeof m?.ownerId === "string" && m.ownerId === mySessionId) {
-      gameAudio.torpedoFire();
-    }
-  });
-
-  room.onMessage("aswmImpact", (msg: unknown) => {
-    const m = msg as { x?: number; z?: number; kind?: string };
-    if (typeof m?.x === "number" && typeof m?.z === "number") {
-      const kind = typeof m.kind === "string" ? m.kind : "hit";
-      if (!isArtyWorldPointInCullRange(m.x, m.z)) return;
-      missileFx.flashImpact(m.x, m.z, kind);
-    }
-  });
-
-  room.onMessage("torpedoImpact", (msg: unknown) => {
-    const m = msg as { x?: number; z?: number; kind?: string };
-    if (typeof m?.x === "number" && typeof m?.z === "number") {
-      const kind = typeof m.kind === "string" ? m.kind : "hit";
-      if (!isArtyWorldPointInCullRange(m.x, m.z)) return;
-      torpedoFx.flashImpact(m.x, m.z, kind);
-    }
-  });
-
-  /**
-   * Flugabwehr über `*`: **airDefenseFire** = Schuss (VFX-Flug), **airDefenseIntercept** = Treffer (Burst).
-   */
-  room.onMessage("*", (type: unknown, msg: unknown) => {
-    const t = String(type);
-    if (t !== "airDefenseFire" && t !== "airDefenseIntercept") return;
-    const rec = readRecord(msg);
-    if (!rec) return;
-    const x = readFiniteNumber(rec.x);
-    const z = readFiniteNumber(rec.z);
-    if (x == null || z == null) return;
-    if (String(rec.weapon) !== "aswm") return;
-    const layerRaw = String(rec.layer ?? "").toLowerCase();
-    if (layerRaw !== "sam" && layerRaw !== "ciws") return;
-    const layer = layerRaw as "sam" | "ciws";
-
-    if (t === "airDefenseIntercept") {
-      showAirDefenseScreenPulse(camera, document.body, x, z, layer);
-      playAirDefenseHitBurst(scene, x, z, layer);
-      return;
-    }
-
-    let fromX = readFiniteNumber(rec.defenderX);
-    let fromZ = readFiniteNumber(rec.defenderZ);
-    if (fromX == null || fromZ == null) {
-      const did = rec.defenderId;
-      if (typeof did !== "string") return;
-      const list = playerListOf(room);
-      let def: NetPlayer | undefined;
-      for (const p of list) {
-        if (p.id === did) {
-          def = p;
-          break;
-        }
-      }
-      if (!def) return;
-      const fx = readFiniteNumber(def.x);
-      const fz = readFiniteNumber(def.z);
-      if (fx == null || fz == null) return;
-      fromX = fx;
-      fromZ = fz;
-    }
-    playAirDefenseFire(scene, layer, fromX, fromZ, x, z);
-  });
-
-  const visuals = new Map<string, ShipVisual>();
-  /** Nur Fremdspieler: Puffer für Positions-/Peilungs-Interpolation. */
-  const remoteInterp = new Map<string, InterpolationBuffer>();
-
-  const addVisual = (sessionId: string, shipClassId?: string): void => {
-    if (visuals.has(sessionId)) return;
-    const vis = createShipVisual({
-      isLocal: sessionId === mySessionId,
-      shipClassId,
-    });
-    scene.add(vis.group);
-    visuals.set(sessionId, vis);
-  };
-
-  /** Nach Reflection-Decode kann `state.playerList` die Instanz wechseln — Listener an die aktuelle Liste. */
-  const bindPlayerListHandlers = (): void => {
-    const list = playerListOf(room);
-    if (list === playerListHandlersBoundTo) return;
-    playerListHandlersBoundTo = list;
-    /** Zweites Argument `true`: bestehende Einträge sofort (z. B. nach Ersatz der ArraySchema). */
-    list.onAdd((player) => {
-      const sc = typeof player.shipClass === "string" ? player.shipClass : undefined;
-      addVisual(player.id, sc);
-    }, true);
-    list.onRemove((player) => {
-      const vis = visuals.get(player.id);
-      if (vis) {
-        scene.remove(vis.group);
-        vis.group.clear();
-      }
-      visuals.delete(player.id);
-      remoteInterp.delete(player.id);
-    });
-  };
-
-  room.onStateChange(() => {
-    stateSyncCount += 1;
-    bindPlayerListHandlers();
-    const t = performance.now();
-    const list = playerListOf(room);
-    for (const p of list) {
-      if (p.id === mySessionId) continue;
-      let buf = remoteInterp.get(p.id);
-      if (!buf) {
-        remoteInterp.set(p.id, createInterpolationBuffer(p, t));
-      } else {
-        advanceIfPoseChanged(buf, p, t);
-      }
-    }
-  });
-  bindPlayerListHandlers();
+  const { visuals, remoteInterp } = visualRuntime;
+  const runtimeShutdown = createRuntimeShutdown([
+    visualRuntime,
+    artilleryFx,
+    missileFx,
+    torpedoFx,
+    assetManager,
+    renderer,
+  ]);
+  runtimeShutdown.bindWindowUnload();
 
   let fpsFrames = 0;
   let lastFpsTick = performance.now();
-  let lastOobCountdown = 0;
+  let lastFrameNow = performance.now();
+  let frameTimeMs = 0;
 
   function frame(now: number): void {
+    frameTimeMs = Math.max(0, now - lastFrameNow);
+    lastFrameNow = now;
     const playerList = playerListOf(room);
     fpsFrames += 1;
     if (now - lastFpsTick >= 500) {
       const fps = fpsFrames / ((now - lastFpsTick) / 1000);
       fpsFrames = 0;
       lastFpsTick = now;
-      let warn = colyseusWarn;
-      if (!warn && now - joinedAt > 4_000 && stateSyncCount === 0) {
-        warn =
-          "Kein ROOM_STATE (Sync 0): WebSocket-ACK? Server-Terminal prüfen. Konsole: Filter „Warnungen“.";
-      } else if (!warn && playerList.length === 0 && now - joinedAt > 2_500 && stateSyncCount > 0) {
-        warn =
-          "Sync ok, playerList leer: Server-Log onJoin? Oder zweiten Tab testen.";
-      } else if (!warn && playerList.length === 0 && now - joinedAt > 2_500) {
-        warn =
-          "Spieler 0: Sync wartet oder fehlt — siehe graue Diagnose, Server-Terminal.";
-      }
-      const jsonKeys =
-        room.state && typeof room.state === "object"
-          ? Object.keys(room.state as object)
-              .filter((k) => !k.startsWith("$") && k !== "constructor")
-              .join(", ")
-          : "—";
-      debugOverlay.update({
-        fps,
-        roomId: room.roomId ? room.roomId.slice(0, 8) : "—",
+      const stateSyncCount = visualRuntime.getStateSyncCount();
+      hudRuntime.updateDebugOverlay({
+        now,
+        roomState: room.state,
+        roomId: room.roomId,
         playerCount: playerList.length,
         pingMs,
-        diag: `STATE ${stateSyncCount} | keys: ${jsonKeys}\nKonsole → __BFA`,
-        warn: warn || undefined,
+        stateSyncCount,
+        colyseusWarn,
+        fps,
+        frameTimeMs,
+        perfMetrics: {
+          artillery: artilleryFx.getStats(),
+          missile: missileFx.getStats(),
+          torpedo: torpedoFx.getStats(),
+        },
       });
     }
 
     /** Nach ROOM_STATE können Callbacks fehlen — fehlende Meshes nachziehen. */
-    if (visuals.size !== playerList.length) {
-      for (const p of playerList) {
-        const sc = typeof p.shipClass === "string" ? p.shipClass : undefined;
-        addVisual(p.id, sc);
-      }
-    }
-
-    const presentIds = new Set<string>();
-    for (const p of playerList) {
-      presentIds.add(p.id);
-      const prev = lastLifeStateBySessionId.get(p.id);
-      if (
-        prev !== undefined &&
-        prev !== PlayerLifeState.AwaitingRespawn &&
-        p.lifeState === PlayerLifeState.AwaitingRespawn
-      ) {
-        if (p.id === mySessionId) {
-          gameMessageHud.showToast("Zerstört — Warte auf Respawn …", "danger", 5500);
-        } else {
-          gameMessageHud.showToast(
-            `${playerDisplayLabel(p)} zerstört`,
-            "info",
-            5000,
-          );
-        }
-      }
-      lastLifeStateBySessionId.set(p.id, p.lifeState);
-    }
-    for (const id of lastLifeStateBySessionId.keys()) {
-      if (!presentIds.has(id)) {
-        lastLifeStateBySessionId.delete(id);
-      }
-    }
+    visualRuntime.ensureVisualsForPlayers(playerList);
 
     const samp = input.sample();
-    const me = getPlayer(playerList, mySessionId);
     const { phase: matchPhase, remainingSec: matchRemainingSecRaw } = readMatchTimer(room);
     const matchEnded = matchPhase === MATCH_PHASE_ENDED;
 
-    if (matchEnded) {
-      const rows: {
-        sessionId: string;
-        displayName: string;
-        score: number;
-        kills: number;
-      }[] = [];
-      for (const p of playerList) {
-        rows.push({
-          sessionId: p.id,
-          displayName: typeof p.displayName === "string" ? p.displayName : "",
-          score: typeof p.score === "number" ? p.score : 0,
-          kills: typeof p.kills === "number" ? p.kills : 0,
-        });
-      }
-      rows.sort(
-        (a, b) =>
-          b.score - a.score ||
-          b.kills - a.kills ||
-          a.sessionId.localeCompare(b.sessionId),
-      );
-      matchEndHud.show(rows, mySessionId);
-    } else {
-      matchEndHud.hide();
-    }
+    hudRuntime.updateMatchEndHud({ matchEnded, players: playerList });
 
-    if (me) {
-      const oobSec = me.oobCountdownSec ?? 0;
-      if (oobSec > 0 && lastOobCountdown <= 0 && !matchEnded) {
-        gameAudio.warning();
-      }
-      lastOobCountdown = oobSec;
-
-      const { halfW, halfH } = orthoVisibleHalfExtents(window.innerWidth, window.innerHeight);
-      const pivot = cameraPivotXZ(me.x, me.z, me.headingRad);
-      artyFxCullShipX = me.x;
-      artyFxCullShipZ = me.z;
-      artyFxCullRadiusSq = artilleryFxCullRadiusSq(
-        me.x,
-        me.z,
-        pivot.x,
-        pivot.z,
-        halfW,
-        halfH,
-        ARTILLERY_FX_CULL_MARGIN,
-      );
-    } else {
-      artyFxCullRadiusSq = Number.POSITIVE_INFINITY;
-    }
-
-    for (const [sessionId, vis] of visuals) {
-      const p = getPlayer(playerList, sessionId);
-      if (!p) continue;
-
-      const wreckSinkY = p.lifeState === PlayerLifeState.AwaitingRespawn ? -4.2 : 0;
-
-      if (sessionId === mySessionId) {
-        /** MVP Task 3: lokaler Spieler — direkte Server-Pose (autoritativ). */
-        vis.group.position.set(p.x, wreckSinkY, p.z);
-        vis.group.rotation.y = p.headingRad;
-        vis.rudderLine.rotation.y = rudderRotationRad(p.rudder);
-        const aimWx = samp.aimWorldX;
-        const aimWz = samp.aimWorldZ;
-        const yawAim = Math.atan2(aimWx - p.x, aimWz - p.z);
-        vis.aimLine.rotation.y = yawAim - p.headingRad;
-      } else {
-        let buf = remoteInterp.get(sessionId);
-        if (!buf) {
-          buf = createInterpolationBuffer(p, now);
-          remoteInterp.set(sessionId, buf);
-        }
-        const r = sampleInterpolatedPose(buf, now, DEFAULT_INTERPOLATION_DELAY_MS);
-        vis.group.position.set(r.x, wreckSinkY, r.z);
-        vis.group.rotation.y = r.headingRad;
-        vis.rudderLine.rotation.y = rudderRotationRad(r.rudder);
-        const yawAim = Math.atan2(r.aimX - r.x, r.aimZ - r.z);
-        vis.aimLine.rotation.y = yawAim - r.headingRad;
-      }
-
-      setShipVisualLifeState(vis, p.lifeState, sessionId === mySessionId);
-
-      if (sessionId === mySessionId && me) {
-        updateFollowCamera(camera, p.x, p.z, p.headingRad);
-
-        if (me.lifeState !== PlayerLifeState.AwaitingRespawn && !matchEnded) {
-          room.send("input", {
-            throttle: samp.throttle,
-            rudderInput: samp.rudderInput,
-            aimX: samp.aimWorldX,
-            aimZ: samp.aimWorldZ,
-            primaryFire: samp.primaryFire,
-            secondaryFire: samp.secondaryFire,
-            torpedoFire: samp.torpedoFire,
-          });
-        }
-
-        const progLevel = Math.min(
-          PROGRESSION_MAX_LEVEL,
-          Math.max(1, Math.floor(typeof me.level === "number" ? me.level : 1)),
-        );
-        const progXp = typeof me.xp === "number" ? me.xp : 0;
-        const xpSeg = progressionXpToNextLevel(progLevel, progXp);
-        const xpLine =
-          progLevel >= PROGRESSION_MAX_LEVEL
-            ? "MAX"
-            : `${xpSeg.intoLevel} / ${xpSeg.need}`;
-        const profShip = getShipClassProfile(me.shipClass);
-        const maxSp =
-          cfg.maxSpeed *
-          profShip.movementSpeedMul *
-          progressionMovementScale(progLevel).maxSpeedFactor;
-
-        if (progLevel > lastHudLevel) {
-          gameMessageHud.showToast(`Level ${progLevel}!`, "info", 2800);
-          gameAudio.levelUp();
-        }
-        lastHudLevel = progLevel;
-
-        cockpit.update({
-          speed: p.speed,
-          maxSpeed: maxSp,
-          throttle: samp.throttle,
-          rudder: p.rudder,
-          headingRad: p.headingRad,
-          hp: p.hp,
-          maxHp: p.maxHp,
-          primaryCooldownSec: p.primaryCooldownSec,
-          secondaryCooldownSec: me.secondaryCooldownSec,
-          torpedoCooldownSec: me.torpedoCooldownSec,
-          respawnCountdownSec: me.respawnCountdownSec,
-          spawnProtectionSec: me.spawnProtectionSec,
-          matchRemainingSec: matchEnded ? 0 : matchRemainingSecRaw,
-          score: typeof me.score === "number" ? me.score : 0,
-          kills: typeof me.kills === "number" ? me.kills : 0,
-          level: progLevel,
-          xpLine,
-          shipClassLabel: profShip.labelDe,
-          playerDisplayName:
-            typeof me.displayName === "string" && me.displayName.trim().length > 0
-              ? me.displayName.trim()
-              : shortSessionIdForMessage(me.id),
-        });
-      }
-    }
-
-    const missiles = missileListOf(room);
-    if (missiles) {
-      const poses: { missileId: number; x: number; z: number; headingRad: number }[] = [];
-      for (const mm of missiles) {
-        poses.push({
-          missileId: mm.missileId,
-          x: mm.x,
-          z: mm.z,
-          headingRad: mm.headingRad,
-        });
-      }
-      missileFx.syncFromState(poses);
-    } else {
-      missileFx.syncFromState([]);
-    }
-
-    const torpedoes = torpedoListOf(room);
-    if (torpedoes) {
-      const tPoses: { torpedoId: number; x: number; z: number; headingRad: number }[] = [];
-      for (const tt of torpedoes) {
-        tPoses.push({
-          torpedoId: tt.torpedoId,
-          x: tt.x,
-          z: tt.z,
-          headingRad: tt.headingRad,
-        });
-      }
-      torpedoFx.syncFromState(tPoses);
-    } else {
-      torpedoFx.syncFromState([]);
-    }
-
-    artilleryFx.update(now);
-
-    gameMessageHud.updateFrame(
+    runFrameRuntimeStep({
       now,
-      me?.oobCountdownSec ?? 0,
-      me?.spawnProtectionSec ?? 0,
-    );
+      camera,
+      roomSendInput: (payload) => room.send("input", payload),
+      mySessionId,
+      cfgMaxSpeed: cfg.maxSpeed,
+      playerList,
+      visuals,
+      remoteInterp,
+      getPlayer,
+      inputSample: samp,
+      matchEnded,
+      matchRemainingSecRaw,
+      cockpit,
+      gameMessageHud,
+      gameAudio,
+      shortSessionIdForMessage,
+      playerDisplayLabel,
+      fx: { artilleryFx, missileFx, torpedoFx },
+      missileList: missileListOf(room),
+      torpedoList: torpedoListOf(room),
+      state: frameRuntimeState,
+    });
 
     renderer.render(scene, camera);
     requestAnimationFrame(frame);
@@ -815,7 +258,7 @@ async function bootstrap(): Promise<void> {
       return playerListOf(room).length;
     },
     get stateSyncCount(): number {
-      return stateSyncCount;
+      return visualRuntime.getStateSyncCount();
     },
     get pingMs(): number | null {
       return pingMs;
@@ -839,17 +282,15 @@ bootstrap().catch((err) => {
     "position:fixed;inset:0;display:flex;align-items:center;justify-content:center;background:#5ec8f5;color:#102030;font-family:system-ui;padding:24px;text-align:center;z-index:9999;";
   banner.textContent = `Keine Verbindung (${COLYSEUS_URL}): ${detail} — Server: „npm run dev -w server“.`;
   document.body.appendChild(banner);
+  try {
+    artilleryFx.dispose();
+    missileFx.dispose();
+    torpedoFx.dispose();
+    assetManager.dispose();
+    renderer.dispose();
+  } catch {
+    // Ignore cleanup errors during fatal bootstrap failure.
+  }
 });
 
-window.addEventListener("unhandledrejection", (ev) => {
-  const msg = ev.reason instanceof Error ? ev.reason.message : String(ev.reason);
-  console.error("unhandledrejection", ev.reason);
-  debugOverlay.update({
-    fps: 0,
-    roomId: "FEHLER",
-    playerCount: 0,
-    pingMs: null,
-    diag: undefined,
-    warn: `Unhandled: ${msg}`,
-  });
-});
+installGlobalRuntimeErrorHandlers(debugOverlay);
