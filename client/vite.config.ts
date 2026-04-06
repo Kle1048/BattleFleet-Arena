@@ -4,8 +4,20 @@ import { defineConfig } from "vite";
 
 const root = fileURLToPath(new URL(".", import.meta.url));
 
+/**
+ * GitHub Pages: Projekt-URL ist `https://<user>.github.io/<repo>/` → `base` muss `/Repo-Name/` sein.
+ * Lokal/Vercel: nicht setzen oder `/`.
+ */
+function viteBase(): string {
+  const raw = process.env.VITE_BASE_PATH?.trim();
+  if (!raw) return "/";
+  const withLeading = raw.startsWith("/") ? raw : `/${raw}`;
+  return withLeading.endsWith("/") ? withLeading : `${withLeading}/`;
+}
+
 /** Monorepo-Paket mit Schema + shipMovement (ohne vor build zu bundeln). */
 export default defineConfig({
+  base: viteBase(),
   resolve: {
     alias: {
       "@battlefleet/shared": path.resolve(root, "../shared/src"),
