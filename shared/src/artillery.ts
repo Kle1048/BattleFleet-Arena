@@ -9,8 +9,8 @@ export const ARTILLERY_FLIGHT_TIME_BASE_MS = 360;
 export const ARTILLERY_FLIGHT_TIME_PER_UNIT_MS = 0.035;
 export const ARTILLERY_FLIGHT_TIME_MAX_MS = 520;
 
-export const ARTILLERY_SPLASH_RADIUS = 38;
-export const ARTILLERY_DAMAGE = 22;
+export const ARTILLERY_SPLASH_RADIUS = 19;
+export const ARTILLERY_DAMAGE = 11;
 export const ARTILLERY_PLAYER_MAX_HP = 100;
 
 /** Artillerie-Reichweite: innerhalb frei zielen, darüber auf Max-Range begrenzen. */
@@ -21,11 +21,11 @@ export const ARTILLERY_MAX_RANGE = ARTILLERY_RANGE;
 /** Halber Feuerbogen relativ zum Bug — **±120°** je Seite ⇒ **240°** Gesamtsektor. */
 export const ARTILLERY_ARC_HALF_ANGLE_RAD = (120 * Math.PI) / 180;
 
-/** Zufällige Winkelstreuung ± (Radiant). */
-export const ARTILLERY_SPREAD_HALF_ANGLE_RAD = (10 * Math.PI) / 180;
+/** Zufällige Winkelstreuung ±5° (Radiant). */
+export const ARTILLERY_SPREAD_HALF_ANGLE_RAD = (5 * Math.PI) / 180;
 
-/** Zusätzliche Distanz-Streuung ±10% der Max-Reichweite entlang des gewählten Strahls. */
-export const ARTILLERY_SPREAD_DIST_MAX = ARTILLERY_MAX_RANGE * 0.1;
+/** Zusätzliche Distanz-Streuung ±5% der tatsächlichen Feuerentfernung entlang des gewählten Strahls. */
+export const ARTILLERY_SPREAD_DIST_FACTOR = 0.05;
 
 export type ArtilleryFireResult =
   | {
@@ -232,8 +232,9 @@ export function tryComputeArtillerySalvo(
 
   const spreadAngle = (rng() * 2 - 1) * ARTILLERY_SPREAD_HALF_ANGLE_RAD;
   let dir = rotateXZ(vx, vz, spreadAngle);
+  const spreadDistMax = baseLen * ARTILLERY_SPREAD_DIST_FACTOR;
   let dist = clamp(
-    baseLen + (rng() * 2 - 1) * ARTILLERY_SPREAD_DIST_MAX,
+    baseLen + (rng() * 2 - 1) * spreadDistMax,
     ARTILLERY_MIN_RANGE,
     ARTILLERY_MAX_RANGE,
   );

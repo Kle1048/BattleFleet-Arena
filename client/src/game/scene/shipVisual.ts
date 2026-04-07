@@ -4,11 +4,14 @@ import {
   OVERLAY_RENDER_ORDER,
   RUDDER_DEFLECTION_DEG,
   SHIP_BOW_Z,
+  SHIP_CAMERA_PIVOT_LOCAL_Z,
   SHIP_STERN_Z,
 } from "./createGameScene";
 import { VisualColorTokens, createShipHullAliveMaterial } from "../runtime/materialLibrary";
 
 const DECK_Y = 1.2;
+const AIM_TURRET_GRAY = 0xb8bcc4;
+const AIM_ORIGIN_LOCAL_Z = SHIP_CAMERA_PIVOT_LOCAL_Z;
 /** Kiel knapp über der Wasseroberfläche — Rumpf als Prisma (Dreieck × Höhe in Y). */
 const HULL_KEEL_Y = 0.28;
 
@@ -120,7 +123,7 @@ export function setShipVisualLifeState(
     hullMat.emissiveIntensity = 0.55;
 
     aimMat.transparent = true;
-    aimMat.color.setHex(isLocal ? VisualColorTokens.shipAimShieldLocal : VisualColorTokens.shipAimShieldRemote);
+    aimMat.color.setHex(AIM_TURRET_GRAY);
     aimMat.opacity = isLocal ? 1 : 0.92;
 
     rudderMat.transparent = false;
@@ -163,7 +166,7 @@ export function setShipVisualLifeState(
   hullMat.opacity = 1;
   hullMat.depthWrite = true;
 
-  const aimColor = isLocal ? VisualColorTokens.shipAimLocal : VisualColorTokens.shipAimRemote;
+  const aimColor = AIM_TURRET_GRAY;
   const aimOpacity = isLocal ? 0.95 : 0.88;
   aimMat.color.setHex(aimColor);
   aimMat.opacity = aimOpacity;
@@ -210,12 +213,12 @@ export function createShipVisual(options: { isLocal: boolean; shipClassId?: stri
   group.add(rudderLine);
 
   const aimY = DECK_Y + 1.2;
-  const aimLen = 130;
+  const aimLen = 10;
   const aimGeom = new THREE.BufferGeometry().setFromPoints([
     new THREE.Vector3(0, aimY, 0),
     new THREE.Vector3(0, aimY, aimLen),
   ]);
-  const aimColor = options.isLocal ? VisualColorTokens.shipAimLocal : VisualColorTokens.shipAimRemote;
+  const aimColor = AIM_TURRET_GRAY;
   const aimOpacity = options.isLocal ? 0.95 : 0.88;
   const aimLine = new THREE.Line(
     aimGeom,
@@ -231,7 +234,37 @@ export function createShipVisual(options: { isLocal: boolean; shipClassId?: stri
   const aimLineMat = aimLine.material as THREE.LineBasicMaterial;
   aimLineMat.depthTest = false;
   aimLineMat.depthWrite = false;
+  // Rotate around the turret point (forward third), not ship center.
+  aimLine.position.z = AIM_ORIGIN_LOCAL_Z;
   group.add(aimLine);
+
+  const turretRingRadius = 2.4;
+  const turretRingSeg = 20;
+  const turretPts: THREE.Vector3[] = [];
+  for (let i = 0; i < turretRingSeg; i++) {
+    const a = (i / turretRingSeg) * Math.PI * 2;
+    turretPts.push(
+      new THREE.Vector3(
+        Math.cos(a) * turretRingRadius,
+        aimY,
+        AIM_ORIGIN_LOCAL_Z + Math.sin(a) * turretRingRadius,
+      ),
+    );
+  }
+  const turretGeom = new THREE.BufferGeometry().setFromPoints(turretPts);
+  const turretRing = new THREE.LineLoop(
+    turretGeom,
+    new THREE.LineBasicMaterial({
+      color: AIM_TURRET_GRAY,
+      transparent: true,
+      opacity: options.isLocal ? 0.95 : 0.88,
+      fog: false,
+      depthTest: false,
+      depthWrite: false,
+    }),
+  );
+  turretRing.renderOrder = OVERLAY_RENDER_ORDER;
+  group.add(turretRing);
 
   let weaponGuideGroup: THREE.Group | null = null;
   if (options.isLocal) {

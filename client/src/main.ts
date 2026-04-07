@@ -13,6 +13,8 @@ import { createGameScene, SHIP_STERN_Z } from "./game/scene/createGameScene";
 import { createInputHandlers } from "./game/input/keyboardMouse";
 import { createCockpitHud } from "./game/hud/cockpitHud";
 import { createDebugOverlay } from "./game/hud/debugOverlay";
+import { createBotController } from "./game/bot/botController";
+import { createBotDebugPanel } from "./game/bot/botDebugPanel";
 import { createMatchEndHud } from "./game/hud/matchEndHud";
 import {
   createGameMessageHud,
@@ -75,6 +77,8 @@ const root = document.getElementById("app");
 if (!root) throw new Error("#app missing");
 
 const renderer = createGameRenderer(root);
+renderer.domElement.style.cursor =
+  "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 16 16'%3E%3Cline x1='8' y1='1' x2='8' y2='6' stroke='white' stroke-width='1'/%3E%3Cline x1='8' y1='10' x2='8' y2='15' stroke='white' stroke-width='1'/%3E%3Cline x1='1' y1='8' x2='6' y2='8' stroke='white' stroke-width='1'/%3E%3Cline x1='10' y1='8' x2='15' y2='8' stroke='white' stroke-width='1'/%3E%3Ccircle cx='8' cy='8' r='1.6' fill='none' stroke='white' stroke-width='1'/%3E%3C/svg%3E\") 8 8, crosshair";
 const assetManager = createAssetManager();
 
 const bundle = createGameScene();
@@ -97,6 +101,8 @@ function getGroundPoint(ndcX: number, ndcY: number): { x: number; z: number } | 
 const input = createInputHandlers(renderer.domElement, getGroundPoint);
 const cockpit = createCockpitHud();
 const debugOverlay = createDebugOverlay();
+const botController = createBotController();
+const botDebugPanel = createBotDebugPanel();
 const gameMessageHud = createGameMessageHud();
 const fxSystem = createFxSystem(scene);
 const artilleryFx = createArtilleryFx(scene, fxSystem);
@@ -138,6 +144,18 @@ async function bootstrap(): Promise<void> {
   });
   const joinedAt = performance.now();
   let pingMs: number | null = null;
+  const botAutoEnabled =
+    typeof window !== "undefined" &&
+    new URLSearchParams(window.location.search).get("bot") === "1";
+  if (botAutoEnabled) {
+    botController.enable();
+  }
+  const onBotToggleKey = (e: KeyboardEvent): void => {
+    if (e.code !== "KeyB") return;
+    if (botController.isEnabled()) botController.disable();
+    else botController.enable();
+  };
+  window.addEventListener("keydown", onBotToggleKey);
   const frameRuntimeState = createFrameRuntimeState(1);
   const cameraCullState = createCameraCullRuntimeState();
   const wakeTrailsBySession = new Map<string, ReturnType<typeof createWakeTrailState>>();
@@ -195,6 +213,12 @@ async function bootstrap(): Promise<void> {
     assetManager,
     renderer,
     waterDebugPanel,
+    {
+      dispose() {
+        botDebugPanel.dispose();
+        window.removeEventListener("keydown", onBotToggleKey);
+      },
+    },
   ]);
   runtimeShutdown.bindWindowUnload();
 
@@ -235,7 +259,17 @@ async function bootstrap(): Promise<void> {
     /** Nach ROOM_STATE können Callbacks fehlen — fehlende Meshes nachziehen. */
     visualRuntime.ensureVisualsForPlayers(playerList);
 
-    const samp = input.sample();
+    const humanInput = input.sample();
+    const missileList = missileListOf(room);
+    const torpedoList = torpedoListOf(room);
+    const botInput = botController.update(
+      now,
+      playerList,
+      mySessionId,
+      missileList ? [...missileList] : [],
+      torpedoList ? [...torpedoList] : [],
+    );
+    const samp = botInput ?? humanInput;
     const { phase: matchPhase, remainingSec: matchRemainingSecRaw } = readMatchTimer(room);
     const matchEnded = matchPhase === MATCH_PHASE_ENDED;
 
@@ -260,9 +294,15 @@ async function bootstrap(): Promise<void> {
       gameAudio,
       shortSessionIdForMessage,
       playerDisplayLabel,
-      fx: { artilleryFx, missileFx, torpedoFx },
-      missileList: missileListOf(room),
-      torpedoList: torpedoListOf(room),
+      fx: {
+        artilleryFx,
+        missileFx,
+        torpedoFx,
+        shipDamageSmokeTick: (worldX, worldZ, headingRad, severity) =>
+          fxSystem.spawnShipDamageSmokeTick(worldX, worldZ, headingRad, severity),
+      },
+      missileList,
+      torpedoList,
       state: frameRuntimeState,
       cameraCullState,
       onShipDestroyed: (p) => {
@@ -282,6 +322,7 @@ async function bootstrap(): Promise<void> {
         }
       },
     });
+    botDebugPanel.render(botController.getDebugState());
 
     fxSystem.update(frameTimeMs);
 

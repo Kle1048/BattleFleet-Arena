@@ -100,12 +100,19 @@ type FxLike = {
   artilleryFx: { update: (now: number, dt: number) => void };
   missileFx: { sync: (poses: readonly MissileLike[]) => void; update: (now: number, dt: number) => void };
   torpedoFx: { sync: (poses: readonly TorpedoLike[]) => void; update: (now: number, dt: number) => void };
+  shipDamageSmokeTick: (
+    worldX: number,
+    worldZ: number,
+    headingRad: number,
+    severity: "damaged" | "heavily_damaged",
+  ) => void;
 };
 
 type RuntimeState = {
   lastHudLevel: number;
   lastOobCountdown: number;
   lastLifeStateBySessionId: Map<string, string>;
+  lastDamageSmokeAtBySessionId: Map<string, number>;
 };
 
 export function createFrameRuntimeState(initialHudLevel = 1): RuntimeState {
@@ -113,6 +120,7 @@ export function createFrameRuntimeState(initialHudLevel = 1): RuntimeState {
     lastHudLevel: initialHudLevel,
     lastOobCountdown: 0,
     lastLifeStateBySessionId: new Map<string, string>(),
+    lastDamageSmokeAtBySessionId: new Map<string, number>(),
   };
 }
 
@@ -203,6 +211,7 @@ export function runFrameRuntimeStep<
   for (const id of state.lastLifeStateBySessionId.keys()) {
     if (!presentIds.has(id)) {
       state.lastLifeStateBySessionId.delete(id);
+      state.lastDamageSmokeAtBySessionId.delete(id);
     }
   }
 
@@ -241,6 +250,20 @@ export function runFrameRuntimeStep<
     }
 
     setShipVisualLifeState(vis, p.lifeState, sessionId === mySessionId);
+
+    if (p.lifeState !== PlayerLifeState.AwaitingRespawn) {
+      const hpPercent = p.maxHp > 0 ? p.hp / p.maxHp : 1;
+      const severity =
+        hpPercent < 0.3 ? "heavily_damaged" : hpPercent < 0.9 ? "damaged" : null;
+      if (severity) {
+        const intervalMs = severity === "heavily_damaged" ? 80 : 170;
+        const last = state.lastDamageSmokeAtBySessionId.get(sessionId) ?? 0;
+        if (now - last >= intervalMs) {
+          fx.shipDamageSmokeTick(p.x, p.z, p.headingRad, severity);
+          state.lastDamageSmokeAtBySessionId.set(sessionId, now);
+        }
+      }
+    }
 
     if (sessionId === mySessionId && me) {
       updateLocalFollowCameraFromPlayer(camera, p);

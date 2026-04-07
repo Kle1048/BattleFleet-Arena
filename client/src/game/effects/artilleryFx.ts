@@ -35,6 +35,8 @@ type FlyingShell = {
   bz: number;
 };
 
+const SHELL_IMPACT_FAILSAFE_GRACE_MS = 300;
+
 /**
  * Artillerie-VFX: Kugelflug + Einschlag abhängig von **kind** (Wasser / Treffer / Insel-Ufer).
  */
@@ -69,7 +71,15 @@ export function createArtilleryFx(scene: THREE.Scene, fx: FxSystem): {
   }
 
   function update(nowPerfMs: number, _dtMs = 0): void {
-    for (const f of flying) {
+    for (let i = flying.length - 1; i >= 0; i--) {
+      const f = flying[i]!;
+      if (nowPerfMs - f.start > f.flightMs + SHELL_IMPACT_FAILSAFE_GRACE_MS) {
+        scene.remove(f.mesh);
+        f.mesh.geometry.dispose();
+        (f.mesh.material as THREE.Material).dispose();
+        flying.splice(i, 1);
+        continue;
+      }
       const u = clamp01((nowPerfMs - f.start) / f.flightMs);
       const x = f.ax + (f.bx - f.ax) * u;
       const z = f.az + (f.bz - f.az) * u;

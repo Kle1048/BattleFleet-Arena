@@ -11,7 +11,14 @@ type DebugOverlayLike = {
 
 type MatchEndHudLike = {
   show: (
-    rows: { sessionId: string; displayName: string; score: number; kills: number }[],
+    rows: {
+      sessionId: string;
+      displayName: string;
+      shipClass: string;
+      level: number;
+      score: number;
+      kills: number;
+    }[],
     mySessionId: string,
   ) => void;
   hide: () => void;
@@ -20,6 +27,8 @@ type MatchEndHudLike = {
 type HudPlayerLike = {
   id: string;
   displayName?: string;
+  shipClass?: string;
+  level?: number;
   score?: number;
   kills?: number;
 };
@@ -106,11 +115,20 @@ export function createHudRuntime(options: CreateHudRuntimeOptions): {
 
     updateMatchEndHud({ matchEnded, players }) {
       if (matchEnded) {
-        const rows: { sessionId: string; displayName: string; score: number; kills: number }[] = [];
+        const rows: {
+          sessionId: string;
+          displayName: string;
+          shipClass: string;
+          level: number;
+          score: number;
+          kills: number;
+        }[] = [];
         for (const p of players) {
           rows.push({
             sessionId: p.id,
             displayName: typeof p.displayName === "string" ? p.displayName : "",
+            shipClass: typeof p.shipClass === "string" ? p.shipClass : "—",
+            level: typeof p.level === "number" ? Math.max(1, Math.floor(p.level)) : 1,
             score: typeof p.score === "number" ? p.score : 0,
             kills: typeof p.kills === "number" ? p.kills : 0,
           });

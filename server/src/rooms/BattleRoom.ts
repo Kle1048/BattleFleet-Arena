@@ -71,6 +71,7 @@ import {
 } from "@battlefleet/shared";
 
 const TICK_HZ = 20;
+const HP_REGEN_PER_SEC_FACTOR = 0.01;
 
 export type InputPayload = {
   throttle: number;
@@ -1102,6 +1103,15 @@ export class BattleRoom extends Room<BattleState> {
       p.primaryCooldownSec = Math.max(0, (row.primaryReadyAtMs - now) / 1000);
       p.secondaryCooldownSec = Math.max(0, (row.secondaryReadyAtMs - now) / 1000);
       p.torpedoCooldownSec = Math.max(0, (row.torpedoReadyAtMs - now) / 1000);
+
+      if (
+        (p.lifeState === PlayerLifeState.Alive || p.lifeState === PlayerLifeState.SpawnProtected) &&
+        p.hp > 0 &&
+        p.hp < p.maxHp
+      ) {
+        const regen = p.maxHp * HP_REGEN_PER_SEC_FACTOR * dt;
+        p.hp = Math.min(p.maxHp, p.hp + regen);
+      }
 
       if (p.lifeState === PlayerLifeState.AwaitingRespawn) {
         p.oobCountdownSec = 0;

@@ -107,6 +107,13 @@ export function createFxSystem(scene: THREE.Scene): {
     headingRad: number,
     particleCount?: number,
   ) => void;
+  /** Schadensrauch hinter Schiff: `severity` = `damaged` | `heavily_damaged`. */
+  spawnShipDamageSmokeTick: (
+    worldX: number,
+    worldZ: number,
+    headingRad: number,
+    severity: "damaged" | "heavily_damaged",
+  ) => void;
   spawnTorpedoImpact: (worldX: number, worldZ: number, kind: string) => void;
   /** Schiff zerstört: mehrere große Hit-Bursts (Seekarten-XZ). */
   spawnShipDestroyedExplosion: (worldX: number, worldZ: number) => void;
@@ -633,6 +640,52 @@ export function createFxSystem(scene: THREE.Scene): {
     }
   }
 
+  function spawnShipDamageSmokeTick(
+    worldX: number,
+    worldZ: number,
+    headingRad: number,
+    severity: "damaged" | "heavily_damaged",
+  ): void {
+    if (!Number.isFinite(worldX) || !Number.isFinite(worldZ) || !Number.isFinite(headingRad)) return;
+    const sinH = Math.sin(headingRad);
+    const cosH = Math.cos(headingRad);
+    const rxW = -cosH;
+    const rzW = sinH;
+    const particles = severity === "heavily_damaged" ? 5 : 2;
+    const start = severity === "heavily_damaged" ? 5.5 : 3.6;
+    const grow = severity === "heavily_damaged" ? 38 : 24;
+    const colorStart = severity === "heavily_damaged" ? 0x6d6d6d : 0xc8c8c8;
+    const colorEnd = severity === "heavily_damaged" ? 0x1e1e1e : 0x5a5a5a;
+    const alphaStart = severity === "heavily_damaged" ? 0.48 : 0.35;
+    const lifeMin = severity === "heavily_damaged" ? 1500 : 1100;
+    const lifeMax = severity === "heavily_damaged" ? 2800 : 1900;
+    for (let i = 0; i < particles; i++) {
+      const back = randRange(16, 30);
+      const side = randRange(-5.5, 5.5);
+      const ox = worldX - sinH * back + rxW * side;
+      const oz = worldZ - cosH * back + rzW * side;
+      emit({
+        texture: "smoke",
+        x: worldToRenderX(ox),
+        y: randRange(1.8, 3.8),
+        z: oz,
+        vx: randRange(-2.2, 2.2) * 0.07,
+        vy: randRange(2.4, 4.8),
+        vz: randRange(-2.2, 2.2) * 0.07,
+        dragPerSec: 0.6,
+        maxAgeMs: randRange(lifeMin, lifeMax),
+        sizeStart: randRange(start, start + 2),
+        sizeEnd: randRange(grow - 4, grow),
+        alphaStart,
+        alphaEnd: 0,
+        colorStart,
+        colorEnd,
+        spinPerSec: randRange(-0.32, 0.32),
+        alphaLerpPow: 1.35,
+      });
+    }
+  }
+
   function spawnTorpedoImpact(worldX: number, worldZ: number, kind: string): void {
     spawnWeaponImpact("torpedo", normalizeImpactKind(kind), worldToRenderX(worldX), worldZ);
   }
@@ -734,6 +787,7 @@ export function createFxSystem(scene: THREE.Scene): {
     spawnMissileImpact,
     spawnMissileLaunchSmoke,
     spawnMissileTrailStreamTick,
+    spawnShipDamageSmokeTick,
     spawnTorpedoImpact,
     spawnShipDestroyedExplosion,
     getStats() {
