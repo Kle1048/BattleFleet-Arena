@@ -179,7 +179,7 @@ Dieser Abschnitt listet die wichtigsten Probleme mit Prioritaet, Auswirkung und 
 
 ### Arbeitspaket E - Hotpath-Optimierung
 - Player-Lookup-Index pro Tick
-- unnoetige lineare Suchketten reduzieren
+- unnnoetige lineare Suchketten reduzieren
 - Performance-Baseline vor/nachher dokumentieren
 
 **Definition of Done:**

@@ -95,6 +95,18 @@ type WaterUniforms = {
   uDeepColor: { value: THREE.Color };
   uShallowColor: { value: THREE.Color };
   uFoamColor: { value: THREE.Color };
+  uWaterUvScale: { value: number };
+  uWaterTimeX: { value: number };
+  uWaterTimeY: { value: number };
+  uWaterDepthBase: { value: number };
+  uWaterDepthAmp: { value: number };
+  uWaterFlowTime: { value: number };
+  uWaterFlowMix: { value: number };
+  uWaterShoreMix: { value: number };
+  uWaterWakeCoreMix: { value: number };
+  uWaterWakeOuterMix: { value: number };
+  uWaterWakeOuterWidthMul: { value: number };
+  uWaterWakeOuterNoiseMix: { value: number };
   uIslandCount: { value: number };
   uIslandData: { value: THREE.Vector3[] };
   uShipWakeCount: { value: number };
@@ -131,6 +143,18 @@ uniform float uTime;
 uniform vec3 uDeepColor;
 uniform vec3 uShallowColor;
 uniform vec3 uFoamColor;
+uniform float uWaterUvScale;
+uniform float uWaterTimeX;
+uniform float uWaterTimeY;
+uniform float uWaterDepthBase;
+uniform float uWaterDepthAmp;
+uniform float uWaterFlowTime;
+uniform float uWaterFlowMix;
+uniform float uWaterShoreMix;
+uniform float uWaterWakeCoreMix;
+uniform float uWaterWakeOuterMix;
+uniform float uWaterWakeOuterWidthMul;
+uniform float uWaterWakeOuterNoiseMix;
 uniform float uIslandCount;
 uniform vec3 uIslandData[${MAX_WATER_ISLANDS}];
 uniform float uShipWakeCount;
@@ -167,15 +191,15 @@ float fbm(vec2 p) {
 
 void main() {
   // Ruhigere, feiner skalierte Grundbewegung ohne blockige zweite Ebene.
-  vec2 p0 = vUv * 18.0 + vec2(uTime * 0.032, -uTime * 0.024);
+  vec2 p0 = vUv * uWaterUvScale + vec2(uTime * uWaterTimeX, -uTime * uWaterTimeY);
   float n = fbm(p0);
-  float depthMix = clamp(0.26 + n * 0.42, 0.0, 1.0);
+  float depthMix = clamp(uWaterDepthBase + n * uWaterDepthAmp, 0.0, 1.0);
   vec3 col = mix(uDeepColor, uShallowColor, depthMix);
 
   // Obere Schicht: kleiner skaliert und deutlich langsamer animiert.
-  float ridge = abs(sin((n * 6.8 + uTime * 0.34) * 3.14159));
-  float flowMask = smoothstep(0.84, 0.985, ridge);
-  col = mix(col, uFoamColor, flowMask * 0.18);
+  float ridge = abs(sin((n * 6.1 + uTime * uWaterFlowTime) * 3.14159));
+  float flowMask = smoothstep(0.88, 0.99, ridge);
+  col = mix(col, uFoamColor, flowMask * uWaterFlowMix);
 
   // Küsten-Schaum: weiches, animiertes Band um Inselradius.
   float shoreFoam = 0.0;
@@ -185,15 +209,16 @@ void main() {
     float d = distance(vWorldPos.xz, island.xy);
     float edge = abs(d - island.z);
     float band = 1.0 - smoothstep(2.0, 15.0, edge);
-    float wobble = 0.72 + 0.28 * sin(uTime * 0.55 + d * 0.12 + float(i) * 0.7);
+    float wobble = 0.8 + 0.2 * sin(uTime * 0.42 + d * 0.1 + float(i) * 0.7);
     shoreFoam = max(shoreFoam, band * wobble);
   }
-  col = mix(col, uFoamColor, shoreFoam * 0.52);
+  col = mix(col, uFoamColor, shoreFoam * uWaterShoreMix);
 
   // Kielwasser pro Schiff (Polylinie Heck-Spur), bis zu MAX_SHIP_WAKES.
   vec2 Pw = vWorldPos.xz;
   float wakeMaskAll = 0.0;
   float wakeCoreAll = 0.0;
+  float wakeSpeedAll = 0.0;
   for (int w = 0; w < ${MAX_SHIP_WAKES}; w++) {
     if (float(w) >= uShipWakeCount) break;
     float wLen = uShipWakeTrailLen[w];
@@ -212,21 +237,23 @@ void main() {
       float t = clamp(dot(Pw - a, ab) / ab2, 0.0, 1.0);
       vec2 c = a + ab * t;
       float dln = distance(Pw, c);
-      float width = max(3.8, 21.0 - float(i) * 0.9);
-      float lat = 1.0 - smoothstep(width, width + 11.0, dln);
+      float width = max(3.8, (21.0 - float(i) * 0.9) * uWaterWakeOuterWidthMul);
       float segFade = exp(-0.16 * float(i));
       float nearShipAlong = t * t * (3.0 - 2.0 * t);
+      float lat = 1.0 - smoothstep(width, width + 11.0, dln);
       float seg = lat * segFade * (0.08 + 0.92 * nearShipAlong);
       wakeMask = max(wakeMask, seg);
       float coreLat = 1.0 - smoothstep(width * 0.18, width * 0.6, dln);
       wakeCore = max(wakeCore, coreLat * segFade * nearShipAlong * nearShipAlong);
     }
     float rip = fbm(Pw * 0.55 + vec2(uTime * 0.06 + float(w) * 0.17, -uTime * 0.04));
-    wakeMaskAll = max(wakeMaskAll, wakeMask * wStr * (0.82 + 0.18 * rip));
+    wakeMaskAll = max(wakeMaskAll, wakeMask * wStr * (1.0 - uWaterWakeOuterNoiseMix + uWaterWakeOuterNoiseMix * rip));
     wakeCoreAll = max(wakeCoreAll, wakeCore * wStr);
+    wakeSpeedAll = max(wakeSpeedAll, wStr);
   }
-  col = mix(col, uFoamColor, wakeMaskAll * 0.14);
-  col = mix(col, vec3(1.0), wakeCoreAll * 0.72);
+  col = mix(col, uFoamColor, wakeMaskAll * uWaterWakeOuterMix);
+  vec3 wakeCoreColor = mix(uShallowColor, uFoamColor, clamp(wakeSpeedAll * 1.15, 0.0, 1.0));
+  col = mix(col, wakeCoreColor, wakeCoreAll * uWaterWakeCoreMix);
 
   gl_FragColor = vec4(col, 1.0);
 }
@@ -238,6 +265,18 @@ export function createWaterMaterial(): THREE.ShaderMaterial {
     uDeepColor: { value: new THREE.Color(0x0872ba) },
     uShallowColor: { value: new THREE.Color(0x58dfe3) },
     uFoamColor: { value: new THREE.Color(0xf0ffff) },
+    uWaterUvScale: { value: 28 },
+    uWaterTimeX: { value: 0.02 },
+    uWaterTimeY: { value: 0.015 },
+    uWaterDepthBase: { value: 0.24 },
+    uWaterDepthAmp: { value: 0.3 },
+    uWaterFlowTime: { value: 0.22 },
+    uWaterFlowMix: { value: 0.1 },
+    uWaterShoreMix: { value: 0.35 },
+    uWaterWakeCoreMix: { value: 0.45 },
+    uWaterWakeOuterMix: { value: 0.14 },
+    uWaterWakeOuterWidthMul: { value: 1.0 },
+    uWaterWakeOuterNoiseMix: { value: 0.18 },
     uIslandCount: { value: 0 },
     uIslandData: {
       value: Array.from({ length: MAX_WATER_ISLANDS }, () => new THREE.Vector3(0, 0, 0)),
@@ -278,6 +317,62 @@ export function updateWaterMaterial(material: THREE.Material, nowMs: number): vo
   const uniforms = shader.uniforms as WaterUniforms | undefined;
   if (!uniforms?.uTime) return;
   uniforms.uTime.value = nowMs * 0.001;
+}
+
+export type WaterShaderTuning = {
+  uvScale: number;
+  timeX: number;
+  timeY: number;
+  depthBase: number;
+  depthAmp: number;
+  flowTime: number;
+  flowMix: number;
+  shoreMix: number;
+  wakeCoreMix: number;
+  wakeOuterMix: number;
+  wakeOuterWidthMul: number;
+  wakeOuterNoiseMix: number;
+};
+
+export function readWaterShaderTuning(material: THREE.Material): WaterShaderTuning | null {
+  const shader = material as THREE.ShaderMaterial;
+  const u = shader.uniforms as WaterUniforms | undefined;
+  if (!u?.uWaterUvScale) return null;
+  return {
+    uvScale: u.uWaterUvScale.value,
+    timeX: u.uWaterTimeX.value,
+    timeY: u.uWaterTimeY.value,
+    depthBase: u.uWaterDepthBase.value,
+    depthAmp: u.uWaterDepthAmp.value,
+    flowTime: u.uWaterFlowTime.value,
+    flowMix: u.uWaterFlowMix.value,
+    shoreMix: u.uWaterShoreMix.value,
+    wakeCoreMix: u.uWaterWakeCoreMix.value,
+    wakeOuterMix: u.uWaterWakeOuterMix.value,
+    wakeOuterWidthMul: u.uWaterWakeOuterWidthMul.value,
+    wakeOuterNoiseMix: u.uWaterWakeOuterNoiseMix.value,
+  };
+}
+
+export function applyWaterShaderTuning(
+  material: THREE.Material,
+  patch: Partial<WaterShaderTuning>,
+): void {
+  const shader = material as THREE.ShaderMaterial;
+  const u = shader.uniforms as WaterUniforms | undefined;
+  if (!u?.uWaterUvScale) return;
+  if (patch.uvScale != null) u.uWaterUvScale.value = patch.uvScale;
+  if (patch.timeX != null) u.uWaterTimeX.value = patch.timeX;
+  if (patch.timeY != null) u.uWaterTimeY.value = patch.timeY;
+  if (patch.depthBase != null) u.uWaterDepthBase.value = patch.depthBase;
+  if (patch.depthAmp != null) u.uWaterDepthAmp.value = patch.depthAmp;
+  if (patch.flowTime != null) u.uWaterFlowTime.value = patch.flowTime;
+  if (patch.flowMix != null) u.uWaterFlowMix.value = patch.flowMix;
+  if (patch.shoreMix != null) u.uWaterShoreMix.value = patch.shoreMix;
+  if (patch.wakeCoreMix != null) u.uWaterWakeCoreMix.value = patch.wakeCoreMix;
+  if (patch.wakeOuterMix != null) u.uWaterWakeOuterMix.value = patch.wakeOuterMix;
+  if (patch.wakeOuterWidthMul != null) u.uWaterWakeOuterWidthMul.value = patch.wakeOuterWidthMul;
+  if (patch.wakeOuterNoiseMix != null) u.uWaterWakeOuterNoiseMix.value = patch.wakeOuterNoiseMix;
 }
 
 export type WaterShipWakeUpload = { trail: WakeTrailState; strength: number };

@@ -13,14 +13,19 @@ export type ShipMovementConfig = {
   minSpeedForFullTurn: number;
 };
 
+/** Angezeigte Basisspeed in Knoten (ohne "Feel"-Skalierung). */
+export const DESTROYER_BASE_SPEED_KN = 26;
+/** Globaler Faktor für mehr Dynamik bei unveränderter Knotenanzeige. */
+export const SPEED_FEEL_FACTOR = 2.5;
+
 export const DESTROYER_LIKE_MVP: ShipMovementConfig = {
-  maxSpeed: 42,
-  forwardAccel: 14,
-  backwardAccel: 22,
-  dragWhenNeutral: 6,
+  maxSpeed: DESTROYER_BASE_SPEED_KN * SPEED_FEEL_FACTOR,
+  forwardAccel: 14 * SPEED_FEEL_FACTOR,
+  backwardAccel: 22 * SPEED_FEEL_FACTOR,
+  dragWhenNeutral: 6 * SPEED_FEEL_FACTOR,
   maxTurnRateRad: 1.05,
   rudderResponsiveness: 8,
-  minSpeedForFullTurn: 8,
+  minSpeedForFullTurn: 8 * SPEED_FEEL_FACTOR,
 };
 
 export type ShipMovementState = {

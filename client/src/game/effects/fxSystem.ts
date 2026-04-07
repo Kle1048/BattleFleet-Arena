@@ -14,6 +14,7 @@ function normalizeImpactKind(kind: string): FxPreset {
 
 type Particle = {
   sprite: THREE.Sprite;
+  textureKey: TextureKey;
   active: boolean;
   ageMs: number;
   maxAgeMs: number;
@@ -86,6 +87,8 @@ function randRange(min: number, max: number): number {
   return min + Math.random() * (max - min);
 }
 
+type TextureKey = "soft" | "smoke" | "ring" | "flashAdd";
+
 export function createFxSystem(scene: THREE.Scene): {
   update: (dtMs: number) => void;
   dispose: () => void;
@@ -153,16 +156,18 @@ export function createFxSystem(scene: THREE.Scene): {
     }
   }
 
-  function takeParticle(material: THREE.SpriteMaterial): Particle {
+  function takeParticle(textureKey: TextureKey): Particle {
     for (const p of particles) {
-      if (!p.active && p.sprite.material === material) return p;
+      if (!p.active && p.textureKey === textureKey) return p;
     }
-    const sprite = new THREE.Sprite(material);
+    // Partikel besitzen jeweils ein eigenes Material, damit Farbe/Alpha nicht gegenseitig überschrieben werden.
+    const sprite = new THREE.Sprite(matFor(textureKey).clone());
     sprite.visible = false;
     sprite.renderOrder = 11;
     scene.add(sprite);
     const p: Particle = {
       sprite,
+      textureKey,
       active: false,
       ageMs: 0,
       maxAgeMs: 1000,
@@ -207,8 +212,6 @@ export function createFxSystem(scene: THREE.Scene): {
     p.sprite.visible = false;
   }
 
-  type TextureKey = "soft" | "smoke" | "ring" | "flashAdd";
-
   function matFor(key: TextureKey): THREE.SpriteMaterial {
     switch (key) {
       case "smoke":
@@ -242,8 +245,7 @@ export function createFxSystem(scene: THREE.Scene): {
     alphaLerpPow?: number;
   }): void {
     if (activeCount() >= MAX_ACTIVE_PARTICLES) cullOneOldest();
-    const mat = matFor(options.texture);
-    const p = takeParticle(mat);
+    const p = takeParticle(options.texture);
     p.active = true;
     p.ageMs = 0;
     p.maxAgeMs = options.maxAgeMs;
@@ -716,6 +718,7 @@ export function createFxSystem(scene: THREE.Scene): {
     pendingFx.length = 0;
     for (const p of particles) {
       scene.remove(p.sprite);
+      (p.sprite.material as THREE.Material).dispose();
     }
     particles.length = 0;
     for (const m of materials) m.dispose();

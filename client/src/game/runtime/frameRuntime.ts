@@ -3,6 +3,7 @@ import type * as THREE from "three";
 import {
   PlayerLifeState,
   PROGRESSION_MAX_LEVEL,
+  SPEED_FEEL_FACTOR,
   getShipClassProfile,
   progressionMovementScale,
   progressionXpToNextLevel,
@@ -268,6 +269,8 @@ export function runFrameRuntimeStep<
         cfgMaxSpeed *
         profShip.movementSpeedMul *
         progressionMovementScale(progLevel).maxSpeedFactor;
+      const speedKn = p.speed / SPEED_FEEL_FACTOR;
+      const maxSpeedKn = maxSp / SPEED_FEEL_FACTOR;
 
       if (progLevel > state.lastHudLevel) {
         gameMessageHud.showToast(`Level ${progLevel}!`, "info", 2800);
@@ -276,8 +279,8 @@ export function runFrameRuntimeStep<
       state.lastHudLevel = progLevel;
 
       cockpit.update({
-        speed: p.speed,
-        maxSpeed: maxSp,
+        speed: speedKn,
+        maxSpeed: maxSpeedKn,
         throttle: inputSample.throttle,
         rudder: p.rudder,
         headingRad: p.headingRad,

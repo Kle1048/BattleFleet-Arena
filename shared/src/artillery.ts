@@ -22,10 +22,10 @@ export const ARTILLERY_MAX_RANGE = ARTILLERY_RANGE;
 export const ARTILLERY_ARC_HALF_ANGLE_RAD = (120 * Math.PI) / 180;
 
 /** Zufällige Winkelstreuung ± (Radiant). */
-export const ARTILLERY_SPREAD_HALF_ANGLE_RAD = (3 * Math.PI) / 180;
+export const ARTILLERY_SPREAD_HALF_ANGLE_RAD = (10 * Math.PI) / 180;
 
-/** Zusätzliche Distanz-Streuung ± (Welt-Einheiten) entlang des gewählten Strahls. */
-export const ARTILLERY_SPREAD_DIST_MAX = 10;
+/** Zusätzliche Distanz-Streuung ±10% der Max-Reichweite entlang des gewählten Strahls. */
+export const ARTILLERY_SPREAD_DIST_MAX = ARTILLERY_MAX_RANGE * 0.1;
 
 export type ArtilleryFireResult =
   | {

@@ -36,10 +36,12 @@ import { createAssetManager } from "./game/runtime/assetManager";
 import { renderToWorldX, worldToRenderX } from "./game/runtime/renderCoords";
 import {
   MAX_SHIP_WAKES,
+  applyWaterShaderTuning,
   updateWaterMaterial,
   updateWaterShipWakes,
 } from "./game/runtime/materialLibrary";
 import { createWakeTrailState, pushWakeTrailSample } from "./game/runtime/wakeTrail";
+import { createWaterDebugPanel } from "./game/runtime/waterDebugPanel";
 import {
   createInterpolationBuffer,
   DEFAULT_INTERPOLATION_DELAY_MS,
@@ -78,6 +80,8 @@ const assetManager = createAssetManager();
 const bundle = createGameScene();
 const { scene, camera, water } = bundle;
 const cfg = DESTROYER_LIKE_MVP;
+const WAKE_EMIT_LOCAL_Z = SHIP_STERN_Z;
+const waterDebugPanel = createWaterDebugPanel(water.material as THREE.Material);
 
 const groundPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
 const raycaster = new THREE.Raycaster();
@@ -190,6 +194,7 @@ async function bootstrap(): Promise<void> {
     },
     assetManager,
     renderer,
+    waterDebugPanel,
   ]);
   runtimeShutdown.bindWindowUnload();
 
@@ -282,7 +287,7 @@ async function bootstrap(): Promise<void> {
 
     const presentIds = new Set<string>();
     const wakeUpload: { trail: ReturnType<typeof createWakeTrailState>; strength: number }[] = [];
-    const minDistWakeSq = 5.5 * 5.5;
+    const minDistWakeSq = 3 * 3;
 
     for (const p of playerList) {
       presentIds.add(p.id);
@@ -323,7 +328,7 @@ async function bootstrap(): Promise<void> {
 
       const sinH = Math.sin(h);
       const cosH = Math.cos(h);
-      const sz = SHIP_STERN_Z;
+      const sz = WAKE_EMIT_LOCAL_Z;
       const sternRx = worldToRenderX(wx) - sz * sinH;
       const sternZ = wz + sz * cosH;
       pushWakeTrailSample(trail, sternRx, sternZ, minDistWakeSq);
@@ -364,6 +369,22 @@ async function bootstrap(): Promise<void> {
     },
     get pingMs(): number | null {
       return pingMs;
+    },
+    waterShader: {
+      set: (patch: {
+        uvScale?: number;
+        timeX?: number;
+        timeY?: number;
+        depthBase?: number;
+        depthAmp?: number;
+        flowTime?: number;
+        flowMix?: number;
+        shoreMix?: number;
+        wakeCoreMix?: number;
+        wakeOuterMix?: number;
+        wakeOuterWidthMul?: number;
+        wakeOuterNoiseMix?: number;
+      }) => applyWaterShaderTuning(water.material as THREE.Material, patch),
     },
   };
 }

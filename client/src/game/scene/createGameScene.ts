@@ -101,8 +101,17 @@ export const FOLLOW_CAM_FOV = 52;
 /** Blickpunkt-Höhe (Deck). */
 export const FOLLOW_CAM_LOOK_Y = 1.2;
 
-/** Senkrechte Draufsicht: Abstand Augpunkt → Blickpunkt entlang +Y. */
+/** Vertikaler Abstand Augpunkt → Blickpunkt entlang +Y. */
 export const FOLLOW_CAM_TOP_DOWN_HEIGHT = 820;
+/** Kamera-Neigung relativ zur Wasseroberfläche (90° = senkrecht nach unten). */
+export const FOLLOW_CAM_PITCH_DEG = 90;
+
+function followCamBackOffset(height: number): number {
+  const pitchRad = (FOLLOW_CAM_PITCH_DEG * Math.PI) / 180;
+  const tanPitch = Math.tan(pitchRad);
+  if (Math.abs(tanPitch) < 1e-6) return 0;
+  return height / tanPitch;
+}
 
 /**
  * Perspektive: sichtbare Bodenfläche ≠ achsenparalleles Rechteck — Culling-Rechteck vergrößern.
@@ -180,9 +189,11 @@ export function createGameScene(): GameSceneBundle {
     mood.fogColor == null ? null : new THREE.Fog(new THREE.Color(mood.fogColor), mood.fogNear, mood.fogFar);
 
   const camera = new THREE.PerspectiveCamera(FOLLOW_CAM_FOV, 1, 1, 25_000);
-  camera.position.set(0, FOLLOW_CAM_LOOK_Y + FOLLOW_CAM_TOP_DOWN_HEIGHT, 0);
+  const lookY = FOLLOW_CAM_LOOK_Y;
+  const back = followCamBackOffset(FOLLOW_CAM_TOP_DOWN_HEIGHT);
+  camera.position.set(0, lookY + FOLLOW_CAM_TOP_DOWN_HEIGHT, -back);
   camera.up.set(0, 0, 1);
-  camera.lookAt(0, FOLLOW_CAM_LOOK_Y, 0);
+  camera.lookAt(0, lookY, 0);
 
   const MAP_HALF = waterMapHalfExtent();
 
@@ -307,6 +318,7 @@ export function updateFollowCamera(
   const lookY = FOLLOW_CAM_LOOK_Y;
   camera.up.set(0, 0, 1);
   const rpivotX = worldToRenderX(pivotX);
-  camera.position.set(rpivotX, lookY + FOLLOW_CAM_TOP_DOWN_HEIGHT, pivotZ);
+  const back = followCamBackOffset(FOLLOW_CAM_TOP_DOWN_HEIGHT);
+  camera.position.set(rpivotX, lookY + FOLLOW_CAM_TOP_DOWN_HEIGHT, pivotZ - back);
   camera.lookAt(rpivotX, lookY, pivotZ);
 }

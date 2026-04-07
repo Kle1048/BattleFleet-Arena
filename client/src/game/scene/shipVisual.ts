@@ -236,6 +236,9 @@ export function createShipVisual(options: { isLocal: boolean; shipClassId?: stri
   let weaponGuideGroup: THREE.Group | null = null;
   if (options.isLocal) {
     weaponGuideGroup = new THREE.Group();
+    // Keep guide radius in world units even though ship mesh is class-scaled.
+    const invHullScale = prof.hullScale > 1e-6 ? 1 / prof.hullScale : 1;
+    weaponGuideGroup.scale.setScalar(invHullScale);
     const arcRadius = ARTILLERY_RANGE;
     const arcHalf = prof.artilleryArcHalfAngleRad;
     const segments = 32;

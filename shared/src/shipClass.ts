@@ -4,6 +4,7 @@
 
 import { ARTILLERY_ARC_HALF_ANGLE_RAD, ARTILLERY_PLAYER_MAX_HP } from "./artillery";
 import { ASWM_MAX_PER_OWNER } from "./aswm";
+import { DESTROYER_BASE_SPEED_KN } from "./shipMovement";
 import { TORPEDO_MAX_PER_OWNER } from "./torpedo";
 
 export const SHIP_CLASS_FAC = "fac";
@@ -42,10 +43,10 @@ const PROFILE_FAC: ShipClassProfile = {
   id: SHIP_CLASS_FAC,
   labelDe: "FAC",
   baseMaxHp: Math.round(ARTILLERY_PLAYER_MAX_HP * 0.7),
-  movementSpeedMul: 1.14,
+  movementSpeedMul: 40 / DESTROYER_BASE_SPEED_KN,
   turnRateMul: 1.12,
   accelMul: 1.08,
-  artilleryArcHalfAngleRad: (70 * Math.PI) / 180,
+  artilleryArcHalfAngleRad: ARTILLERY_ARC_HALF_ANGLE_RAD,
   aswmMaxPerOwner: 1,
   aswmCooldownFactor: 0.88,
   torpedoMaxPerOwner: TORPEDO_MAX_PER_OWNER,
@@ -74,10 +75,10 @@ const PROFILE_CRUISER: ShipClassProfile = {
   id: SHIP_CLASS_CRUISER,
   labelDe: "Kreuzer",
   baseMaxHp: Math.round(ARTILLERY_PLAYER_MAX_HP * 1.32),
-  movementSpeedMul: 0.86,
+  movementSpeedMul: 22 / DESTROYER_BASE_SPEED_KN,
   turnRateMul: 0.88,
   accelMul: 0.92,
-  artilleryArcHalfAngleRad: (52 * Math.PI) / 180,
+  artilleryArcHalfAngleRad: ARTILLERY_ARC_HALF_ANGLE_RAD,
   aswmMaxPerOwner: ASWM_MAX_PER_OWNER,
   aswmCooldownFactor: 1.1,
   torpedoMaxPerOwner: TORPEDO_MAX_PER_OWNER,
