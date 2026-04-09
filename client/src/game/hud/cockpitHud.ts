@@ -38,6 +38,8 @@ export type CockpitHudUpdate = {
   playerDisplayName: string;
 };
 
+const BASE_URL = import.meta.env.BASE_URL;
+
 function degFromHeading(headingRad: number): number {
   const d = (headingRad * 180) / Math.PI;
   return ((d % 360) + 360) % 360;
@@ -56,7 +58,7 @@ export function createCockpitHud(): { update: (u: CockpitHudUpdate) => void } {
       <div class="cockpit-readouts">
         <div class="cockpit-row cockpit-row-header" style="display:flex;align-items:center;gap:8px;margin-bottom:2px;">
           <img
-            src="/assets/hud-command-icon.svg"
+            src="${BASE_URL}assets/hud-command-icon.svg"
             alt="Kommando-Icon"
             width="20"
             height="20"
