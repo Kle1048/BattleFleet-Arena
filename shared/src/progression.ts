@@ -107,7 +107,7 @@ export function progressionSecondaryCooldownMs(level: number): number {
 
 export function progressionTorpedoCooldownMs(level: number): number {
   return Math.max(
-    4000,
+    1000,
     Math.round(TORPEDO_COOLDOWN_MS * progressionTorpedoCooldownFactor(level)),
   );
 }

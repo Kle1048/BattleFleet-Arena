@@ -1,12 +1,11 @@
 import * as THREE from "three";
 import type { GameRenderer } from "../runtime/rendererContracts";
-import { createTorpedoBodyMaterial } from "../runtime/materialLibrary";
 import { worldToRenderX, worldToRenderYaw } from "../runtime/renderCoords";
 import type { FxSystem } from "./fxSystem";
 
-const BODY_Y = 2.65;
-const TORPEDO_LENGTH = 16;
-const TORPEDO_RADIUS = 2.2;
+const MINE_Y = 2.1;
+const MINE_RADIUS = 5.4;
+const MINE_HORN_COUNT = 8;
 
 export type TorpedoPose = {
   torpedoId: number;
@@ -17,11 +16,11 @@ export type TorpedoPose = {
 
 type Entry = {
   group: THREE.Group;
-  body: THREE.Mesh;
+  parts: THREE.Mesh[];
 };
 
 /**
- * Torpedo: Zylinder aus State; Einschlag über gemeinsames Partikel-FX.
+ * Mine: statisch liegender Körper mit Hörnern; Trigger-/Impact-Logik serverseitig.
  */
 export function createTorpedoFx(scene: THREE.Scene, fx: FxSystem): {
   sync: (torpedoes: readonly TorpedoPose[]) => void;
@@ -36,8 +35,10 @@ export function createTorpedoFx(scene: THREE.Scene, fx: FxSystem): {
     const e = byId.get(id);
     if (!e) return;
     scene.remove(e.group);
-    e.body.geometry.dispose();
-    (e.body.material as THREE.Material).dispose();
+    for (const p of e.parts) {
+      p.geometry.dispose();
+      (p.material as THREE.Material).dispose();
+    }
     byId.delete(id);
   }
 
@@ -46,15 +47,42 @@ export function createTorpedoFx(scene: THREE.Scene, fx: FxSystem): {
     if (e) return e;
 
     const group = new THREE.Group();
-    const geo = new THREE.CylinderGeometry(TORPEDO_RADIUS, TORPEDO_RADIUS, TORPEDO_LENGTH, 10);
-    const mat = createTorpedoBodyMaterial();
-    const body = new THREE.Mesh(geo, mat);
-    body.rotation.x = Math.PI / 2;
-    body.position.y = BODY_Y;
-    group.add(body);
+    const parts: THREE.Mesh[] = [];
+    const core = new THREE.Mesh(
+      new THREE.SphereGeometry(MINE_RADIUS, 14, 10),
+      new THREE.MeshStandardMaterial({
+        color: 0x2b3945,
+        emissive: 0x0d1b24,
+        emissiveIntensity: 0.28,
+        metalness: 0.62,
+        roughness: 0.46,
+        fog: false,
+      }),
+    );
+    core.position.y = MINE_Y;
+    group.add(core);
+    parts.push(core);
+
+    for (let i = 0; i < MINE_HORN_COUNT; i++) {
+      const a = (i / MINE_HORN_COUNT) * Math.PI * 2;
+      const horn = new THREE.Mesh(
+        new THREE.ConeGeometry(0.55, 2.3, 8),
+        new THREE.MeshStandardMaterial({
+          color: 0x96a8b6,
+          metalness: 0.5,
+          roughness: 0.4,
+          fog: false,
+        }),
+      );
+      horn.rotation.x = Math.PI / 2;
+      horn.rotation.z = -a;
+      horn.position.set(Math.cos(a) * (MINE_RADIUS + 0.75), MINE_Y, Math.sin(a) * (MINE_RADIUS + 0.75));
+      group.add(horn);
+      parts.push(horn);
+    }
 
     scene.add(group);
-    e = { group, body };
+    e = { group, parts };
     byId.set(id, e);
     return e;
   }

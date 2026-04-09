@@ -9,7 +9,7 @@
  */
 import * as THREE from "three";
 import { DESTROYER_LIKE_MVP, MATCH_PHASE_ENDED, PlayerLifeState, getShipClassProfile } from "@battlefleet/shared";
-import { createGameScene, SHIP_STERN_Z } from "./game/scene/createGameScene";
+import { createGameScene } from "./game/scene/createGameScene";
 import { createInputHandlers } from "./game/input/keyboardMouse";
 import { createCockpitHud } from "./game/hud/cockpitHud";
 import { createDebugOverlay } from "./game/hud/debugOverlay";
@@ -44,6 +44,7 @@ import {
 } from "./game/runtime/materialLibrary";
 import { createWakeTrailState, pushWakeTrailSample } from "./game/runtime/wakeTrail";
 import { createWaterDebugPanel } from "./game/runtime/waterDebugPanel";
+import { getShipDebugTuning } from "./game/runtime/shipDebugTuning";
 import {
   createInterpolationBuffer,
   DEFAULT_INTERPOLATION_DELAY_MS,
@@ -84,7 +85,6 @@ const assetManager = createAssetManager();
 const bundle = createGameScene();
 const { scene, camera, water } = bundle;
 const cfg = DESTROYER_LIKE_MVP;
-const WAKE_EMIT_LOCAL_Z = SHIP_STERN_Z;
 const waterDebugPanel = createWaterDebugPanel(water.material as THREE.Material);
 
 const groundPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
@@ -183,6 +183,14 @@ async function bootstrap(): Promise<void> {
     onHitNearLocalPlayer: () => gameAudio.hitNear(),
     onMissileFireByLocalPlayer: () => gameAudio.missileFire(),
     onTorpedoFireByLocalPlayer: () => gameAudio.torpedoFire(),
+    onMineImpactNearLocalPlayer: (distance) => {
+      const prox = 1 - Math.min(1, Math.max(0, distance / 360));
+      if (prox <= 0) return;
+      triggerCameraShake({
+        durationMs: 120 + 190 * prox,
+        amplitude: 2 + 6 * prox,
+      });
+    },
   });
 
   const visualRuntime = createVisualRuntime({
@@ -369,7 +377,7 @@ async function bootstrap(): Promise<void> {
 
       const sinH = Math.sin(h);
       const cosH = Math.cos(h);
-      const sz = WAKE_EMIT_LOCAL_Z;
+      const sz = getShipDebugTuning().wakeSpawnLocalZ;
       const sternRx = worldToRenderX(wx) - sz * sinH;
       const sternZ = wz + sz * cosH;
       pushWakeTrailSample(trail, sternRx, sternZ, minDistWakeSq);

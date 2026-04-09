@@ -15,6 +15,10 @@ export type CockpitHudUpdate = {
   secondaryCooldownSec: number;
   /** Torpedo — Cooldown repliziert (Task 8). */
   torpedoCooldownSec: number;
+  /** Aktive Minen des lokalen Spielers. */
+  mineCount: number;
+  /** Maximal erlaubte aktive Minen des lokalen Spielers. */
+  mineMaxCount: number;
   /** Sekunden bis Respawn (nur `awaiting_respawn`, repliziert). */
   respawnCountdownSec: number;
   /** Verbleibender Spawn-Schutz in Sekunden (`spawn_protected`). */
@@ -113,7 +117,7 @@ export function createCockpitHud(): { update: (u: CockpitHudUpdate) => void } {
           <span class="cockpit-secondary-cd">—</span>
         </div>
         <div class="cockpit-row">
-          <span class="cockpit-label">Torpedo</span>
+          <span class="cockpit-label">Minen</span>
           <span class="cockpit-torpedo-cd">—</span>
         </div>
         <div class="cockpit-row cockpit-row-life hidden">
@@ -183,6 +187,8 @@ export function createCockpitHud(): { update: (u: CockpitHudUpdate) => void } {
       primaryCooldownSec,
       secondaryCooldownSec,
       torpedoCooldownSec,
+      mineCount,
+      mineMaxCount,
       respawnCountdownSec,
       spawnProtectionSec,
       matchRemainingSec,
@@ -246,9 +252,15 @@ export function createCockpitHud(): { update: (u: CockpitHudUpdate) => void } {
       if (torpedoCooldownSec > 0.05) {
         torpedoCdEl.textContent = `${torpedoCooldownSec.toFixed(1)} s`;
         torpedoCdEl.style.opacity = "0.9";
+        torpedoCdEl.style.color = "";
+      } else if (mineCount >= mineMaxCount) {
+        torpedoCdEl.textContent = "MAX";
+        torpedoCdEl.style.opacity = "1";
+        torpedoCdEl.style.color = "#ff6b6b";
       } else {
         torpedoCdEl.textContent = "bereit";
         torpedoCdEl.style.opacity = "0.55";
+        torpedoCdEl.style.color = "";
       }
 
       if (respawnCountdownSec > 0.05) {

@@ -6,6 +6,7 @@ import {
   progressionIncomingDamageFactor,
   progressionLevelFromTotalXp,
   progressionMaxHpForLevel,
+  progressionTorpedoCooldownMs,
   progressionXpToNextLevel,
 } from "./progression";
 import { ARTILLERY_PLAYER_MAX_HP } from "./artillery";
@@ -26,5 +27,7 @@ const max = progressionXpToNextLevel(10, PROGRESSION_LEVEL_MIN_XP[10]!);
 assert.equal(max.need, 0);
 
 assert.ok(progressionIncomingDamageFactor(1) >= progressionIncomingDamageFactor(10));
+assert.equal(progressionTorpedoCooldownMs(1), 1000);
+assert.equal(progressionTorpedoCooldownMs(10), 1000);
 
 console.log("progression tests ok");

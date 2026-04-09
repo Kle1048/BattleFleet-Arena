@@ -1,6 +1,7 @@
 import * as THREE from "three";
 import { AREA_OF_OPERATIONS_HALF_EXTENT, DEFAULT_MAP_ISLANDS } from "@battlefleet/shared";
 import { VisualColorTokens, createWaterMaterial, setWaterIslands } from "../runtime/materialLibrary";
+import { getShipDebugTuning } from "../runtime/shipDebugTuning";
 import { worldToRenderX } from "../runtime/renderCoords";
 
 /**
@@ -141,9 +142,10 @@ export function cameraPivotXZ(
 ): { x: number; z: number } {
   const fwdX = Math.sin(headingRad);
   const fwdZ = Math.cos(headingRad);
+  const pivotLocalZ = getShipDebugTuning().cameraPivotLocalZ;
   return {
-    x: shipX + fwdX * SHIP_CAMERA_PIVOT_LOCAL_Z,
-    z: shipZ + fwdZ * SHIP_CAMERA_PIVOT_LOCAL_Z,
+    x: shipX + fwdX * pivotLocalZ,
+    z: shipZ + fwdZ * pivotLocalZ,
   };
 }
 
@@ -312,8 +314,9 @@ export function updateFollowCamera(
 ): void {
   const fwdX = Math.sin(shipHeading);
   const fwdZ = Math.cos(shipHeading);
-  const pivotX = shipX + fwdX * SHIP_CAMERA_PIVOT_LOCAL_Z;
-  const pivotZ = shipZ + fwdZ * SHIP_CAMERA_PIVOT_LOCAL_Z;
+  const pivotLocalZ = getShipDebugTuning().cameraPivotLocalZ;
+  const pivotX = shipX + fwdX * pivotLocalZ;
+  const pivotZ = shipZ + fwdZ * pivotLocalZ;
 
   const lookY = FOLLOW_CAM_LOOK_Y;
   camera.up.set(0, 0, 1);

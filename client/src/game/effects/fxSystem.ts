@@ -399,7 +399,7 @@ export function createFxSystem(scene: THREE.Scene): {
   }
 
   function spawnWeaponImpact(weapon: "missile" | "torpedo", preset: FxPreset, x: number, z: number): void {
-    const s = weapon === "missile" ? 0.64 : 0.72;
+    const s = weapon === "missile" ? 0.64 : 1.35;
     const warm = preset === "hit";
     const earthy = preset === "island";
     const waterCol =
@@ -447,9 +447,9 @@ export function createFxSystem(scene: THREE.Scene): {
       });
     }
 
-    const nFlash = preset === "hit" ? 8 : 4;
-    const nSmoke = preset === "hit" ? 13 : 8;
-    const nAdd = preset === "hit" ? 5 : 0;
+    const nFlash = weapon === "torpedo" ? (preset === "hit" ? 16 : 9) : preset === "hit" ? 8 : 4;
+    const nSmoke = weapon === "torpedo" ? (preset === "hit" ? 24 : 14) : preset === "hit" ? 13 : 8;
+    const nAdd = weapon === "torpedo" ? (preset === "hit" ? 8 : 2) : preset === "hit" ? 5 : 0;
 
     for (let i = 0; i < nFlash; i++) {
       const ang = randRange(0, Math.PI * 2);

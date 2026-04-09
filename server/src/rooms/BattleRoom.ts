@@ -15,7 +15,6 @@ import {
   DESTROYER_LIKE_MVP,
   MissileState,
   OOB_DESTROY_AFTER_MS,
-  TORPEDO_DAMAGE,
   TORPEDO_HIT_RADIUS,
   TORPEDO_ISLAND_COLLISION_RADIUS,
   TORPEDO_LIFETIME_MS,
@@ -84,6 +83,10 @@ export type InputPayload = {
   secondaryFire?: boolean;
   /** Torpedo (Task 8): Mausrad-Klick gehalten oder Taste Q. */
   torpedoFire?: boolean;
+  /** Debug-Tuning: Mündungs-Offset entlang Schiffs-Längsachse (lokales +Z = Bug). */
+  artillerySpawnLocalZ?: number;
+  /** Debug-Tuning: Minen-Ablage entlang Schiffs-Längsachse (lokales -Z = Heck). */
+  mineSpawnLocalZ?: number;
 };
 
 type SimEntry = {
@@ -91,6 +94,8 @@ type SimEntry = {
   lastRudderInput: number;
   aimX: number;
   aimZ: number;
+  artillerySpawnLocalZ: number;
+  mineSpawnLocalZ: number;
   oobSinceMs: number | null;
   /** Date.now() ab dem Primärfeuer erlaubt ist. */
   primaryReadyAtMs: number;
@@ -117,6 +122,10 @@ type PendingShell = {
 
 function clampUnit(n: number): number {
   return Math.max(-1, Math.min(1, n));
+}
+
+function clampRange(n: number, min: number, max: number): number {
+  return Math.max(min, Math.min(max, n));
 }
 
 function playerIndexInList(list: BattleState["playerList"], sessionId: string): number {
@@ -173,6 +182,14 @@ export class BattleRoom extends Room<BattleState> {
       const az = payload.aimZ;
       if (typeof ax === "number" && Number.isFinite(ax)) row.aimX = ax;
       if (typeof az === "number" && Number.isFinite(az)) row.aimZ = az;
+      const spawnLocalZ = payload.artillerySpawnLocalZ;
+      if (typeof spawnLocalZ === "number" && Number.isFinite(spawnLocalZ)) {
+        row.artillerySpawnLocalZ = clampRange(spawnLocalZ, -80, 80);
+      }
+      const mineSpawnLocalZ = payload.mineSpawnLocalZ;
+      if (typeof mineSpawnLocalZ === "number" && Number.isFinite(mineSpawnLocalZ)) {
+        row.mineSpawnLocalZ = clampRange(mineSpawnLocalZ, -140, 20);
+      }
 
       if (payload.primaryFire === true) {
         this.tryPrimaryFire(client, row);
@@ -244,6 +261,8 @@ export class BattleRoom extends Room<BattleState> {
       lastRudderInput: 0,
       aimX,
       aimZ,
+      artillerySpawnLocalZ: 0,
+      mineSpawnLocalZ: -22,
       oobSinceMs: null,
       primaryReadyAtMs: 0,
       secondaryReadyAtMs: 0,
@@ -446,6 +465,8 @@ export class BattleRoom extends Room<BattleState> {
       row.lastRudderInput = 0;
       row.aimX = spawnX;
       row.aimZ = spawnZ + 80;
+      row.artillerySpawnLocalZ = 0;
+      row.mineSpawnLocalZ = -22;
       row.oobSinceMs = null;
       row.primaryReadyAtMs = 0;
       row.secondaryReadyAtMs = 0;
@@ -523,6 +544,8 @@ export class BattleRoom extends Room<BattleState> {
     row.ship.rudder = 0;
     row.aimX = spawn.x + Math.sin(spawn.headingRad) * 80;
     row.aimZ = spawn.z + Math.cos(spawn.headingRad) * 80;
+    row.artillerySpawnLocalZ = 0;
+    row.mineSpawnLocalZ = -22;
     row.respawnAtMs = null;
     row.oobSinceMs = null;
     row.primaryReadyAtMs = 0;
@@ -592,9 +615,12 @@ export class BattleRoom extends Room<BattleState> {
     if (now < row.primaryReadyAtMs) return;
 
     const arc = getShipClassProfile(p.shipClass).artilleryArcHalfAngleRad;
+    const muzzleLocalZ = row.artillerySpawnLocalZ;
+    const muzzleX = row.ship.x + Math.sin(row.ship.headingRad) * muzzleLocalZ;
+    const muzzleZ = row.ship.z + Math.cos(row.ship.headingRad) * muzzleLocalZ;
     const salvo = tryComputeArtillerySalvo(
-      row.ship.x,
-      row.ship.z,
+      muzzleX,
+      muzzleZ,
       row.ship.headingRad,
       row.aimX,
       row.aimZ,
@@ -616,8 +642,8 @@ export class BattleRoom extends Room<BattleState> {
     this.broadcast("artyFired", {
       shellId,
       ownerId: client.sessionId,
-      fromX: row.ship.x,
-      fromZ: row.ship.z,
+      fromX: muzzleX,
+      fromZ: muzzleZ,
       toX: salvo.landX,
       toZ: salvo.landZ,
       flightMs: salvo.flightMs,
@@ -685,6 +711,7 @@ export class BattleRoom extends Room<BattleState> {
       row.aimX,
       row.aimZ,
       row.ship.headingRad,
+      row.mineSpawnLocalZ,
     );
     const torpedoId = this.nextTorpedoId++;
     const ts = new TorpedoState();
@@ -699,7 +726,7 @@ export class BattleRoom extends Room<BattleState> {
     const torpCd = Math.round(
       progressionTorpedoCooldownMs(p.level) * profT.torpedoCooldownFactor,
     );
-    row.torpedoReadyAtMs = now + Math.max(2000, torpCd);
+    row.torpedoReadyAtMs = now + Math.max(1000, torpCd);
     this.broadcast("torpedoFired", { torpedoId, ownerId: client.sessionId });
   }
 
@@ -982,8 +1009,8 @@ export class BattleRoom extends Room<BattleState> {
 
       let hitId: string | null = null;
       for (const pl of this.state.playerList) {
-        if (pl.id === t.ownerId) continue;
-        if (!canTakeArtillerySplashDamage(pl.lifeState)) continue;
+        // Minen sind Flächen-Trigger: alles außer bereits respawnenden Zielen kann auslösen.
+        if (pl.lifeState === PlayerLifeState.AwaitingRespawn) continue;
         const dx = pl.x - t.x;
         const dz = pl.z - t.z;
         if (dx * dx + dz * dz <= hitSq) {
@@ -996,11 +1023,9 @@ export class BattleRoom extends Room<BattleState> {
         const victim = this.findPlayer(hitId);
         if (victim) {
           const wasNotDead = victim.lifeState !== PlayerLifeState.AwaitingRespawn;
-          const torpDmg = Math.round(
-            TORPEDO_DAMAGE *
-              progressionIncomingDamageFactor(victim.level) *
-              getShipClassProfile(victim.shipClass).incomingDamageTakenMul,
-          );
+          // Mine verursacht 90% der Max-HP des Opfers, damit sie meist kampfunfähig macht,
+          // aber bei voller HP nicht zwingend sofort tötet.
+          const torpDmg = Math.max(1, Math.round(victim.maxHp * 0.9));
           victim.hp = Math.max(0, victim.hp - torpDmg);
           if (victim.hp <= 0 && wasNotDead) {
             this.enterAwaitingRespawn(victim.id, now, { killerSessionId: t.ownerId });
@@ -1045,6 +1070,23 @@ export class BattleRoom extends Room<BattleState> {
           this.enterAwaitingRespawn(p.id, now, { killerSessionId: sh.ownerSessionId });
         }
         damagedAnyEnemy = true;
+      }
+
+      // Minen im Artillerie-Splash werden entschärft und aus dem Spiel entfernt.
+      const torpedoes = this.state.torpedoList;
+      for (let i = torpedoes.length - 1; i >= 0; i--) {
+        const t = torpedoes.at(i);
+        if (!t) continue;
+        const dx = t.x - sh.landX;
+        const dz = t.z - sh.landZ;
+        if (dx * dx + dz * dz > splashSq) continue;
+        this.broadcast("torpedoImpact", {
+          torpedoId: t.torpedoId,
+          x: t.x,
+          z: t.z,
+          kind: "water",
+        });
+        this.removeTorpedoAt(i, t.torpedoId);
       }
 
       const kind = classifyArtilleryImpactVisual(

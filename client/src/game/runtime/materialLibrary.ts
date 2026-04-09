@@ -259,24 +259,56 @@ void main() {
 }
 `;
 
+export type WaterShaderTuning = {
+  uvScale: number;
+  timeX: number;
+  timeY: number;
+  depthBase: number;
+  depthAmp: number;
+  flowTime: number;
+  flowMix: number;
+  shoreMix: number;
+  wakeCoreMix: number;
+  wakeOuterMix: number;
+  wakeOuterWidthMul: number;
+  wakeOuterNoiseMix: number;
+};
+
+/** Projekt-Defaults für Wasser + Reset im Debug-Panel. */
+export const DEFAULT_WATER_SHADER_TUNING: Readonly<WaterShaderTuning> = {
+  uvScale: 28,
+  timeX: 0.02,
+  timeY: 0.015,
+  depthBase: 0.24,
+  depthAmp: 0.3,
+  flowTime: 0.22,
+  flowMix: 0.1,
+  shoreMix: 0.35,
+  wakeCoreMix: 0.44,
+  wakeOuterMix: 0.1,
+  wakeOuterWidthMul: 0.95,
+  wakeOuterNoiseMix: 0.28,
+};
+
 export function createWaterMaterial(): THREE.ShaderMaterial {
+  const wDef = DEFAULT_WATER_SHADER_TUNING;
   const uniforms: WaterUniforms = {
     uTime: { value: 0 },
     uDeepColor: { value: new THREE.Color(0x0872ba) },
     uShallowColor: { value: new THREE.Color(0x58dfe3) },
     uFoamColor: { value: new THREE.Color(0xf0ffff) },
-    uWaterUvScale: { value: 28 },
-    uWaterTimeX: { value: 0.02 },
-    uWaterTimeY: { value: 0.015 },
-    uWaterDepthBase: { value: 0.24 },
-    uWaterDepthAmp: { value: 0.3 },
-    uWaterFlowTime: { value: 0.22 },
-    uWaterFlowMix: { value: 0.1 },
-    uWaterShoreMix: { value: 0.35 },
-    uWaterWakeCoreMix: { value: 0.45 },
-    uWaterWakeOuterMix: { value: 0.14 },
-    uWaterWakeOuterWidthMul: { value: 1.0 },
-    uWaterWakeOuterNoiseMix: { value: 0.18 },
+    uWaterUvScale: { value: wDef.uvScale },
+    uWaterTimeX: { value: wDef.timeX },
+    uWaterTimeY: { value: wDef.timeY },
+    uWaterDepthBase: { value: wDef.depthBase },
+    uWaterDepthAmp: { value: wDef.depthAmp },
+    uWaterFlowTime: { value: wDef.flowTime },
+    uWaterFlowMix: { value: wDef.flowMix },
+    uWaterShoreMix: { value: wDef.shoreMix },
+    uWaterWakeCoreMix: { value: wDef.wakeCoreMix },
+    uWaterWakeOuterMix: { value: wDef.wakeOuterMix },
+    uWaterWakeOuterWidthMul: { value: wDef.wakeOuterWidthMul },
+    uWaterWakeOuterNoiseMix: { value: wDef.wakeOuterNoiseMix },
     uIslandCount: { value: 0 },
     uIslandData: {
       value: Array.from({ length: MAX_WATER_ISLANDS }, () => new THREE.Vector3(0, 0, 0)),
@@ -318,21 +350,6 @@ export function updateWaterMaterial(material: THREE.Material, nowMs: number): vo
   if (!uniforms?.uTime) return;
   uniforms.uTime.value = nowMs * 0.001;
 }
-
-export type WaterShaderTuning = {
-  uvScale: number;
-  timeX: number;
-  timeY: number;
-  depthBase: number;
-  depthAmp: number;
-  flowTime: number;
-  flowMix: number;
-  shoreMix: number;
-  wakeCoreMix: number;
-  wakeOuterMix: number;
-  wakeOuterWidthMul: number;
-  wakeOuterNoiseMix: number;
-};
 
 export function readWaterShaderTuning(material: THREE.Material): WaterShaderTuning | null {
   const shader = material as THREE.ShaderMaterial;

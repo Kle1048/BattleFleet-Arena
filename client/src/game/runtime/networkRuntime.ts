@@ -61,6 +61,7 @@ type RegisterNetworkHandlersOptions<TPlayerList> = {
   onHitNearLocalPlayer: () => void;
   onMissileFireByLocalPlayer: () => void;
   onTorpedoFireByLocalPlayer: () => void;
+  onMineImpactNearLocalPlayer: (distance: number) => void;
 };
 
 export function registerNetworkHandlers<TPlayerList>(
@@ -84,6 +85,7 @@ export function registerNetworkHandlers<TPlayerList>(
     onHitNearLocalPlayer,
     onMissileFireByLocalPlayer,
     onTorpedoFireByLocalPlayer,
+    onMineImpactNearLocalPlayer,
   } = options;
 
   room.onMessage("pong", (payloadUnknown) => {
@@ -181,6 +183,13 @@ export function registerNetworkHandlers<TPlayerList>(
     if (m) {
       if (!isArtyWorldPointInCullRange(m.x, m.z)) return;
       torpedoFx.flashImpact(m.x, m.z, m.kind);
+      const loc = findPlayerBySessionId(playerListOf(room), mySessionId);
+      if (loc) {
+        const dx = m.x - loc.x;
+        const dz = m.z - loc.z;
+        const dist = Math.hypot(dx, dz);
+        if (dist < 360) onMineImpactNearLocalPlayer(dist);
+      }
     }
   });
 

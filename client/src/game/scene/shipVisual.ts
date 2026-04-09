@@ -1,19 +1,68 @@
 import * as THREE from "three";
 import { ARTILLERY_RANGE, getShipClassProfile, PlayerLifeState } from "@battlefleet/shared";
+import { AssetUrls } from "../runtime/assetCatalog";
+import { getShipDebugTuning } from "../runtime/shipDebugTuning";
 import {
   OVERLAY_RENDER_ORDER,
-  RUDDER_DEFLECTION_DEG,
   SHIP_BOW_Z,
-  SHIP_CAMERA_PIVOT_LOCAL_Z,
   SHIP_STERN_Z,
 } from "./createGameScene";
 import { VisualColorTokens, createShipHullAliveMaterial } from "../runtime/materialLibrary";
 
 const DECK_Y = 1.2;
 const AIM_TURRET_GRAY = 0xb8bcc4;
-const AIM_ORIGIN_LOCAL_Z = SHIP_CAMERA_PIVOT_LOCAL_Z;
+/** Geschützrohr: sichtbare Zylinder-Geometrie (+Z vom Turmdrehpunkt). */
+const AIM_BARREL_LENGTH = 16;
+const AIM_BARREL_RADIUS_HEAVY = 0.52;
+const AIM_BARREL_RADIUS_MUZZLE = 0.44;
+const SHIP_SPRITE_BASE_WORLD_HEIGHT = SHIP_BOW_Z - SHIP_STERN_Z;
 /** Kiel knapp über der Wasseroberfläche — Rumpf als Prisma (Dreieck × Höhe in Y). */
 const HULL_KEEL_Y = 0.28;
+const shipTextureLoader = new THREE.TextureLoader();
+let cachedSchnellbootTexture: THREE.Texture | null = null;
+let spriteLoadAttempted = false;
+
+function getSchnellbootTexture(): THREE.Texture | null {
+  if (cachedSchnellbootTexture) return cachedSchnellbootTexture;
+  if (!spriteLoadAttempted) {
+    spriteLoadAttempted = true;
+    cachedSchnellbootTexture = shipTextureLoader.load(
+      AssetUrls.shipSchnellboot256,
+      (texture) => {
+        texture.colorSpace = THREE.SRGBColorSpace;
+      },
+      undefined,
+      () => {
+        cachedSchnellbootTexture = null;
+      },
+    );
+  }
+  return cachedSchnellbootTexture;
+}
+
+function shipSpriteWorldWidthFromTexture(texture: THREE.Texture): number {
+  const image = texture.image as { width?: number; height?: number } | undefined;
+  const pixelWidth = image?.width;
+  const pixelHeight = image?.height;
+  if (!pixelWidth || !pixelHeight) {
+    return SHIP_SPRITE_BASE_WORLD_HEIGHT;
+  }
+  const aspect = pixelWidth / pixelHeight;
+  return SHIP_SPRITE_BASE_WORLD_HEIGHT * aspect;
+}
+
+export function applyShipVisualRuntimeTuning(vis: ShipVisual): void {
+  const tuning = getShipDebugTuning();
+  // "aimOriginLocalZ" verschiebt den Turmdrehpunkt entlang der Schiffsachse.
+  vis.aimLine.position.z = tuning.aimOriginLocalZ;
+  if (vis.hullSprite) {
+    // Einheitliche Skalierung des 2D-Schiffssprites für schnelle Iteration.
+    vis.hullSprite.scale.setScalar(tuning.spriteScale);
+  }
+  if (vis.weaponGuideGroup && !tuning.showWeaponArc) {
+    vis.weaponGuideGroup.visible = false;
+  }
+}
 
 function createHullPrismGeometry(halfBeam: number): THREE.BufferGeometry {
   const bowZ = SHIP_BOW_Z;
@@ -62,15 +111,21 @@ function createHullPrismGeometry(halfBeam: number): THREE.BufferGeometry {
 
 export type ShipVisual = {
   group: THREE.Group;
-  aimLine: THREE.Line;
-  rudderLine: THREE.Line;
+  /** Drehgruppe; Kind: Zylinder-Rohr (`MeshBasicMaterial`). */
+  aimLine: THREE.Group;
   hull: THREE.Mesh;
+  hullSprite: THREE.Mesh | null;
   /** Nur lokaler Spieler: Feuerbogen — bei Zerstörung ausgeblendet. */
   weaponGuideGroup: THREE.Group | null;
 };
 
 function hullAliveMaterial(isLocal: boolean): THREE.MeshStandardMaterial {
   return createShipHullAliveMaterial(isLocal);
+}
+
+function getAimBarrelMaterial(vis: ShipVisual): THREE.MeshBasicMaterial {
+  const mesh = vis.aimLine.children[0] as THREE.Mesh | undefined;
+  return mesh!.material as THREE.MeshBasicMaterial;
 }
 
 /**
@@ -85,8 +140,11 @@ export function setShipVisualLifeState(
   const wreck = lifeState === PlayerLifeState.AwaitingRespawn;
   const shielded = lifeState === PlayerLifeState.SpawnProtected;
   const hullMat = vis.hull.material as THREE.MeshStandardMaterial;
-  const aimMat = vis.aimLine.material as THREE.LineBasicMaterial;
-  const rudderMat = vis.rudderLine.material as THREE.LineBasicMaterial;
+  const aimMat = getAimBarrelMaterial(vis);
+  const spriteMat =
+    vis.hullSprite && vis.hullSprite.material instanceof THREE.MeshBasicMaterial
+      ? vis.hullSprite.material
+      : null;
 
   if (wreck) {
     hullMat.color.setHex(VisualColorTokens.shipHullWreck);
@@ -97,12 +155,15 @@ export function setShipVisualLifeState(
     hullMat.emissive.setHex(VisualColorTokens.shipHullWreckEmissive);
     hullMat.emissiveIntensity = 0.45;
     hullMat.depthWrite = false;
+    if (spriteMat) {
+      spriteMat.color.setHex(0x6e7884);
+      spriteMat.opacity = 0.45;
+      spriteMat.transparent = true;
+      spriteMat.depthWrite = false;
+    }
 
     aimMat.transparent = true;
     aimMat.opacity = isLocal ? 0.08 : 0.06;
-
-    rudderMat.transparent = true;
-    rudderMat.opacity = 0.22;
 
     if (vis.weaponGuideGroup) {
       vis.weaponGuideGroup.visible = false;
@@ -121,16 +182,19 @@ export function setShipVisualLifeState(
     hullMat.depthWrite = true;
     hullMat.emissive.setHex(VisualColorTokens.shipHullShieldedEmissive);
     hullMat.emissiveIntensity = 0.55;
+    if (spriteMat) {
+      spriteMat.color.setHex(0xdef8ff);
+      spriteMat.opacity = 0.95;
+      spriteMat.transparent = true;
+      spriteMat.depthWrite = false;
+    }
 
     aimMat.transparent = true;
     aimMat.color.setHex(AIM_TURRET_GRAY);
     aimMat.opacity = isLocal ? 1 : 0.92;
 
-    rudderMat.transparent = false;
-    rudderMat.opacity = 1;
-
     if (vis.weaponGuideGroup) {
-      vis.weaponGuideGroup.visible = true;
+      vis.weaponGuideGroup.visible = getShipDebugTuning().showWeaponArc;
       vis.weaponGuideGroup.traverse((o) => {
         const l = o as THREE.Line;
         const m = l.material as THREE.LineBasicMaterial | undefined;
@@ -165,17 +229,20 @@ export function setShipVisualLifeState(
   hullMat.transparent = false;
   hullMat.opacity = 1;
   hullMat.depthWrite = true;
+  if (spriteMat) {
+    spriteMat.color.setHex(0xffffff);
+    spriteMat.opacity = 1;
+    spriteMat.transparent = true;
+    spriteMat.depthWrite = false;
+  }
 
   const aimColor = AIM_TURRET_GRAY;
   const aimOpacity = isLocal ? 0.95 : 0.88;
   aimMat.color.setHex(aimColor);
   aimMat.opacity = aimOpacity;
 
-  rudderMat.transparent = false;
-  rudderMat.opacity = 1;
-
   if (vis.weaponGuideGroup) {
-    vis.weaponGuideGroup.visible = true;
+    vis.weaponGuideGroup.visible = getShipDebugTuning().showWeaponArc;
   }
 }
 
@@ -196,75 +263,51 @@ export function createShipVisual(options: { isLocal: boolean; shipClassId?: stri
   hull.receiveShadow = true;
   group.add(hull);
 
-  const rudLen = 9;
-  const rudderGeom = new THREE.BufferGeometry().setFromPoints([
-    new THREE.Vector3(0, DECK_Y + 0.15, 0),
-    new THREE.Vector3(0, DECK_Y + 0.15, -rudLen),
-  ]);
-  const rudderLine = new THREE.Line(
-    rudderGeom,
-    new THREE.LineBasicMaterial({
-      color: VisualColorTokens.shipRudderLine,
-      linewidth: 2,
-      fog: false,
-    }),
-  );
-  rudderLine.position.set(0, 0, SHIP_STERN_Z);
-  group.add(rudderLine);
+  const spriteTex = getSchnellbootTexture();
+  let hullSprite: THREE.Mesh | null = null;
+  if (spriteTex) {
+    // Bei verfügbarem Asset wird der einfache Prisma-Rumpf visuell durch ein Sprite ersetzt.
+    const spriteMat = new THREE.MeshBasicMaterial({
+      map: spriteTex,
+      transparent: true,
+      alphaTest: 0.08,
+      depthWrite: false,
+      side: THREE.DoubleSide,
+    });
+    const spriteGeom = new THREE.PlaneGeometry(
+      shipSpriteWorldWidthFromTexture(spriteTex),
+      SHIP_SPRITE_BASE_WORLD_HEIGHT,
+    );
+    hullSprite = new THREE.Mesh(spriteGeom, spriteMat);
+    hullSprite.rotation.x = -Math.PI / 2;
+    hullSprite.position.y = DECK_Y + 0.18;
+    hull.visible = false;
+    group.add(hullSprite);
+  }
 
   const aimY = DECK_Y + 1.2;
-  const aimLen = 10;
-  const aimGeom = new THREE.BufferGeometry().setFromPoints([
-    new THREE.Vector3(0, aimY, 0),
-    new THREE.Vector3(0, aimY, aimLen),
-  ]);
-  const aimColor = AIM_TURRET_GRAY;
   const aimOpacity = options.isLocal ? 0.95 : 0.88;
-  const aimLine = new THREE.Line(
-    aimGeom,
-    new THREE.LineBasicMaterial({
-      color: aimColor,
-      transparent: true,
-      opacity: aimOpacity,
-      fog: false,
-      depthTest: true,
-    }),
+  const aimLineGroup = new THREE.Group();
+  const barrelGeom = new THREE.CylinderGeometry(
+    AIM_BARREL_RADIUS_MUZZLE,
+    AIM_BARREL_RADIUS_HEAVY,
+    AIM_BARREL_LENGTH,
+    12,
   );
-  aimLine.renderOrder = OVERLAY_RENDER_ORDER;
-  const aimLineMat = aimLine.material as THREE.LineBasicMaterial;
-  aimLineMat.depthTest = false;
-  aimLineMat.depthWrite = false;
-  // Rotate around the turret point (forward third), not ship center.
-  aimLine.position.z = AIM_ORIGIN_LOCAL_Z;
-  group.add(aimLine);
-
-  const turretRingRadius = 2.4;
-  const turretRingSeg = 20;
-  const turretPts: THREE.Vector3[] = [];
-  for (let i = 0; i < turretRingSeg; i++) {
-    const a = (i / turretRingSeg) * Math.PI * 2;
-    turretPts.push(
-      new THREE.Vector3(
-        Math.cos(a) * turretRingRadius,
-        aimY,
-        AIM_ORIGIN_LOCAL_Z + Math.sin(a) * turretRingRadius,
-      ),
-    );
-  }
-  const turretGeom = new THREE.BufferGeometry().setFromPoints(turretPts);
-  const turretRing = new THREE.LineLoop(
-    turretGeom,
-    new THREE.LineBasicMaterial({
-      color: AIM_TURRET_GRAY,
-      transparent: true,
-      opacity: options.isLocal ? 0.95 : 0.88,
-      fog: false,
-      depthTest: false,
-      depthWrite: false,
-    }),
-  );
-  turretRing.renderOrder = OVERLAY_RENDER_ORDER;
-  group.add(turretRing);
+  barrelGeom.rotateX(Math.PI / 2);
+  const barrelMat = new THREE.MeshBasicMaterial({
+    color: AIM_TURRET_GRAY,
+    transparent: true,
+    opacity: aimOpacity,
+    fog: false,
+    depthTest: false,
+    depthWrite: false,
+  });
+  const barrelMesh = new THREE.Mesh(barrelGeom, barrelMat);
+  barrelMesh.position.set(0, aimY, AIM_BARREL_LENGTH / 2);
+  barrelMesh.renderOrder = OVERLAY_RENDER_ORDER;
+  aimLineGroup.add(barrelMesh);
+  group.add(aimLineGroup);
 
   let weaponGuideGroup: THREE.Group | null = null;
   if (options.isLocal) {
@@ -308,9 +351,7 @@ export function createShipVisual(options: { isLocal: boolean; shipClassId?: stri
     group.add(weaponGuideGroup);
   }
 
-  return { group, aimLine, rudderLine, hull, weaponGuideGroup };
-}
-
-export function rudderRotationRad(rudderUnit: number): number {
-  return (-rudderUnit * RUDDER_DEFLECTION_DEG * Math.PI) / 180;
+  const vis: ShipVisual = { group, aimLine: aimLineGroup, hull, hullSprite, weaponGuideGroup };
+  applyShipVisualRuntimeTuning(vis);
+  return vis;
 }

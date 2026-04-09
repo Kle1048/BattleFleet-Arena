@@ -8,7 +8,11 @@ import {
   progressionMovementScale,
   progressionXpToNextLevel,
 } from "@battlefleet/shared";
-import { rudderRotationRad, setShipVisualLifeState, type ShipVisual } from "../scene/shipVisual";
+import {
+  applyShipVisualRuntimeTuning,
+  setShipVisualLifeState,
+  type ShipVisual,
+} from "../scene/shipVisual";
 import {
   DEFAULT_INTERPOLATION_DELAY_MS,
   createInterpolationBuffer,
@@ -22,6 +26,7 @@ import {
 } from "./cameraCullRuntime";
 import { applyCameraShakeStep } from "./cameraShakeRuntime";
 import { worldToRenderX, worldToRenderYaw } from "./renderCoords";
+import { getShipDebugTuning } from "./shipDebugTuning";
 
 type NetPlayerLike = {
   id: string;
@@ -51,6 +56,7 @@ type NetPlayerLike = {
 
 type MissileLike = { missileId: number; x: number; z: number; headingRad: number };
 type TorpedoLike = { torpedoId: number; x: number; z: number; headingRad: number };
+type OwnedTorpedoLike = TorpedoLike & { ownerId: string };
 
 type InputSample = {
   throttle: number;
@@ -74,6 +80,8 @@ type CockpitLike = {
     primaryCooldownSec: number;
     secondaryCooldownSec: number;
     torpedoCooldownSec: number;
+    mineCount: number;
+    mineMaxCount: number;
     respawnCountdownSec: number;
     spawnProtectionSec: number;
     matchRemainingSec: number;
@@ -127,7 +135,7 @@ export function createFrameRuntimeState(initialHudLevel = 1): RuntimeState {
 export function runFrameRuntimeStep<
   TPlayer extends NetPlayerLike,
   TMissile extends MissileLike,
-  TTorpedo extends TorpedoLike,
+  TTorpedo extends OwnedTorpedoLike,
 >(options: {
   now: number;
   dtMs: number;
@@ -140,6 +148,8 @@ export function runFrameRuntimeStep<
     primaryFire: boolean;
     secondaryFire: boolean;
     torpedoFire: boolean;
+    artillerySpawnLocalZ: number;
+    mineSpawnLocalZ: number;
   }) => void;
   mySessionId: string;
   cfgMaxSpeed: number;
@@ -226,13 +236,20 @@ export function runFrameRuntimeStep<
   for (const [sessionId, vis] of visuals) {
     const p = getPlayer(playerList, sessionId);
     if (!p) continue;
+    // Live-Tuning aus dem Debug-Panel auf das bereits erzeugte 3D-Objekt anwenden.
+    applyShipVisualRuntimeTuning(vis);
+    const tuning = getShipDebugTuning();
 
     const wreckSinkY = p.lifeState === PlayerLifeState.AwaitingRespawn ? -4.2 : 0;
 
     if (sessionId === mySessionId) {
-      vis.group.position.set(worldToRenderX(p.x), wreckSinkY, p.z);
-      vis.group.rotation.y = worldToRenderYaw(p.headingRad);
-      vis.rudderLine.rotation.y = -rudderRotationRad(p.rudder);
+      const yaw = worldToRenderYaw(p.headingRad);
+      // Das sichtbare Sprite hat einen anderen Drehpunkt als die Simulationsposition.
+      // Darum wird hier ein lokaler Z-Offset in Weltkoordinaten umgerechnet.
+      const pivotDx = Math.sin(yaw) * tuning.shipPivotLocalZ;
+      const pivotDz = Math.cos(yaw) * tuning.shipPivotLocalZ;
+      vis.group.position.set(worldToRenderX(p.x) - pivotDx, wreckSinkY, p.z - pivotDz);
+      vis.group.rotation.y = yaw;
       const yawAim = Math.atan2(inputSample.aimWorldX - p.x, inputSample.aimWorldZ - p.z);
       vis.aimLine.rotation.y = -(yawAim - p.headingRad);
     } else {
@@ -242,9 +259,11 @@ export function runFrameRuntimeStep<
         remoteInterp.set(sessionId, buf);
       }
       const r = sampleInterpolatedPose(buf, now, DEFAULT_INTERPOLATION_DELAY_MS);
-      vis.group.position.set(worldToRenderX(r.x), wreckSinkY, r.z);
-      vis.group.rotation.y = worldToRenderYaw(r.headingRad);
-      vis.rudderLine.rotation.y = -rudderRotationRad(r.rudder);
+      const yaw = worldToRenderYaw(r.headingRad);
+      const pivotDx = Math.sin(yaw) * tuning.shipPivotLocalZ;
+      const pivotDz = Math.cos(yaw) * tuning.shipPivotLocalZ;
+      vis.group.position.set(worldToRenderX(r.x) - pivotDx, wreckSinkY, r.z - pivotDz);
+      vis.group.rotation.y = yaw;
       const yawAim = Math.atan2(r.aimX - r.x, r.aimZ - r.z);
       vis.aimLine.rotation.y = -(yawAim - r.headingRad);
     }
@@ -269,6 +288,7 @@ export function runFrameRuntimeStep<
       updateLocalFollowCameraFromPlayer(camera, p);
 
       if (me.lifeState !== PlayerLifeState.AwaitingRespawn && !matchEnded) {
+        const tuningNow = getShipDebugTuning();
         roomSendInput({
           throttle: inputSample.throttle,
           rudderInput: inputSample.rudderInput,
@@ -277,6 +297,11 @@ export function runFrameRuntimeStep<
           primaryFire: inputSample.primaryFire,
           secondaryFire: inputSample.secondaryFire,
           torpedoFire: inputSample.torpedoFire,
+          // Server erwartet Spawn-Offsets relativ zur Physikposition des Schiffs.
+          // Wir korrigieren daher die visuellen Trim-Werte zurück auf den Simulationsursprung.
+          artillerySpawnLocalZ:
+            tuningNow.aimOriginLocalZ - tuningNow.shipPivotLocalZ + tuningNow.artillerySpawnLocalZ,
+          mineSpawnLocalZ: tuningNow.mineSpawnLocalZ,
         });
       }
 
@@ -294,6 +319,13 @@ export function runFrameRuntimeStep<
         progressionMovementScale(progLevel).maxSpeedFactor;
       const speedKn = p.speed / SPEED_FEEL_FACTOR;
       const maxSpeedKn = maxSp / SPEED_FEEL_FACTOR;
+      let ownedMines = 0;
+      if (torpedoList) {
+        // "TorpedoList" ist im aktuellen Feature semantisch die aktive Minenliste.
+        for (const t of torpedoList) {
+          if (t.ownerId === mySessionId) ownedMines++;
+        }
+      }
 
       if (progLevel > state.lastHudLevel) {
         gameMessageHud.showToast(`Level ${progLevel}!`, "info", 2800);
@@ -312,6 +344,8 @@ export function runFrameRuntimeStep<
         primaryCooldownSec: p.primaryCooldownSec,
         secondaryCooldownSec: me.secondaryCooldownSec,
         torpedoCooldownSec: me.torpedoCooldownSec,
+        mineCount: ownedMines,
+        mineMaxCount: profShip.torpedoMaxPerOwner,
         respawnCountdownSec: me.respawnCountdownSec,
         spawnProtectionSec: me.spawnProtectionSec,
         matchRemainingSec: matchEnded ? 0 : matchRemainingSecRaw,
