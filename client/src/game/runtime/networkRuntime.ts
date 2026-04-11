@@ -63,6 +63,14 @@ type RegisterNetworkHandlersOptions<TPlayerList> = {
   onTorpedoFireByLocalPlayer: () => void;
   onMineImpactNearLocalPlayer: (distance: number) => void;
   onConnectionClosed: () => void;
+  /** Optional: SAM/CIWS Feuer und Intercept (Server-Messages `airDefenseFire` / `airDefenseIntercept`). */
+  onAirDefenseSound?: (ev: { phase: "fire" | "intercept"; layer: "sam" | "ciws" }) => void;
+  /** Server `collisionContact`: Schiff↔Schiff / Schiff↔Insel (Kontaktbeginn). */
+  onCollisionContact?: (kind: "ship" | "island") => void;
+  /** Server `missileLockOn`: eigene ASuM hat Ziel erfasst. */
+  onMissileLockOn?: () => void;
+  /** Direkter Waffentreffer (`kind === "hit"`) — Artillerie / ASuM / Torpedo. */
+  onWeaponHitAt?: (worldX: number, worldZ: number) => void;
 };
 
 export function registerNetworkHandlers<TPlayerList>(
@@ -88,7 +96,22 @@ export function registerNetworkHandlers<TPlayerList>(
     onTorpedoFireByLocalPlayer,
     onMineImpactNearLocalPlayer,
     onConnectionClosed,
+    onAirDefenseSound,
+    onCollisionContact,
+    onWeaponHitAt,
+    onMissileLockOn,
   } = options;
+
+  room.onMessage("collisionContact", (msg) => {
+    const k = (msg as { kind?: string })?.kind;
+    if (k === "ship" || k === "island") {
+      onCollisionContact?.(k);
+    }
+  });
+
+  room.onMessage("missileLockOn", () => {
+    onMissileLockOn?.();
+  });
 
   room.onMessage("pong", (payloadUnknown) => {
     const payload = payloadUnknown as { clientTime?: number };
@@ -148,6 +171,9 @@ export function registerNetworkHandlers<TPlayerList>(
       const kind = m.kind;
       const skipSplash = !isArtyWorldPointInCullRange(m.x, m.z);
       artilleryFx.onImpact({ shellId: m.shellId, x: m.x, z: m.z, kind }, { skipSplash });
+      if (kind === "hit" && !skipSplash) {
+        onWeaponHitAt?.(m.x, m.z);
+      }
       if (kind === "hit") {
         const loc = findPlayerBySessionId(playerListOf(room), mySessionId);
         if (loc) {
@@ -178,6 +204,9 @@ export function registerNetworkHandlers<TPlayerList>(
     if (m) {
       if (!isArtyWorldPointInCullRange(m.x, m.z)) return;
       missileFx.flashImpact(m.x, m.z, m.kind);
+      if (m.kind === "hit") {
+        onWeaponHitAt?.(m.x, m.z);
+      }
     }
   });
 
@@ -186,6 +215,9 @@ export function registerNetworkHandlers<TPlayerList>(
     if (m) {
       if (!isArtyWorldPointInCullRange(m.x, m.z)) return;
       torpedoFx.flashImpact(m.x, m.z, m.kind);
+      if (m.kind === "hit") {
+        onWeaponHitAt?.(m.x, m.z);
+      }
       const loc = findPlayerBySessionId(playerListOf(room), mySessionId);
       if (loc) {
         const dx = m.x - loc.x;
@@ -202,6 +234,7 @@ export function registerNetworkHandlers<TPlayerList>(
     const { x, z, layer } = parsed;
 
     if (parsed.type === "airDefenseIntercept") {
+      onAirDefenseSound?.({ phase: "intercept", layer });
       showAirDefenseScreenPulse(camera, document.body, x, z, layer);
       playAirDefenseHitBurst(scene, x, z, layer);
       return;
@@ -216,6 +249,7 @@ export function registerNetworkHandlers<TPlayerList>(
       fromX = pos.x;
       fromZ = pos.z;
     }
+    onAirDefenseSound?.({ phase: "fire", layer });
     playAirDefenseFire(scene, layer, fromX, fromZ, x, z);
   });
 }

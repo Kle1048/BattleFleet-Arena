@@ -233,6 +233,7 @@ export function runFrameRuntimeStep<
     }
     state.lastOobCountdown = oobSec;
   }
+
   for (const [sessionId, vis] of visuals) {
     const p = getPlayer(playerList, sessionId);
     if (!p) continue;

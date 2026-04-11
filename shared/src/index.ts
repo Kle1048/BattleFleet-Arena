@@ -17,3 +17,4 @@ export * from "./shipProfiles";
 export * from "./shipHitboxCollision";
 export * from "./shipShipCollision";
 export * from "./shipRamDamage";
+export * from "./collisionContactQueries";

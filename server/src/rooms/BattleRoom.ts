@@ -73,6 +73,8 @@ import {
   normalizeShipClassId,
   circleIntersectsShipHitboxFootprintXZ,
   minDistSqPointToShipHitboxFootprintXZ,
+  shipOverlapsAnyIsland,
+  twoShipsObbOverlap,
 } from "@battlefleet/shared";
 
 const TICK_HZ = 20;
@@ -159,6 +161,10 @@ export class BattleRoom extends Room<BattleState> {
   /** Task 10 — absolutes Ende (Date.now()); läuft ab Raum-Erstellung. */
   private matchEndsAtMs = 0;
   private matchEndBroadcastSent = false;
+  /** Pro Spieler: Insel-Overlap vor `resolveShipIslandCollisions` (Vor-Frame für Kanten-SFX). */
+  private collisionIslandOverlapPrev = new Map<string, boolean>();
+  /** OBB-überlappende Schiff-Paare (`idA|idB`), Vor-Frame für Kanten-SFX bei Schiff-Schiff. */
+  private collisionShipPairPrev = new Set<string>();
 
   onCreate() {
     this.setState(new BattleState());
@@ -311,6 +317,7 @@ export class BattleRoom extends Room<BattleState> {
   }
 
   onLeave(client: Client) {
+    this.collisionIslandOverlapPrev.delete(client.sessionId);
     this.sim.delete(client.sessionId);
     const list = this.state.playerList;
     for (let i = list.length - 1; i >= 0; i--) {
@@ -803,7 +810,12 @@ export class BattleRoom extends Room<BattleState> {
           tz = tgt.z;
         }
       }
+      const prevTargetId = m.targetId;
       m.targetId = acquired ?? "";
+      if (prevTargetId === "" && m.targetId !== "") {
+        const ownerClient = this.clients.find((c) => c.sessionId === m.ownerId);
+        ownerClient?.send("missileLockOn", {});
+      }
 
       const step = stepAswmMissile(m.x, m.z, m.headingRad, dt, tx, tz);
       m.x = step.x;
@@ -1117,6 +1129,12 @@ export class BattleRoom extends Room<BattleState> {
     this.pendingShells = stay;
   }
 
+  /** Client-SFX: nur betroffener Spieler (kein Broadcast). */
+  private sendCollisionContact(sessionId: string, kind: "island" | "ship"): void {
+    const client = this.clients.find((c) => c.sessionId === sessionId);
+    client?.send("collisionContact", { kind });
+  }
+
   private physicsStep(dt: number): void {
     const now = Date.now();
     const half = AREA_OF_OPERATIONS_HALF_EXTENT;
@@ -1142,11 +1160,24 @@ export class BattleRoom extends Room<BattleState> {
           dt,
         );
         stepMovement(row.ship, this.movementCfgForPlayer(p), dt);
+        const islandNow = shipOverlapsAnyIsland({
+          x: row.ship.x,
+          z: row.ship.z,
+          headingRad: row.ship.headingRad,
+          shipClass: p.shipClass,
+        });
+        const islandPrev = this.collisionIslandOverlapPrev.get(sessionId) ?? false;
+        if (islandNow && !islandPrev) {
+          this.sendCollisionContact(sessionId, "island");
+        }
+        this.collisionIslandOverlapPrev.set(sessionId, islandNow);
         resolveShipIslandCollisions(
           row.ship,
           DEFAULT_MAP_ISLANDS,
           getShipHullProfileByClass(p.shipClass)?.collisionHitbox,
         );
+      } else {
+        this.collisionIslandOverlapPrev.delete(sessionId);
       }
     }
 
@@ -1181,6 +1212,56 @@ export class BattleRoom extends Room<BattleState> {
         }
       }
     }
+
+    {
+      const nextShipPairs = new Set<string>();
+      const n = shipShipParticipants.length;
+      for (let i = 0; i < n; i++) {
+        for (let j = i + 1; j < n; j++) {
+          const A = shipShipParticipants[i]!;
+          const B = shipShipParticipants[j]!;
+          const idA = A.sessionId;
+          const idB = B.sessionId;
+          if (!idA || !idB) continue;
+          const pa = this.findPlayer(idA);
+          const pb = this.findPlayer(idB);
+          if (!pa || !pb) continue;
+          if (
+            !participatesInWorldSimulation(pa.lifeState) ||
+            !participatesInWorldSimulation(pb.lifeState)
+          ) {
+            continue;
+          }
+          if (!A.hitbox || !B.hitbox) continue;
+          if (
+            !twoShipsObbOverlap(
+              {
+                x: A.ship.x,
+                z: A.ship.z,
+                headingRad: A.ship.headingRad,
+                shipClass: pa.shipClass,
+              },
+              {
+                x: B.ship.x,
+                z: B.ship.z,
+                headingRad: B.ship.headingRad,
+                shipClass: pb.shipClass,
+              },
+            )
+          ) {
+            continue;
+          }
+          const key = idA < idB ? `${idA}|${idB}` : `${idB}|${idA}`;
+          nextShipPairs.add(key);
+          if (!this.collisionShipPairPrev.has(key)) {
+            this.sendCollisionContact(idA, "ship");
+            this.sendCollisionContact(idB, "ship");
+          }
+        }
+      }
+      this.collisionShipPairPrev = nextShipPairs;
+    }
+
     resolveShipShipCollisions(shipShipParticipants);
 
     for (const [sessionId, row] of this.sim) {

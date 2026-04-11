@@ -142,6 +142,7 @@ async function bootstrap(): Promise<void> {
   const client = createColyseusClient(COLYSEUS_URL);
   const lobby = await pickShipLobbyChoice();
   gameAudio.unlockFromUserGesture();
+  await gameAudio.preloadSounds();
   const hullUrls = uniqueHullGltfUrlsForAllClasses();
   const mountUrls = uniqueMountVisualUrls();
   await Promise.all(
@@ -221,6 +222,32 @@ async function bootstrap(): Promise<void> {
     },
     onConnectionClosed: () => {
       scheduleReload(1200);
+    },
+    onAirDefenseSound: ({ phase, layer }) => {
+      if (layer === "sam") {
+        if (phase === "fire") gameAudio.airDefenseSamFire();
+        else gameAudio.airDefenseSamIntercept();
+      } else {
+        if (phase === "fire") gameAudio.airDefenseCiwsFire();
+        else gameAudio.airDefenseCiwsIntercept();
+      }
+    },
+    onCollisionContact: (kind) => {
+      if (kind === "ship") gameAudio.shipShipCollision();
+      else gameAudio.shipIslandCollision();
+    },
+    onMissileLockOn: () => gameAudio.missileLockOn(),
+    onWeaponHitAt: (x, z) => {
+      const me = getPlayer(playerListOf(room), mySessionId);
+      if (!me) {
+        gameAudio.weaponHit(0.32);
+        return;
+      }
+      const d = Math.hypot(x - me.x, z - me.z);
+      const maxD = 520;
+      if (d > maxD) return;
+      const prox = 1 - d / maxD;
+      gameAudio.weaponHit(0.18 + 0.48 * prox);
     },
   });
 
@@ -351,6 +378,7 @@ async function bootstrap(): Promise<void> {
         const isSelf = p.id === mySessionId;
         const me = getPlayer(playerList, mySessionId);
         if (isSelf) {
+          gameAudio.explosion(0.58);
           screenFlash.trigger({ intensity: 1 });
           triggerCameraShake({ durationMs: 520, amplitude: 15 });
         } else if (me) {
@@ -360,6 +388,11 @@ async function bootstrap(): Promise<void> {
             screenFlash.trigger({ intensity: 0.26 + 0.55 * prox });
             triggerCameraShake({ durationMs: 220 + 280 * prox, amplitude: 4.5 + 12 * prox });
           }
+          if (dist <= 500) {
+            gameAudio.explosion(0.22 + 0.5 * (1 - dist / 500));
+          }
+        } else {
+          gameAudio.explosion(0.38);
         }
       },
     });
