@@ -1,4 +1,9 @@
 import type { ShipMovementState } from "./shipMovement";
+import type { ShipCollisionHitbox } from "./shipVisualLayout";
+import {
+  shipLocalDeltaToWorldXZ,
+  worldDeltaToShipLocalXZ,
+} from "./shipHitboxCollision";
 
 /** Kreis-Insel in der XZ-Ebene (MVP, konsistent Server + Client). */
 export type IslandCircle = {
@@ -29,7 +34,36 @@ export const DEFAULT_MAP_ISLANDS: IslandCircle[] = [
 
 const RESOLVE_ITERATIONS = 4;
 
+function clamp(v: number, a: number, b: number): number {
+  return Math.max(a, Math.min(b, v));
+}
+
 /**
+ * Nächster Punkt auf der Hitbox-Fußfläche (AABB in Schiff lokal XZ) zu einem Weltpunkt.
+ */
+function closestPointOnHitboxFootprintWorld(
+  shipX: number,
+  shipZ: number,
+  headingRad: number,
+  hitbox: ShipCollisionHitbox,
+  worldX: number,
+  worldZ: number,
+): { px: number; pz: number } {
+  const ox = worldX - shipX;
+  const oz = worldZ - shipZ;
+  const { lx, lz } = worldDeltaToShipLocalXZ(ox, oz, headingRad);
+  const cx = hitbox.center.x;
+  const cz = hitbox.center.z;
+  const hx = Math.max(0, hitbox.halfExtents.x);
+  const hz = Math.max(0, hitbox.halfExtents.z);
+  const qx = clamp(lx, cx - hx, cx + hx);
+  const qz = clamp(lz, cz - hz, cz + hz);
+  const { ox: wx, oz: wz } = shipLocalDeltaToWorldXZ(qx, qz, headingRad);
+  return { px: shipX + wx, pz: shipZ + wz };
+}
+
+/**
+ * Insel = Kreis; Schiff = Hitbox-OBB in XZ (wie Waffen/Schiff-Schiff). Ohne Hitbox: Legacy-Kreis um `ship.x/z`.
  * Schiebt die Schiffsposition aus allen Insel-Kreisen heraus (serverseitig nach `stepMovement`).
  */
 /**
@@ -54,24 +88,61 @@ export function isInsideAnyIslandCircle(
 export function resolveShipIslandCollisions(
   ship: ShipMovementState,
   islands: readonly IslandCircle[],
-  shipRadius: number = SHIP_ISLAND_COLLISION_RADIUS,
+  hitbox?: ShipCollisionHitbox | null,
+  legacyShipRadius: number = SHIP_ISLAND_COLLISION_RADIUS,
 ): void {
   for (let n = 0; n < RESOLVE_ITERATIONS; n++) {
     for (const is of islands) {
-      const dx = ship.x - is.x;
-      const dz = ship.z - is.z;
-      const minDist = is.radius + shipRadius;
-      const distSq = dx * dx + dz * dz;
-      if (distSq >= minDist * minDist) continue;
-      if (distSq < 1e-12) {
-        ship.x = is.x + minDist;
-        ship.z = is.z;
-        continue;
+      const ir = Math.max(0, is.radius);
+      if (hitbox) {
+        const { px, pz } = closestPointOnHitboxFootprintWorld(
+          ship.x,
+          ship.z,
+          ship.headingRad,
+          hitbox,
+          is.x,
+          is.z,
+        );
+        const dx = is.x - px;
+        const dz = is.z - pz;
+        const d = Math.hypot(dx, dz);
+        if (d >= ir - 1e-4) continue;
+        const pen = ir - d;
+        let nx: number;
+        let nz: number;
+        if (d > 1e-6) {
+          nx = (px - is.x) / d;
+          nz = (pz - is.z) / d;
+        } else {
+          const tx = ship.x - is.x;
+          const tz = ship.z - is.z;
+          const tlen = Math.hypot(tx, tz);
+          if (tlen > 1e-8) {
+            nx = tx / tlen;
+            nz = tz / tlen;
+          } else {
+            nx = 1;
+            nz = 0;
+          }
+        }
+        ship.x += nx * pen;
+        ship.z += nz * pen;
+      } else {
+        const dx = ship.x - is.x;
+        const dz = ship.z - is.z;
+        const minDist = ir + legacyShipRadius;
+        const distSq = dx * dx + dz * dz;
+        if (distSq >= minDist * minDist) continue;
+        if (distSq < 1e-12) {
+          ship.x = is.x + minDist;
+          ship.z = is.z;
+          continue;
+        }
+        const dist = Math.sqrt(distSq);
+        const push = minDist / dist;
+        ship.x = is.x + dx * push;
+        ship.z = is.z + dz * push;
       }
-      const dist = Math.sqrt(distSq);
-      const push = minDist / dist;
-      ship.x = is.x + dx * push;
-      ship.z = is.z + dz * push;
     }
   }
 }

@@ -1,5 +1,6 @@
 import type { ArraySchema } from "@colyseus/schema";
 import type * as THREE from "three";
+import type { ShipClassId } from "@battlefleet/shared";
 import { createInterpolationBuffer, advanceIfPoseChanged, type InterpolationBuffer } from "../network/remoteInterpolation";
 import type { ShipVisual } from "../scene/shipVisual";
 import { createShipRenderer } from "../renderers/ships/shipRenderer";
@@ -25,6 +26,12 @@ type VisualRuntimeOptions<TPlayer extends PlayerLike> = {
   scene: THREE.Scene;
   mySessionId: string;
   playerListOf: (room: { state: unknown }) => ArraySchema<TPlayer>;
+  /** Optional: GLB-Template pro Schiffsklasse (aus Cache). */
+  getHullGltfTemplate?: (shipClassId: ShipClassId) => THREE.Group | null;
+  /** Optional: Mount-GLBs nach `visual_*`-Id (aus Cache). */
+  getMountGltfTemplate?: (visualId: string) => THREE.Group | null;
+  /** @deprecated Nutze getHullGltfTemplate */
+  shipHullGltf?: THREE.Group | null;
 };
 
 export type VisualRuntime<TPlayer extends PlayerLike> = {
@@ -38,8 +45,13 @@ export type VisualRuntime<TPlayer extends PlayerLike> = {
 export function createVisualRuntime<TPlayer extends PlayerLike>(
   options: VisualRuntimeOptions<TPlayer>,
 ): VisualRuntime<TPlayer> {
-  const { room, scene, mySessionId, playerListOf } = options;
-  const shipRenderer = createShipRenderer(scene, mySessionId);
+  const { room, scene, mySessionId, playerListOf, getHullGltfTemplate, getMountGltfTemplate, shipHullGltf } =
+    options;
+  const shipRenderer = createShipRenderer(scene, mySessionId, {
+    getHullGltfTemplate,
+    getMountGltfTemplate,
+    shipHullGltf,
+  });
   const visuals = shipRenderer.getVisuals() as Map<string, ShipVisual>;
   const remoteInterp = new Map<string, InterpolationBuffer>();
   let playerListHandlersBoundTo: ArraySchema<TPlayer> | null = null;

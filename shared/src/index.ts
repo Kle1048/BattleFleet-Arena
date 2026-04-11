@@ -12,3 +12,8 @@ export * from "./match";
 export * from "./progression";
 export * from "./shipClass";
 export * from "./displayName";
+export * from "./shipVisualLayout";
+export * from "./shipProfiles";
+export * from "./shipHitboxCollision";
+export * from "./shipShipCollision";
+export * from "./shipRamDamage";

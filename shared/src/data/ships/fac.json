@@ -1,0 +1,43 @@
+{
+  "profileId": "fac",
+  "labelDe": "FAC (Schnellboot-Klasse)",
+  "hullGltfId": "fac",
+  "hullVisualScale": 1,
+  "collisionHitbox": {
+    "center": { "x": 0, "y": 0, "z": 0 },
+    "halfExtents": { "x": 4, "y": 5, "z": 30 }
+  },
+  "shipClassId": "fac",
+  "movement": {
+    "movementSpeedMul": 1.5384615384615385,
+    "turnRateMul": 1.12,
+    "accelMul": 1.08
+  },
+  "defaultRotatingMountFireSector": {
+    "kind": "symmetric",
+    "halfAngleRadFromBow": 2.0943951023931953
+  },
+  "mountSlots": [
+    {
+      "id": "main_fwd",
+      "compatibleKinds": ["artillery"],
+      "socket": {
+        "position": { "x": 0, "y": 1.05, "z": 5.5 }
+      },
+      "defaultVisualId": "visual_artillery"
+    },
+    {
+      "id": "ciws_aft",
+      "compatibleKinds": ["ciws"],
+      "socket": {
+        "position": { "x": 0, "y": 1.35, "z": -5 }
+      },
+      "defaultVisualId": "visual_ciws"
+    }
+  ],
+  "fixedSeaSkimmerLaunchers": [],
+  "defaultLoadout": {
+    "main_fwd": "visual_artillery",
+    "ciws_aft": "visual_ciws"
+  }
+}

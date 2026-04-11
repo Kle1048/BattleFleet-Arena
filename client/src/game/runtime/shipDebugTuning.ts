@@ -6,6 +6,8 @@ export type ShipDebugTuning = {
   artillerySpawnLocalZ: number;
   mineSpawnLocalZ: number;
   wakeSpawnLocalZ: number;
+  /** Zusatz zu GLB-Rumpf-Y (negativ = tiefer ins Wasser / weniger „Schweben“). */
+  gltfHullYOffset: number;
   showWeaponArc: boolean;
 };
 
@@ -17,6 +19,7 @@ export const DEFAULT_SHIP_DEBUG_TUNING: Readonly<ShipDebugTuning> = {
   artillerySpawnLocalZ: -13.8,
   mineSpawnLocalZ: -22,
   wakeSpawnLocalZ: -60,
+  gltfHullYOffset: -470,
   showWeaponArc: true,
 };
 
@@ -68,6 +71,11 @@ export function applyShipDebugTuning(patch: Partial<ShipDebugTuning>): Readonly<
       patch.wakeSpawnLocalZ ?? currentShipDebugTuning.wakeSpawnLocalZ,
       -120,
       40,
+    ),
+    gltfHullYOffset: clamp(
+      patch.gltfHullYOffset ?? currentShipDebugTuning.gltfHullYOffset,
+      -800,
+      200,
     ),
     showWeaponArc:
       typeof patch.showWeaponArc === "boolean"

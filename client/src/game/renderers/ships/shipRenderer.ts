@@ -1,4 +1,6 @@
 import type * as THREE from "three";
+import { normalizeShipClassId, SHIP_CLASS_DESTROYER } from "@battlefleet/shared";
+import type { ShipClassId } from "@battlefleet/shared";
 import { createShipVisual, type ShipVisual } from "../../scene/shipVisual";
 import type { GameRenderer } from "../../runtime/rendererContracts";
 
@@ -15,6 +17,14 @@ function clearShipVisual(scene: THREE.Scene, vis: ShipVisual): void {
 export function createShipRenderer(
   scene: THREE.Scene,
   mySessionId: string,
+  options?: {
+    /** Pro Schiffsklasse geklontes GLB-Template (aus Cache). */
+    getHullGltfTemplate?: (shipClassId: ShipClassId) => THREE.Group | null;
+    /** Pro `visual_*`-Id (Mount-Loadout) — geklontes GLB aus Cache. */
+    getMountGltfTemplate?: (visualId: string) => THREE.Group | null;
+    /** @deprecated Nutze getHullGltfTemplate */
+    shipHullGltf?: THREE.Group | null;
+  },
 ): GameRenderer<ShipSyncItem> & {
   getVisuals: () => ReadonlyMap<string, ShipVisual>;
   ensureShip: (sessionId: string, shipClassId?: string) => void;
@@ -24,9 +34,14 @@ export function createShipRenderer(
 
   function ensureShip(sessionId: string, shipClassId?: string): void {
     if (visuals.has(sessionId)) return;
+    const cid = normalizeShipClassId(shipClassId ?? SHIP_CLASS_DESTROYER);
+    const template =
+      options?.getHullGltfTemplate?.(cid) ?? options?.shipHullGltf ?? undefined;
     const vis = createShipVisual({
       isLocal: sessionId === mySessionId,
-      shipClassId,
+      shipClassId: cid,
+      hullGltfSource: template ?? undefined,
+      getMountGltfTemplate: options?.getMountGltfTemplate,
     });
     scene.add(vis.group);
     visuals.set(sessionId, vis);

@@ -7,6 +7,7 @@ import {
   normalizeShipClassId,
   shipClassBaseMaxHp,
 } from "./shipClass";
+import { SHIP_HULL_PROFILE_BY_CLASS, getShipHullProfileByClass } from "./shipProfiles";
 import { ARTILLERY_ARC_HALF_ANGLE_RAD, ARTILLERY_PLAYER_MAX_HP } from "./artillery";
 import { DESTROYER_BASE_SPEED_KN, DESTROYER_LIKE_MVP, SPEED_FEEL_FACTOR } from "./shipMovement";
 
@@ -29,5 +30,18 @@ assert.equal(DESTROYER_LIKE_MVP.maxSpeed, DESTROYER_BASE_SPEED_KN * SPEED_FEEL_F
 assert.equal((DESTROYER_LIKE_MVP.maxSpeed * fac.movementSpeedMul) / SPEED_FEEL_FACTOR, 40);
 assert.equal((DESTROYER_LIKE_MVP.maxSpeed * dd.movementSpeedMul) / SPEED_FEEL_FACTOR, 26);
 assert.equal((DESTROYER_LIKE_MVP.maxSpeed * cg.movementSpeedMul) / SPEED_FEEL_FACTOR, 22);
+
+for (const id of [SHIP_CLASS_FAC, SHIP_CLASS_DESTROYER, SHIP_CLASS_CRUISER] as const) {
+  const sc = getShipClassProfile(id);
+  const hull = getShipHullProfileByClass(id)!;
+  assert.equal(hull.shipClassId, id);
+  assert.equal(hull.movement.movementSpeedMul, sc.movementSpeedMul);
+  assert.equal(hull.movement.turnRateMul, sc.turnRateMul);
+  assert.equal(hull.movement.accelMul, sc.accelMul);
+  assert.ok(hull.mountSlots.length >= 1);
+  assert.ok(Object.keys(hull.defaultLoadout ?? {}).length >= 1);
+}
+
+assert.ok(SHIP_HULL_PROFILE_BY_CLASS[SHIP_CLASS_DESTROYER].fixedSeaSkimmerLaunchers?.length);
 
 console.log("shipClass tests ok");

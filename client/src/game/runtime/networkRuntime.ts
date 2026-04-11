@@ -62,6 +62,7 @@ type RegisterNetworkHandlersOptions<TPlayerList> = {
   onMissileFireByLocalPlayer: () => void;
   onTorpedoFireByLocalPlayer: () => void;
   onMineImpactNearLocalPlayer: (distance: number) => void;
+  onConnectionClosed: () => void;
 };
 
 export function registerNetworkHandlers<TPlayerList>(
@@ -86,6 +87,7 @@ export function registerNetworkHandlers<TPlayerList>(
     onMissileFireByLocalPlayer,
     onTorpedoFireByLocalPlayer,
     onMineImpactNearLocalPlayer,
+    onConnectionClosed,
   } = options;
 
   room.onMessage("pong", (payloadUnknown) => {
@@ -120,6 +122,7 @@ export function registerNetworkHandlers<TPlayerList>(
     } else {
       setColyseusWarn(`Verbindung beendet (${code}). Seite neu laden.`);
     }
+    onConnectionClosed();
   });
 
   room.onMessage("artyFired", (msg) => {

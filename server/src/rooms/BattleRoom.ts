@@ -40,6 +40,9 @@ import {
   pickAirDefenseEngagementLayer,
   rollAirDefenseHit,
   resolveShipIslandCollisions,
+  resolveShipShipCollisions,
+  type ShipCollisionParticipant,
+  accumulateShipRamDamage,
   RESPAWN_DELAY_MS,
   SPAWN_PROTECTION_DURATION_MS,
   smoothRudder,
@@ -47,6 +50,7 @@ import {
   spawnTorpedoFromFireDirection,
   stepAswmMissile,
   stepTorpedoStraight,
+  movementConfigForPlayer,
   stepMovement,
   tryComputeArtillerySalvo,
   tryPickRespawnPosition,
@@ -59,14 +63,16 @@ import {
   progressionIncomingDamageFactor,
   progressionLevelFromTotalXp,
   progressionMaxHpForLevel,
-  progressionMovementScale,
   progressionPrimaryCooldownMs,
   progressionSecondaryCooldownMs,
   progressionTorpedoCooldownMs,
   sanitizePlayerDisplayName,
   getShipClassProfile,
+  getShipHullProfileByClass,
   shipClassBaseMaxHp,
   normalizeShipClassId,
+  circleIntersectsShipHitboxFootprintXZ,
+  minDistSqPointToShipHitboxFootprintXZ,
 } from "@battlefleet/shared";
 
 const TICK_HZ = 20;
@@ -218,16 +224,12 @@ export class BattleRoom extends Room<BattleState> {
   }
 
   private movementCfgForPlayer(p: PlayerState): ShipMovementConfig {
-    const prof = getShipClassProfile(p.shipClass);
-    const s = progressionMovementScale(p.level);
-    const b = this.cfg;
-    return {
-      ...b,
-      maxSpeed: b.maxSpeed * prof.movementSpeedMul * s.maxSpeedFactor,
-      maxTurnRateRad: b.maxTurnRateRad * prof.turnRateMul * s.maxTurnRateFactor,
-      forwardAccel: b.forwardAccel * prof.accelMul,
-      backwardAccel: b.backwardAccel * prof.accelMul,
-    };
+    return movementConfigForPlayer(
+      this.cfg,
+      getShipClassProfile(p.shipClass),
+      p.level,
+      getShipHullProfileByClass(p.shipClass)?.movement ?? null,
+    );
   }
 
   /** Task 11 — nach Kill (serverseitig, nur Leben-Progression). */
@@ -752,9 +754,8 @@ export class BattleRoom extends Room<BattleState> {
     for (const pl of this.state.playerList) {
       if (pl.id === ownerId) continue;
       if (!canTakeArtillerySplashDamage(pl.lifeState)) continue;
-      const dx = pl.x - mx;
-      const dz = pl.z - mz;
-      const d2 = dx * dx + dz * dz;
+      const hb = getShipHullProfileByClass(pl.shipClass)?.collisionHitbox;
+      const d2 = minDistSqPointToShipHitboxFootprintXZ(mx, mz, pl.x, pl.z, pl.headingRad, hb);
       if (d2 <= AD_SAM_RANGE_SQ && d2 < bestD2) {
         bestD2 = d2;
         best = pl.id;
@@ -766,7 +767,6 @@ export class BattleRoom extends Room<BattleState> {
   private stepMissiles(dt: number, now: number): void {
     const half = AREA_OF_OPERATIONS_HALF_EXTENT;
     const list = this.state.missileList;
-    const hitSq = ASWM_HIT_RADIUS * ASWM_HIT_RADIUS;
 
     for (let i = list.length - 1; i >= 0; i--) {
       const m = list.at(i);
@@ -848,9 +848,8 @@ export class BattleRoom extends Room<BattleState> {
         if (!tgt || !defRow || !canTakeArtillerySplashDamage(tgt.lifeState)) {
           this.adPendingRollByMissileId.delete(m.missileId);
         } else {
-          const dx = tgt.x - m.x;
-          const dz = tgt.z - m.z;
-          const distSq = dx * dx + dz * dz;
+          const hb = getShipHullProfileByClass(tgt.shipClass)?.collisionHitbox;
+          const distSq = minDistSqPointToShipHitboxFootprintXZ(m.x, m.z, tgt.x, tgt.z, tgt.headingRad, hb);
           const adInput = {
             distSq,
             nowMs: now,
@@ -932,9 +931,10 @@ export class BattleRoom extends Room<BattleState> {
       for (const pl of this.state.playerList) {
         if (pl.id === m.ownerId) continue;
         if (!canTakeArtillerySplashDamage(pl.lifeState)) continue;
-        const dx = pl.x - m.x;
-        const dz = pl.z - m.z;
-        if (dx * dx + dz * dz <= hitSq) {
+        const hb = getShipHullProfileByClass(pl.shipClass)?.collisionHitbox;
+        if (
+          circleIntersectsShipHitboxFootprintXZ(m.x, m.z, ASWM_HIT_RADIUS, pl.x, pl.z, pl.headingRad, hb)
+        ) {
           hitId = pl.id;
           break;
         }
@@ -968,7 +968,6 @@ export class BattleRoom extends Room<BattleState> {
   private stepTorpedoes(dt: number, now: number): void {
     const half = AREA_OF_OPERATIONS_HALF_EXTENT;
     const list = this.state.torpedoList;
-    const hitSq = TORPEDO_HIT_RADIUS * TORPEDO_HIT_RADIUS;
 
     for (let i = list.length - 1; i >= 0; i--) {
       const t = list.at(i);
@@ -1011,9 +1010,10 @@ export class BattleRoom extends Room<BattleState> {
       for (const pl of this.state.playerList) {
         // Minen sind Flächen-Trigger: alles außer bereits respawnenden Zielen kann auslösen.
         if (pl.lifeState === PlayerLifeState.AwaitingRespawn) continue;
-        const dx = pl.x - t.x;
-        const dz = pl.z - t.z;
-        if (dx * dx + dz * dz <= hitSq) {
+        const hb = getShipHullProfileByClass(pl.shipClass)?.collisionHitbox;
+        if (
+          circleIntersectsShipHitboxFootprintXZ(t.x, t.z, TORPEDO_HIT_RADIUS, pl.x, pl.z, pl.headingRad, hb)
+        ) {
           hitId = pl.id;
           break;
         }
@@ -1043,7 +1043,6 @@ export class BattleRoom extends Room<BattleState> {
   }
 
   private resolveShellImpacts(now: number): void {
-    const splashSq = ARTILLERY_SPLASH_RADIUS * ARTILLERY_SPLASH_RADIUS;
     const stay: PendingShell[] = [];
 
     for (const sh of this.pendingShells) {
@@ -1056,9 +1055,20 @@ export class BattleRoom extends Room<BattleState> {
       for (const p of this.state.playerList) {
         if (p.id === sh.ownerSessionId) continue;
         if (!canTakeArtillerySplashDamage(p.lifeState)) continue;
-        const dx = p.x - sh.landX;
-        const dz = p.z - sh.landZ;
-        if (dx * dx + dz * dz > splashSq) continue;
+        const hb = getShipHullProfileByClass(p.shipClass)?.collisionHitbox;
+        if (
+          !circleIntersectsShipHitboxFootprintXZ(
+            sh.landX,
+            sh.landZ,
+            ARTILLERY_SPLASH_RADIUS,
+            p.x,
+            p.z,
+            p.headingRad,
+            hb,
+          )
+        ) {
+          continue;
+        }
         const wasNotDead = p.lifeState !== PlayerLifeState.AwaitingRespawn;
         const artyDmg = Math.round(
           ARTILLERY_DAMAGE *
@@ -1074,6 +1084,7 @@ export class BattleRoom extends Room<BattleState> {
 
       // Minen im Artillerie-Splash werden entschärft und aus dem Spiel entfernt.
       const torpedoes = this.state.torpedoList;
+      const splashSq = ARTILLERY_SPLASH_RADIUS * ARTILLERY_SPLASH_RADIUS;
       for (let i = torpedoes.length - 1; i >= 0; i--) {
         const t = torpedoes.at(i);
         if (!t) continue;
@@ -1131,8 +1142,50 @@ export class BattleRoom extends Room<BattleState> {
           dt,
         );
         stepMovement(row.ship, this.movementCfgForPlayer(p), dt);
-        resolveShipIslandCollisions(row.ship, DEFAULT_MAP_ISLANDS);
+        resolveShipIslandCollisions(
+          row.ship,
+          DEFAULT_MAP_ISLANDS,
+          getShipHullProfileByClass(p.shipClass)?.collisionHitbox,
+        );
       }
+    }
+
+    const shipShipParticipants: ShipCollisionParticipant[] = [];
+    for (const [sessionId, row] of this.sim) {
+      const p = this.findPlayer(sessionId);
+      if (!p || !participatesInWorldSimulation(p.lifeState)) continue;
+      shipShipParticipants.push({
+        ship: row.ship,
+        hitbox: getShipHullProfileByClass(p.shipClass)?.collisionHitbox,
+        sessionId,
+      });
+    }
+    if (combatActive) {
+      const ram = accumulateShipRamDamage(shipShipParticipants, dt);
+      for (const [sessionId, raw] of ram.rawDamageBySessionId) {
+        const p = this.findPlayer(sessionId);
+        if (!p || !canTakeArtillerySplashDamage(p.lifeState)) continue;
+        const wasNotDead = p.lifeState !== PlayerLifeState.AwaitingRespawn;
+        const dmg = Math.round(
+          raw *
+            progressionIncomingDamageFactor(p.level) *
+            getShipClassProfile(p.shipClass).incomingDamageTakenMul,
+        );
+        if (dmg <= 0) continue;
+        p.hp = Math.max(0, p.hp - dmg);
+        if (p.hp <= 0 && wasNotDead) {
+          const killer = ram.killerByVictimSessionId.get(sessionId);
+          this.enterAwaitingRespawn(sessionId, now, {
+            killerSessionId: killer,
+          });
+        }
+      }
+    }
+    resolveShipShipCollisions(shipShipParticipants);
+
+    for (const [sessionId, row] of this.sim) {
+      const p = this.findPlayer(sessionId);
+      if (!p) continue;
 
       p.x = row.ship.x;
       p.z = row.ship.z;

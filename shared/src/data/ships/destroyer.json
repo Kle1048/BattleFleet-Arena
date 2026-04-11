@@ -1,0 +1,80 @@
+{
+  "profileId": "destroyer",
+  "labelDe": "Zerstörer",
+  "hullGltfId": "destroyer",
+  "hullVisualScale": 1,
+  "collisionHitbox": {
+    "center": { "x": 0, "y": 0, "z": 0 },
+    "halfExtents": { "x": 6, "y": 7.5, "z": 60 }
+  },
+  "shipClassId": "destroyer",
+  "movement": {
+    "movementSpeedMul": 1,
+    "turnRateMul": 1,
+    "accelMul": 1
+  },
+  "defaultRotatingMountFireSector": {
+    "kind": "symmetric",
+    "halfAngleRadFromBow": 2.0943951023931953
+  },
+  "mountSlots": [
+    {
+      "id": "main_fwd",
+      "compatibleKinds": ["artillery"],
+      "socket": {
+        "position": { "x": 0, "y": 1.55, "z": 10 }
+      },
+      "defaultVisualId": "visual_artillery"
+    },
+    {
+      "id": "ciws_fwd",
+      "compatibleKinds": ["ciws"],
+      "socket": {
+        "position": { "x": 0, "y": 2.1, "z": 4.5 }
+      },
+      "defaultVisualId": "visual_ciws"
+    },
+    {
+      "id": "sam_mid",
+      "compatibleKinds": ["sam_launcher"],
+      "socket": {
+        "position": { "x": 0, "y": 1.85, "z": -1 }
+      },
+      "defaultVisualId": "visual_sam"
+    },
+    {
+      "id": "ssm_port",
+      "compatibleKinds": ["generic"],
+      "socket": {
+        "position": { "x": -3.2, "y": 1.35, "z": 4 }
+      },
+      "defaultVisualId": "visual_ssm"
+    }
+  ],
+  "fixedSeaSkimmerLaunchers": [
+    {
+      "id": "ssm_rail_port",
+      "side": "port",
+      "visualId": "visual_ssm",
+      "socket": {
+        "position": { "x": -3.5, "y": 1.25, "z": 6 },
+        "eulerRad": { "x": 0, "y": -0.7853981633974483, "z": 0 }
+      }
+    },
+    {
+      "id": "ssm_rail_starboard",
+      "side": "starboard",
+      "visualId": "visual_ssm",
+      "socket": {
+        "position": { "x": 3.5, "y": 1.25, "z": 6 },
+        "eulerRad": { "x": 0, "y": 0.7853981633974483, "z": 0 }
+      }
+    }
+  ],
+  "defaultLoadout": {
+    "main_fwd": "visual_artillery",
+    "ciws_fwd": "visual_ciws",
+    "sam_mid": "visual_sam",
+    "ssm_port": "visual_ssm"
+  }
+}

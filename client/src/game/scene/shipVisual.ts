@@ -1,5 +1,11 @@
 import * as THREE from "three";
-import { ARTILLERY_RANGE, getShipClassProfile, PlayerLifeState } from "@battlefleet/shared";
+import {
+  ARTILLERY_RANGE,
+  getShipClassProfile,
+  PlayerLifeState,
+  normalizeShipClassId,
+  SHIP_CLASS_DESTROYER,
+} from "@battlefleet/shared";
 import { AssetUrls } from "../runtime/assetCatalog";
 import { getShipDebugTuning } from "../runtime/shipDebugTuning";
 import {
@@ -8,6 +14,10 @@ import {
   SHIP_STERN_Z,
 } from "./createGameScene";
 import { VisualColorTokens, createShipHullAliveMaterial } from "../runtime/materialLibrary";
+import { getEffectiveHullProfile, isShipHitboxDebugVisible } from "../runtime/shipProfileRuntime";
+import { clonePreparedShipHull, collectHullMeshMaterials } from "./shipGltfHull";
+import { createShipHitboxWireframe } from "./shipHitboxDebug";
+import { attachMountVisualsToHullModel } from "./shipMountVisuals";
 
 const DECK_Y = 1.2;
 const AIM_TURRET_GRAY = 0xb8bcc4;
@@ -58,6 +68,13 @@ export function applyShipVisualRuntimeTuning(vis: ShipVisual): void {
   if (vis.hullSprite) {
     // Einheitliche Skalierung des 2D-Schiffssprites für schnelle Iteration.
     vis.hullSprite.scale.setScalar(tuning.spriteScale);
+  }
+  if (vis.hullModel) {
+    vis.hullModel.scale.setScalar(tuning.spriteScale);
+    vis.hullModel.position.y = vis.hullGltfBaseY + tuning.gltfHullYOffset;
+  }
+  if (vis.hitboxLogicalGroup && vis.shipHullScale > 1e-8) {
+    vis.hitboxLogicalGroup.position.set(0, 0, tuning.shipPivotLocalZ / vis.shipHullScale);
   }
   if (vis.weaponGuideGroup && !tuning.showWeaponArc) {
     vis.weaponGuideGroup.visible = false;
@@ -115,8 +132,23 @@ export type ShipVisual = {
   aimLine: THREE.Group;
   hull: THREE.Mesh;
   hullSprite: THREE.Mesh | null;
+  /** Optional: geklontes GLB — ersetzt Sprite/Prisma. */
+  hullModel: THREE.Group | null;
+  /** Y-Position des GLB nach `prepare` (vor `gltfHullYOffset`). */
+  hullGltfBaseY: number;
+  /** Materialien für GLB-Life-State (gleiche Indizes wie Meshes im Modell). */
+  hullGltfMaterials: THREE.Material[];
+  /** Mount-/System-GLBs (gleiche Life-State-Behandlung wie Rumpf). */
+  mountGltfMaterials: THREE.Material[];
   /** Nur lokaler Spieler: Feuerbogen — bei Zerstörung ausgeblendet. */
   weaponGuideGroup: THREE.Group | null;
+  /**
+   * Server-/JSON-Hitbox (Kanten), Kind von `group` mit `1/hullScale` — unabhängig vom GLB.
+   * Position entlang +Z korrigiert den Sprite-/Modell-Pivot → Simulationsmittelpunkt.
+   */
+  hitboxLogicalGroup: THREE.Group | null;
+  /** `ShipClassProfile.hullScale` — für Hitbox-Pivot. */
+  shipHullScale: number;
 };
 
 function hullAliveMaterial(isLocal: boolean): THREE.MeshStandardMaterial {
@@ -126,6 +158,69 @@ function hullAliveMaterial(isLocal: boolean): THREE.MeshStandardMaterial {
 function getAimBarrelMaterial(vis: ShipVisual): THREE.MeshBasicMaterial {
   const mesh = vis.aimLine.children[0] as THREE.Mesh | undefined;
   return mesh!.material as THREE.MeshBasicMaterial;
+}
+
+function applyGltfHullMaterialsLifeState(
+  materials: THREE.Material[],
+  wreck: boolean,
+  shielded: boolean,
+  isLocal: boolean,
+): void {
+  for (const mat of materials) {
+    if (mat instanceof THREE.MeshStandardMaterial || mat instanceof THREE.MeshPhysicalMaterial) {
+      if (wreck) {
+        mat.color.setHex(VisualColorTokens.shipHullWreck);
+        mat.metalness = 0.04;
+        mat.roughness = 0.92;
+        mat.transparent = true;
+        mat.opacity = 0.4;
+        mat.emissive.setHex(VisualColorTokens.shipHullWreckEmissive);
+        mat.emissiveIntensity = 0.45;
+        mat.depthWrite = false;
+      } else if (shielded) {
+        mat.color.setHex(
+          isLocal ? VisualColorTokens.shipHullShieldedLocal : VisualColorTokens.shipHullShieldedRemote,
+        );
+        mat.metalness = 0.18;
+        mat.roughness = 0.55;
+        mat.transparent = false;
+        mat.opacity = 1;
+        mat.depthWrite = true;
+        mat.emissive.setHex(VisualColorTokens.shipHullShieldedEmissive);
+        mat.emissiveIntensity = 0.55;
+      } else {
+        mat.color.setHex(
+          isLocal ? VisualColorTokens.shipHullLocalAlive : VisualColorTokens.shipHullRemoteAlive,
+        );
+        mat.metalness = 0.12;
+        mat.roughness = 0.72;
+        mat.emissive.setHex(0x000000);
+        mat.emissiveIntensity = 0;
+        mat.transparent = false;
+        mat.opacity = 1;
+        mat.depthWrite = true;
+      }
+      continue;
+    }
+    if (mat instanceof THREE.MeshBasicMaterial) {
+      if (wreck) {
+        mat.color.setHex(0x6e7884);
+        mat.opacity = 0.45;
+        mat.transparent = true;
+        mat.depthWrite = false;
+      } else if (shielded) {
+        mat.color.setHex(0xdef8ff);
+        mat.opacity = 0.95;
+        mat.transparent = true;
+        mat.depthWrite = false;
+      } else {
+        mat.color.setHex(0xffffff);
+        mat.opacity = 1;
+        mat.transparent = true;
+        mat.depthWrite = false;
+      }
+    }
+  }
 }
 
 /**
@@ -145,6 +240,13 @@ export function setShipVisualLifeState(
     vis.hullSprite && vis.hullSprite.material instanceof THREE.MeshBasicMaterial
       ? vis.hullSprite.material
       : null;
+
+  if (vis.hullGltfMaterials.length > 0) {
+    applyGltfHullMaterialsLifeState(vis.hullGltfMaterials, wreck, shielded, isLocal);
+  }
+  if (vis.mountGltfMaterials.length > 0) {
+    applyGltfHullMaterialsLifeState(vis.mountGltfMaterials, wreck, shielded, isLocal);
+  }
 
   if (wreck) {
     hullMat.color.setHex(VisualColorTokens.shipHullWreck);
@@ -251,8 +353,17 @@ export function setShipVisualLifeState(
  * **Peilung (Ziellinie):** immer sichtbar — Local orange (Maus, sofort), Remote cyan (State vom Server).
  * Dient als Debug-Vorbild für spätere **drehbare Geschütztürme** (jeder Spieler eigene Aim-Achse).
  */
-export function createShipVisual(options: { isLocal: boolean; shipClassId?: string }): ShipVisual {
-  const prof = getShipClassProfile(options.shipClassId);
+export function createShipVisual(options: {
+  isLocal: boolean;
+  shipClassId?: string;
+  /** Geladenes GLB (Szene); pro Schiff geklont. Ohne: Sprite oder Prisma. */
+  hullGltfSource?: THREE.Group | null;
+  /** Pro `visual_*`-Id aus Profil-Loadout — geklontes GLB-Template. */
+  getMountGltfTemplate?: (visualId: string) => THREE.Group | null;
+}): ShipVisual {
+  const cid = normalizeShipClassId(options.shipClassId ?? SHIP_CLASS_DESTROYER);
+  const prof = getShipClassProfile(cid);
+  const hullProfile = getEffectiveHullProfile(cid);
   const group = new THREE.Group();
   group.scale.setScalar(prof.hullScale);
 
@@ -263,26 +374,46 @@ export function createShipVisual(options: { isLocal: boolean; shipClassId?: stri
   hull.receiveShadow = true;
   group.add(hull);
 
-  const spriteTex = getSchnellbootTexture();
+  let hullModel: THREE.Group | null = null;
+  let hullGltfBaseY = 0;
+  let hullGltfMaterials: THREE.Material[] = [];
+  let mountGltfMaterials: THREE.Material[] = [];
   let hullSprite: THREE.Mesh | null = null;
-  if (spriteTex) {
-    // Bei verfügbarem Asset wird der einfache Prisma-Rumpf visuell durch ein Sprite ersetzt.
-    const spriteMat = new THREE.MeshBasicMaterial({
-      map: spriteTex,
-      transparent: true,
-      alphaTest: 0.08,
-      depthWrite: false,
-      side: THREE.DoubleSide,
-    });
-    const spriteGeom = new THREE.PlaneGeometry(
-      shipSpriteWorldWidthFromTexture(spriteTex),
-      SHIP_SPRITE_BASE_WORLD_HEIGHT,
-    );
-    hullSprite = new THREE.Mesh(spriteGeom, spriteMat);
-    hullSprite.rotation.x = -Math.PI / 2;
-    hullSprite.position.y = DECK_Y + 0.18;
+
+  if (options.hullGltfSource) {
+    hullModel = clonePreparedShipHull(options.hullGltfSource);
+    hullGltfBaseY = hullModel.position.y;
+    hullGltfMaterials = collectHullMeshMaterials(hullModel);
+    if (hullProfile && options.getMountGltfTemplate) {
+      mountGltfMaterials = attachMountVisualsToHullModel(hullModel, hullProfile, options.getMountGltfTemplate);
+    }
+    const hvScale = hullProfile?.hullVisualScale ?? 1;
+    if (Math.abs(hvScale - 1) > 1e-6) {
+      hullModel.scale.multiplyScalar(hvScale);
+    }
+    group.add(hullModel);
     hull.visible = false;
-    group.add(hullSprite);
+  } else {
+    const spriteTex = getSchnellbootTexture();
+    if (spriteTex) {
+      // Bei verfügbarem Asset wird der einfache Prisma-Rumpf visuell durch ein Sprite ersetzt.
+      const spriteMat = new THREE.MeshBasicMaterial({
+        map: spriteTex,
+        transparent: true,
+        alphaTest: 0.08,
+        depthWrite: false,
+        side: THREE.DoubleSide,
+      });
+      const spriteGeom = new THREE.PlaneGeometry(
+        shipSpriteWorldWidthFromTexture(spriteTex),
+        SHIP_SPRITE_BASE_WORLD_HEIGHT,
+      );
+      hullSprite = new THREE.Mesh(spriteGeom, spriteMat);
+      hullSprite.rotation.x = -Math.PI / 2;
+      hullSprite.position.y = DECK_Y + 0.18;
+      hull.visible = false;
+      group.add(hullSprite);
+    }
   }
 
   const aimY = DECK_Y + 1.2;
@@ -351,7 +482,33 @@ export function createShipVisual(options: { isLocal: boolean; shipClassId?: stri
     group.add(weaponGuideGroup);
   }
 
-  const vis: ShipVisual = { group, aimLine: aimLineGroup, hull, hullSprite, weaponGuideGroup };
+  let hitboxLogicalGroup: THREE.Group | null = null;
+  /** Hitbox unabhängig vom GLB: gleiche Einheiten wie Server — `group` hat `hullScale`, daher korrigieren. */
+  if (hullProfile?.collisionHitbox && isShipHitboxDebugVisible()) {
+    const hitboxRoot = new THREE.Group();
+    hitboxRoot.name = "shipHitboxLogical";
+    const inv = prof.hullScale > 1e-8 ? 1 / prof.hullScale : 1;
+    hitboxRoot.scale.setScalar(inv);
+    hitboxRoot.add(createShipHitboxWireframe(hullProfile.collisionHitbox));
+    const tuning0 = getShipDebugTuning();
+    hitboxRoot.position.set(0, 0, tuning0.shipPivotLocalZ / prof.hullScale);
+    group.add(hitboxRoot);
+    hitboxLogicalGroup = hitboxRoot;
+  }
+
+  const vis: ShipVisual = {
+    group,
+    aimLine: aimLineGroup,
+    hull,
+    hullSprite,
+    hullModel,
+    hullGltfBaseY,
+    hullGltfMaterials,
+    mountGltfMaterials,
+    weaponGuideGroup,
+    hitboxLogicalGroup,
+    shipHullScale: prof.hullScale,
+  };
   applyShipVisualRuntimeTuning(vis);
   return vis;
 }

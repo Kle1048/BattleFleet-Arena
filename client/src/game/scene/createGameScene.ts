@@ -1,6 +1,10 @@
 import * as THREE from "three";
 import { AREA_OF_OPERATIONS_HALF_EXTENT, DEFAULT_MAP_ISLANDS } from "@battlefleet/shared";
 import { VisualColorTokens, createWaterMaterial, setWaterIslands } from "../runtime/materialLibrary";
+import {
+  computeFollowCamBackOffset,
+  getFollowCameraTuning,
+} from "../runtime/followCameraTuning";
 import { getShipDebugTuning } from "../runtime/shipDebugTuning";
 import { worldToRenderX } from "../runtime/renderCoords";
 
@@ -102,17 +106,10 @@ export const FOLLOW_CAM_FOV = 52;
 /** Blickpunkt-Höhe (Deck). */
 export const FOLLOW_CAM_LOOK_Y = 1.2;
 
-/** Vertikaler Abstand Augpunkt → Blickpunkt entlang +Y. */
-export const FOLLOW_CAM_TOP_DOWN_HEIGHT = 820;
-/** Kamera-Neigung relativ zur Wasseroberfläche (90° = senkrecht nach unten). */
+/** Vertikaler Abstand Augpunkt → Blickpunkt entlang +Y (Referenz ≈ Default `heightAbovePivot`). */
+export const FOLLOW_CAM_TOP_DOWN_HEIGHT = 800;
+/** Standard-Kippwinkel (gleich Default in `followCameraTuning`). */
 export const FOLLOW_CAM_PITCH_DEG = 90;
-
-function followCamBackOffset(height: number): number {
-  const pitchRad = (FOLLOW_CAM_PITCH_DEG * Math.PI) / 180;
-  const tanPitch = Math.tan(pitchRad);
-  if (Math.abs(tanPitch) < 1e-6) return 0;
-  return height / tanPitch;
-}
 
 /**
  * Perspektive: sichtbare Bodenfläche ≠ achsenparalleles Rechteck — Culling-Rechteck vergrößern.
@@ -192,9 +189,15 @@ export function createGameScene(): GameSceneBundle {
 
   const camera = new THREE.PerspectiveCamera(FOLLOW_CAM_FOV, 1, 1, 25_000);
   const lookY = FOLLOW_CAM_LOOK_Y;
-  const back = followCamBackOffset(FOLLOW_CAM_TOP_DOWN_HEIGHT);
-  camera.position.set(0, lookY + FOLLOW_CAM_TOP_DOWN_HEIGHT, -back);
-  camera.up.set(0, 0, 1);
+  const camT0 = getFollowCameraTuning();
+  const h = camT0.heightAbovePivot;
+  const back0 = computeFollowCamBackOffset(h, camT0.pitchDeg);
+  if (camT0.northUp) {
+    camera.up.set(0, 0, 1);
+  } else {
+    camera.up.set(0, 1, 0);
+  }
+  camera.position.set(0, lookY + h, -back0);
   camera.lookAt(0, lookY, 0);
 
   const MAP_HALF = waterMapHalfExtent();
@@ -303,8 +306,9 @@ export function resizeCamera(camera: THREE.PerspectiveCamera, w: number, h: numb
 }
 
 /**
- * Follow-Cam: lotrechte Draufsicht (90° zur XZ-Ebene), Blick auf vorderes-Schiff-Drittel (Pivot).
- * `up = (0,0,1)` hält Norden oben; X wird per Render-Mapping gespiegelt.
+ * Follow-Cam: Blick auf vorderes-Schiff-Drittel (Pivot).
+ * **North up:** `up = (0,0,1)`, Kamera liegt südlich (−Z) des Pivots.
+ * **Head up:** `up = (0,1,0)`, Kamera liegt hinter dem Bug entlang −Vorwärts (XZ).
  */
 export function updateFollowCamera(
   camera: THREE.PerspectiveCamera,
@@ -312,6 +316,7 @@ export function updateFollowCamera(
   shipZ: number,
   shipHeading: number,
 ): void {
+  const { pitchDeg, northUp, heightAbovePivot: h } = getFollowCameraTuning();
   const fwdX = Math.sin(shipHeading);
   const fwdZ = Math.cos(shipHeading);
   const pivotLocalZ = getShipDebugTuning().cameraPivotLocalZ;
@@ -319,9 +324,18 @@ export function updateFollowCamera(
   const pivotZ = shipZ + fwdZ * pivotLocalZ;
 
   const lookY = FOLLOW_CAM_LOOK_Y;
-  camera.up.set(0, 0, 1);
+  const back = computeFollowCamBackOffset(h, pitchDeg);
   const rpivotX = worldToRenderX(pivotX);
-  const back = followCamBackOffset(FOLLOW_CAM_TOP_DOWN_HEIGHT);
-  camera.position.set(rpivotX, lookY + FOLLOW_CAM_TOP_DOWN_HEIGHT, pivotZ - back);
+
+  if (northUp) {
+    camera.up.set(0, 0, 1);
+    camera.position.set(rpivotX, lookY + h, pivotZ - back);
+  } else {
+    camera.up.set(0, 1, 0);
+    const camWorldX = pivotX - fwdX * back;
+    const camWorldZ = pivotZ - fwdZ * back;
+    const rcamX = worldToRenderX(camWorldX);
+    camera.position.set(rcamX, lookY + h, camWorldZ);
+  }
   camera.lookAt(rpivotX, lookY, pivotZ);
 }

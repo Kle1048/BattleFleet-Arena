@@ -35,6 +35,11 @@ import { createVisualRuntime } from "./game/runtime/visualRuntime";
 import { createHudRuntime } from "./game/runtime/hudRuntime";
 import { createRuntimeShutdown } from "./game/runtime/runtimeShutdown";
 import { createAssetManager } from "./game/runtime/assetManager";
+import { loadPersistedFollowCameraTuning } from "./game/runtime/followCameraTuning";
+import { resolveMountGltfUrl, uniqueMountVisualUrls } from "./game/runtime/mountGltfUrls";
+import { resolveShipHullGltfUrlForClass, uniqueHullGltfUrlsForAllClasses } from "./game/runtime/shipProfileRuntime";
+import type { ShipClassId } from "@battlefleet/shared";
+import { getShipHullGltfSourceForUrl, loadShipHullGltfSource } from "./game/scene/shipGltfHull";
 import { renderToWorldX, worldToRenderX } from "./game/runtime/renderCoords";
 import {
   MAX_SHIP_WAKES,
@@ -82,6 +87,7 @@ renderer.domElement.style.cursor =
   "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 16 16'%3E%3Cline x1='8' y1='1' x2='8' y2='6' stroke='white' stroke-width='1'/%3E%3Cline x1='8' y1='10' x2='8' y2='15' stroke='white' stroke-width='1'/%3E%3Cline x1='1' y1='8' x2='6' y2='8' stroke='white' stroke-width='1'/%3E%3Cline x1='10' y1='8' x2='15' y2='8' stroke='white' stroke-width='1'/%3E%3Ccircle cx='8' cy='8' r='1.6' fill='none' stroke='white' stroke-width='1'/%3E%3C/svg%3E\") 8 8, crosshair";
 const assetManager = createAssetManager();
 
+loadPersistedFollowCameraTuning();
 const bundle = createGameScene();
 const { scene, camera, water } = bundle;
 const cfg = DESTROYER_LIKE_MVP;
@@ -114,6 +120,15 @@ bindRendererResize(camera, renderer);
 
 async function bootstrap(): Promise<void> {
   let colyseusWarn = "";
+  let reloadScheduled = false;
+
+  function scheduleReload(delayMs = 900): void {
+    if (reloadScheduled) return;
+    reloadScheduled = true;
+    window.setTimeout(() => {
+      window.location.reload();
+    }, delayMs);
+  }
 
   debugOverlay.update({
     fps: 0,
@@ -127,6 +142,17 @@ async function bootstrap(): Promise<void> {
   const client = createColyseusClient(COLYSEUS_URL);
   const lobby = await pickShipLobbyChoice();
   gameAudio.unlockFromUserGesture();
+  const hullUrls = uniqueHullGltfUrlsForAllClasses();
+  const mountUrls = uniqueMountVisualUrls();
+  await Promise.all(
+    [...hullUrls, ...mountUrls].map((u) => loadShipHullGltfSource(u)),
+  );
+  function getHullGltfTemplate(shipClassId: ShipClassId) {
+    return getShipHullGltfSourceForUrl(resolveShipHullGltfUrlForClass(shipClassId));
+  }
+  function getMountGltfTemplate(visualId: string) {
+    return getShipHullGltfSourceForUrl(resolveMountGltfUrl(visualId));
+  }
   const room = await withTimeout(
     client.joinOrCreate("battle", {
       shipClass: lobby.shipClass,
@@ -138,8 +164,10 @@ async function bootstrap(): Promise<void> {
   const mySessionId = room.sessionId;
 
   const matchEndHud = createMatchEndHud(() => {
+    // Fallback: bei bereits geschlossener WS kann `leave()` hängen.
+    scheduleReload(500);
     void room.leave().finally(() => {
-      window.location.reload();
+      scheduleReload(80);
     });
   });
   const joinedAt = performance.now();
@@ -191,6 +219,9 @@ async function bootstrap(): Promise<void> {
         amplitude: 2 + 6 * prox,
       });
     },
+    onConnectionClosed: () => {
+      scheduleReload(1200);
+    },
   });
 
   const visualRuntime = createVisualRuntime({
@@ -198,6 +229,8 @@ async function bootstrap(): Promise<void> {
     scene,
     mySessionId,
     playerListOf,
+    getHullGltfTemplate,
+    getMountGltfTemplate,
   });
   const hudRuntime = createHudRuntime({
     debugOverlay,

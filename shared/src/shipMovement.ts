@@ -3,6 +3,9 @@
  * XZ-Ebene, Y nach oben. Kurs 0 rad = Bug = Welt-+Z (Nord).
  */
 
+import type { ShipClassProfile } from "./shipClass";
+import { progressionMovementScale } from "./progression";
+
 export type ShipMovementConfig = {
   maxSpeed: number;
   forwardAccel: number;
@@ -109,4 +112,93 @@ export function smoothRudder(
 ): number {
   const k = 1 - Math.exp(-responsiveness * dt);
   return current + (input - current) * k;
+}
+
+/**
+ * ### Datenfluss: Geschwindigkeit, Beschleunigung, Drehen (wie im Server `BattleRoom`)
+ *
+ * **1. Basis** — `DESTROYER_LIKE_MVP` (`ShipMovementConfig`), abgeleitet vom „Zerstörer“-Referenzschiff:
+ *
+ * | Feld | Rolle in `stepMovement` |
+ * |------|-------------------------|
+ * | `maxSpeed` | Obere Grenze der Fahrt bei Throttle ±1 (`targetSpeed = throttle * maxSpeed` bzw. rückwärts reduziert). |
+ * | `forwardAccel` | Beschleunigung Richtung Zielgeschwindigkeit (vorwärts). |
+ * | `backwardAccel` | Stärkeres Abbremsen / Rückwärtsfahren. |
+ * | `dragWhenNeutral` | Abbremsen, wenn Zielgeschwindigkeit unterschritten (Gas neutral / schwach). |
+ * | `maxTurnRateRad` | Max. **Giergeschwindigkeit** in rad/s bei **Ruder ±1**, zusätzlich `turnScale` bei wenig Speed (`minSpeedForFullTurn`). |
+ * | `rudderResponsiveness` | Nur in `smoothRudder`: wie schnell `rudder` dem Spieler-Input folgt (nicht in `stepMovement`). |
+ * | `minSpeedForFullTurn` | Unterhalb davon ist `turnScale` &lt; 1 → engere Wendekreis bei langsamer Fahrt. |
+ *
+ * **2. Schiffsklasse** — `ShipClassProfile` (`shipClass.ts`): drei Multiplikatoren relativ zur Basis-MVP:
+ * - `movementSpeedMul` → auf `maxSpeed`
+ * - `turnRateMul` → auf `maxTurnRateRad`
+ * - `accelMul` → auf `forwardAccel` und `backwardAccel` (**nicht** auf `dragWhenNeutral`)
+ *
+ * **3. Progression** — `progressionMovementScale(level)`:
+ * - `maxSpeedFactor` → auf `maxSpeed`
+ * - `maxTurnRateFactor` → auf `maxTurnRateRad`
+ * (Kein Level-Faktor auf Beschleunigung oder Ruder-„Weichheit“ in der aktuellen Formel.)
+ *
+ * **4. Konkreter Rumpf / JSON** — `ShipHullMovementDefinition`: dieselben drei Haupt-Multiplikatoren **überschreiben die Klassenwerte**, wenn im Profil gesetzt (sonst Klasse). Optional Feintuning an `rudderResponsiveness`, `minSpeedForFullTurn`, `dragWhenNeutral`.
+ *
+ * Zusammenfassung Formel (ohne optionale Hull-Zusatzfaktoren 1):
+ * ```
+ * maxSpeed = base.maxSpeed × eff.movementSpeedMul × progression.maxSpeedFactor
+ * maxTurnRateRad = base.maxTurnRateRad × eff.turnRateMul × progression.maxTurnRateFactor
+ * forwardAccel = base.forwardAccel × eff.accelMul
+ * backwardAccel = base.backwardAccel × eff.accelMul
+ * ```
+ * wobei `eff.*` = Werte aus dem Rumpf-JSON, falls vorhanden, sonst aus `ShipClassProfile`.
+ *
+ * ### „Drehradius“
+ *
+ * Es gibt **keinen** gespeicherten Radius. Die Simulation ist **differential**: `headingRad += rudder × maxTurnRateRad × turnScale × dt`.
+ * Grobe Näherung bei vollem Ruder und hohem `turnScale`: Bahnradius **R ≈ |v| / ω** mit **ω ≈ maxTurnRateRad** (nur zur Einordnung, kein exakter Kreis).
+ *
+ * @see BattleRoom.movementCfgForPlayer (nutzt `movementConfigForPlayer`)
+ */
+export type ShipHullMovementDefinition = {
+  /**
+   * Auf `maxSpeed` (nach Basis-MVP, **vor** Progressions-Faktor).
+   * Semantik wie `ShipClassProfile.movementSpeedMul` — überschreibt die Klasse, wenn gesetzt.
+   */
+  movementSpeedMul?: number;
+  /** Auf `maxTurnRateRad` — wie `ShipClassProfile.turnRateMul`. */
+  turnRateMul?: number;
+  /** Auf `forwardAccel` / `backwardAccel` — wie `ShipClassProfile.accelMul`. */
+  accelMul?: number;
+  /** Optional: Faktor auf `rudderResponsiveness` (Standard 1). */
+  rudderResponsivenessMul?: number;
+  /** Optional: Faktor auf `minSpeedForFullTurn` (Standard 1). */
+  minSpeedForFullTurnMul?: number;
+  /** Optional: Faktor auf `dragWhenNeutral` (Standard 1). */
+  dragWhenNeutralMul?: number;
+};
+
+/**
+ * Effektive `ShipMovementConfig` für einen Spieler: Basis-MVP + Klasse + Level + optional Rumpf-Override.
+ * Einzige zentrale Stelle für diese Kombination (Server + ggf. Client-Prediction).
+ */
+export function movementConfigForPlayer(
+  base: ShipMovementConfig,
+  classProfile: ShipClassProfile,
+  level: number,
+  hullMovement?: ShipHullMovementDefinition | null,
+): ShipMovementConfig {
+  const s = progressionMovementScale(level);
+  const prof = classProfile;
+  const sp = hullMovement?.movementSpeedMul ?? prof.movementSpeedMul;
+  const tr = hullMovement?.turnRateMul ?? prof.turnRateMul;
+  const ac = hullMovement?.accelMul ?? prof.accelMul;
+  return {
+    ...base,
+    maxSpeed: base.maxSpeed * sp * s.maxSpeedFactor,
+    maxTurnRateRad: base.maxTurnRateRad * tr * s.maxTurnRateFactor,
+    forwardAccel: base.forwardAccel * ac,
+    backwardAccel: base.backwardAccel * ac,
+    rudderResponsiveness:
+      base.rudderResponsiveness * (hullMovement?.rudderResponsivenessMul ?? 1),
+    minSpeedForFullTurn: base.minSpeedForFullTurn * (hullMovement?.minSpeedForFullTurnMul ?? 1),
+    dragWhenNeutral: base.dragWhenNeutral * (hullMovement?.dragWhenNeutralMul ?? 1),
+  };
 }

@@ -6,6 +6,14 @@ import {
   type WaterShaderTuning,
 } from "./materialLibrary";
 import {
+  applyFollowCameraTuning,
+  DEFAULT_FOLLOW_CAMERA_TUNING,
+  getFollowCameraTuning,
+  resetFollowCameraTuning,
+  savePersistedFollowCameraTuning,
+  type FollowCameraTuning,
+} from "./followCameraTuning";
+import {
   applyShipDebugTuning,
   DEFAULT_SHIP_DEBUG_TUNING,
   getShipDebugTuning,
@@ -54,6 +62,7 @@ const SHIP_SLIDERS: readonly ShipSliderDef[] = [
   { key: "artillerySpawnLocalZ", label: "Artillery Spawn Trim Z", min: -80, max: 80, step: 0.1 },
   { key: "mineSpawnLocalZ", label: "Mine Spawn Z", min: -140, max: 20, step: 0.1 },
   { key: "wakeSpawnLocalZ", label: "Wake Spawn Z", min: -120, max: 40, step: 0.1 },
+  { key: "gltfHullYOffset", label: "GLB Rumpf Y (Senken −)", min: -800, max: 200, step: 1 },
 ];
 
 function clamp(v: number, min: number, max: number): number {
@@ -109,6 +118,11 @@ export function createWaterDebugPanel(material: THREE.Material): { dispose: () =
   const persistedShip = loadPersistedShipTuning();
   applyShipDebugTuning(persistedShip);
 
+  const currentCamera: FollowCameraTuning = {
+    ...DEFAULT_FOLLOW_CAMERA_TUNING,
+    ...getFollowCameraTuning(),
+  };
+
   const root = document.createElement("div");
   root.style.cssText =
     "position:fixed;left:12px;bottom:12px;z-index:9999;min-width:220px;" +
@@ -129,7 +143,7 @@ export function createWaterDebugPanel(material: THREE.Material): { dispose: () =
   const resetAll = document.createElement("button");
   resetAll.type = "button";
   resetAll.textContent = "Reset";
-  resetAll.title = "Wasser + Schiff auf Projekt-Defaults";
+  resetAll.title = "Wasser + Schiff + Kamera auf Projekt-Defaults";
   resetAll.style.cssText =
     "background:#2a4a2a;color:#c8ffc8;border:1px solid rgba(130,220,150,0.45);" +
     "border-radius:5px;padding:2px 7px;cursor:pointer;font:11px system-ui,sans-serif;";
@@ -254,6 +268,92 @@ export function createWaterDebugPanel(material: THREE.Material): { dispose: () =
     shipSliderRefs.push({ key: s.key, input, val, min: s.min, max: s.max });
   }
 
+  const cameraTitle = document.createElement("div");
+  cameraTitle.style.cssText =
+    "margin-top:10px;padding-top:6px;border-top:1px solid rgba(130,180,220,0.3);font-weight:700;";
+  cameraTitle.textContent = "Follow Camera";
+  body.appendChild(cameraTitle);
+  body.appendChild(document.createElement("div"));
+
+  const pitchLabel = document.createElement("label");
+  pitchLabel.textContent = "Kippwinkel (°)";
+  body.appendChild(pitchLabel);
+  const pitchWrap = document.createElement("div");
+  pitchWrap.style.cssText = "display:flex;align-items:center;gap:6px;";
+  const pitchInput = document.createElement("input");
+  pitchInput.type = "range";
+  pitchInput.min = "15";
+  pitchInput.max = "90";
+  pitchInput.step = "1";
+  pitchInput.value = String(Math.round(currentCamera.pitchDeg));
+  pitchInput.style.width = "110px";
+  const pitchVal = document.createElement("span");
+  pitchVal.style.cssText = "min-width:46px;text-align:right;color:#9ed3ff;";
+  pitchVal.textContent = String(Math.round(currentCamera.pitchDeg));
+  pitchInput.addEventListener("input", () => {
+    const next = clamp(Number(pitchInput.value), 15, 90);
+    currentCamera.pitchDeg = next;
+    pitchVal.textContent = String(Math.round(next));
+    const applied = applyFollowCameraTuning({ pitchDeg: next });
+    savePersistedFollowCameraTuning({ ...applied });
+  });
+  pitchWrap.appendChild(pitchInput);
+  pitchWrap.appendChild(pitchVal);
+  body.appendChild(pitchWrap);
+
+  const heightLabel = document.createElement("label");
+  heightLabel.textContent = "Kamera-Abstand (Höhe)";
+  body.appendChild(heightLabel);
+  const heightWrap = document.createElement("div");
+  heightWrap.style.cssText = "display:flex;align-items:center;gap:6px;";
+  const heightInput = document.createElement("input");
+  heightInput.type = "range";
+  heightInput.min = "80";
+  heightInput.max = "5000";
+  heightInput.step = "10";
+  heightInput.value = String(Math.round(currentCamera.heightAbovePivot));
+  heightInput.style.width = "110px";
+  const heightVal = document.createElement("span");
+  heightVal.style.cssText = "min-width:46px;text-align:right;color:#9ed3ff;";
+  heightVal.textContent = String(Math.round(currentCamera.heightAbovePivot));
+  heightInput.addEventListener("input", () => {
+    const next = clamp(Number(heightInput.value), 80, 5000);
+    currentCamera.heightAbovePivot = next;
+    heightVal.textContent = String(Math.round(next));
+    const applied = applyFollowCameraTuning({ heightAbovePivot: next });
+    savePersistedFollowCameraTuning({ ...applied });
+  });
+  heightWrap.appendChild(heightInput);
+  heightWrap.appendChild(heightVal);
+  body.appendChild(heightWrap);
+
+  const modeLabel = document.createElement("label");
+  modeLabel.textContent = "Kartenrotation";
+  body.appendChild(modeLabel);
+  const modeWrap = document.createElement("div");
+  modeWrap.style.cssText = "display:flex;align-items:center;justify-content:flex-end;gap:6px;";
+  const modeSelect = document.createElement("select");
+  modeSelect.style.cssText =
+    "background:#153247;color:#bfe7ff;border:1px solid rgba(130,180,220,0.45);" +
+    "border-radius:5px;padding:2px 6px;font:11px system-ui,sans-serif;max-width:150px;";
+  const optNorth = document.createElement("option");
+  optNorth.value = "north";
+  optNorth.textContent = "North up";
+  const optHead = document.createElement("option");
+  optHead.value = "head";
+  optHead.textContent = "Head up";
+  modeSelect.appendChild(optNorth);
+  modeSelect.appendChild(optHead);
+  modeSelect.value = currentCamera.northUp ? "north" : "head";
+  modeSelect.addEventListener("change", () => {
+    const northUp = modeSelect.value === "north";
+    currentCamera.northUp = northUp;
+    const applied = applyFollowCameraTuning({ northUp });
+    savePersistedFollowCameraTuning({ ...applied });
+  });
+  modeWrap.appendChild(modeSelect);
+  body.appendChild(modeWrap);
+
   resetAll.addEventListener("click", () => {
     // Ein zentraler Reset setzt Wasser + Schiffs-Offsets gleichzeitig auf Projekt-Default.
     // Das verhindert halb-resettete Debug-Zustände zwischen Render- und Gameplay-Parametern.
@@ -276,11 +376,20 @@ export function createWaterDebugPanel(material: THREE.Material): { dispose: () =
       r.input.value = String(v);
       r.val.textContent = Number(v).toFixed(3);
     }
+    resetFollowCameraTuning();
+    Object.assign(currentCamera, DEFAULT_FOLLOW_CAMERA_TUNING);
+    const camNext = getFollowCameraTuning();
+    pitchInput.value = String(Math.round(camNext.pitchDeg));
+    pitchVal.textContent = String(Math.round(camNext.pitchDeg));
+    heightInput.value = String(Math.round(camNext.heightAbovePivot));
+    heightVal.textContent = String(Math.round(camNext.heightAbovePivot));
+    modeSelect.value = camNext.northUp ? "north" : "head";
+    savePersistedFollowCameraTuning({ ...camNext });
   });
 
   const hint = document.createElement("div");
   hint.style.cssText = "margin-top:6px;color:#84b5d9;";
-  hint.textContent = "Wasser- und Schiffswerte werden lokal gespeichert.";
+  hint.textContent = "Wasser-, Schiffs- und Kamerawerte werden lokal gespeichert.";
   root.appendChild(hint);
 
   let expanded = false;

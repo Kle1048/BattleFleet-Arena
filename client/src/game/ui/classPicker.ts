@@ -2,6 +2,7 @@
  * Vor Match: Anzeigename + Schiffsklasse, danach `joinOrCreate(..., { shipClass, displayName })`.
  */
 
+import { openShipProfileEditor } from "./shipProfileEditor";
 import {
   PLAYER_DISPLAY_NAME_MAX_LEN,
   SHIP_CLASS_CRUISER,
@@ -57,10 +58,15 @@ export function pickShipLobbyChoice(): Promise<ShipLobbyChoice> {
             autocomplete="nickname" spellcheck="false" placeholder="z. B. Kommandant" />
         </label>
         <div class="class-picker-grid"></div>
+        <button type="button" class="class-picker-editor-btn">Schiffsprofil bearbeiten (JSON / Hitbox)…</button>
       </div>
     `;
     const grid = root.querySelector(".class-picker-grid") as HTMLElement;
     const nameInput = root.querySelector(".class-picker-name-input") as HTMLInputElement;
+    const editorBtn = root.querySelector(".class-picker-editor-btn") as HTMLButtonElement;
+    editorBtn.addEventListener("click", () => {
+      void openShipProfileEditor();
+    });
 
     const cleanup = (): void => {
       root.remove();
