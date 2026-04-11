@@ -1,8 +1,8 @@
 {
   "profileId": "cruiser",
   "labelDe": "Kreuzer",
-  "hullGltfId": "cruiser",
-  "hullVisualScale": 1,
+  "hullGltfId": "fac",
+  "hullVisualScale": 2.05,
   "collisionHitbox": {
     "center": { "x": 0, "y": 0, "z": 0 },
     "halfExtents": { "x": 8.5, "y": 10, "z": 85 }
@@ -65,21 +65,25 @@
       "id": "ssm_rail_port",
       "side": "port",
       "visualId": "visual_ssm",
+      "launchYawRadFromBow": -0.17453292519943295,
       "socket": {
         "position": { "x": -4.5, "y": 1.5, "z": 7 },
-        "eulerRad": { "x": 0, "y": -0.7853981633974483, "z": 0 }
+        "eulerRad": { "x": 0, "y": -0.17453292519943295, "z": 0 }
       }
     },
     {
       "id": "ssm_rail_starboard",
       "side": "starboard",
       "visualId": "visual_ssm",
+      "launchYawRadFromBow": 0.17453292519943295,
       "socket": {
         "position": { "x": 4.5, "y": 1.5, "z": 7 },
-        "eulerRad": { "x": 0, "y": 0.7853981633974483, "z": 0 }
+        "eulerRad": { "x": 0, "y": 0.17453292519943295, "z": 0 }
       }
     }
   ],
+  "aswmMagazine": { "port": 8, "starboard": 8 },
+  "aswmMagicReloadMs": 40000,
   "defaultLoadout": {
     "main_fwd": "visual_artillery",
     "ciws_fwd": "visual_ciws",

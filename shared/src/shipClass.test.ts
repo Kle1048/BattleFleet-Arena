@@ -6,14 +6,22 @@ import {
   getShipClassProfile,
   normalizeShipClassId,
   shipClassBaseMaxHp,
+  shipClassIdForProgressionLevel,
 } from "./shipClass";
 import { SHIP_HULL_PROFILE_BY_CLASS, getShipHullProfileByClass } from "./shipProfiles";
 import { ARTILLERY_ARC_HALF_ANGLE_RAD, ARTILLERY_PLAYER_MAX_HP } from "./artillery";
 import { DESTROYER_BASE_SPEED_KN, DESTROYER_LIKE_MVP, SPEED_FEEL_FACTOR } from "./shipMovement";
 
-assert.equal(normalizeShipClassId(undefined), SHIP_CLASS_DESTROYER);
+assert.equal(normalizeShipClassId(undefined), SHIP_CLASS_FAC);
 assert.equal(normalizeShipClassId("fac"), SHIP_CLASS_FAC);
 assert.equal(normalizeShipClassId("CRUISER"), SHIP_CLASS_CRUISER);
+
+assert.equal(shipClassIdForProgressionLevel(1), SHIP_CLASS_FAC);
+assert.equal(shipClassIdForProgressionLevel(4), SHIP_CLASS_FAC);
+assert.equal(shipClassIdForProgressionLevel(5), SHIP_CLASS_DESTROYER);
+assert.equal(shipClassIdForProgressionLevel(6), SHIP_CLASS_DESTROYER);
+assert.equal(shipClassIdForProgressionLevel(7), SHIP_CLASS_CRUISER);
+assert.equal(shipClassIdForProgressionLevel(10), SHIP_CLASS_CRUISER);
 
 const fac = getShipClassProfile(SHIP_CLASS_FAC);
 const dd = getShipClassProfile(SHIP_CLASS_DESTROYER);
@@ -43,5 +51,6 @@ for (const id of [SHIP_CLASS_FAC, SHIP_CLASS_DESTROYER, SHIP_CLASS_CRUISER] as c
 }
 
 assert.ok(SHIP_HULL_PROFILE_BY_CLASS[SHIP_CLASS_DESTROYER].fixedSeaSkimmerLaunchers?.length);
+assert.equal(SHIP_HULL_PROFILE_BY_CLASS[SHIP_CLASS_FAC].fixedSeaSkimmerLaunchers?.length, 2);
 
 console.log("shipClass tests ok");

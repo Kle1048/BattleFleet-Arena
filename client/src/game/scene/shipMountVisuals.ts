@@ -1,6 +1,6 @@
 import * as THREE from "three";
 import type { ShipHullVisualProfile } from "@battlefleet/shared";
-import { collectHullMeshMaterials } from "./shipGltfHull";
+import { cloneMeshMaterialsDeep, collectHullMeshMaterials } from "./shipGltfHull";
 
 type SocketLike = {
   position: { x: number; y: number; z: number };
@@ -39,6 +39,7 @@ export function attachMountVisualsToHullModel(
     else if (launchYaw !== undefined) anchor.rotation.y = launchYaw;
     anchor.scale.setScalar(inv);
     const clone = tpl.clone(true);
+    cloneMeshMaterialsDeep(clone);
     clone.traverse((o) => {
       if (o instanceof THREE.Mesh) {
         o.castShadow = true;

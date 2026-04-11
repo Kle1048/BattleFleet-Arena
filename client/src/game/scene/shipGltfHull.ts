@@ -104,10 +104,28 @@ function prepareShipGltfInstance(root: THREE.Object3D): void {
 }
 
 /**
+ * `Object3D.clone(true)` teilt **Material-Referenzen** mit dem GLB-Template — alle Schiffe mit
+ * gleichem Modell würden sonst dieselben Materialien mutieren (z. B. Zerstört-/Spawn-Schutz).
+ * Texturen bleiben geteilt; nur die Material-Instanzen werden pro Mesh dupliziert.
+ */
+export function cloneMeshMaterialsDeep(root: THREE.Object3D): void {
+  root.traverse((o) => {
+    if (!(o instanceof THREE.Mesh)) return;
+    const m = o.material;
+    if (Array.isArray(m)) {
+      o.material = m.map((mat) => mat.clone());
+    } else if (m) {
+      o.material = m.clone();
+    }
+  });
+}
+
+/**
  * Tiefenkopie des geladenen Szenengraphs, Skalierung/Position wie Referenz-Rumpf.
  */
 export function clonePreparedShipHull(source: THREE.Group): THREE.Group {
   const root = source.clone(true);
   prepareShipGltfInstance(root);
+  cloneMeshMaterialsDeep(root);
   return root;
 }

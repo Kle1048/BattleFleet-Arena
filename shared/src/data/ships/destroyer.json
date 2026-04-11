@@ -1,8 +1,8 @@
 {
   "profileId": "destroyer",
   "labelDe": "Zerstörer",
-  "hullGltfId": "destroyer",
-  "hullVisualScale": 1,
+  "hullGltfId": "fac",
+  "hullVisualScale": 1.55,
   "collisionHitbox": {
     "center": { "x": 0, "y": 0, "z": 0 },
     "halfExtents": { "x": 6, "y": 7.5, "z": 60 }
@@ -56,21 +56,25 @@
       "id": "ssm_rail_port",
       "side": "port",
       "visualId": "visual_ssm",
+      "launchYawRadFromBow": -1.5707963267948966,
       "socket": {
         "position": { "x": -3.5, "y": 1.25, "z": 6 },
-        "eulerRad": { "x": 0, "y": -0.7853981633974483, "z": 0 }
+        "eulerRad": { "x": 0, "y": -1.5707963267948966, "z": 0 }
       }
     },
     {
       "id": "ssm_rail_starboard",
       "side": "starboard",
       "visualId": "visual_ssm",
+      "launchYawRadFromBow": 1.5707963267948966,
       "socket": {
         "position": { "x": 3.5, "y": 1.25, "z": 6 },
-        "eulerRad": { "x": 0, "y": 0.7853981633974483, "z": 0 }
+        "eulerRad": { "x": 0, "y": 1.5707963267948966, "z": 0 }
       }
     }
   ],
+  "aswmMagazine": { "port": 4, "starboard": 4 },
+  "aswmMagicReloadMs": 30000,
   "defaultLoadout": {
     "main_fwd": "visual_artillery",
     "ciws_fwd": "visual_ciws",

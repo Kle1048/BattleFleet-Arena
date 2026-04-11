@@ -21,6 +21,7 @@ import {
   TorpedoState,
   PlayerLifeState,
   PlayerState,
+  type FixedSeaSkimmerLauncherSpec,
   type ShipMovementConfig,
   ShipMovementState,
   assertPlayerLifeInvariant,
@@ -46,6 +47,10 @@ import {
   RESPAWN_DELAY_MS,
   SPAWN_PROTECTION_DURATION_MS,
   smoothRudder,
+  ASWM_SHOT_INTERVAL_MS,
+  pickFixedSeaSkimmerLauncherWithAmmo,
+  pickAswmSideForFallbackFire,
+  spawnAswmFromFixedLauncher,
   spawnAswmFromFireDirection,
   spawnTorpedoFromFireDirection,
   stepAswmMissile,
@@ -63,14 +68,18 @@ import {
   progressionIncomingDamageFactor,
   progressionLevelFromTotalXp,
   progressionMaxHpForLevel,
+  progressionMinXpForLevel,
   progressionPrimaryCooldownMs,
-  progressionSecondaryCooldownMs,
   progressionTorpedoCooldownMs,
   sanitizePlayerDisplayName,
   getShipClassProfile,
+  getAswmMagazineFromProfile,
+  getAswmMagicReloadMsFromProfile,
   getShipHullProfileByClass,
   shipClassBaseMaxHp,
   normalizeShipClassId,
+  SHIP_CLASS_FAC,
+  shipClassIdForProgressionLevel,
   circleIntersectsShipHitboxFootprintXZ,
   minDistSqPointToShipHitboxFootprintXZ,
   shipOverlapsAnyIsland,
@@ -107,8 +116,13 @@ type SimEntry = {
   oobSinceMs: number | null;
   /** Date.now() ab dem Primärfeuer erlaubt ist. */
   primaryReadyAtMs: number;
-  /** Date.now() ab ASuM-Start erlaubt ist. */
-  secondaryReadyAtMs: number;
+  /** ASuM-Runden Magazin (Backbord / Steuerbord). */
+  aswmRemainingPort: number;
+  aswmRemainingStarboard: number;
+  /** Date.now() ab dem nächsten ASuM-Schuss erlaubt ist (bei Magazin > 0). */
+  aswmNextShotAtMs: number;
+  /** Date.now() bis Magic Reload fertig; 0 = nicht im Reload. */
+  aswmReloadUntilMs: number;
   /** Date.now() ab Torpedo-Start erlaubt ist. */
   torpedoReadyAtMs: number;
   /** Task 9 — SAM/CIWS: früheste nächste Schusszeit (0 = sofort verfügbar). */
@@ -229,6 +243,47 @@ export class BattleRoom extends Room<BattleState> {
     return undefined;
   }
 
+  private resetAswmMagazineFromClass(row: SimEntry, shipClass: string): void {
+    const id = normalizeShipClassId(shipClass);
+    const m = getAswmMagazineFromProfile(getShipHullProfileByClass(id), id);
+    row.aswmRemainingPort = m.port;
+    row.aswmRemainingStarboard = m.starboard;
+    row.aswmNextShotAtMs = 0;
+    row.aswmReloadUntilMs = 0;
+  }
+
+  private clearAswmMagazine(row: SimEntry): void {
+    row.aswmRemainingPort = 0;
+    row.aswmRemainingStarboard = 0;
+    row.aswmNextShotAtMs = 0;
+    row.aswmReloadUntilMs = 0;
+  }
+
+  private consumeOneAswmRound(row: SimEntry, launcher: FixedSeaSkimmerLauncherSpec): void {
+    if (launcher.side === "port") {
+      row.aswmRemainingPort--;
+      return;
+    }
+    if (launcher.side === "starboard") {
+      row.aswmRemainingStarboard--;
+      return;
+    }
+    if (row.aswmRemainingPort > 0) row.aswmRemainingPort--;
+    else row.aswmRemainingStarboard--;
+  }
+
+  private processAswmMagazineReload(now: number): void {
+    for (const [sessionId, row] of this.sim) {
+      if (row.aswmReloadUntilMs <= 0 || now < row.aswmReloadUntilMs) continue;
+      const p = this.findPlayer(sessionId);
+      if (!p) continue;
+      row.aswmReloadUntilMs = 0;
+      this.resetAswmMagazineFromClass(row, p.shipClass);
+      const client = this.clients.find((c) => c.sessionId === sessionId);
+      client?.send("aswmMagazineReloaded", {} as Record<string, never>);
+    }
+  }
+
   private movementCfgForPlayer(p: PlayerState): ShipMovementConfig {
     return movementConfigForPlayer(
       this.cfg,
@@ -238,22 +293,35 @@ export class BattleRoom extends Room<BattleState> {
     );
   }
 
+  /**
+   * Nach Levelaufstieg: Schiffsklasse zu Level (5→DD, 7→CG) und maxHp wie bei `grantXpForKill`.
+   */
+  private syncShipClassAndHpAfterLevelUp(p: PlayerState, row: SimEntry | undefined): void {
+    const desired = shipClassIdForProgressionLevel(p.level);
+    if (normalizeShipClassId(p.shipClass) !== desired) {
+      p.shipClass = desired;
+      if (row) this.resetAswmMagazineFromClass(row, desired);
+    }
+    const baseHp = shipClassBaseMaxHp(p.shipClass);
+    const mx = progressionMaxHpForLevel(p.level, baseHp);
+    const d = mx - p.maxHp;
+    p.maxHp = mx;
+    p.hp = Math.min(p.hp + Math.max(0, d), p.maxHp);
+  }
+
   /** Task 11 — nach Kill (serverseitig, nur Leben-Progression). */
   private grantXpForKill(killer: PlayerState): void {
-    const baseHp = shipClassBaseMaxHp(killer.shipClass);
+    const row = this.sim.get(killer.id);
     killer.xp += PROGRESSION_XP_PER_KILL;
     const targetLevel = progressionLevelFromTotalXp(killer.xp);
     while (killer.level < targetLevel) {
       killer.level += 1;
-      const mx = progressionMaxHpForLevel(killer.level, baseHp);
-      const d = mx - killer.maxHp;
-      killer.maxHp = mx;
-      killer.hp = Math.min(killer.hp + d, killer.maxHp);
+      this.syncShipClassAndHpAfterLevelUp(killer, row);
     }
   }
 
   onJoin(client: Client, options?: { shipClass?: string; displayName?: string }) {
-    const shipClass = normalizeShipClassId(options?.shipClass);
+    const shipClass = SHIP_CLASS_FAC;
     const displayName = sanitizePlayerDisplayName(options?.displayName);
     const index = this.clients.length - 1;
     const angle = index * 2.5132741228718345;
@@ -264,7 +332,7 @@ export class BattleRoom extends Room<BattleState> {
     const ship = createShipState(spawnX, spawnZ);
     const aimX = spawnX;
     const aimZ = spawnZ + 80;
-    this.sim.set(client.sessionId, {
+    const simRow: SimEntry = {
       ship,
       lastRudderInput: 0,
       aimX,
@@ -273,13 +341,18 @@ export class BattleRoom extends Room<BattleState> {
       mineSpawnLocalZ: -22,
       oobSinceMs: null,
       primaryReadyAtMs: 0,
-      secondaryReadyAtMs: 0,
+      aswmRemainingPort: 0,
+      aswmRemainingStarboard: 0,
+      aswmNextShotAtMs: 0,
+      aswmReloadUntilMs: 0,
       torpedoReadyAtMs: 0,
       adSamNextAtMs: 0,
       adCiwsNextAtMs: 0,
       respawnAtMs: null,
       invulnerableUntilMs: 0,
-    });
+    };
+    this.resetAswmMagazineFromClass(simRow, shipClass);
+    this.sim.set(client.sessionId, simRow);
 
     const ps = new PlayerState();
     ps.id = client.sessionId;
@@ -371,9 +444,12 @@ export class BattleRoom extends Room<BattleState> {
       }
     }
 
-    p.level = 1;
-    p.xp = 0;
-    p.maxHp = progressionMaxHpForLevel(1, shipClassBaseMaxHp(p.shipClass));
+    const newLevel = Math.max(1, p.level - 1);
+    p.level = newLevel;
+    p.xp = progressionMinXpForLevel(newLevel);
+    p.shipClass = shipClassIdForProgressionLevel(newLevel);
+    const baseHpDead = shipClassBaseMaxHp(p.shipClass);
+    p.maxHp = progressionMaxHpForLevel(newLevel, baseHpDead);
     p.hp = 0;
     p.lifeState = PlayerLifeState.AwaitingRespawn;
     p.respawnCountdownSec = RESPAWN_DELAY_MS / 1000;
@@ -385,7 +461,7 @@ export class BattleRoom extends Room<BattleState> {
     row.ship.rudder = 0;
     row.oobSinceMs = null;
     row.primaryReadyAtMs = 0;
-    row.secondaryReadyAtMs = 0;
+    this.clearAswmMagazine(row);
     row.torpedoReadyAtMs = 0;
     row.adSamNextAtMs = 0;
     row.adCiwsNextAtMs = 0;
@@ -478,7 +554,7 @@ export class BattleRoom extends Room<BattleState> {
       row.mineSpawnLocalZ = -22;
       row.oobSinceMs = null;
       row.primaryReadyAtMs = 0;
-      row.secondaryReadyAtMs = 0;
+      this.resetAswmMagazineFromClass(row, p.shipClass);
       row.torpedoReadyAtMs = 0;
       row.adSamNextAtMs = 0;
       row.adCiwsNextAtMs = 0;
@@ -495,6 +571,7 @@ export class BattleRoom extends Room<BattleState> {
       p.oobCountdownSec = 0;
       p.level = 1;
       p.xp = 0;
+      p.shipClass = SHIP_CLASS_FAC;
       const baseHpR = shipClassBaseMaxHp(p.shipClass);
       p.maxHp = progressionMaxHpForLevel(1, baseHpR);
       p.hp = p.maxHp;
@@ -558,7 +635,7 @@ export class BattleRoom extends Room<BattleState> {
     row.respawnAtMs = null;
     row.oobSinceMs = null;
     row.primaryReadyAtMs = 0;
-    row.secondaryReadyAtMs = 0;
+    this.resetAswmMagazineFromClass(row, p.shipClass);
     row.torpedoReadyAtMs = 0;
     row.adSamNextAtMs = 0;
     row.adCiwsNextAtMs = 0;
@@ -571,10 +648,8 @@ export class BattleRoom extends Room<BattleState> {
     p.rudder = 0;
     p.aimX = row.aimX;
     p.aimZ = row.aimZ;
-    p.level = 1;
-    p.xp = 0;
     const baseHpResp = shipClassBaseMaxHp(p.shipClass);
-    p.maxHp = progressionMaxHpForLevel(1, baseHpResp);
+    p.maxHp = progressionMaxHpForLevel(p.level, baseHpResp);
     p.hp = p.maxHp;
     p.lifeState = PlayerLifeState.SpawnProtected;
     p.respawnCountdownSec = 0;
@@ -665,7 +740,8 @@ export class BattleRoom extends Room<BattleState> {
     if (!p || !canUsePrimaryWeapon(p.lifeState)) return;
 
     const now = Date.now();
-    if (now < row.secondaryReadyAtMs) return;
+    if (now < row.aswmReloadUntilMs) return;
+    if (now < row.aswmNextShotAtMs) return;
 
     const aswmCap = getShipClassProfile(p.shipClass).aswmMaxPerOwner;
     let owned = 0;
@@ -674,13 +750,54 @@ export class BattleRoom extends Room<BattleState> {
     }
     if (owned >= aswmCap) return;
 
-    const pose = spawnAswmFromFireDirection(
-      row.ship.x,
-      row.ship.z,
-      row.aimX,
-      row.aimZ,
-      row.ship.headingRad,
-    );
+    const hullAswm = getShipHullProfileByClass(p.shipClass);
+    const launchers = hullAswm?.fixedSeaSkimmerLaunchers;
+    let pose: { x: number; z: number; headingRad: number } | null = null;
+
+    if (launchers?.length) {
+      const launcher = pickFixedSeaSkimmerLauncherWithAmmo(
+        launchers,
+        row.aimX,
+        row.aimZ,
+        row.ship.x,
+        row.ship.z,
+        row.ship.headingRad,
+        row.aswmRemainingPort,
+        row.aswmRemainingStarboard,
+      );
+      if (!launcher) return;
+      this.consumeOneAswmRound(row, launcher);
+      pose = spawnAswmFromFixedLauncher(row.ship.x, row.ship.z, row.ship.headingRad, launcher);
+    } else {
+      const side = pickAswmSideForFallbackFire(
+        row.aimX,
+        row.aimZ,
+        row.ship.x,
+        row.ship.z,
+        row.ship.headingRad,
+        row.aswmRemainingPort,
+        row.aswmRemainingStarboard,
+      );
+      if (!side) return;
+      if (side === "port") row.aswmRemainingPort--;
+      else row.aswmRemainingStarboard--;
+      pose = spawnAswmFromFireDirection(
+        row.ship.x,
+        row.ship.z,
+        row.aimX,
+        row.aimZ,
+        row.ship.headingRad,
+      );
+    }
+
+    const totalLeft = row.aswmRemainingPort + row.aswmRemainingStarboard;
+    if (totalLeft > 0) {
+      row.aswmNextShotAtMs = now + ASWM_SHOT_INTERVAL_MS;
+    } else {
+      row.aswmNextShotAtMs = 0;
+      row.aswmReloadUntilMs = now + getAswmMagicReloadMsFromProfile(hullAswm);
+    }
+
     const missileId = this.nextMissileId++;
     const ms = new MissileState();
     ms.missileId = missileId;
@@ -691,11 +808,6 @@ export class BattleRoom extends Room<BattleState> {
     ms.headingRad = pose.headingRad;
     this.state.missileList.push(ms);
     this.missileSpawnedAt.set(missileId, now);
-    const profS = getShipClassProfile(p.shipClass);
-    const secCd = Math.round(
-      progressionSecondaryCooldownMs(p.level) * profS.aswmCooldownFactor,
-    );
-    row.secondaryReadyAtMs = now + Math.max(900, secCd);
     this.broadcast("aswmFired", { missileId, ownerId: client.sessionId });
   }
 
@@ -1147,6 +1259,7 @@ export class BattleRoom extends Room<BattleState> {
       this.pendingShells = [];
     }
     this.processLifeTransitions(now);
+    this.processAswmMagazineReload(now);
 
     for (const [sessionId, row] of this.sim) {
       const p = this.findPlayer(sessionId);
@@ -1277,7 +1390,10 @@ export class BattleRoom extends Room<BattleState> {
       p.aimZ = row.aimZ;
 
       p.primaryCooldownSec = Math.max(0, (row.primaryReadyAtMs - now) / 1000);
-      p.secondaryCooldownSec = Math.max(0, (row.secondaryReadyAtMs - now) / 1000);
+      p.secondaryCooldownSec = Math.max(
+        0,
+        (Math.max(row.aswmReloadUntilMs, row.aswmNextShotAtMs) - now) / 1000,
+      );
       p.torpedoCooldownSec = Math.max(0, (row.torpedoReadyAtMs - now) / 1000);
 
       if (

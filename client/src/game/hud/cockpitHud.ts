@@ -28,8 +28,8 @@ export type CockpitHudUpdate = {
   /** Task 10 — eigene Punkte / Kills. */
   score: number;
   kills: number;
-  /** Task 11 — Level im aktuellen Leben (1…10). */
-  level: number;
+  /** Task 11 — English naval rank label for current level (1…10). */
+  rankLabelEn: string;
   /** Task 11 — XP bis nächstes Level, z. B. `45 / 130` oder `MAX`. */
   xpLine: string;
   /** Task 12 — Klassen-Kurzname (HUD). */
@@ -102,9 +102,9 @@ export function createCockpitHud(): { update: (u: CockpitHudUpdate) => void } {
             <div class="cockpit-fill cockpit-fill-hp"></div>
           </div>
         </div>
-        <div class="cockpit-row">
-          <span class="cockpit-label">Level</span>
-          <span class="cockpit-level">1</span>
+        <div class="cockpit-row cockpit-row-rank">
+          <span class="cockpit-label">Rank</span>
+          <span class="cockpit-rank-en">Ensign</span>
         </div>
         <div class="cockpit-row">
           <span class="cockpit-label">XP</span>
@@ -153,7 +153,7 @@ export function createCockpitHud(): { update: (u: CockpitHudUpdate) => void } {
   const matchTimeEl = wrap.querySelector(".cockpit-match-time") as HTMLElement;
   const scoreValEl = wrap.querySelector(".cockpit-score-val") as HTMLElement;
   const killsSpan = wrap.querySelector(".cockpit-kills") as HTMLElement;
-  const levelEl = wrap.querySelector(".cockpit-level") as HTMLElement;
+  const rankEl = wrap.querySelector(".cockpit-rank-en") as HTMLElement;
   const xpEl = wrap.querySelector(".cockpit-xp") as HTMLElement;
 
   document.body.appendChild(wrap);
@@ -196,7 +196,7 @@ export function createCockpitHud(): { update: (u: CockpitHudUpdate) => void } {
       matchRemainingSec,
       score,
       kills,
-      level,
+      rankLabelEn,
       xpLine,
       shipClassLabel,
       playerDisplayName,
@@ -281,7 +281,7 @@ export function createCockpitHud(): { update: (u: CockpitHudUpdate) => void } {
       matchTimeEl.textContent = formatMatchTime(matchRemainingSec);
       scoreValEl.textContent = `${score}`;
       killsSpan.textContent = `(${kills})`;
-      levelEl.textContent = `${level}`;
+      rankEl.textContent = rankLabelEn;
       xpEl.textContent = xpLine;
     },
   };

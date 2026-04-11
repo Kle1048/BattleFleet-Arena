@@ -3,9 +3,15 @@ import { PlayerLifeState } from "./playerLife";
 import {
   ASWM_ACQUIRE_HALF_ANGLE_RAD,
   pickAswmAcquisitionTarget,
+  pickAswmSideForFallbackFire,
+  pickFixedSeaSkimmerLauncher,
+  pickFixedSeaSkimmerLauncherWithAmmo,
+  shipLocalToWorldXZ,
+  spawnAswmFromFixedLauncher,
   spawnAswmFromFireDirection,
   stepAswmMissile,
 } from "./aswm";
+import type { FixedSeaSkimmerLauncherSpec } from "./shipVisualLayout";
 
 {
   const t = pickAswmAcquisitionTarget(0, 0, 0, "a", [
@@ -79,6 +85,74 @@ assert.ok(ASWM_ACQUIRE_HALF_ANGLE_RAD > 0.5 && ASWM_ACQUIRE_HALF_ANGLE_RAD < 0.5
     headingRad = s.headingRad;
   }
   assert.ok(x > 1);
+}
+
+{
+  const paired: FixedSeaSkimmerLauncherSpec[] = [
+    {
+      id: "p",
+      side: "port",
+      socket: { position: { x: -2, y: 0, z: 5 } },
+      launchYawRadFromBow: -Math.PI / 4,
+    },
+    {
+      id: "s",
+      side: "starboard",
+      socket: { position: { x: 2, y: 0, z: 5 } },
+      launchYawRadFromBow: Math.PI / 4,
+    },
+  ];
+  const h = 0;
+  const pickP = pickFixedSeaSkimmerLauncher(paired, -50, 100, 0, 0, h);
+  assert.equal(pickP?.side, "port");
+  const pickS = pickFixedSeaSkimmerLauncher(paired, 50, 100, 0, 0, h);
+  assert.equal(pickS?.side, "starboard");
+}
+
+{
+  const paired: FixedSeaSkimmerLauncherSpec[] = [
+    {
+      id: "p",
+      side: "port",
+      socket: { position: { x: -2, y: 0, z: 5 } },
+      launchYawRadFromBow: -Math.PI / 4,
+    },
+    {
+      id: "s",
+      side: "starboard",
+      socket: { position: { x: 2, y: 0, z: 5 } },
+      launchYawRadFromBow: Math.PI / 4,
+    },
+  ];
+  const h = 0;
+  const onlyPort = pickFixedSeaSkimmerLauncherWithAmmo(paired, 50, 100, 0, 0, h, 1, 0);
+  assert.equal(onlyPort?.side, "port");
+  const onlySb = pickFixedSeaSkimmerLauncherWithAmmo(paired, -50, 100, 0, 0, h, 0, 1);
+  assert.equal(onlySb?.side, "starboard");
+  const empty = pickFixedSeaSkimmerLauncherWithAmmo(paired, 50, 100, 0, 0, h, 0, 0);
+  assert.equal(empty, null);
+}
+
+{
+  const side = pickAswmSideForFallbackFire(50, 100, 0, 0, 0, 0, 1);
+  assert.equal(side, "starboard");
+  assert.equal(pickAswmSideForFallbackFire(50, 100, 0, 0, 0, 1, 0), "port");
+  assert.equal(pickAswmSideForFallbackFire(50, 100, 0, 0, 0, 0, 0), null);
+}
+
+{
+  const w = shipLocalToWorldXZ(10, 20, 0, 0, 10);
+  assert.ok(Math.abs(w.x - 10) < 1e-5 && Math.abs(w.z - 30) < 1e-5);
+}
+
+{
+  const L: FixedSeaSkimmerLauncherSpec = {
+    id: "t",
+    side: "starboard",
+    socket: { position: { x: 2, y: 0, z: 0 }, eulerRad: { x: 0, y: Math.PI / 4, z: 0 } },
+  };
+  const p = spawnAswmFromFixedLauncher(0, 0, 0, L);
+  assert.ok(Math.abs(p.headingRad - Math.PI / 4) < 1e-5);
 }
 
 console.log("aswm tests ok");

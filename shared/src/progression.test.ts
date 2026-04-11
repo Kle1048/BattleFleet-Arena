@@ -6,6 +6,8 @@ import {
   progressionIncomingDamageFactor,
   progressionLevelFromTotalXp,
   progressionMaxHpForLevel,
+  progressionMinXpForLevel,
+  progressionNavalRankEn,
   progressionTorpedoCooldownMs,
   progressionXpToNextLevel,
 } from "./progression";
@@ -17,6 +19,9 @@ assert.equal(progressionLevelFromTotalXp(0), 1);
 assert.equal(progressionLevelFromTotalXp(99), 1);
 assert.equal(progressionLevelFromTotalXp(100), 2);
 assert.equal(progressionLevelFromTotalXp(999999), 10);
+assert.equal(progressionMinXpForLevel(1), 0);
+assert.equal(progressionMinXpForLevel(4), PROGRESSION_LEVEL_MIN_XP[4]);
+assert.equal(progressionLevelFromTotalXp(progressionMinXpForLevel(5)), 5);
 assert.ok(progressionMaxHpForLevel(1) === ARTILLERY_PLAYER_MAX_HP);
 assert.ok(progressionMaxHpForLevel(10) > progressionMaxHpForLevel(1));
 
@@ -29,5 +34,9 @@ assert.equal(max.need, 0);
 assert.ok(progressionIncomingDamageFactor(1) >= progressionIncomingDamageFactor(10));
 assert.equal(progressionTorpedoCooldownMs(1), 1000);
 assert.equal(progressionTorpedoCooldownMs(10), 1000);
+
+assert.equal(progressionNavalRankEn(1), "Ensign");
+assert.equal(progressionNavalRankEn(10), "Admiral");
+assert.equal(progressionNavalRankEn(99), "Admiral");
 
 console.log("progression tests ok");

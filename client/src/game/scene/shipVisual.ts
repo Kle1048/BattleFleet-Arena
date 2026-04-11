@@ -4,7 +4,7 @@ import {
   getShipClassProfile,
   PlayerLifeState,
   normalizeShipClassId,
-  SHIP_CLASS_DESTROYER,
+  SHIP_CLASS_FAC,
 } from "@battlefleet/shared";
 import { AssetUrls } from "../runtime/assetCatalog";
 import { getShipDebugTuning } from "../runtime/shipDebugTuning";
@@ -18,6 +18,7 @@ import { getEffectiveHullProfile, isShipHitboxDebugVisible } from "../runtime/sh
 import { clonePreparedShipHull, collectHullMeshMaterials } from "./shipGltfHull";
 import { createShipHitboxWireframe } from "./shipHitboxDebug";
 import { attachMountVisualsToHullModel } from "./shipMountVisuals";
+import { assignToOverlayLayer } from "../runtime/renderOverlayLayers";
 
 const DECK_Y = 1.2;
 const AIM_TURRET_GRAY = 0xb8bcc4;
@@ -189,16 +190,31 @@ function applyGltfHullMaterialsLifeState(
         mat.emissive.setHex(VisualColorTokens.shipHullShieldedEmissive);
         mat.emissiveIntensity = 0.55;
       } else {
-        mat.color.setHex(
-          isLocal ? VisualColorTokens.shipHullLocalAlive : VisualColorTokens.shipHullRemoteAlive,
-        );
-        mat.metalness = 0.12;
-        mat.roughness = 0.72;
-        mat.emissive.setHex(0x000000);
-        mat.emissiveIntensity = 0;
-        mat.transparent = false;
-        mat.opacity = 1;
-        mat.depthWrite = true;
+        const hasAlbedoMap = mat.map != null;
+        if (hasAlbedoMap) {
+          /** `color` multipliziert die Base-Color-Map — fast weiß, leichter Local/Remote-Ton. */
+          if (isLocal) {
+            mat.color.setRGB(0.94, 0.96, 1);
+          } else {
+            mat.color.setRGB(1, 0.96, 0.94);
+          }
+          mat.emissive.setHex(0x000000);
+          mat.emissiveIntensity = 0;
+          mat.transparent = false;
+          mat.opacity = 1;
+          mat.depthWrite = true;
+        } else {
+          mat.color.setHex(
+            isLocal ? VisualColorTokens.shipHullLocalAlive : VisualColorTokens.shipHullRemoteAlive,
+          );
+          mat.metalness = 0.12;
+          mat.roughness = 0.72;
+          mat.emissive.setHex(0x000000);
+          mat.emissiveIntensity = 0;
+          mat.transparent = false;
+          mat.opacity = 1;
+          mat.depthWrite = true;
+        }
       }
       continue;
     }
@@ -361,7 +377,7 @@ export function createShipVisual(options: {
   /** Pro `visual_*`-Id aus Profil-Loadout — geklontes GLB-Template. */
   getMountGltfTemplate?: (visualId: string) => THREE.Group | null;
 }): ShipVisual {
-  const cid = normalizeShipClassId(options.shipClassId ?? SHIP_CLASS_DESTROYER);
+  const cid = normalizeShipClassId(options.shipClassId ?? SHIP_CLASS_FAC);
   const prof = getShipClassProfile(cid);
   const hullProfile = getEffectiveHullProfile(cid);
   const group = new THREE.Group();
@@ -438,6 +454,7 @@ export function createShipVisual(options: {
   barrelMesh.position.set(0, aimY, AIM_BARREL_LENGTH / 2);
   barrelMesh.renderOrder = OVERLAY_RENDER_ORDER;
   aimLineGroup.add(barrelMesh);
+  assignToOverlayLayer(aimLineGroup);
   group.add(aimLineGroup);
 
   let weaponGuideGroup: THREE.Group | null = null;
@@ -479,6 +496,7 @@ export function createShipVisual(options: {
       edgeLine.renderOrder = OVERLAY_RENDER_ORDER;
       weaponGuideGroup.add(edgeLine);
     }
+    assignToOverlayLayer(weaponGuideGroup);
     group.add(weaponGuideGroup);
   }
 
@@ -492,6 +510,7 @@ export function createShipVisual(options: {
     hitboxRoot.add(createShipHitboxWireframe(hullProfile.collisionHitbox));
     const tuning0 = getShipDebugTuning();
     hitboxRoot.position.set(0, 0, tuning0.shipPivotLocalZ / prof.hullScale);
+    assignToOverlayLayer(hitboxRoot);
     group.add(hitboxRoot);
     hitboxLogicalGroup = hitboxRoot;
   }

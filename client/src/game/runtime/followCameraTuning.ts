@@ -10,12 +10,18 @@ export type FollowCameraTuning = {
    * Größer = weiter weg / mehr Überblick.
    */
   heightAbovePivot: number;
+  /**
+   * Nur **Head-up**: Zeitkonstante τ (Sekunden) für die gedämpfte Kamera-Gier (`1 - exp(-dt/τ)`).
+   * `0` = keine Verzögerung (sofortige Mitdrehung wie bisher).
+   */
+  headUpYawLagSec: number;
 };
 
 export const DEFAULT_FOLLOW_CAMERA_TUNING: Readonly<FollowCameraTuning> = {
   pitchDeg: 90,
   northUp: true,
   heightAbovePivot: 800,
+  headUpYawLagSec: 0.12,
 };
 
 let current: FollowCameraTuning = { ...DEFAULT_FOLLOW_CAMERA_TUNING };
@@ -26,6 +32,29 @@ function clampPitch(v: number): number {
 
 function clampHeight(v: number): number {
   return Math.max(80, Math.min(5000, v));
+}
+
+function clampHeadUpYawLagSec(v: number): number {
+  return Math.max(0, Math.min(0.75, v));
+}
+
+/**
+ * Kürzester Winkelweg: `current` → `target` mit exponentieller Annäherung.
+ * `tauSec <= 0` springt sofort auf `target`.
+ */
+export function stepAngleTowardLag(
+  current: number,
+  target: number,
+  dtSec: number,
+  tauSec: number,
+): number {
+  if (!(tauSec > 0)) return target;
+  const dt = Math.min(Math.max(dtSec, 0), 0.25);
+  let diff = target - current;
+  while (diff > Math.PI) diff -= 2 * Math.PI;
+  while (diff < -Math.PI) diff += 2 * Math.PI;
+  const alpha = 1 - Math.exp(-dt / tauSec);
+  return current + diff * alpha;
 }
 
 /**
@@ -50,6 +79,9 @@ export function applyFollowCameraTuning(patch: Partial<FollowCameraTuning>): Rea
     pitchDeg: clampPitch(patch.pitchDeg ?? current.pitchDeg),
     northUp: typeof patch.northUp === "boolean" ? patch.northUp : current.northUp,
     heightAbovePivot: clampHeight(patch.heightAbovePivot ?? current.heightAbovePivot),
+    headUpYawLagSec: clampHeadUpYawLagSec(
+      typeof patch.headUpYawLagSec === "number" ? patch.headUpYawLagSec : current.headUpYawLagSec,
+    ),
   };
   return current;
 }
@@ -69,6 +101,8 @@ export function loadPersistedFollowCameraTuning(): void {
       northUp: typeof parsed.northUp === "boolean" ? parsed.northUp : undefined,
       heightAbovePivot:
         typeof parsed.heightAbovePivot === "number" ? parsed.heightAbovePivot : undefined,
+      headUpYawLagSec:
+        typeof parsed.headUpYawLagSec === "number" ? parsed.headUpYawLagSec : undefined,
     });
   } catch {
     // ignore

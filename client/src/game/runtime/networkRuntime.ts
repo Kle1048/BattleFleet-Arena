@@ -69,6 +69,8 @@ type RegisterNetworkHandlersOptions<TPlayerList> = {
   onCollisionContact?: (kind: "ship" | "island") => void;
   /** Server `missileLockOn`: eigene ASuM hat Ziel erfasst. */
   onMissileLockOn?: () => void;
+  /** Server `aswmMagazineReloaded`: Magazin nach Magic Reload wieder voll. */
+  onAswmMagazineReloaded?: () => void;
   /** Direkter Waffentreffer (`kind === "hit"`) — Artillerie / ASuM / Torpedo. */
   onWeaponHitAt?: (worldX: number, worldZ: number) => void;
 };
@@ -100,6 +102,7 @@ export function registerNetworkHandlers<TPlayerList>(
     onCollisionContact,
     onWeaponHitAt,
     onMissileLockOn,
+    onAswmMagazineReloaded,
   } = options;
 
   room.onMessage("collisionContact", (msg) => {
@@ -111,6 +114,10 @@ export function registerNetworkHandlers<TPlayerList>(
 
   room.onMessage("missileLockOn", () => {
     onMissileLockOn?.();
+  });
+
+  room.onMessage("aswmMagazineReloaded", () => {
+    onAswmMagazineReloaded?.();
   });
 
   room.onMessage("pong", (payloadUnknown) => {

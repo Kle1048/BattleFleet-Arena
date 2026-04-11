@@ -3,7 +3,6 @@
  */
 
 import { ARTILLERY_ARC_HALF_ANGLE_RAD, ARTILLERY_PLAYER_MAX_HP } from "./artillery";
-import { ASWM_MAX_PER_OWNER } from "./aswm";
 import { DESTROYER_BASE_SPEED_KN } from "./shipMovement";
 import { TORPEDO_MAX_PER_OWNER } from "./torpedo";
 
@@ -47,7 +46,8 @@ const PROFILE_FAC: ShipClassProfile = {
   turnRateMul: 1.12,
   accelMul: 1.08,
   artilleryArcHalfAngleRad: ARTILLERY_ARC_HALF_ANGLE_RAD,
-  aswmMaxPerOwner: 1,
+  /** Max. gleichzeitig lebende ASuM (≈ Magazin-Summe). */
+  aswmMaxPerOwner: 4,
   aswmCooldownFactor: 0.88,
   torpedoMaxPerOwner: TORPEDO_MAX_PER_OWNER,
   torpedoCooldownFactor: 0.92,
@@ -63,7 +63,7 @@ const PROFILE_DESTROYER: ShipClassProfile = {
   turnRateMul: 1,
   accelMul: 1,
   artilleryArcHalfAngleRad: ARTILLERY_ARC_HALF_ANGLE_RAD,
-  aswmMaxPerOwner: ASWM_MAX_PER_OWNER,
+  aswmMaxPerOwner: 8,
   aswmCooldownFactor: 1,
   torpedoMaxPerOwner: TORPEDO_MAX_PER_OWNER,
   torpedoCooldownFactor: 1,
@@ -79,7 +79,7 @@ const PROFILE_CRUISER: ShipClassProfile = {
   turnRateMul: 0.88,
   accelMul: 0.92,
   artilleryArcHalfAngleRad: ARTILLERY_ARC_HALF_ANGLE_RAD,
-  aswmMaxPerOwner: ASWM_MAX_PER_OWNER,
+  aswmMaxPerOwner: 16,
   aswmCooldownFactor: 1.1,
   torpedoMaxPerOwner: TORPEDO_MAX_PER_OWNER,
   torpedoCooldownFactor: 1.08,
@@ -93,12 +93,22 @@ const byId: Record<ShipClassId, ShipClassProfile> = {
   [SHIP_CLASS_CRUISER]: PROFILE_CRUISER,
 };
 
+/**
+ * Schiffsklasse aus Match-Progressions-Level: 1–4 FAC, 5–6 Zerstörer, 7–10 Kreuzer.
+ */
+export function shipClassIdForProgressionLevel(level: number): ShipClassId {
+  const lv = Math.max(1, Math.min(10, Math.floor(Number(level) || 1)));
+  if (lv >= 7) return SHIP_CLASS_CRUISER;
+  if (lv >= 5) return SHIP_CLASS_DESTROYER;
+  return SHIP_CLASS_FAC;
+}
+
 export function normalizeShipClassId(raw: unknown): ShipClassId {
   const s = typeof raw === "string" ? raw.toLowerCase().trim() : "";
   if (s === SHIP_CLASS_FAC || s === "fast_attack") return SHIP_CLASS_FAC;
   if (s === SHIP_CLASS_CRUISER) return SHIP_CLASS_CRUISER;
-  if (s === SHIP_CLASS_DESTROYER || s === "") return SHIP_CLASS_DESTROYER;
-  return SHIP_CLASS_DESTROYER;
+  if (s === SHIP_CLASS_DESTROYER) return SHIP_CLASS_DESTROYER;
+  return SHIP_CLASS_FAC;
 }
 
 export function getShipClassProfile(id: unknown): ShipClassProfile {

@@ -6,6 +6,7 @@ import {
   SPEED_FEEL_FACTOR,
   getShipClassProfile,
   progressionMovementScale,
+  progressionNavalRankEn,
   progressionXpToNextLevel,
 } from "@battlefleet/shared";
 import {
@@ -87,7 +88,7 @@ type CockpitLike = {
     matchRemainingSec: number;
     score: number;
     kills: number;
-    level: number;
+    rankLabelEn: string;
     xpLine: string;
     shipClassLabel: string;
     playerDisplayName: string;
@@ -286,7 +287,7 @@ export function runFrameRuntimeStep<
     }
 
     if (sessionId === mySessionId && me) {
-      updateLocalFollowCameraFromPlayer(camera, p);
+      updateLocalFollowCameraFromPlayer(camera, p, dtMs);
 
       if (me.lifeState !== PlayerLifeState.AwaitingRespawn && !matchEnded) {
         const tuningNow = getShipDebugTuning();
@@ -329,7 +330,8 @@ export function runFrameRuntimeStep<
       }
 
       if (progLevel > state.lastHudLevel) {
-        gameMessageHud.showToast(`Level ${progLevel}!`, "info", 2800);
+        const rankEn = progressionNavalRankEn(progLevel);
+        gameMessageHud.showToast(`Level ${progLevel}: ${rankEn}`, "info", 3600);
         gameAudio.levelUp();
       }
       state.lastHudLevel = progLevel;
@@ -352,7 +354,7 @@ export function runFrameRuntimeStep<
         matchRemainingSec: matchEnded ? 0 : matchRemainingSecRaw,
         score: typeof me.score === "number" ? me.score : 0,
         kills: typeof me.kills === "number" ? me.kills : 0,
-        level: progLevel,
+        rankLabelEn: progressionNavalRankEn(progLevel),
         xpLine,
         shipClassLabel: profShip.labelDe,
         playerDisplayName:

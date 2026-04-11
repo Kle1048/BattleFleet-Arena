@@ -159,6 +159,20 @@ export type ShipHullVisualProfile = {
   mountSlots: MountSlotDefinition[];
   /** Feste SSM-Rails — Empty-Äquivalente mit fester Ausrichtung */
   fixedSeaSkimmerLaunchers?: FixedSeaSkimmerLauncherSpec[];
+  /**
+   * ASuM-Magazin pro Seite (Backbord = port, Steuerbord = starboard).
+   * Summe = Schüsse bis **Magic Reload** (Server); Kurz-Cooldown zwischen Schüssen separat.
+   */
+  aswmMagazine?: AswmMagazineSpec;
+  /**
+   * Nach leerem Magazin: Dauer bis Magic Reload (ms). Ohne Eintrag: `ASWM_MAGIC_RELOAD_MS` (shared/aswm).
+   */
+  aswmMagicReloadMs?: number;
   /** Optional: Standard-Belegung der Slots (Slot-ID → Visual-Asset-ID) */
   defaultLoadout?: ShipMountLoadout;
+};
+
+export type AswmMagazineSpec = {
+  port: number;
+  starboard: number;
 };

@@ -199,3 +199,5 @@ Details (Formeln, Grenzfälle): unverändert die gleiche Struktur wie im bisheri
 - `README.md` — Install, Dev, Build, Multiplayer- und Kurztests (AO/OOB→Respawn, Inseln, Artillerie, Respawn)  
 - `PRD.md` — Produktvision, MVP, Netzwerk, Karte & Kollision  
 - `Project_Plan.md` — **Task 9 MVP (SAM/CIWS) abgeschlossen**; nächster Fokus **Task 10** (Match/Score)  
+- `docs/VISUALS-ENGINE-PLAN.md` — Grafik-Roadmap, Asset-Pipeline, Performance-Guardrails  
+- `docs/Ship-Model-Module.md` — **3D-Schiffsmodelle** (glTF/glB): Koordinaten, Rumpf- und Mount-Assets, Blender-Namenskonventionen  

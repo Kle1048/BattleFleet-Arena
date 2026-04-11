@@ -27,6 +27,10 @@ let currentShipDebugTuning: ShipDebugTuning = {
   ...DEFAULT_SHIP_DEBUG_TUNING,
 };
 
+/** Debug-Slider „GLB Rumpf Y“ — großer Bereich für falsch ausgerichtete GLBs. */
+export const GLTF_HULL_Y_OFFSET_MIN = -6000;
+export const GLTF_HULL_Y_OFFSET_MAX = 4000;
+
 function clamp(v: number, min: number, max: number): number {
   return Math.max(min, Math.min(max, v));
 }
@@ -74,8 +78,8 @@ export function applyShipDebugTuning(patch: Partial<ShipDebugTuning>): Readonly<
     ),
     gltfHullYOffset: clamp(
       patch.gltfHullYOffset ?? currentShipDebugTuning.gltfHullYOffset,
-      -800,
-      200,
+      GLTF_HULL_Y_OFFSET_MIN,
+      GLTF_HULL_Y_OFFSET_MAX,
     ),
     showWeaponArc:
       typeof patch.showWeaponArc === "boolean"

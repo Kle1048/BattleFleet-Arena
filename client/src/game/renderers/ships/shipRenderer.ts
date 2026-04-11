@@ -1,5 +1,5 @@
 import type * as THREE from "three";
-import { normalizeShipClassId, SHIP_CLASS_DESTROYER } from "@battlefleet/shared";
+import { normalizeShipClassId, SHIP_CLASS_FAC } from "@battlefleet/shared";
 import type { ShipClassId } from "@battlefleet/shared";
 import { createShipVisual, type ShipVisual } from "../../scene/shipVisual";
 import type { GameRenderer } from "../../runtime/rendererContracts";
@@ -34,7 +34,7 @@ export function createShipRenderer(
 
   function ensureShip(sessionId: string, shipClassId?: string): void {
     if (visuals.has(sessionId)) return;
-    const cid = normalizeShipClassId(shipClassId ?? SHIP_CLASS_DESTROYER);
+    const cid = normalizeShipClassId(shipClassId ?? SHIP_CLASS_FAC);
     const template =
       options?.getHullGltfTemplate?.(cid) ?? options?.shipHullGltf ?? undefined;
     const vis = createShipVisual({

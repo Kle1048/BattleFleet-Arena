@@ -1,15 +1,8 @@
 /**
- * Vor Match: Anzeigename + Schiffsklasse, danach `joinOrCreate(..., { shipClass, displayName })`.
+ * Vor Match: optionaler Anzeigename, dann `joinOrCreate(..., { shipClass: FAC, displayName })`.
  */
 
-import { openShipProfileEditor } from "./shipProfileEditor";
-import {
-  PLAYER_DISPLAY_NAME_MAX_LEN,
-  SHIP_CLASS_CRUISER,
-  SHIP_CLASS_DESTROYER,
-  SHIP_CLASS_FAC,
-  type ShipClassId,
-} from "@battlefleet/shared";
+import { PLAYER_DISPLAY_NAME_MAX_LEN, SHIP_CLASS_FAC, type ShipClassId } from "@battlefleet/shared";
 
 export type ShipLobbyChoice = {
   shipClass: ShipClassId;
@@ -17,74 +10,40 @@ export type ShipLobbyChoice = {
   displayName: string;
 };
 
-type ClassOption = {
-  id: ShipClassId;
-  title: string;
-  blurb: string;
-};
-
-const OPTIONS: ClassOption[] = [
-  {
-    id: SHIP_CLASS_FAC,
-    title: "FAC",
-    blurb: "Schnell, weiter Bug-Bogen, wenig HP — max. 1 ASuM.",
-  },
-  {
-    id: SHIP_CLASS_DESTROYER,
-    title: "Zerstörer",
-    blurb: "Ausgewogen — gleiche Basis wie bisher (2 ASuM).",
-  },
-  {
-    id: SHIP_CLASS_CRUISER,
-    title: "Kreuzer",
-    blurb: "Schwere Panzerung, enger Bogen, langsamer.",
-  },
-];
-
 export function pickShipLobbyChoice(): Promise<ShipLobbyChoice> {
   return new Promise((resolve) => {
     const root = document.createElement("div");
     root.className = "class-picker-overlay";
     root.setAttribute("role", "dialog");
     root.setAttribute("aria-modal", "true");
-    root.setAttribute("aria-label", "Schiff und Name wählen");
+    root.setAttribute("aria-label", "Spielername");
     root.innerHTML = `
       <div class="class-picker-panel">
-        <h2 class="class-picker-title">Schiffsklasse</h2>
-        <p class="class-picker-hint">Gib deinen Namen ein (optional) und wähle eine Klasse — dann geht es in den Kampfraum.</p>
+        <h2 class="class-picker-title">BattleFleet Arena</h2>
+        <p class="class-picker-hint">Optional: Spielername eingeben und starten. Alle starten als FAC (Schnellboot).</p>
         <label class="class-picker-name-label">
           <span class="class-picker-name-caption">Spielername</span>
           <input type="text" class="class-picker-name-input" maxlength="${PLAYER_DISPLAY_NAME_MAX_LEN}"
             autocomplete="nickname" spellcheck="false" placeholder="z. B. Kommandant" />
         </label>
-        <div class="class-picker-grid"></div>
-        <button type="button" class="class-picker-editor-btn">Schiffsprofil bearbeiten (JSON / Hitbox)…</button>
+        <button type="button" class="class-picker-continue-btn">Weiter</button>
       </div>
     `;
-    const grid = root.querySelector(".class-picker-grid") as HTMLElement;
     const nameInput = root.querySelector(".class-picker-name-input") as HTMLInputElement;
-    const editorBtn = root.querySelector(".class-picker-editor-btn") as HTMLButtonElement;
-    editorBtn.addEventListener("click", () => {
-      void openShipProfileEditor();
-    });
+    const continueBtn = root.querySelector(".class-picker-continue-btn") as HTMLButtonElement;
 
-    const cleanup = (): void => {
+    const finish = (): void => {
       root.remove();
+      resolve({ shipClass: SHIP_CLASS_FAC, displayName: nameInput.value });
     };
 
-    const readDisplayName = (): string => nameInput.value;
-
-    for (const opt of OPTIONS) {
-      const btn = document.createElement("button");
-      btn.type = "button";
-      btn.className = "class-picker-card";
-      btn.innerHTML = `<span class="class-picker-card-title">${opt.title}</span><span class="class-picker-card-blurb">${opt.blurb}</span>`;
-      btn.addEventListener("click", () => {
-        cleanup();
-        resolve({ shipClass: opt.id, displayName: readDisplayName() });
-      });
-      grid.appendChild(btn);
-    }
+    continueBtn.addEventListener("click", () => finish());
+    nameInput.addEventListener("keydown", (e) => {
+      if (e.key === "Enter") {
+        e.preventDefault();
+        finish();
+      }
+    });
 
     document.body.appendChild(root);
     queueMicrotask(() => nameInput.focus());

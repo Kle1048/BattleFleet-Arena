@@ -1,6 +1,6 @@
 /**
- * Task 11 — In-Match-Progression: XP & Level 1…10 pro Leben (Match-Score bleibt unabhängig).
- * Tod / neues Leben: XP & Level zurück auf Start.
+ * Task 11 — In-Match-Progression: XP & Level 1…10 (Match-Score bleibt unabhängig).
+ * Tod: ein Level runter (min. 1), XP auf Untergrenze des neuen Levels; neues Match: Reset wie `resetMatchForNewRound`.
  */
 
 import {
@@ -35,6 +35,35 @@ export const PROGRESSION_LEVEL_MIN_XP: ReadonlyArray<number> = [
 
 export function progressionClampLevel(level: number): number {
   return Math.max(1, Math.min(PROGRESSION_MAX_LEVEL, Math.floor(level)));
+}
+
+/**
+ * US Navy officer ranks (O-1…O-10) for progression levels 1…10 (gameplay abstraction).
+ * Index 0 = level 1, … index 9 = level 10.
+ */
+export const PROGRESSION_LEVEL_NAVAL_RANK_EN: readonly string[] = [
+  "Ensign",
+  "Lieutenant Junior Grade",
+  "Lieutenant",
+  "Lieutenant Commander",
+  "Commander",
+  "Captain",
+  "Commodore",
+  "Rear Admiral",
+  "Vice Admiral",
+  "Admiral",
+];
+
+/** English naval officer rank title for the given progression level (1…10). */
+export function progressionNavalRankEn(level: number): string {
+  const lv = progressionClampLevel(level);
+  return PROGRESSION_LEVEL_NAVAL_RANK_EN[lv - 1] ?? PROGRESSION_LEVEL_NAVAL_RANK_EN[0]!;
+}
+
+/** Kumulativ-XP am Anfang dieses Levels (Untergrenze für `progressionLevelFromTotalXp`). */
+export function progressionMinXpForLevel(level: number): number {
+  const lv = progressionClampLevel(level);
+  return PROGRESSION_LEVEL_MIN_XP[lv] ?? 0;
 }
 
 /** Level aus kumulativer XP im aktuellen Leben (1…10). */

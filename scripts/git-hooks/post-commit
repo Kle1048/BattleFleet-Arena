@@ -1,0 +1,5 @@
+#!/bin/sh
+# Ergänzt docs/DEV-LOG.md nach jedem Commit (Twitter/X-Vorschlag für Vibejam).
+ROOT="$(git rev-parse --show-toplevel)" || exit 0
+cd "$ROOT" || exit 0
+node "$ROOT/scripts/append-dev-log.mjs" || true

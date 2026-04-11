@@ -8,7 +8,12 @@
  * `playerList`-Referenz nach jedem State-Wechsel neu binden (stale ArraySchema).
  */
 import * as THREE from "three";
-import { DESTROYER_LIKE_MVP, MATCH_PHASE_ENDED, PlayerLifeState, getShipClassProfile } from "@battlefleet/shared";
+import {
+  DESTROYER_LIKE_MVP,
+  MATCH_PHASE_ENDED,
+  PlayerLifeState,
+  getShipClassProfile,
+} from "@battlefleet/shared";
 import { createGameScene } from "./game/scene/createGameScene";
 import { createInputHandlers } from "./game/input/keyboardMouse";
 import { createCockpitHud } from "./game/hud/cockpitHud";
@@ -37,18 +42,23 @@ import { createRuntimeShutdown } from "./game/runtime/runtimeShutdown";
 import { createAssetManager } from "./game/runtime/assetManager";
 import { loadPersistedFollowCameraTuning } from "./game/runtime/followCameraTuning";
 import { resolveMountGltfUrl, uniqueMountVisualUrls } from "./game/runtime/mountGltfUrls";
-import { resolveShipHullGltfUrlForClass, uniqueHullGltfUrlsForAllClasses } from "./game/runtime/shipProfileRuntime";
+import {
+  resolveShipHullGltfUrlForClass,
+  uniqueHullGltfUrlsForAllClasses,
+} from "./game/runtime/shipProfileRuntime";
 import type { ShipClassId } from "@battlefleet/shared";
 import { getShipHullGltfSourceForUrl, loadShipHullGltfSource } from "./game/scene/shipGltfHull";
 import { renderToWorldX, worldToRenderX } from "./game/runtime/renderCoords";
 import {
   MAX_SHIP_WAKES,
   applyWaterShaderTuning,
-  updateWaterMaterial,
+  updateGameWaterAnimations,
   updateWaterShipWakes,
 } from "./game/runtime/materialLibrary";
+import { getWakeSampleMinDistSq } from "./game/runtime/wakeRuntimeTuning";
 import { createWakeTrailState, pushWakeTrailSample } from "./game/runtime/wakeTrail";
-import { createWaterDebugPanel } from "./game/runtime/waterDebugPanel";
+import { createEnvironmentDebugPanel } from "./game/runtime/environmentDebugPanel";
+import { installReflectionCameraLayerMask } from "./game/runtime/renderOverlayLayers";
 import { getShipDebugTuning } from "./game/runtime/shipDebugTuning";
 import {
   createInterpolationBuffer,
@@ -88,37 +98,40 @@ renderer.domElement.style.cursor =
 const assetManager = createAssetManager();
 
 loadPersistedFollowCameraTuning();
-const bundle = createGameScene();
-const { scene, camera, water } = bundle;
-const cfg = DESTROYER_LIKE_MVP;
-const waterDebugPanel = createWaterDebugPanel(water.material as THREE.Material);
-
-const groundPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
-const raycaster = new THREE.Raycaster();
-
-function getGroundPoint(ndcX: number, ndcY: number): { x: number; z: number } | null {
-  raycaster.setFromCamera(new THREE.Vector2(ndcX, ndcY), camera);
-  const out = new THREE.Vector3();
-  const ok = raycaster.ray.intersectPlane(groundPlane, out);
-  if (!ok) return null;
-  return { x: renderToWorldX(out.x), z: out.z };
-}
-
-const input = createInputHandlers(renderer.domElement, getGroundPoint);
-const cockpit = createCockpitHud();
 const debugOverlay = createDebugOverlay();
-const botController = createBotController();
-const botDebugPanel = createBotDebugPanel();
-const gameMessageHud = createGameMessageHud();
-const fxSystem = createFxSystem(scene);
-const artilleryFx = createArtilleryFx(scene, fxSystem);
-const missileFx = createMissileFx(scene, fxSystem);
-const torpedoFx = createTorpedoFx(scene, fxSystem);
-const screenFlash = createScreenFlashOverlay();
-
-bindRendererResize(camera, renderer);
 
 async function bootstrap(): Promise<void> {
+  const bundle = await createGameScene();
+  const { scene, camera, water, waterFoam } = bundle;
+  const foamMat = waterFoam.material as THREE.Material;
+  const environmentDebugPanel = createEnvironmentDebugPanel(bundle);
+  const cfg = DESTROYER_LIKE_MVP;
+
+  const groundPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
+  const raycaster = new THREE.Raycaster();
+
+  function getGroundPoint(ndcX: number, ndcY: number): { x: number; z: number } | null {
+    raycaster.setFromCamera(new THREE.Vector2(ndcX, ndcY), camera);
+    const out = new THREE.Vector3();
+    const ok = raycaster.ray.intersectPlane(groundPlane, out);
+    if (!ok) return null;
+    return { x: renderToWorldX(out.x), z: out.z };
+  }
+
+  const input = createInputHandlers(renderer.domElement, getGroundPoint);
+  const cockpit = createCockpitHud();
+  const botController = createBotController();
+  const botDebugPanel = createBotDebugPanel();
+  const gameMessageHud = createGameMessageHud();
+  const fxSystem = createFxSystem(scene);
+  const artilleryFx = createArtilleryFx(scene, fxSystem);
+  const missileFx = createMissileFx(scene, fxSystem);
+  const torpedoFx = createTorpedoFx(scene, fxSystem);
+  const screenFlash = createScreenFlashOverlay();
+
+  bindRendererResize(camera, renderer);
+  const reflectionLayerMask = installReflectionCameraLayerMask(renderer, camera);
+
   let colyseusWarn = "";
   let reloadScheduled = false;
 
@@ -237,6 +250,8 @@ async function bootstrap(): Promise<void> {
       else gameAudio.shipIslandCollision();
     },
     onMissileLockOn: () => gameAudio.missileLockOn(),
+    onAswmMagazineReloaded: () =>
+      gameMessageHud.showToast("ASuM: Magazin nachgeladen", "info", 3500),
     onWeaponHitAt: (x, z) => {
       const me = getPlayer(playerListOf(room), mySessionId);
       if (!me) {
@@ -279,8 +294,9 @@ async function bootstrap(): Promise<void> {
       },
     },
     assetManager,
+    environmentDebugPanel,
+    reflectionLayerMask,
     renderer,
-    waterDebugPanel,
     {
       dispose() {
         botDebugPanel.dispose();
@@ -402,7 +418,7 @@ async function bootstrap(): Promise<void> {
 
     const presentIds = new Set<string>();
     const wakeUpload: { trail: ReturnType<typeof createWakeTrailState>; strength: number }[] = [];
-    const minDistWakeSq = 3 * 3;
+    const minDistWakeSq = getWakeSampleMinDistSq();
 
     for (const p of playerList) {
       presentIds.add(p.id);
@@ -460,12 +476,9 @@ async function bootstrap(): Promise<void> {
     }
 
     wakeUpload.sort((a, b) => b.strength - a.strength);
-    updateWaterShipWakes(
-      water.material as THREE.Material,
-      wakeUpload.slice(0, MAX_SHIP_WAKES),
-    );
+    updateWaterShipWakes(foamMat, wakeUpload.slice(0, MAX_SHIP_WAKES));
 
-    updateWaterMaterial(water.material as THREE.Material, now);
+    updateGameWaterAnimations(water, foamMat, now);
     renderer.render(scene, camera);
     requestAnimationFrame(frame);
   }
@@ -499,7 +512,8 @@ async function bootstrap(): Promise<void> {
         wakeOuterMix?: number;
         wakeOuterWidthMul?: number;
         wakeOuterNoiseMix?: number;
-      }) => applyWaterShaderTuning(water.material as THREE.Material, patch),
+        wakeSegDecay?: number;
+      }) => applyWaterShaderTuning(foamMat, patch),
     },
   };
 }
@@ -521,12 +535,6 @@ bootstrap().catch((err) => {
   banner.textContent = `Keine Verbindung (${COLYSEUS_URL}): ${detail} — Server: „npm run dev -w server“.`;
   document.body.appendChild(banner);
   try {
-    artilleryFx.dispose();
-    missileFx.dispose();
-    torpedoFx.dispose();
-    fxSystem.dispose();
-    screenFlash.dispose();
-    disposeCameraShake();
     assetManager.dispose();
     renderer.dispose();
   } catch {

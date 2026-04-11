@@ -107,6 +107,8 @@ type WaterUniforms = {
   uWaterWakeOuterMix: { value: number };
   uWaterWakeOuterWidthMul: { value: number };
   uWaterWakeOuterNoiseMix: { value: number };
+  /** Höher → Kielwasser pro Segment schneller ausgeblendet (`exp(-uWakeSegDecay * segmentIndex)`). */
+  uWakeSegDecay: { value: number };
   uIslandCount: { value: number };
   uIslandData: { value: THREE.Vector3[] };
   uShipWakeCount: { value: number };
@@ -155,6 +157,7 @@ uniform float uWaterWakeCoreMix;
 uniform float uWaterWakeOuterMix;
 uniform float uWaterWakeOuterWidthMul;
 uniform float uWaterWakeOuterNoiseMix;
+uniform float uWakeSegDecay;
 uniform float uIslandCount;
 uniform vec3 uIslandData[${MAX_WATER_ISLANDS}];
 uniform float uShipWakeCount;
@@ -238,7 +241,7 @@ void main() {
       vec2 c = a + ab * t;
       float dln = distance(Pw, c);
       float width = max(3.8, (21.0 - float(i) * 0.9) * uWaterWakeOuterWidthMul);
-      float segFade = exp(-0.16 * float(i));
+      float segFade = exp(-uWakeSegDecay * float(i));
       float nearShipAlong = t * t * (3.0 - 2.0 * t);
       float lat = 1.0 - smoothstep(width, width + 11.0, dln);
       float seg = lat * segFade * (0.08 + 0.92 * nearShipAlong);
@@ -259,6 +262,143 @@ void main() {
 }
 `;
 
+/** Transparenter Overlay: nur Schaum/Küste/Kielwasser — liegt über three.js Water. */
+const WATER_FOAM_VERTEX_SHADER = `
+varying vec2 vUv;
+varying vec3 vWorldPos;
+
+void main() {
+  vUv = uv;
+  vec4 world = modelMatrix * vec4(position, 1.0);
+  vWorldPos = world.xyz;
+  gl_Position = projectionMatrix * viewMatrix * world;
+}
+`;
+
+const WATER_FOAM_FRAGMENT_SHADER = `
+varying vec2 vUv;
+varying vec3 vWorldPos;
+
+uniform float uTime;
+uniform vec3 uDeepColor;
+uniform vec3 uShallowColor;
+uniform vec3 uFoamColor;
+uniform float uWaterUvScale;
+uniform float uWaterTimeX;
+uniform float uWaterTimeY;
+uniform float uWaterDepthBase;
+uniform float uWaterDepthAmp;
+uniform float uWaterFlowTime;
+uniform float uWaterFlowMix;
+uniform float uWaterShoreMix;
+uniform float uWaterWakeCoreMix;
+uniform float uWaterWakeOuterMix;
+uniform float uWaterWakeOuterWidthMul;
+uniform float uWaterWakeOuterNoiseMix;
+uniform float uWakeSegDecay;
+uniform float uIslandCount;
+uniform vec3 uIslandData[${MAX_WATER_ISLANDS}];
+uniform float uShipWakeCount;
+uniform float uShipWakeTrailLen[${MAX_SHIP_WAKES}];
+uniform float uShipWakeStrength[${MAX_SHIP_WAKES}];
+uniform vec2 uShipWakePts[${WAKE_SHADER_PT_COUNT}];
+
+float hash(vec2 p) {
+  return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453123);
+}
+
+float noise(vec2 p) {
+  vec2 i = floor(p);
+  vec2 f = fract(p);
+  float a = hash(i);
+  float b = hash(i + vec2(1.0, 0.0));
+  float c = hash(i + vec2(0.0, 1.0));
+  float d = hash(i + vec2(1.0, 1.0));
+  vec2 u = f * f * (3.0 - 2.0 * f);
+  return mix(a, b, u.x) + (c - a) * u.y * (1.0 - u.x) + (d - b) * u.x * u.y;
+}
+
+float fbm(vec2 p) {
+  float sum = 0.0;
+  float amp = 0.5;
+  float freq = 1.0;
+  for (int i = 0; i < 4; i++) {
+    sum += noise(p * freq) * amp;
+    freq *= 2.03;
+    amp *= 0.5;
+  }
+  return sum;
+}
+
+void main() {
+  vec2 p0 = vUv * uWaterUvScale + vec2(uTime * uWaterTimeX, -uTime * uWaterTimeY);
+  float n = fbm(p0);
+  float depthMix = clamp(uWaterDepthBase + n * uWaterDepthAmp, 0.0, 1.0);
+  vec3 baseCol = mix(uDeepColor, uShallowColor, depthMix);
+  float ridge = abs(sin((n * 6.1 + uTime * uWaterFlowTime) * 3.14159));
+  float flowMask = smoothstep(0.88, 0.99, ridge);
+
+  float shoreFoam = 0.0;
+  for (int i = 0; i < ${MAX_WATER_ISLANDS}; i++) {
+    if (float(i) >= uIslandCount) break;
+    vec3 island = uIslandData[i];
+    float d = distance(vWorldPos.xz, island.xy);
+    float edge = abs(d - island.z);
+    float band = 1.0 - smoothstep(2.0, 15.0, edge);
+    float wobble = 0.8 + 0.2 * sin(uTime * 0.42 + d * 0.1 + float(i) * 0.7);
+    shoreFoam = max(shoreFoam, band * wobble);
+  }
+
+  vec2 Pw = vWorldPos.xz;
+  float wakeMaskAll = 0.0;
+  float wakeCoreAll = 0.0;
+  float wakeSpeedAll = 0.0;
+  for (int w = 0; w < ${MAX_SHIP_WAKES}; w++) {
+    if (float(w) >= uShipWakeCount) break;
+    float wLen = uShipWakeTrailLen[w];
+    float wStr = uShipWakeStrength[w];
+    if (wLen < 1.5 || wStr < 0.02) continue;
+    int base = w * ${WAKE_TRAIL_MAX_POINTS};
+    float wakeMask = 0.0;
+    float wakeCore = 0.0;
+    for (int i = 0; i < ${WAKE_TRAIL_MAX_POINTS - 1}; i++) {
+      if (float(i) >= wLen - 1.0) break;
+      vec2 a = uShipWakePts[base + i + 1];
+      vec2 b = uShipWakePts[base + i];
+      vec2 ab = b - a;
+      float ab2 = dot(ab, ab);
+      if (ab2 < 1e-5) continue;
+      float t = clamp(dot(Pw - a, ab) / ab2, 0.0, 1.0);
+      vec2 c = a + ab * t;
+      float dln = distance(Pw, c);
+      float width = max(3.8, (21.0 - float(i) * 0.9) * uWaterWakeOuterWidthMul);
+      float segFade = exp(-uWakeSegDecay * float(i));
+      float nearShipAlong = t * t * (3.0 - 2.0 * t);
+      float lat = 1.0 - smoothstep(width, width + 11.0, dln);
+      float seg = lat * segFade * (0.08 + 0.92 * nearShipAlong);
+      wakeMask = max(wakeMask, seg);
+      float coreLat = 1.0 - smoothstep(width * 0.18, width * 0.6, dln);
+      wakeCore = max(wakeCore, coreLat * segFade * nearShipAlong * nearShipAlong);
+    }
+    float rip = fbm(Pw * 0.55 + vec2(uTime * 0.06 + float(w) * 0.17, -uTime * 0.04));
+    wakeMaskAll = max(wakeMaskAll, wakeMask * wStr * (1.0 - uWaterWakeOuterNoiseMix + uWaterWakeOuterNoiseMix * rip));
+    wakeCoreAll = max(wakeCoreAll, wakeCore * wStr);
+    wakeSpeedAll = max(wakeSpeedAll, wStr);
+  }
+
+  float a = flowMask * uWaterFlowMix;
+  a = max(a, shoreFoam * uWaterShoreMix);
+  a = max(a, wakeMaskAll * uWaterWakeOuterMix);
+  a = max(a, wakeCoreAll * uWaterWakeCoreMix);
+  a = clamp(a, 0.0, 1.0);
+  vec3 wakeCoreRgb = mix(uShallowColor, uFoamColor, clamp(wakeSpeedAll * 1.15, 0.0, 1.0));
+  vec3 rgb = mix(uFoamColor, wakeCoreRgb, step(0.02, wakeCoreAll * uWaterWakeCoreMix));
+  a += (depthMix + baseCol.r) * 0.0;
+  if (a < 0.004) discard;
+  gl_FragColor = vec4(rgb, a);
+}
+`;
+
 export type WaterShaderTuning = {
   uvScale: number;
   timeX: number;
@@ -272,6 +412,8 @@ export type WaterShaderTuning = {
   wakeOuterMix: number;
   wakeOuterWidthMul: number;
   wakeOuterNoiseMix: number;
+  /** Kielwasser: Abklingen entlang der Spur (Shader). Kleiner = optisch längerer Schweif. */
+  wakeSegDecay: number;
 };
 
 /** Projekt-Defaults für Wasser + Reset im Debug-Panel. */
@@ -288,6 +430,7 @@ export const DEFAULT_WATER_SHADER_TUNING: Readonly<WaterShaderTuning> = {
   wakeOuterMix: 0.1,
   wakeOuterWidthMul: 0.95,
   wakeOuterNoiseMix: 0.28,
+  wakeSegDecay: 0.16,
 };
 
 export function createWaterMaterial(): THREE.ShaderMaterial {
@@ -309,6 +452,7 @@ export function createWaterMaterial(): THREE.ShaderMaterial {
     uWaterWakeOuterMix: { value: wDef.wakeOuterMix },
     uWaterWakeOuterWidthMul: { value: wDef.wakeOuterWidthMul },
     uWaterWakeOuterNoiseMix: { value: wDef.wakeOuterNoiseMix },
+    uWakeSegDecay: { value: wDef.wakeSegDecay },
     uIslandCount: { value: 0 },
     uIslandData: {
       value: Array.from({ length: MAX_WATER_ISLANDS }, () => new THREE.Vector3(0, 0, 0)),
@@ -324,6 +468,48 @@ export function createWaterMaterial(): THREE.ShaderMaterial {
     uniforms,
     vertexShader: WATER_VERTEX_SHADER,
     fragmentShader: WATER_FRAGMENT_SHADER,
+    fog: false,
+    side: THREE.DoubleSide,
+  });
+}
+
+export function createWaterFoamOverlayMaterial(): THREE.ShaderMaterial {
+  const wDef = DEFAULT_WATER_SHADER_TUNING;
+  const uniforms: WaterUniforms = {
+    uTime: { value: 0 },
+    uDeepColor: { value: new THREE.Color(0x0872ba) },
+    uShallowColor: { value: new THREE.Color(0x58dfe3) },
+    uFoamColor: { value: new THREE.Color(0xf0ffff) },
+    uWaterUvScale: { value: wDef.uvScale },
+    uWaterTimeX: { value: wDef.timeX },
+    uWaterTimeY: { value: wDef.timeY },
+    uWaterDepthBase: { value: wDef.depthBase },
+    uWaterDepthAmp: { value: wDef.depthAmp },
+    uWaterFlowTime: { value: wDef.flowTime },
+    uWaterFlowMix: { value: wDef.flowMix },
+    uWaterShoreMix: { value: wDef.shoreMix },
+    uWaterWakeCoreMix: { value: wDef.wakeCoreMix },
+    uWaterWakeOuterMix: { value: wDef.wakeOuterMix },
+    uWaterWakeOuterWidthMul: { value: wDef.wakeOuterWidthMul },
+    uWaterWakeOuterNoiseMix: { value: wDef.wakeOuterNoiseMix },
+    uWakeSegDecay: { value: wDef.wakeSegDecay },
+    uIslandCount: { value: 0 },
+    uIslandData: {
+      value: Array.from({ length: MAX_WATER_ISLANDS }, () => new THREE.Vector3(0, 0, 0)),
+    },
+    uShipWakeCount: { value: 0 },
+    uShipWakeTrailLen: { value: Array.from({ length: MAX_SHIP_WAKES }, () => 0) },
+    uShipWakeStrength: { value: Array.from({ length: MAX_SHIP_WAKES }, () => 0) },
+    uShipWakePts: {
+      value: Array.from({ length: WAKE_SHADER_PT_COUNT }, () => new THREE.Vector2()),
+    },
+  };
+  return new THREE.ShaderMaterial({
+    uniforms,
+    vertexShader: WATER_FOAM_VERTEX_SHADER,
+    fragmentShader: WATER_FOAM_FRAGMENT_SHADER,
+    transparent: true,
+    depthWrite: false,
     fog: false,
     side: THREE.DoubleSide,
   });
@@ -351,6 +537,16 @@ export function updateWaterMaterial(material: THREE.Material, nowMs: number): vo
   uniforms.uTime.value = nowMs * 0.001;
 }
 
+/** three.js `Water` nutzt `time`; Schaum-Shader weiter `uTime`. */
+export function updateGameWaterAnimations(threeJsWater: THREE.Mesh, foamMaterial: THREE.Material, nowMs: number): void {
+  const t = nowMs * 0.001;
+  const wm = threeJsWater.material as THREE.ShaderMaterial & {
+    uniforms?: Record<string, { value: number }>;
+  };
+  if (wm.uniforms?.time) wm.uniforms.time.value = t;
+  updateWaterMaterial(foamMaterial, nowMs);
+}
+
 export function readWaterShaderTuning(material: THREE.Material): WaterShaderTuning | null {
   const shader = material as THREE.ShaderMaterial;
   const u = shader.uniforms as WaterUniforms | undefined;
@@ -368,6 +564,7 @@ export function readWaterShaderTuning(material: THREE.Material): WaterShaderTuni
     wakeOuterMix: u.uWaterWakeOuterMix.value,
     wakeOuterWidthMul: u.uWaterWakeOuterWidthMul.value,
     wakeOuterNoiseMix: u.uWaterWakeOuterNoiseMix.value,
+    wakeSegDecay: u.uWakeSegDecay?.value ?? DEFAULT_WATER_SHADER_TUNING.wakeSegDecay,
   };
 }
 
@@ -390,6 +587,7 @@ export function applyWaterShaderTuning(
   if (patch.wakeOuterMix != null) u.uWaterWakeOuterMix.value = patch.wakeOuterMix;
   if (patch.wakeOuterWidthMul != null) u.uWaterWakeOuterWidthMul.value = patch.wakeOuterWidthMul;
   if (patch.wakeOuterNoiseMix != null) u.uWaterWakeOuterNoiseMix.value = patch.wakeOuterNoiseMix;
+  if (patch.wakeSegDecay != null && u.uWakeSegDecay) u.uWakeSegDecay.value = patch.wakeSegDecay;
 }
 
 export type WaterShipWakeUpload = { trail: WakeTrailState; strength: number };

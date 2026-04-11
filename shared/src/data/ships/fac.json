@@ -35,7 +35,30 @@
       "defaultVisualId": "visual_ciws"
     }
   ],
-  "fixedSeaSkimmerLaunchers": [],
+  "fixedSeaSkimmerLaunchers": [
+    {
+      "id": "ssm_rail_port",
+      "side": "port",
+      "visualId": "visual_ssm",
+      "launchYawRadFromBow": -0.7853981633974483,
+      "socket": {
+        "position": { "x": -2.4, "y": 1.0, "z": 4.5 },
+        "eulerRad": { "x": 0, "y": -0.7853981633974483, "z": 0 }
+      }
+    },
+    {
+      "id": "ssm_rail_starboard",
+      "side": "starboard",
+      "visualId": "visual_ssm",
+      "launchYawRadFromBow": 0.7853981633974483,
+      "socket": {
+        "position": { "x": 2.4, "y": 1.0, "z": 4.5 },
+        "eulerRad": { "x": 0, "y": 0.7853981633974483, "z": 0 }
+      }
+    }
+  ],
+  "aswmMagazine": { "port": 2, "starboard": 2 },
+  "aswmMagicReloadMs": 20000,
   "defaultLoadout": {
     "main_fwd": "visual_artillery",
     "ciws_aft": "visual_ciws"

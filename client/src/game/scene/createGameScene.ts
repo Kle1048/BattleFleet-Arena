@@ -1,12 +1,30 @@
 import * as THREE from "three";
+import { Water } from "three/examples/jsm/objects/Water.js";
+import { Sky } from "three/examples/jsm/objects/Sky.js";
 import { AREA_OF_OPERATIONS_HALF_EXTENT, DEFAULT_MAP_ISLANDS } from "@battlefleet/shared";
-import { VisualColorTokens, createWaterMaterial, setWaterIslands } from "../runtime/materialLibrary";
+import {
+  VisualColorTokens,
+  createWaterFoamOverlayMaterial,
+  setWaterIslands,
+} from "../runtime/materialLibrary";
 import {
   computeFollowCamBackOffset,
   getFollowCameraTuning,
+  stepAngleTowardLag,
 } from "../runtime/followCameraTuning";
 import { getShipDebugTuning } from "../runtime/shipDebugTuning";
 import { worldToRenderX } from "../runtime/renderCoords";
+import {
+  DEFAULT_ENVIRONMENT_TUNING,
+  loadPersistedEnvironmentTuning,
+  savePersistedEnvironmentTuning,
+  type EnvironmentTuning,
+} from "../runtime/environmentTuning";
+import { assignToOverlayLayer, configureMainCameraForGameplay } from "../runtime/renderOverlayLayers";
+import { skySunPositionFromDirection, sunDirectionFromAngles } from "./environmentSun";
+import { LIGHTING_PRESETS, type LightingPresetId } from "./lightingPresets";
+
+export type { LightingPresetId } from "./lightingPresets";
 
 /**
  * Karten-Koordinaten (wie Seekarte, Y = hoch):
@@ -23,58 +41,6 @@ export const RUDDER_DEFLECTION_DEG = 35;
 /** Einheitlicher Overlay-Layer für UI-nahe Linien in der Welt. */
 export const OVERLAY_RENDER_ORDER = 90;
 
-type LightingPresetId = "midday_clear" | "golden_hour" | "stormy_haze";
-type LightingPreset = {
-  background: number;
-  fogColor: number | null;
-  fogNear: number;
-  fogFar: number;
-  ambientColor: number;
-  ambientIntensity: number;
-  sunColor: number;
-  sunIntensity: number;
-  sunPos: readonly [number, number, number];
-};
-
-const LIGHTING_PRESETS: Record<LightingPresetId, LightingPreset> = {
-  midday_clear: {
-    background: 0x53bce8,
-    fogColor: null,
-    fogNear: 0,
-    fogFar: 0,
-    ambientColor: 0xcfe9ff,
-    ambientIntensity: 0.56,
-    sunColor: 0xffffff,
-    sunIntensity: 0.98,
-    sunPos: [140, 1500, 220],
-  },
-  golden_hour: {
-    background: 0x66b9d8,
-    fogColor: 0xc6ad90,
-    fogNear: 380,
-    fogFar: 2100,
-    ambientColor: 0xffddb0,
-    ambientIntensity: 0.42,
-    sunColor: 0xffc37a,
-    sunIntensity: 1.08,
-    sunPos: [620, 520, 260],
-  },
-  stormy_haze: {
-    background: 0x3f6f8c,
-    fogColor: 0x55748b,
-    fogNear: 160,
-    fogFar: 1200,
-    ambientColor: 0x9ab6c8,
-    ambientIntensity: 0.66,
-    sunColor: 0xbdd6ea,
-    sunIntensity: 0.62,
-    sunPos: [-260, 720, -180],
-  },
-};
-
-/** Schnellumschalter für die gewünschte Stimmung. */
-const ACTIVE_LIGHTING_PRESET: LightingPresetId = "golden_hour";
-
 /** Dreieck-Schiff in lokaler XZ-Ebene; Bug bei +Z. */
 export const SHIP_BOW_Z = 28;
 export const SHIP_STERN_Z = -22;
@@ -85,10 +51,91 @@ export const SHIP_CAMERA_PIVOT_LOCAL_Z = SHIP_BOW_Z - SHIP_LENGTH / 6;
 export type GameSceneBundle = {
   scene: THREE.Scene;
   camera: THREE.PerspectiveCamera;
+  /** three.js `Water` (Reflexion + Normalmap). */
   water: THREE.Mesh;
+  /** Transparenter Schaum/Küste/Kielwasser über dem Wasser. */
+  waterFoam: THREE.Mesh;
+  sky: Sky;
   ambient: THREE.AmbientLight;
   sun: THREE.DirectionalLight;
+  getEnvironmentTuning: () => EnvironmentTuning;
+  applyEnvironmentTuning: (patch: Partial<EnvironmentTuning>) => void;
 };
+
+async function loadWaterNormals(): Promise<THREE.Texture> {
+  const loader = new THREE.TextureLoader();
+  try {
+    const t = await loader.loadAsync("/textures/waternormals.jpg");
+    t.wrapS = t.wrapT = THREE.RepeatWrapping;
+    return t;
+  } catch {
+    const t = await loader.loadAsync("https://threejs.org/examples/textures/waternormals.jpg");
+    t.wrapS = t.wrapT = THREE.RepeatWrapping;
+    return t;
+  }
+}
+
+function applyFog(
+  scene: THREE.Scene,
+  mood: (typeof LIGHTING_PRESETS)[LightingPresetId],
+  fogStrength: number,
+): void {
+  if (fogStrength < 0.02 || mood.fogColor == null) {
+    scene.fog = null;
+    return;
+  }
+  const far = THREE.MathUtils.lerp(80_000, mood.fogFar, fogStrength);
+  const near = mood.fogNear;
+  scene.fog = new THREE.Fog(new THREE.Color(mood.fogColor), near, far);
+}
+
+function applyEnvironmentState(
+  tuning: EnvironmentTuning,
+  ctx: {
+    scene: THREE.Scene;
+    sky: Sky;
+    ambient: THREE.AmbientLight;
+    sun: THREE.DirectionalLight;
+    water: THREE.Mesh;
+  },
+): void {
+  const { scene, sky, ambient, sun, water } = ctx;
+  const mood = LIGHTING_PRESETS[tuning.lightingPreset];
+  const dir = sunDirectionFromAngles(tuning.elevationDeg, tuning.azimuthDeg);
+
+  ambient.color.setHex(mood.ambientColor);
+  ambient.intensity = mood.ambientIntensity * tuning.ambientIntensityMul;
+  sun.color.setHex(mood.sunColor);
+  sun.intensity = mood.sunIntensity * tuning.sunIntensityMul;
+  sun.position.copy(dir).multiplyScalar(3200);
+
+  const skyU = sky.material.uniforms as Record<string, { value: number | THREE.Vector3 }>;
+  if (skyU.turbidity) skyU.turbidity.value = tuning.turbidity;
+  if (skyU.rayleigh) skyU.rayleigh.value = tuning.rayleigh;
+  if (skyU.mieCoefficient) skyU.mieCoefficient.value = tuning.mieCoefficient;
+  if (skyU.mieDirectionalG) skyU.mieDirectionalG.value = tuning.mieDirectionalG;
+  if (skyU.sunPosition && skyU.sunPosition.value instanceof THREE.Vector3) {
+    skyU.sunPosition.value.copy(skySunPositionFromDirection(dir));
+  }
+
+  if (tuning.skyEnabled) {
+    scene.background = null;
+  } else {
+    scene.background = new THREE.Color(mood.background);
+  }
+  sky.visible = tuning.skyEnabled;
+
+  applyFog(scene, mood, tuning.fogStrength);
+
+  const wm = water.material as THREE.ShaderMaterial;
+  wm.fog = scene.fog != null;
+  if (wm.uniforms.waterColor) wm.uniforms.waterColor.value.setHex(tuning.waterColorHex);
+  if (wm.uniforms.sunColor) wm.uniforms.sunColor.value.setHex(tuning.waterSunColorHex);
+  if (wm.uniforms.sunDirection) wm.uniforms.sunDirection.value.copy(dir);
+  if (wm.uniforms.distortionScale) wm.uniforms.distortionScale.value = tuning.waterDistortionScale;
+  if (wm.uniforms.alpha) wm.uniforms.alpha.value = tuning.waterAlpha;
+  if (wm.uniforms.size) wm.uniforms.size.value = tuning.waterSize;
+}
 
 /**
  * Halbe Kartenbreite/-tiefe (Wasser + Gitter). An Operational-Area gekoppelt (Debug kompakt).
@@ -178,15 +225,11 @@ export function artilleryFxCullRadiusSq(
   return r * r;
 }
 
-export function createGameScene(): GameSceneBundle {
-  const mood = LIGHTING_PRESETS[ACTIVE_LIGHTING_PRESET];
-  const scene = new THREE.Scene();
-  /* Kein Himmel: Hintergrundfarbe kommt aus dem Lichtpreset. */
-  const backdrop = mood.background;
-  scene.background = new THREE.Color(backdrop);
-  scene.fog =
-    mood.fogColor == null ? null : new THREE.Fog(new THREE.Color(mood.fogColor), mood.fogNear, mood.fogFar);
+export async function createGameScene(): Promise<GameSceneBundle> {
+  const persisted = loadPersistedEnvironmentTuning();
+  let tuning: EnvironmentTuning = { ...DEFAULT_ENVIRONMENT_TUNING, ...persisted };
 
+  const scene = new THREE.Scene();
   const camera = new THREE.PerspectiveCamera(FOLLOW_CAM_FOV, 1, 1, 25_000);
   const lookY = FOLLOW_CAM_LOOK_Y;
   const camT0 = getFollowCameraTuning();
@@ -199,22 +242,46 @@ export function createGameScene(): GameSceneBundle {
   }
   camera.position.set(0, lookY + h, -back0);
   camera.lookAt(0, lookY, 0);
+  configureMainCameraForGameplay(camera);
 
+  const waterNormals = await loadWaterNormals();
   const MAP_HALF = waterMapHalfExtent();
+  const waterGeometry = new THREE.PlaneGeometry(MAP_HALF * 2, MAP_HALF * 2);
 
-  /* Ebene Fläche — keine Vertex-Wellen; Bewegung auf dem Wasser später z. B. per Shader. */
-  const waterGeom = new THREE.PlaneGeometry(MAP_HALF * 2, MAP_HALF * 2, 1, 1);
-  const waterMat = createWaterMaterial();
-  const water = new THREE.Mesh(waterGeom, waterMat);
-  water.rotation.x = -Math.PI / 2; /* Plane XY → XZ-Boden */
+  const initialDir = sunDirectionFromAngles(tuning.elevationDeg, tuning.azimuthDeg);
+  const water = new Water(waterGeometry, {
+    textureWidth: tuning.reflectionTextureSize,
+    textureHeight: tuning.reflectionTextureSize,
+    clipBias: 0,
+    waterNormals,
+    sunDirection: initialDir.clone(),
+    sunColor: tuning.waterSunColorHex,
+    waterColor: tuning.waterColorHex,
+    distortionScale: tuning.waterDistortionScale,
+    alpha: tuning.waterAlpha,
+    fog: false,
+    eye: new THREE.Vector3(0, 400, 0),
+  }) as THREE.Mesh;
+  water.rotation.x = -Math.PI / 2;
   water.receiveShadow = true;
-  setWaterIslands(
-    waterMat,
-    DEFAULT_MAP_ISLANDS.map((is) => ({ x: worldToRenderX(is.x), z: is.z, radius: is.radius })),
-  );
-  scene.add(water);
 
-  /** Grenze des Einsatzgebiets (Task 4) — deckungsgleich mit Server-`AREA_OF_OPERATIONS_HALF_EXTENT`. */
+  const wm = water.material as THREE.ShaderMaterial;
+  if (wm.uniforms.size) wm.uniforms.size.value = tuning.waterSize;
+
+  const foamMat = createWaterFoamOverlayMaterial();
+  const waterFoam = new THREE.Mesh(new THREE.PlaneGeometry(MAP_HALF * 2, MAP_HALF * 2, 1, 1), foamMat);
+  waterFoam.rotation.x = -Math.PI / 2;
+  waterFoam.position.y = 0.08;
+  waterFoam.renderOrder = 2;
+
+  const sky = new Sky();
+  sky.scale.setScalar(450_000);
+  scene.add(sky);
+
+  scene.add(water);
+  scene.add(waterFoam);
+
+  /** Grenze des Einsatzgebiets — deckungsgleich mit Server-`AREA_OF_OPERATIONS_HALF_EXTENT`. */
   const opHalf = AREA_OF_OPERATIONS_HALF_EXTENT;
   const borderY = 0.18;
   const borderPts = [
@@ -234,9 +301,9 @@ export function createGameScene(): GameSceneBundle {
   });
   const opsAreaBorder = new THREE.Line(borderGeom, borderMat);
   opsAreaBorder.renderOrder = OVERLAY_RENDER_ORDER;
+  assignToOverlayLayer(opsAreaBorder);
   scene.add(opsAreaBorder);
 
-  /* Inseln — dieselben Daten wie Server (`DEFAULT_MAP_ISLANDS`). */
   for (const is of DEFAULT_MAP_ISLANDS) {
     const island = createIslandMesh(is.radius);
     island.position.set(worldToRenderX(is.x), 0, is.z);
@@ -244,15 +311,40 @@ export function createGameScene(): GameSceneBundle {
     scene.add(island);
   }
 
-  const ambient = new THREE.AmbientLight(mood.ambientColor, mood.ambientIntensity);
-  scene.add(ambient);
-  const sun = new THREE.DirectionalLight(mood.sunColor, mood.sunIntensity);
-  /* Sonnenstand + Lichtfarbe kommen aus dem aktiven Stimmungs-Preset. */
-  sun.position.set(...mood.sunPos);
+  const ambient = new THREE.AmbientLight(0xffffff, 0.5);
+  const sun = new THREE.DirectionalLight(0xffffff, 1);
   sun.castShadow = true;
+  scene.add(ambient);
   scene.add(sun);
+  scene.add(sun.target);
 
-  return { scene, camera, water, ambient, sun };
+  const islandRenderData = DEFAULT_MAP_ISLANDS.map((is) => ({
+    x: worldToRenderX(is.x),
+    z: is.z,
+    radius: is.radius,
+  }));
+  setWaterIslands(foamMat, islandRenderData);
+
+  applyEnvironmentState(tuning, { scene, sky, ambient, sun, water });
+
+  const getEnvironmentTuning = (): EnvironmentTuning => ({ ...tuning });
+  const applyEnvironmentTuning = (patch: Partial<EnvironmentTuning>): void => {
+    tuning = { ...tuning, ...patch };
+    savePersistedEnvironmentTuning(tuning);
+    applyEnvironmentState(tuning, { scene, sky, ambient, sun, water });
+  };
+
+  return {
+    scene,
+    camera,
+    water,
+    waterFoam,
+    sky,
+    ambient,
+    sun,
+    getEnvironmentTuning,
+    applyEnvironmentTuning,
+  };
 }
 
 function createIslandMesh(radius: number): THREE.Group {
@@ -305,18 +397,22 @@ export function resizeCamera(camera: THREE.PerspectiveCamera, w: number, h: numb
   camera.updateProjectionMatrix();
 }
 
+/** Gedämpfte Gier für Head-up (nur Kameraposition); `null` = noch nicht initialisiert. */
+let headUpSmoothedHeadingRad: number | null = null;
+
 /**
  * Follow-Cam: Blick auf vorderes-Schiff-Drittel (Pivot).
  * **North up:** `up = (0,0,1)`, Kamera liegt südlich (−Z) des Pivots.
- * **Head up:** `up = (0,1,0)`, Kamera liegt hinter dem Bug entlang −Vorwärts (XZ).
+ * **Head up:** `up = (0,1,0)`, Kamera liegt hinter dem Bug entlang −Vorwärts (XZ), optional mit Verzögerung.
  */
 export function updateFollowCamera(
   camera: THREE.PerspectiveCamera,
   shipX: number,
   shipZ: number,
   shipHeading: number,
+  dtMs: number,
 ): void {
-  const { pitchDeg, northUp, heightAbovePivot: h } = getFollowCameraTuning();
+  const { pitchDeg, northUp, heightAbovePivot: h, headUpYawLagSec } = getFollowCameraTuning();
   const fwdX = Math.sin(shipHeading);
   const fwdZ = Math.cos(shipHeading);
   const pivotLocalZ = getShipDebugTuning().cameraPivotLocalZ;
@@ -326,14 +422,28 @@ export function updateFollowCamera(
   const lookY = FOLLOW_CAM_LOOK_Y;
   const back = computeFollowCamBackOffset(h, pitchDeg);
   const rpivotX = worldToRenderX(pivotX);
+  const dtSec = Math.min(Math.max(dtMs / 1000, 0), 0.25);
 
   if (northUp) {
+    headUpSmoothedHeadingRad = shipHeading;
     camera.up.set(0, 0, 1);
     camera.position.set(rpivotX, lookY + h, pivotZ - back);
   } else {
+    if (headUpSmoothedHeadingRad === null) {
+      headUpSmoothedHeadingRad = shipHeading;
+    } else {
+      headUpSmoothedHeadingRad = stepAngleTowardLag(
+        headUpSmoothedHeadingRad,
+        shipHeading,
+        dtSec,
+        headUpYawLagSec,
+      );
+    }
+    const cfwdX = Math.sin(headUpSmoothedHeadingRad);
+    const cfwdZ = Math.cos(headUpSmoothedHeadingRad);
     camera.up.set(0, 1, 0);
-    const camWorldX = pivotX - fwdX * back;
-    const camWorldZ = pivotZ - fwdZ * back;
+    const camWorldX = pivotX - cfwdX * back;
+    const camWorldZ = pivotZ - cfwdZ * back;
     const rcamX = worldToRenderX(camWorldX);
     camera.position.set(rcamX, lookY + h, camWorldZ);
   }

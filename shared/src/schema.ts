@@ -2,7 +2,7 @@ import { ArraySchema, Schema, defineTypes } from "@colyseus/schema";
 import { ARTILLERY_PLAYER_MAX_HP } from "./artillery";
 import { MATCH_DURATION_SEC, MATCH_PHASE_RUNNING } from "./match";
 import { PlayerLifeState } from "./playerLife";
-import { SHIP_CLASS_DESTROYER } from "./shipClass";
+import { SHIP_CLASS_FAC } from "./shipClass";
 
 /**
  * Keine Klassenfeld-Initialisierer (`id = ""`, `playerList = new ArraySchema()`) bei target ES2022:
@@ -49,7 +49,7 @@ export class PlayerState extends Schema {
   declare level: number;
   /** Task 11 — kumulative XP im aktuellen Leben. */
   declare xp: number;
-  /** Task 12 — `fac` | `destroyer` | `cruiser` (Klassenwahl beim Join). */
+  /** Task 12 — `fac` | `destroyer` | `cruiser` (Server setzt aktuell FAC für alle Spieler). */
   declare shipClass: string;
   /** Anzeigename (Lobby), serverbereinigt, max. Länge s. `displayName.ts`. */
   declare displayName: string;
@@ -77,7 +77,7 @@ export class PlayerState extends Schema {
     this.kills = 0;
     this.level = 1;
     this.xp = 0;
-    this.shipClass = SHIP_CLASS_DESTROYER;
+    this.shipClass = SHIP_CLASS_FAC;
     this.displayName = "";
   }
 }

@@ -14,9 +14,12 @@ export function bindRendererResize(
   camera: THREE.PerspectiveCamera,
   renderer: THREE.WebGLRenderer,
 ): void {
-  resizeCamera(camera, window.innerWidth, window.innerHeight);
-  window.addEventListener("resize", () => {
-    resizeCamera(camera, window.innerWidth, window.innerHeight);
-    renderer.setSize(window.innerWidth, window.innerHeight);
-  });
+  const sync = (): void => {
+    const w = window.innerWidth;
+    const h = window.innerHeight;
+    resizeCamera(camera, w, h);
+    renderer.setSize(w, h);
+  };
+  sync();
+  window.addEventListener("resize", sync);
 }

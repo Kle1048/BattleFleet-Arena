@@ -2,6 +2,8 @@
  * Task 10 — Vollbild-Scoreboard nach Match-Ende; „Weiter“ → Lobby (Seiten-Reload).
  */
 
+import { progressionNavalRankEn } from "@battlefleet/shared";
+
 function escapeHtml(s: string): string {
   return s
     .replace(/&/g, "&amp;")
@@ -35,14 +37,14 @@ export function createMatchEndHud(onPlayAgain: () => void): MatchEndHud {
   root.innerHTML = `
     <div class="match-end-panel">
       <h2 class="match-end-title">Match beendet</h2>
-      <p class="match-end-sub">FFA — Punkte nur für Kills (letzter Treffer). „Weiter“: Raum verlassen, dann erneut Klasse und Name wählen.</p>
+      <p class="match-end-sub">FFA — Punkte nur für Kills (letzter Treffer). „Weiter“: Raum verlassen und erneut verbinden.</p>
       <table class="match-end-table" aria-label="Rangliste">
         <thead>
           <tr><th>#</th><th>Spieler</th><th>Klasse</th><th>Level</th><th>Kills</th><th>Punkte</th></tr>
         </thead>
         <tbody class="match-end-tbody"></tbody>
       </table>
-      <button type="button" class="match-end-replay">Weiter — Schiff wählen</button>
+      <button type="button" class="match-end-replay">Weiter</button>
     </div>
   `;
 
@@ -67,7 +69,8 @@ export function createMatchEndHud(onPlayAgain: () => void): MatchEndHud {
             : r.sessionId.length <= 10
               ? r.sessionId
               : `${r.sessionId.slice(0, 4)}…${r.sessionId.slice(-4)}`;
-        tr.innerHTML = `<td>${idx + 1}</td><td>${escapeHtml(label)}</td><td>${escapeHtml(r.shipClass)}</td><td>${r.level}</td><td>${r.kills}</td><td>${r.score}</td>`;
+        const rankEn = escapeHtml(progressionNavalRankEn(r.level));
+        tr.innerHTML = `<td>${idx + 1}</td><td>${escapeHtml(label)}</td><td>${escapeHtml(r.shipClass)}</td><td>${rankEn}</td><td>${r.kills}</td><td>${r.score}</td>`;
         tbody.appendChild(tr);
       });
       root.hidden = false;

@@ -58,8 +58,9 @@ export function refreshArtilleryCullFromLocalPlayer(
 export function updateLocalFollowCameraFromPlayer(
   camera: THREE.PerspectiveCamera,
   me: LocalShipPose,
+  dtMs: number,
 ): void {
-  updateFollowCamera(camera, me.x, me.z, me.headingRad);
+  updateFollowCamera(camera, me.x, me.z, me.headingRad, dtMs);
 }
 
 export function isArtyWorldPointInCullRange(state: CameraCullState, wx: number, wz: number): boolean {

@@ -3,6 +3,8 @@
 Stand: April 2026  
 Ziel: Nach MVP-Deploy die Grafik systematisch ausbauen, ohne Stabilitaet und Wartbarkeit zu verlieren.
 
+**Siehe auch:** [Ship-Model-Module.md](./Ship-Model-Module.md) — glTF-Rümpfe, Mount-GLBs, Koordinaten, Blender-Namenskonventionen.
+
 ---
 
 ## 0) Umsetzungsstatus (Update)
@@ -75,7 +77,7 @@ Diese Hierarchie dient als Leitstruktur fuer Backlog, Sprints und Ownership:
 
 ### B2. Pipeline
 - Source of truth pro Asset (Datei, Owner, Version)
-- Export-Konvention (Format, Scale, Pivot, Naming)
+- Export-Konvention (Format, Scale, Pivot, Naming) — für **Schiffe** (Rumpf + Mount-GLBs, Achsen, Dateizuordnung) ausführlich: **[Ship-Model-Module.md](./Ship-Model-Module.md)**
 - Build-Schritte (Compression, optional texture-atlas)
 
 ### B3. Runtime-Handling
