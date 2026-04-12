@@ -96,3 +96,22 @@ npm run devlog:append
 
 > Shipped: Client: Performance, Insel-GLBs, Karte, Kamera, ESM & visuelle Stabilität 🚢 Wir hacken an einem AI-collab Wettkampfspiel — #Vibejam #indiedev
 
+---
+
+## 2026-04-12 — `f4428f2`
+
+- **Autor:** Klemens1048
+- **Commit:** feat(client,hud,shared): ASuM HUD, Colyseus BattleState, air defense, ship layout fixes
+
+**Details:**
+
+- - Cockpit: BB/STB magazine grid, Comms/Debug docked to cockpit columns, HUD scale
+- - Client: BattleState join schema, frame HUD fields, message log placeholder
+- - Shared: PlayerState ASuM rounds, destroyer hull Y offset, artillery/airDefense updates
+- - Server: BattleRoom sync for ASuM magazine; assorted client FX/runtime tweaks
+- Made-with: Cursor
+
+### Vorschlag Twitter / X (#Vibejam)
+
+> Shipped: feat(client,hud,shared): ASuM HUD, Colyseus BattleState, air defense, ship layout fixes 🚢 Wir hacken an einem AI-collab Wettkampfspiel — #Vibejam #indiedev
+

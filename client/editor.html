@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html lang="de">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>BattleFleet — Schiffs-Workbench (Editor)</title>
+    <link rel="stylesheet" href="/src/editor/editorShell.css" />
+  </head>
+  <body>
+    <header class="ship-workbench-bar" role="banner">
+      <div class="ship-workbench-bar__title">
+        <strong>Schiffs-Workbench</strong>
+        <span class="ship-workbench-bar__muted">— Rumpf, Hitbox, JSON-Patches (ohne Kampf-Server)</span>
+      </div>
+      <div class="ship-workbench-bar__actions">
+        <label class="ship-workbench-bar__label">
+          Klasse
+          <select id="ship-workbench-class" aria-label="Schiffsklasse">
+            <option value="fac">FAC</option>
+            <option value="destroyer">Zerstörer</option>
+            <option value="cruiser">Kreuzer</option>
+          </select>
+        </label>
+        <button type="button" id="ship-workbench-profile-btn" class="ship-workbench-btn ship-workbench-btn--primary">
+          Schiffsprofil (JSON)…
+        </button>
+        <a class="ship-workbench-btn" href="index.html">Zum Spiel</a>
+      </div>
+    </header>
+    <div id="app"></div>
+    <script type="module" src="/src/editor/main.ts"></script>
+  </body>
+</html>

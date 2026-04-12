@@ -18,6 +18,14 @@ function viteBase(): string {
 /** Monorepo-Paket mit Schema + shipMovement (ohne vor build zu bundeln). */
 export default defineConfig({
   base: viteBase(),
+  build: {
+    rollupOptions: {
+      input: {
+        main: path.resolve(root, "index.html"),
+        editor: path.resolve(root, "editor.html"),
+      },
+    },
+  },
   resolve: {
     alias: {
       "@battlefleet/shared": path.resolve(root, "../shared/src"),
