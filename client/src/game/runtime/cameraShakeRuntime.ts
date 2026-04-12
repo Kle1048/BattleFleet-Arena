@@ -27,9 +27,14 @@ export function applyCameraShakeStep(camera: THREE.PerspectiveCamera, dtMs: numb
   active.remainMs -= dtMs;
   const env = active.totalMs > 1 ? Math.max(0, active.remainMs / active.totalMs) : 0;
   const amp = active.amplitude * (0.18 + 0.82 * env);
-  camera.position.x += (Math.random() - 0.5) * 2 * amp;
-  camera.position.y += (Math.random() - 0.5) * 2 * amp * 0.48;
-  camera.position.z += (Math.random() - 0.5) * 2 * amp;
+  /** Deterministische schnelle Oszillation statt Math.random — wirkt weniger wie Rauschen/Flimmern. */
+  const phase = (active.totalMs - active.remainMs) * 0.001;
+  const jx = Math.sin(phase * 71.3) * Math.cos(phase * 23.1);
+  const jy = Math.sin(phase * 59.7 + 2.1);
+  const jz = Math.cos(phase * 67.9 + 0.4);
+  camera.position.x += jx * amp * 0.92;
+  camera.position.y += jy * amp * 0.48;
+  camera.position.z += jz * amp * 0.92;
   if (active.remainMs <= 0) active = null;
 }
 

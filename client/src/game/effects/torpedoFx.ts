@@ -1,5 +1,4 @@
 import * as THREE from "three";
-import type { GameRenderer } from "../runtime/rendererContracts";
 import { worldToRenderX, worldToRenderYaw } from "../runtime/renderCoords";
 import type { FxSystem } from "./fxSystem";
 
@@ -19,16 +18,18 @@ type Entry = {
   parts: THREE.Mesh[];
 };
 
+const syncKeepTorpedoIds = new Set<number>();
+
 /**
  * Mine: statisch liegender Körper mit Hörnern; Trigger-/Impact-Logik serverseitig.
  */
 export function createTorpedoFx(scene: THREE.Scene, fx: FxSystem): {
-  sync: (torpedoes: readonly TorpedoPose[]) => void;
+  sync: (torpedoes: Iterable<TorpedoPose> | null) => void;
   update: (nowMs: number, dtMs: number) => void;
   dispose: () => void;
   flashImpact: (x: number, z: number, kind: string) => void;
   getStats: () => { activeTorpedoes: number };
-} & GameRenderer<TorpedoPose> {
+} {
   const byId = new Map<number, Entry>();
 
   function removeEntry(id: number): void {
@@ -87,16 +88,22 @@ export function createTorpedoFx(scene: THREE.Scene, fx: FxSystem): {
     return e;
   }
 
-  function sync(torpedoes: readonly TorpedoPose[]): void {
-    const keep = new Set<number>();
+  function sync(torpedoes: Iterable<TorpedoPose> | null): void {
+    syncKeepTorpedoIds.clear();
+    if (torpedoes === null) {
+      for (const id of Array.from(byId.keys())) {
+        removeEntry(id);
+      }
+      return;
+    }
     for (const t of torpedoes) {
-      keep.add(t.torpedoId);
+      syncKeepTorpedoIds.add(t.torpedoId);
       const e = ensure(t.torpedoId);
       e.group.position.set(worldToRenderX(t.x), 0, t.z);
       e.group.rotation.y = worldToRenderYaw(t.headingRad);
     }
     for (const id of byId.keys()) {
-      if (!keep.has(id)) {
+      if (!syncKeepTorpedoIds.has(id)) {
         removeEntry(id);
       }
     }

@@ -1,4 +1,8 @@
-import { DEFAULT_MAP_ISLANDS, SHIP_ISLAND_COLLISION_RADIUS } from "@battlefleet/shared";
+import {
+  AREA_OF_OPERATIONS_HALF_EXTENT,
+  DEFAULT_MAP_ISLANDS,
+  SHIP_ISLAND_COLLISION_RADIUS,
+} from "@battlefleet/shared";
 import type { ActionPlanningInput, BotInputCommand } from "./types";
 
 function clamp(v: number, lo: number, hi: number): number {
@@ -135,7 +139,11 @@ export function planAction(input: ActionPlanningInput): BotInputCommand {
     };
   }
   const throttle = 0.4;
-  const rudderInput = applyIslandAvoidance(self, Math.sin(snapshot.timestamp / 900), throttle);
+  const rudderInput = applyIslandAvoidance(
+    self,
+    Math.sin(snapshot.timestamp / AREA_OF_OPERATIONS_HALF_EXTENT),
+    throttle,
+  );
   return {
     throttle,
     rudderInput,

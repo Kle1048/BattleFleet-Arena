@@ -19,7 +19,6 @@ import {
   createInterpolationBuffer,
   sampleInterpolatedPose,
 } from "../network/remoteInterpolation";
-import { toMissilePoses, toTorpedoPoses } from "./networkStateAdapter";
 import {
   type CameraCullState,
   refreshArtilleryCullFromLocalPlayer,
@@ -27,10 +26,11 @@ import {
 } from "./cameraCullRuntime";
 import { applyCameraShakeStep } from "./cameraShakeRuntime";
 import { worldToRenderX, worldToRenderYaw } from "./renderCoords";
-import { getShipDebugTuning } from "./shipDebugTuning";
+import { getShipDebugTuning, getShipDebugTuningGeneration } from "./shipDebugTuning";
 import {
-  radarBlipNormalized,
+  RADAR_ESM_RANGE_WORLD,
   esmLineTowardBlip,
+  radarBlipNormalized,
   type RadarBlipNorm,
 } from "../hud/radarHudMath";
 
@@ -118,8 +118,14 @@ type AudioLike = {
 
 type FxLike = {
   artilleryFx: { update: (now: number, dt: number) => void };
-  missileFx: { sync: (poses: readonly MissileLike[]) => void; update: (now: number, dt: number) => void };
-  torpedoFx: { sync: (poses: readonly TorpedoLike[]) => void; update: (now: number, dt: number) => void };
+  missileFx: {
+    sync: (poses: Iterable<MissileLike> | null) => void;
+    update: (now: number, dt: number) => void;
+  };
+  torpedoFx: {
+    sync: (poses: Iterable<TorpedoLike> | null) => void;
+    update: (now: number, dt: number) => void;
+  };
   shipDamageSmokeTick: (
     worldX: number,
     worldZ: number,
@@ -169,7 +175,6 @@ export function runFrameRuntimeStep<
   playerList: ArraySchema<TPlayer>;
   visuals: Map<string, ShipVisual>;
   remoteInterp: Map<string, ReturnType<typeof createInterpolationBuffer>>;
-  getPlayer: (list: ArraySchema<TPlayer>, sessionId: string) => TPlayer | undefined;
   inputSample: InputSample;
   matchEnded: boolean;
   matchRemainingSecRaw: number;
@@ -196,7 +201,6 @@ export function runFrameRuntimeStep<
     playerList,
     visuals,
     remoteInterp,
-    getPlayer,
     inputSample,
     matchEnded,
     matchRemainingSecRaw,
@@ -238,7 +242,12 @@ export function runFrameRuntimeStep<
     }
   }
 
-  const me = getPlayer(playerList, mySessionId);
+  const playersById = new Map<string, TPlayer>();
+  for (const p of playerList) {
+    playersById.set(p.id, p);
+  }
+
+  const me = playersById.get(mySessionId);
   if (me) {
     const oobSec = me.oobCountdownSec ?? 0;
     if (oobSec > 0 && state.lastOobCountdown <= 0 && !matchEnded) {
@@ -247,11 +256,14 @@ export function runFrameRuntimeStep<
     state.lastOobCountdown = oobSec;
   }
 
+  const tuningGen = getShipDebugTuningGeneration();
   for (const [sessionId, vis] of visuals) {
-    const p = getPlayer(playerList, sessionId);
+    const p = playersById.get(sessionId);
     if (!p) continue;
-    // Live-Tuning aus dem Debug-Panel auf das bereits erzeugte 3D-Objekt anwenden.
-    applyShipVisualRuntimeTuning(vis);
+    if (vis.debugTuningGenApplied !== tuningGen) {
+      applyShipVisualRuntimeTuning(vis);
+      vis.debugTuningGenApplied = tuningGen;
+    }
     const tuning = getShipDebugTuning();
 
     const wreckSinkY = p.lifeState === PlayerLifeState.AwaitingRespawn ? -4.2 : 0;
@@ -361,8 +373,16 @@ export function runFrameRuntimeStep<
           const b = radarBlipNormalized(p.x, p.z, p.headingRad, other.x, other.z);
           if (b && ownRadarActive) radarBlips.push(b);
           const emitterOn = other.radarActive !== false;
-          if (emitterOn && b) {
-            esmLines.push(esmLineTowardBlip(b));
+          if (emitterOn) {
+            const bEsm = radarBlipNormalized(
+              p.x,
+              p.z,
+              p.headingRad,
+              other.x,
+              other.z,
+              RADAR_ESM_RANGE_WORLD,
+            );
+            if (bEsm) esmLines.push(esmLineTowardBlip(bEsm));
           }
         }
       }
@@ -402,17 +422,8 @@ export function runFrameRuntimeStep<
 
   refreshArtilleryCullFromLocalPlayer(cameraCullState, me, window.innerWidth, window.innerHeight);
 
-  if (missileList) {
-    fx.missileFx.sync(toMissilePoses(missileList));
-  } else {
-    fx.missileFx.sync([]);
-  }
-
-  if (torpedoList) {
-    fx.torpedoFx.sync(toTorpedoPoses(torpedoList));
-  } else {
-    fx.torpedoFx.sync([]);
-  }
+  fx.missileFx.sync(missileList);
+  fx.torpedoFx.sync(torpedoList);
 
   fx.missileFx.update(now, dtMs);
   fx.torpedoFx.update(now, dtMs);

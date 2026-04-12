@@ -199,9 +199,10 @@ void main() {
   float depthMix = clamp(uWaterDepthBase + n * uWaterDepthAmp, 0.0, 1.0);
   vec3 col = mix(uDeepColor, uShallowColor, depthMix);
 
-  // Obere Schicht: kleiner skaliert und deutlich langsamer animiert.
+  // Obere Schicht: weichere Schwelle (schmal war 0.88–0.99) — weniger „Glitzer“ pro Frame.
   float ridge = abs(sin((n * 6.1 + uTime * uWaterFlowTime) * 3.14159));
-  float flowMask = smoothstep(0.88, 0.99, ridge);
+  ridge = mix(ridge, ridge * ridge, 0.35);
+  float flowMask = smoothstep(0.74, 0.995, ridge);
   col = mix(col, uFoamColor, flowMask * uWaterFlowMix);
 
   // Küsten-Schaum: weiches, animiertes Band um Inselradius.
@@ -336,7 +337,8 @@ void main() {
   float depthMix = clamp(uWaterDepthBase + n * uWaterDepthAmp, 0.0, 1.0);
   vec3 baseCol = mix(uDeepColor, uShallowColor, depthMix);
   float ridge = abs(sin((n * 6.1 + uTime * uWaterFlowTime) * 3.14159));
-  float flowMask = smoothstep(0.88, 0.99, ridge);
+  ridge = mix(ridge, ridge * ridge, 0.35);
+  float flowMask = smoothstep(0.74, 0.995, ridge);
 
   float shoreFoam = 0.0;
   for (int i = 0; i < ${MAX_WATER_ISLANDS}; i++) {
@@ -394,7 +396,8 @@ void main() {
   vec3 wakeCoreRgb = mix(uShallowColor, uFoamColor, clamp(wakeSpeedAll * 1.15, 0.0, 1.0));
   vec3 rgb = mix(uFoamColor, wakeCoreRgb, step(0.02, wakeCoreAll * uWaterWakeCoreMix));
   a += (depthMix + baseCol.r) * 0.0;
-  if (a < 0.004) discard;
+  a = smoothstep(0.0, 0.028, a) * a;
+  if (a < 0.003) discard;
   gl_FragColor = vec4(rgb, a);
 }
 `;
@@ -429,7 +432,7 @@ export const DEFAULT_WATER_SHADER_TUNING: Readonly<WaterShaderTuning> = {
   wakeCoreMix: 0.44,
   wakeOuterMix: 0.1,
   wakeOuterWidthMul: 0.95,
-  wakeOuterNoiseMix: 0.28,
+  wakeOuterNoiseMix: 0.2,
   wakeSegDecay: 0.16,
 };
 

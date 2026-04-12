@@ -3,8 +3,8 @@
  * Gültig wenn |x| ≤ half und |z| ≤ half.
  */
 
-/** Halbe Kantenlänge: Weltkoordinaten [-half, +half] auf X und Z. (Debug: kleiner als Ziel-MVP.) */
-export const AREA_OF_OPERATIONS_HALF_EXTENT = 900;
+/** Halbe Kantenlänge: Weltkoordinaten [-half, +half] auf X und Z. */
+export const AREA_OF_OPERATIONS_HALF_EXTENT = 1800;
 
 /** Zeit außerhalb bis „Zerstörung“ (Raum verlassen durch Server). */
 export const OOB_DESTROY_AFTER_MS = 10_000;

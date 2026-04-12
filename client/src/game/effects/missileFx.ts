@@ -1,6 +1,5 @@
 import * as THREE from "three";
 import { ASWM_SPEED } from "@battlefleet/shared";
-import type { GameRenderer } from "../runtime/rendererContracts";
 import { createMissileBodyMaterial } from "../runtime/materialLibrary";
 import { worldToRenderX, worldToRenderYaw } from "../runtime/renderCoords";
 import type { FxSystem } from "./fxSystem";
@@ -35,13 +34,15 @@ type Entry = {
 /**
  * ASuM: Körper aus repliziertem State; Einschlag über gemeinsames Partikel-FX.
  */
+const syncKeepIds = new Set<number>();
+
 export function createMissileFx(scene: THREE.Scene, fx: FxSystem): {
-  sync: (missiles: readonly MissilePose[]) => void;
+  sync: (missiles: Iterable<MissilePose> | null) => void;
   update: (nowMs: number, dtMs: number) => void;
   dispose: () => void;
   flashImpact: (x: number, z: number, kind: string) => void;
   getStats: () => { activeMissiles: number };
-} & GameRenderer<MissilePose> {
+} {
   const byId = new Map<number, Entry>();
 
   function removeMissileEntry(id: number): void {
@@ -81,11 +82,17 @@ export function createMissileFx(scene: THREE.Scene, fx: FxSystem): {
     return created;
   }
 
-  function sync(missiles: readonly MissilePose[]): void {
-    const keep = new Set<number>();
+  function sync(missiles: Iterable<MissilePose> | null): void {
+    syncKeepIds.clear();
     const now = performance.now();
+    if (missiles === null) {
+      for (const id of Array.from(byId.keys())) {
+        removeMissileEntry(id);
+      }
+      return;
+    }
     for (const m of missiles) {
-      keep.add(m.missileId);
+      syncKeepIds.add(m.missileId);
       const isNew = !byId.has(m.missileId);
       const e = ensure(m.missileId);
 
@@ -119,7 +126,7 @@ export function createMissileFx(scene: THREE.Scene, fx: FxSystem): {
       }
     }
     for (const id of byId.keys()) {
-      if (!keep.has(id)) {
+      if (!syncKeepIds.has(id)) {
         removeMissileEntry(id);
       }
     }

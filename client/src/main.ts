@@ -61,11 +61,6 @@ import { createEnvironmentDebugPanel } from "./game/runtime/environmentDebugPane
 import { installReflectionCameraLayerMask } from "./game/runtime/renderOverlayLayers";
 import { getShipDebugTuning } from "./game/runtime/shipDebugTuning";
 import {
-  createInterpolationBuffer,
-  DEFAULT_INTERPOLATION_DELAY_MS,
-  sampleInterpolatedPose,
-} from "./game/network/remoteInterpolation";
-import {
   createCameraCullRuntimeState,
   isArtyWorldPointInCullRange,
   shouldRenderArtyFiredClientVfx,
@@ -200,7 +195,7 @@ async function bootstrap(): Promise<void> {
   window.addEventListener("keydown", onBotToggleKey);
   const frameRuntimeState = createFrameRuntimeState(1);
   const cameraCullState = createCameraCullRuntimeState();
-  const wakeTrailsBySession = new Map<string, ReturnType<typeof createWakeTrailState>>();
+  let localWakeTrail: ReturnType<typeof createWakeTrailState> | null = null;
 
   registerNetworkHandlers({
     room,
@@ -370,7 +365,6 @@ async function bootstrap(): Promise<void> {
       playerList,
       visuals,
       remoteInterp,
-      getPlayer,
       inputSample: samp,
       matchEnded,
       matchRemainingSecRaw,
@@ -417,66 +411,34 @@ async function bootstrap(): Promise<void> {
 
     fxSystem.update(frameTimeMs);
 
-    const presentIds = new Set<string>();
     const wakeUpload: { trail: ReturnType<typeof createWakeTrailState>; strength: number }[] = [];
     const minDistWakeSq = getWakeSampleMinDistSq();
+    const meWake = getPlayer(playerList, mySessionId);
 
-    for (const p of playerList) {
-      presentIds.add(p.id);
-      if (p.lifeState === PlayerLifeState.AwaitingRespawn || matchEnded) {
-        wakeTrailsBySession.delete(p.id);
-        continue;
-      }
-      let trail = wakeTrailsBySession.get(p.id);
-      if (!trail) {
-        trail = createWakeTrailState();
-        wakeTrailsBySession.set(p.id, trail);
-      }
-
-      let wx: number;
-      let wz: number;
-      let h: number;
-      if (p.id === mySessionId) {
-        wx = p.x;
-        wz = p.z;
-        h = p.headingRad;
-      } else {
-        let buf = remoteInterp.get(p.id);
-        if (!buf) {
-          buf = createInterpolationBuffer(p, now);
-          remoteInterp.set(p.id, buf);
-        }
-        const r = sampleInterpolatedPose(buf, now, DEFAULT_INTERPOLATION_DELAY_MS);
-        wx = r.x;
-        wz = r.z;
-        h = r.headingRad;
-      }
-
+    if (!meWake || matchEnded || meWake.lifeState === PlayerLifeState.AwaitingRespawn) {
+      localWakeTrail = null;
+    } else {
+      if (!localWakeTrail) localWakeTrail = createWakeTrailState();
+      const p = meWake;
+      const wx = p.x;
+      const wz = p.z;
+      const h = p.headingRad;
       const profWake = getShipClassProfile(p.shipClass);
       const refSp = cfg.maxSpeed * profWake.movementSpeedMul;
       const speedRatio = refSp > 0 ? Math.min(1, Math.max(0, p.speed / refSp)) : 0;
       const moving = speedRatio > 0.06 ? 1 : 0;
       const strength = speedRatio * speedRatio * moving;
-
       const sinH = Math.sin(h);
       const cosH = Math.cos(h);
       const sz = getShipDebugTuning().wakeSpawnLocalZ;
       const sternRx = worldToRenderX(wx) - sz * sinH;
       const sternZ = wz + sz * cosH;
-      pushWakeTrailSample(trail, sternRx, sternZ, minDistWakeSq);
-
-      if (trail.length >= 2 && strength >= 0.02) {
-        wakeUpload.push({ trail, strength });
+      pushWakeTrailSample(localWakeTrail, sternRx, sternZ, minDistWakeSq);
+      if (localWakeTrail.length >= 2 && strength >= 0.02) {
+        wakeUpload.push({ trail: localWakeTrail, strength });
       }
     }
 
-    for (const id of [...wakeTrailsBySession.keys()]) {
-      if (!presentIds.has(id)) {
-        wakeTrailsBySession.delete(id);
-      }
-    }
-
-    wakeUpload.sort((a, b) => b.strength - a.strength);
     updateWaterShipWakes(foamMat, wakeUpload.slice(0, MAX_SHIP_WAKES));
 
     updateGameWaterAnimations(water, foamMat, now);

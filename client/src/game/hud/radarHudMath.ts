@@ -2,8 +2,11 @@
  * Plan-Position relativ zum eigenen Bug: rechts = Steuerbord, vorne = Bug (SVG: y nach unten → -forward).
  */
 
-/** Anzeige-Radius in Welt-Einheiten (Server XZ). */
+/** Anzeige-Radius in Welt-Einheiten (Server XZ) — aktives Suchrad / Blips. */
 export const RADAR_RANGE_WORLD = 600;
+
+/** Passive ESM: Peiler mit eingeschaltetem Gegner-Radar bis zu dieser Distanz (2× Suchrad-Reichweite). */
+export const RADAR_ESM_RANGE_WORLD = RADAR_RANGE_WORLD * 2;
 
 export type RadarBlipNorm = { nx: number; ny: number };
 

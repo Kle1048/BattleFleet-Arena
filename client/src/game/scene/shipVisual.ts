@@ -159,6 +159,8 @@ export type ShipVisual = {
    * Cache für `setShipVisualLifeState`: vermeidet pro Frame volle Material-Neusetzung bei unverändertem Zustand.
    */
   _lastLifeVisualKey?: string;
+  /** Zuletzt angewendete `getShipDebugTuningGeneration()` — vermeidet redundantes `applyShipVisualRuntimeTuning`. */
+  debugTuningGenApplied?: number;
 };
 
 function hullAliveMaterial(isLocal: boolean): THREE.MeshStandardMaterial {

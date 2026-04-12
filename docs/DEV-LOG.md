@@ -73,3 +73,26 @@ npm run devlog:append
 
 > ⚓ Snapshot: 3D hull GLBs, class visuals, tuning & perf (bad FPS) — BattleFleet Arena nimmt Fahrt auf für #Vibejam: KI-unterstütztes Naval-RTS. Wer baut noch mit am Jam? #gamedev #AIgames
 
+---
+
+## 2026-04-12 — `589a951`
+
+- **Autor:** Klemens1048
+- **Commit:** Client: Performance, Insel-GLBs, Karte, Kamera, ESM & visuelle Stabilität
+
+**Details:**
+
+- - Frame-Runtime: Spieler-Map, kein Pose-Alloc bei Raketen/Minen, wiederverwendete Sets, Tuning-Cache für Schiffsvisuals
+- - Wakes nur lokaler Spieler; HUD-Radar-Diffs; Bot-Debug billiger wenn aus
+- - Wasser/Schatten/Kamera-Shake gegen Flimmern; PCF-Soft, höhere Shadow-Map
+- - Inseln: drei GLB-Modelle (Map-Details), Shallow-Zwillings-Rotation
+- - Einsatzgebiet & Inseln ~2x (AREA_OF_OPERATIONS_HALF_EXTENT 1800)
+- - Follow-Cam-Defaults: 35°, 200 m, Head-up, 0,2 s Gier-Verzögerung
+- - ESM-Reichweite 2× Suchrad; RADAR_ESM_RANGE_WORLD
+- - Tests: cockpitRadarKeys, radarHudMath ESM
+- Made-with: Cursor
+
+### Vorschlag Twitter / X (#Vibejam)
+
+> Shipped: Client: Performance, Insel-GLBs, Karte, Kamera, ESM & visuelle Stabilität 🚢 Wir hacken an einem AI-collab Wettkampfspiel — #Vibejam #indiedev
+

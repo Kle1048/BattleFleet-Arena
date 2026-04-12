@@ -3,6 +3,10 @@
  */
 
 import { RADAR_RANGE_WORLD, type RadarBlipNorm } from "./radarHudMath";
+import { cockpitRadarBlipsKey, cockpitRadarEsmKey, type CockpitEsmLine } from "./cockpitRadarKeys";
+
+export type { CockpitEsmLine };
+export { cockpitRadarBlipsKey, cockpitRadarEsmKey };
 
 export type CockpitHudUpdate = {
   speed: number;
@@ -44,7 +48,7 @@ export type CockpitHudUpdate = {
   /** Eigenes Suchrad (repliziert) — steuert Sichtbarkeit für fremde ESM. */
   ownRadarActive: boolean;
   /** Passive ESM: Linien zum Peiler (Gegner mit aktivem Radar in Reichweite). */
-  esmLines: { x1: number; y1: number; x2: number; y2: number }[];
+  esmLines: CockpitEsmLine[];
 };
 
 const BASE_URL = import.meta.env.BASE_URL;
@@ -209,6 +213,9 @@ export function createCockpitHud(): { update: (u: CockpitHudUpdate) => void } {
 
   const svgNs = "http://www.w3.org/2000/svg";
 
+  let lastRadarBlipsKey = "";
+  let lastEsmKey = "";
+
   function drawEsmLines(lines: { x1: number; y1: number; x2: number; y2: number }[]): void {
     radarEsmG.replaceChildren();
     for (const ln of lines) {
@@ -371,10 +378,20 @@ export function createCockpitHud(): { update: (u: CockpitHudUpdate) => void } {
 
       if (radarVisible) {
         radarRoot.classList.remove("cockpit-radar-hidden");
-        drawEsmLines(esmLines);
-        drawRadarBlips(radarBlips);
+        const bk = cockpitRadarBlipsKey(radarBlips);
+        const ek = cockpitRadarEsmKey(esmLines);
+        if (ek !== lastEsmKey) {
+          lastEsmKey = ek;
+          drawEsmLines(esmLines);
+        }
+        if (bk !== lastRadarBlipsKey) {
+          lastRadarBlipsKey = bk;
+          drawRadarBlips(radarBlips);
+        }
       } else {
         radarRoot.classList.add("cockpit-radar-hidden");
+        lastRadarBlipsKey = "";
+        lastEsmKey = "";
         radarEsmG.replaceChildren();
         radarBlipsG.replaceChildren();
       }

@@ -30,6 +30,13 @@ let currentShipDebugTuning: ShipDebugTuning = {
   ...DEFAULT_SHIP_DEBUG_TUNING,
 };
 
+/** Erhöht sich bei jedem `applyShipDebugTuning` — für bedingtes Neu-Anwenden auf Meshes. */
+let shipDebugTuningGeneration = 0;
+
+export function getShipDebugTuningGeneration(): number {
+  return shipDebugTuningGeneration;
+}
+
 /** Debug-Slider „GLB Rumpf Y“ — großer Bereich für falsch ausgerichtete GLBs. */
 export const GLTF_HULL_Y_OFFSET_MIN = -6000;
 export const GLTF_HULL_Y_OFFSET_MAX = 4000;
@@ -105,5 +112,6 @@ export function applyShipDebugTuning(patch: Partial<ShipDebugTuning>): Readonly<
         : currentShipDebugTuning.showWeaponArc,
   };
   currentShipDebugTuning = next;
+  shipDebugTuningGeneration += 1;
   return currentShipDebugTuning;
 }

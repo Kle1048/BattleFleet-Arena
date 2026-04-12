@@ -1,5 +1,10 @@
 import assert from "node:assert/strict";
-import { RADAR_RANGE_WORLD, esmLineTowardBlip, radarBlipNormalized } from "./radarHudMath";
+import {
+  RADAR_ESM_RANGE_WORLD,
+  RADAR_RANGE_WORLD,
+  esmLineTowardBlip,
+  radarBlipNormalized,
+} from "./radarHudMath";
 
 {
   // Kurs 0: Bug +Z — Ziel direkt voraus
@@ -21,6 +26,14 @@ import { RADAR_RANGE_WORLD, esmLineTowardBlip, radarBlipNormalized } from "./rad
   // Außerhalb Reichweite
   const c = radarBlipNormalized(0, 0, 0, 0, RADAR_RANGE_WORLD * 2, RADAR_RANGE_WORLD);
   assert.equal(c, null);
+}
+
+{
+  // ESM-Reichweite = 2× Suchrad: zwischen 600 m und 1200 m nur mit ESM-Range
+  const at900 = RADAR_RANGE_WORLD * 1.5;
+  assert.equal(radarBlipNormalized(0, 0, 0, 0, at900, RADAR_RANGE_WORLD), null);
+  assert.ok(radarBlipNormalized(0, 0, 0, 0, at900, RADAR_ESM_RANGE_WORLD));
+  assert.equal(RADAR_ESM_RANGE_WORLD, RADAR_RANGE_WORLD * 2);
 }
 
 {

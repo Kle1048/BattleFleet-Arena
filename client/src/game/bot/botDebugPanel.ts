@@ -48,10 +48,22 @@ export function createBotDebugPanel(): {
   applyExpandedState();
   document.body.appendChild(wrap);
 
+  let lastRenderedEnabled: boolean | null = null;
+
   const fmt = (n: number) => n.toFixed(2);
   const yn = (b: boolean) => (b ? "ja" : "nein");
   return {
     render(state): void {
+      if (!state.enabled) {
+        title.textContent = "Bot INAKTIV (Taste B)";
+        if (lastRenderedEnabled !== false) {
+          content.innerHTML =
+            '<div style="opacity:0.88;">Bot ist aus — <b>B</b> zum Aktivieren.</div>';
+          lastRenderedEnabled = false;
+        }
+        return;
+      }
+      lastRenderedEnabled = true;
       const c = state.context;
       const status = state.enabled ? "AKTIV" : "INAKTIV";
       title.textContent = `Bot ${status} (Taste B)`;

@@ -4,7 +4,15 @@ import { createBotDecisionLog } from "./decisionLog";
 import { createBotMemoryStore } from "./memoryStore";
 import { orient } from "./orientationSystem";
 import { observeWorld } from "./perceptionSystem";
-import type { BotInputCommand, BotIntent, BotVisibleMissile, BotVisiblePlayer, BotVisibleTorpedo, TacticalContext } from "./types";
+import type {
+  BotInputCommand,
+  BotIntent,
+  BotLogEntry,
+  BotVisibleMissile,
+  BotVisiblePlayer,
+  BotVisibleTorpedo,
+  TacticalContext,
+} from "./types";
 
 export function createBotController(): {
   enable: () => void;
@@ -24,7 +32,7 @@ export function createBotController(): {
     context: TacticalContext | null;
     lastInputs: BotInputCommand[];
     recentIntents: { at: number; intent: BotIntent }[];
-    logs: { timestamp: number; phase: "OBSERVE" | "ORIENT" | "DECIDE" | "ACT"; message: string; data?: Record<string, unknown> }[];
+    logs: BotLogEntry[];
   };
 } {
   let enabled = false;
@@ -89,8 +97,19 @@ export function createBotController(): {
       return latestCommand;
     },
     getDebugState() {
+      if (!enabled) {
+        return {
+          enabled: false,
+          intent: null,
+          targetId: null,
+          context: null,
+          lastInputs: [] as BotInputCommand[],
+          recentIntents: [] as { at: number; intent: BotIntent }[],
+          logs: [] as BotLogEntry[],
+        };
+      }
       return {
-        enabled,
+        enabled: true,
         intent: cachedIntent,
         targetId: cachedTargetId,
         context: cachedContext,

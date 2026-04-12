@@ -12,10 +12,11 @@ import { DEFAULT_MAP_ISLANDS } from "./islands";
   assert.equal(k, "water");
 }
 
-// Insel i3: x: 120, z: 480, r: 72 — knapp außerhalb Uferzone
+// Insel i3 — knapp außerhalb Uferzone (siehe DEFAULT_MAP_ISLANDS)
 {
-  const x = 120;
-  const z = 480 + 72 + 30;
+  const i3 = DEFAULT_MAP_ISLANDS[2]!;
+  const x = i3.x;
+  const z = i3.z + i3.radius + 30;
   const k = classifyArtilleryImpactVisual(x, z, false, DEFAULT_MAP_ISLANDS);
   assert.equal(k, "island");
 }

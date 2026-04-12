@@ -23,6 +23,7 @@ import {
 import { assignToOverlayLayer, configureMainCameraForGameplay } from "../runtime/renderOverlayLayers";
 import { skySunPositionFromDirection, sunDirectionFromAngles } from "./environmentSun";
 import { LIGHTING_PRESETS, type LightingPresetId } from "./lightingPresets";
+import { createIslandGltfInstance, preloadIslandGltfTemplates } from "./islandGltfVisuals";
 
 export type { LightingPresetId } from "./lightingPresets";
 
@@ -154,9 +155,9 @@ export const FOLLOW_CAM_FOV = 52;
 export const FOLLOW_CAM_LOOK_Y = 1.2;
 
 /** Vertikaler Abstand Augpunkt → Blickpunkt entlang +Y (Referenz ≈ Default `heightAbovePivot`). */
-export const FOLLOW_CAM_TOP_DOWN_HEIGHT = 800;
+export const FOLLOW_CAM_TOP_DOWN_HEIGHT = 200;
 /** Standard-Kippwinkel (gleich Default in `followCameraTuning`). */
-export const FOLLOW_CAM_PITCH_DEG = 90;
+export const FOLLOW_CAM_PITCH_DEG = 35;
 
 /**
  * Perspektive: sichtbare Bodenfläche ≠ achsenparalleles Rechteck — Culling-Rechteck vergrößern.
@@ -304,16 +305,23 @@ export async function createGameScene(): Promise<GameSceneBundle> {
   assignToOverlayLayer(opsAreaBorder);
   scene.add(opsAreaBorder);
 
+  await preloadIslandGltfTemplates();
+  let islandIdx = 0;
   for (const is of DEFAULT_MAP_ISLANDS) {
-    const island = createIslandMesh(is.radius);
+    const glbIsland = createIslandGltfInstance(islandIdx, is.radius);
+    const island = glbIsland ?? createIslandMesh(is.radius);
     island.position.set(worldToRenderX(is.x), 0, is.z);
     island.name = `island_${is.id}`;
     scene.add(island);
+    islandIdx += 1;
   }
 
   const ambient = new THREE.AmbientLight(0xffffff, 0.5);
   const sun = new THREE.DirectionalLight(0xffffff, 1);
   sun.castShadow = true;
+  sun.shadow.mapSize.setScalar(2048);
+  sun.shadow.bias = -0.00028;
+  sun.shadow.normalBias = 0.038;
   scene.add(ambient);
   scene.add(sun);
   scene.add(sun.target);

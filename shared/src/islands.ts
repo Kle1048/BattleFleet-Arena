@@ -25,11 +25,11 @@ export const SHIP_ISLAND_COLLISION_RADIUS = 26;
  * Liegen innerhalb von |x|,|z| < AREA_OF_OPERATIONS_HALF_EXTENT − Rand (bei aktuellem Debug-Half passend).
  */
 export const DEFAULT_MAP_ISLANDS: IslandCircle[] = [
-  { id: "i1", x: -420, z: 180, radius: 95 },
-  { id: "i2", x: 380, z: -320, radius: 140 },
-  { id: "i3", x: 120, z: 480, radius: 72 },
-  { id: "i4", x: -260, z: -500, radius: 110 },
-  { id: "i5", x: 500, z: 340, radius: 64 },
+  { id: "i1", x: -840, z: 360, radius: 190 },
+  { id: "i2", x: 760, z: -640, radius: 280 },
+  { id: "i3", x: 240, z: 960, radius: 144 },
+  { id: "i4", x: -520, z: -1000, radius: 220 },
+  { id: "i5", x: 1000, z: 680, radius: 128 },
 ];
 
 const RESOLVE_ITERATIONS = 4;
