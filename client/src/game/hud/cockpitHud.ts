@@ -1,9 +1,11 @@
 /**
- * Brücken-Overlay: Kurs als 000°…359° (0° = Nord), Fahrt, Waffen-Cooldowns, Match/Punkte.
+ * HUD: **Brücke** (links, Navigation) und **OPZ** (rechts, Radar + Waffen + HP).
  */
 
+import { getShipHullProfileByClass, type ShipClassId } from "@battlefleet/shared";
 import { RADAR_RANGE_WORLD, type RadarBlipNorm } from "./radarHudMath";
 import { cockpitRadarBlipsKey, cockpitRadarEsmKey, type CockpitEsmLine } from "./cockpitRadarKeys";
+import { renderWeaponSchematic } from "./weaponSchematicMini";
 
 export type { CockpitEsmLine };
 export { cockpitRadarBlipsKey, cockpitRadarEsmKey };
@@ -14,44 +16,39 @@ export type CockpitHudUpdate = {
   throttle: number;
   rudder: number;
   headingRad: number;
+  /** Welt XZ — Kompass: Peilung Kartenmitte (0,0). */
+  worldX: number;
+  worldZ: number;
+  /** Hauptgeschütz-Richtung relativ Bug (Train). */
+  mainMountTrainRad: number;
+  /** Magazin-Kapazität / Seite (Profil). */
+  aswmMagPortCap: number;
+  aswmMagStarboardCap: number;
+  /** Server: verbleibende Runden. */
+  aswmRemainingPort: number;
+  aswmRemainingStarboard: number;
   hp: number;
   maxHp: number;
   primaryCooldownSec: number;
-  /** ASuM / Sekundär — Cooldown repliziert (Task 7). */
   secondaryCooldownSec: number;
-  /** Torpedo — Cooldown repliziert (Task 8). */
   torpedoCooldownSec: number;
-  /** Aktive Minen des lokalen Spielers. */
   mineCount: number;
-  /** Maximal erlaubte aktive Minen des lokalen Spielers. */
   mineMaxCount: number;
-  /** Sekunden bis Respawn (nur `awaiting_respawn`, repliziert). */
   respawnCountdownSec: number;
-  /** Verbleibender Spawn-Schutz in Sekunden (`spawn_protected`). */
   spawnProtectionSec: number;
-  /** Task 10 — verbleibende Matchzeit (Sekunden). */
   matchRemainingSec: number;
-  /** Task 10 — eigene Punkte / Kills. */
   score: number;
   kills: number;
-  /** Task 11 — English naval rank label for current level (1…10). */
   rankLabelEn: string;
-  /** Task 11 — XP bis nächstes Level, z. B. `45 / 130` oder `MAX`. */
   xpLine: string;
-  /** Task 12 — Klassen-Kurzname (HUD). */
   shipClassLabel: string;
-  /** Lobby-Anzeigename (oder gekürzte Session-ID). */
   playerDisplayName: string;
-  /** Kleines Plan-Radar: Kontakte relativ zum Bug, normiert ±1. */
+  shipClassId: ShipClassId;
   radarBlips: RadarBlipNorm[];
   radarVisible: boolean;
-  /** Eigenes Suchrad (repliziert) — steuert Sichtbarkeit für fremde ESM. */
   ownRadarActive: boolean;
-  /** Passive ESM: Linien zum Peiler (Gegner mit aktivem Radar in Reichweite). */
   esmLines: CockpitEsmLine[];
 };
-
-const BASE_URL = import.meta.env.BASE_URL;
 
 function degFromHeading(headingRad: number): number {
   const d = (headingRad * 180) / Math.PI;
@@ -65,123 +62,162 @@ function formatCourse(d: number): string {
 const RADAR_BLIP_SCALE = 46;
 
 export function createCockpitHud(): { update: (u: CockpitHudUpdate) => void } {
-  const wrap = document.createElement("div");
-  wrap.className = "cockpit";
-  wrap.setAttribute("aria-label", "Fahrt-Anzeige");
   const radarRangeLabel = `${RADAR_RANGE_WORLD}m`;
+  const wrap = document.createElement("div");
+  wrap.className = "cockpit-hud-root";
+  wrap.setAttribute("aria-label", "Brücke und OPZ");
   wrap.innerHTML = `
-    <div class="cockpit-panel">
-      <div class="cockpit-radar" aria-hidden="true">
-        <div class="cockpit-radar-head">
-          <span class="cockpit-radar-title">TACTICAL</span>
-          <span class="cockpit-own-radar-status" title="R = Suchrad an/aus">RADAR ON</span>
+    <div class="cockpit-bridge" aria-label="Brücke">
+      <div class="cockpit-panel cockpit-panel--bridge">
+        <div class="cockpit-panel-head cockpit-panel-head--bridge">
+          <span class="cockpit-panel-title">BRIDGE</span>
         </div>
-        <div class="cockpit-radar-bezel">
-          <svg class="cockpit-radar-svg" viewBox="-52 -52 104 104">
+        <div class="cockpit-compass-wrap" aria-hidden="true">
+          <svg class="cockpit-compass-svg" viewBox="-52 -52 104 104">
             <defs>
-              <clipPath id="cockpitRadarClip"><circle cx="0" cy="0" r="47.5" /></clipPath>
-              <radialGradient id="cockpitRadarGlow" cx="50%" cy="50%" r="50%">
-                <stop offset="0%" stop-color="rgba(0,255,120,0.12)" />
-                <stop offset="70%" stop-color="rgba(0,40,20,0.35)" />
-                <stop offset="100%" stop-color="rgba(0,12,6,0.85)" />
+              <radialGradient id="cockpitCompassFace" cx="50%" cy="50%" r="50%">
+                <stop offset="0%" stop-color="rgba(30,55,90,0.5)" />
+                <stop offset="100%" stop-color="rgba(6,14,28,0.92)" />
               </radialGradient>
             </defs>
-            <circle cx="0" cy="0" r="50" fill="url(#cockpitRadarGlow)" />
-            <circle class="cockpit-radar-ring-outer" cx="0" cy="0" r="48" fill="none" />
-            <circle class="cockpit-radar-ring-mid" cx="0" cy="0" r="24" fill="none" />
-            <circle class="cockpit-radar-ring-inner" cx="0" cy="0" r="8" fill="none" />
-            <line class="cockpit-radar-axis" x1="0" y1="-48" x2="0" y2="48" />
-            <line class="cockpit-radar-axis" x1="-48" y1="0" x2="48" y2="0" />
-            <polygon class="cockpit-radar-bow" points="0,-44 -5,-36 5,-36" />
-            <g class="cockpit-radar-esm" clip-path="url(#cockpitRadarClip)"></g>
-            <circle class="cockpit-radar-ownship" cx="0" cy="0" r="2.2" />
-            <g class="cockpit-radar-blips" clip-path="url(#cockpitRadarClip)"></g>
+            <circle cx="0" cy="0" r="49" fill="url(#cockpitCompassFace)" />
+            <circle class="cockpit-compass-rim" cx="0" cy="0" r="46" fill="none" />
+            <polygon class="cockpit-compass-lubber" points="0,-48 -5,-38 5,-38" />
+            <g class="cockpit-compass-rose">
+              <line class="cockpit-compass-tick" x1="0" y1="-44" x2="0" y2="-36" />
+              <text class="cockpit-compass-cardinal" x="0" y="-36" text-anchor="middle">N</text>
+              <line class="cockpit-compass-tick-sec" x1="31" y1="31" x2="26" y2="26" />
+              <line class="cockpit-compass-tick" x1="44" y1="0" x2="36" y2="0" />
+              <line class="cockpit-compass-tick" x1="0" y1="44" x2="0" y2="36" />
+              <line class="cockpit-compass-tick-sec" x1="-31" y1="31" x2="-26" y2="26" />
+              <line class="cockpit-compass-tick" x1="-44" y1="0" x2="-36" y2="0" />
+              <g class="cockpit-compass-ctr" style="opacity:0" title="Kartenmitte">
+                <polygon class="cockpit-compass-ctr-diamond" points="0,-7 5,0 0,7 -5,0" />
+              </g>
+            </g>
           </svg>
-          <div class="cockpit-radar-scan"></div>
         </div>
-        <div class="cockpit-radar-foot">
-          <span class="cockpit-radar-range">${radarRangeLabel}</span>
-          <span class="cockpit-radar-esm-hint">ESM</span>
+        <div class="cockpit-readouts cockpit-readouts--bridge">
+          <div class="cockpit-row">
+            <span class="cockpit-label">Name</span>
+            <span class="cockpit-player-name">—</span>
+          </div>
+          <div class="cockpit-row">
+            <span class="cockpit-label">Klasse</span>
+            <span class="cockpit-ship-class">—</span>
+          </div>
+          <div class="cockpit-row">
+            <span class="cockpit-label">Fahrt</span>
+            <span class="cockpit-speed"><span class="cockpit-speed-val">0</span><span class="cockpit-speed-unit"> kn</span></span>
+          </div>
+          <div class="cockpit-row">
+            <span class="cockpit-label">Kurs</span>
+            <span class="cockpit-course">000°</span>
+          </div>
+          <div class="cockpit-row cockpit-row-bar">
+            <span class="cockpit-label">Gas</span>
+            <div class="cockpit-track"><div class="cockpit-track-mid"></div><div class="cockpit-fill cockpit-fill-throttle"></div></div>
+          </div>
+          <div class="cockpit-row cockpit-row-bar">
+            <span class="cockpit-label">Ruder</span>
+            <div class="cockpit-track"><div class="cockpit-track-mid"></div><div class="cockpit-fill cockpit-fill-rudder"></div></div>
+          </div>
+          <div class="cockpit-row cockpit-row-rank">
+            <span class="cockpit-label">Rank</span>
+            <span class="cockpit-rank-en">—</span>
+          </div>
+          <div class="cockpit-row">
+            <span class="cockpit-label">XP</span>
+            <span class="cockpit-xp">—</span>
+          </div>
+          <div class="cockpit-row cockpit-row-life hidden">
+            <span class="cockpit-label">Status</span>
+            <span class="cockpit-life-status">—</span>
+          </div>
+          <div class="cockpit-row">
+            <span class="cockpit-label">Match</span>
+            <span class="cockpit-match-time">—</span>
+          </div>
+          <div class="cockpit-row">
+            <span class="cockpit-label">Punkte</span>
+            <span class="cockpit-match-score"><span class="cockpit-score-val">0</span> <span class="cockpit-kills">(0)</span></span>
+          </div>
         </div>
       </div>
-      <div class="cockpit-readouts">
-        <div class="cockpit-row cockpit-row-header" style="display:flex;align-items:center;gap:8px;margin-bottom:2px;">
-          <img
-            src="${BASE_URL}assets/hud-command-icon.svg"
-            alt="Kommando-Icon"
-            width="20"
-            height="20"
-            style="display:block;filter:drop-shadow(0 1px 2px rgba(0,0,0,0.5));"
-          />
-          <span class="cockpit-header-title" style="font-weight:700;letter-spacing:0.02em;opacity:0.9;">Bridge</span>
+    </div>
+
+    <div class="cockpit-opz" aria-label="Operationszentrale">
+      <div class="cockpit-panel cockpit-panel--opz">
+        <div class="cockpit-panel-head cockpit-panel-head--opz">
+          <span class="cockpit-panel-title">OPZ</span>
         </div>
-        <div class="cockpit-row">
-          <span class="cockpit-label">Name</span>
-          <span class="cockpit-player-name">—</span>
-        </div>
-        <div class="cockpit-row">
-          <span class="cockpit-label">Klasse</span>
-          <span class="cockpit-ship-class">Zerstörer</span>
-        </div>
-        <div class="cockpit-row">
-          <span class="cockpit-label">Fahrt</span>
-          <span class="cockpit-speed"><span class="cockpit-speed-val">0</span><span class="cockpit-speed-unit"> kn</span></span>
-        </div>
-        <div class="cockpit-row">
-          <span class="cockpit-label">Kurs</span>
-          <span class="cockpit-course">000°</span>
-        </div>
-        <div class="cockpit-row cockpit-row-bar">
-          <span class="cockpit-label">Gas</span>
-          <div class="cockpit-track">
-            <div class="cockpit-track-mid"></div>
-            <div class="cockpit-fill cockpit-fill-throttle"></div>
+        <div class="cockpit-radar" aria-hidden="true">
+          <div class="cockpit-radar-head">
+            <span class="cockpit-radar-title">TACTICAL</span>
+            <span class="cockpit-own-radar-status" title="R = Suchrad an/aus">RADAR ON</span>
+          </div>
+          <div class="cockpit-radar-bezel">
+            <svg class="cockpit-radar-svg" viewBox="-52 -52 104 104">
+              <defs>
+                <clipPath id="cockpitRadarClip"><circle cx="0" cy="0" r="47.5" /></clipPath>
+                <radialGradient id="cockpitRadarGlow" cx="50%" cy="50%" r="50%">
+                  <stop offset="0%" stop-color="rgba(0,255,120,0.12)" />
+                  <stop offset="70%" stop-color="rgba(0,40,20,0.35)" />
+                  <stop offset="100%" stop-color="rgba(0,12,6,0.85)" />
+                </radialGradient>
+              </defs>
+              <circle cx="0" cy="0" r="50" fill="url(#cockpitRadarGlow)" />
+              <circle class="cockpit-radar-ring-outer" cx="0" cy="0" r="48" fill="none" />
+              <circle class="cockpit-radar-ring-mid" cx="0" cy="0" r="24" fill="none" />
+              <circle class="cockpit-radar-ring-inner" cx="0" cy="0" r="8" fill="none" />
+              <line class="cockpit-radar-axis" x1="0" y1="-48" x2="0" y2="48" />
+              <line class="cockpit-radar-axis" x1="-48" y1="0" x2="48" y2="0" />
+              <line class="cockpit-radar-axis cockpit-radar-axis-45" x1="-33.941" y1="-33.941" x2="33.941" y2="33.941" />
+              <line class="cockpit-radar-axis cockpit-radar-axis-45" x1="-33.941" y1="33.941" x2="33.941" y2="-33.941" />
+              <polygon class="cockpit-radar-bow" points="0,-44 -5,-36 5,-36" />
+              <g class="cockpit-radar-esm" clip-path="url(#cockpitRadarClip)"></g>
+              <circle class="cockpit-radar-ownship" cx="0" cy="0" r="2.2" />
+              <g class="cockpit-radar-blips" clip-path="url(#cockpitRadarClip)"></g>
+            </svg>
+            <div class="cockpit-radar-scan"></div>
+          </div>
+          <div class="cockpit-radar-foot">
+            <span class="cockpit-radar-range">${radarRangeLabel}</span>
+            <span class="cockpit-radar-esm-hint">ESM</span>
           </div>
         </div>
-        <div class="cockpit-row cockpit-row-bar">
-          <span class="cockpit-label">Ruder</span>
-          <div class="cockpit-track">
-            <div class="cockpit-track-mid"></div>
-            <div class="cockpit-fill cockpit-fill-rudder"></div>
-          </div>
-        </div>
-        <div class="cockpit-row cockpit-row-bar">
+        <div class="cockpit-row cockpit-row-bar cockpit-hp-opz">
           <span class="cockpit-label">HP</span>
-          <div class="cockpit-track cockpit-track-hp">
-            <div class="cockpit-fill cockpit-fill-hp"></div>
+          <div class="cockpit-track cockpit-track-hp"><div class="cockpit-fill cockpit-fill-hp"></div></div>
+        </div>
+        <div class="cockpit-weapons-block">
+          <div class="cockpit-subhead">Waffen</div>
+          <div class="cockpit-row">
+            <span class="cockpit-label">Feuer</span>
+            <span class="cockpit-primary-cd">—</span>
+          </div>
+          <div class="cockpit-row">
+            <span class="cockpit-label">ASuM</span>
+            <span class="cockpit-secondary-cd">—</span>
+          </div>
+          <div class="cockpit-aswm-mag">
+            <div class="cockpit-aswm-col cockpit-aswm-col--port" aria-label="ASuM Backbord">
+              <span class="cockpit-aswm-col-label">BB</span>
+              <div class="cockpit-aswm-dots cockpit-aswm-dots-port"></div>
+            </div>
+            <div class="cockpit-aswm-col cockpit-aswm-col--starboard" aria-label="ASuM Steuerbord">
+              <span class="cockpit-aswm-col-label">STB</span>
+              <div class="cockpit-aswm-dots cockpit-aswm-dots-starboard"></div>
+            </div>
+          </div>
+          <div class="cockpit-row">
+            <span class="cockpit-label">Minen</span>
+            <span class="cockpit-torpedo-cd">—</span>
           </div>
         </div>
-        <div class="cockpit-row cockpit-row-rank">
-          <span class="cockpit-label">Rank</span>
-          <span class="cockpit-rank-en">Ensign</span>
-        </div>
-        <div class="cockpit-row">
-          <span class="cockpit-label">XP</span>
-          <span class="cockpit-xp">0 / 100</span>
-        </div>
-        <div class="cockpit-row">
-          <span class="cockpit-label">Feuer</span>
-          <span class="cockpit-primary-cd">—</span>
-        </div>
-        <div class="cockpit-row">
-          <span class="cockpit-label">ASuM</span>
-          <span class="cockpit-secondary-cd">—</span>
-        </div>
-        <div class="cockpit-row">
-          <span class="cockpit-label">Minen</span>
-          <span class="cockpit-torpedo-cd">—</span>
-        </div>
-        <div class="cockpit-row cockpit-row-life hidden">
-          <span class="cockpit-label">Status</span>
-          <span class="cockpit-life-status">—</span>
-        </div>
-        <div class="cockpit-row">
-          <span class="cockpit-label">Match</span>
-          <span class="cockpit-match-time">—</span>
-        </div>
-        <div class="cockpit-row">
-          <span class="cockpit-label">Punkte</span>
-          <span class="cockpit-match-score"><span class="cockpit-score-val">0</span> <span class="cockpit-kills">(0)</span></span>
+        <div class="cockpit-schematic-wrap">
+          <div class="cockpit-subhead">Topologie</div>
+          <div class="cockpit-schematic-host"></div>
         </div>
       </div>
     </div>
@@ -208,6 +244,11 @@ export function createCockpitHud(): { update: (u: CockpitHudUpdate) => void } {
   const ownRadarStatusEl = wrap.querySelector(".cockpit-own-radar-status") as HTMLElement;
   const radarBlipsG = wrap.querySelector(".cockpit-radar-blips") as SVGGElement;
   const radarEsmG = wrap.querySelector(".cockpit-radar-esm") as SVGGElement;
+  const compassRose = wrap.querySelector(".cockpit-compass-rose") as SVGGElement;
+  const compassCtr = wrap.querySelector(".cockpit-compass-ctr") as SVGGElement;
+  const schematicHost = wrap.querySelector(".cockpit-schematic-host") as HTMLElement;
+  const aswmDotsPort = wrap.querySelector(".cockpit-aswm-dots-port") as HTMLElement;
+  const aswmDotsStarboard = wrap.querySelector(".cockpit-aswm-dots-starboard") as HTMLElement;
 
   document.body.appendChild(wrap);
 
@@ -215,6 +256,7 @@ export function createCockpitHud(): { update: (u: CockpitHudUpdate) => void } {
 
   let lastRadarBlipsKey = "";
   let lastEsmKey = "";
+  let lastSchematicKey = "";
 
   function drawEsmLines(lines: { x1: number; y1: number; x2: number; y2: number }[]): void {
     radarEsmG.replaceChildren();
@@ -262,6 +304,50 @@ export function createCockpitHud(): { update: (u: CockpitHudUpdate) => void } {
     }
   }
 
+  /**
+   * Zeilen für ASuM-Raster: ≤2 Slots eine Zeile, sonst zwei Zeilen (z. B. 4→2+2, 8→4+4).
+   * Reihenfolge links→rechts, oben→unten.
+   */
+  function aswmMagRowLengths(cap: number): number[] {
+    const c = Math.max(0, Math.floor(cap));
+    if (c <= 0) return [];
+    if (c <= 2) return [c];
+    const top = Math.ceil(c / 2);
+    const bottom = Math.floor(c / 2);
+    return [top, bottom];
+  }
+
+  /** Rot = bereits verschossen, Grün = im Magazin bereit. */
+  function fillAswmMagRow(container: HTMLElement, capacity: number, remaining: number): void {
+    container.replaceChildren();
+    const cap = Math.max(0, Math.floor(Number(capacity) || 0));
+    const rawRem = Number(remaining);
+    const rem = Math.max(0, Math.min(cap, Math.floor(Number.isFinite(rawRem) ? rawRem : 0)));
+    const spent = Math.max(0, cap - rem);
+    const dots: HTMLElement[] = [];
+    for (let i = 0; i < spent; i++) {
+      const d = document.createElement("span");
+      d.className = "cockpit-aswm-dot cockpit-aswm-dot--fired";
+      dots.push(d);
+    }
+    for (let i = 0; i < rem; i++) {
+      const d = document.createElement("span");
+      d.className = "cockpit-aswm-dot cockpit-aswm-dot--ready";
+      dots.push(d);
+    }
+    const rowLens = aswmMagRowLengths(cap);
+    let idx = 0;
+    for (const n of rowLens) {
+      const row = document.createElement("div");
+      row.className = "cockpit-aswm-dot-row";
+      for (let k = 0; k < n; k++) {
+        const el = dots[idx++];
+        if (el) row.appendChild(el);
+      }
+      container.appendChild(row);
+    }
+  }
+
   return {
     update({
       speed,
@@ -269,6 +355,13 @@ export function createCockpitHud(): { update: (u: CockpitHudUpdate) => void } {
       throttle,
       rudder,
       headingRad,
+      worldX,
+      worldZ,
+      mainMountTrainRad,
+      aswmMagPortCap,
+      aswmMagStarboardCap,
+      aswmRemainingPort,
+      aswmRemainingStarboard,
       hp,
       maxHp,
       primaryCooldownSec,
@@ -285,6 +378,7 @@ export function createCockpitHud(): { update: (u: CockpitHudUpdate) => void } {
       xpLine,
       shipClassLabel,
       playerDisplayName,
+      shipClassId,
       radarBlips,
       radarVisible,
       ownRadarActive,
@@ -300,6 +394,21 @@ export function createCockpitHud(): { update: (u: CockpitHudUpdate) => void } {
       speedVal.style.opacity = Math.abs(speed) < 0.4 ? "0.55" : "1";
 
       courseEl.textContent = formatCourse(deg);
+
+      const hDeg = (headingRad * 180) / Math.PI;
+      compassRose.setAttribute("transform", `rotate(${-hDeg})`);
+
+      const distToCtr = Math.hypot(worldX, worldZ);
+      if (distToCtr > 12) {
+        const cb = Math.atan2(-worldX, -worldZ);
+        const rMark = 30;
+        const mx = Math.sin(cb) * rMark;
+        const my = -Math.cos(cb) * rMark;
+        compassCtr.setAttribute("transform", `translate(${mx},${my})`);
+        compassCtr.style.opacity = "1";
+      } else {
+        compassCtr.style.opacity = "0";
+      }
 
       fillThrottle.style.background =
         throttle >= 0
@@ -375,6 +484,16 @@ export function createCockpitHud(): { update: (u: CockpitHudUpdate) => void } {
 
       ownRadarStatusEl.textContent = ownRadarActive ? "RADAR ON" : "RADAR OFF";
       ownRadarStatusEl.classList.toggle("cockpit-own-radar-off", !ownRadarActive);
+
+      fillAswmMagRow(aswmDotsPort, aswmMagPortCap, aswmRemainingPort);
+      fillAswmMagRow(aswmDotsStarboard, aswmMagStarboardCap, aswmRemainingStarboard);
+
+      const prof = getShipHullProfileByClass(shipClassId);
+      const sk = `${shipClassId}:${mainMountTrainRad.toFixed(3)}`;
+      if (sk !== lastSchematicKey) {
+        lastSchematicKey = sk;
+        renderWeaponSchematic(schematicHost, prof, mainMountTrainRad);
+      }
 
       if (radarVisible) {
         radarRoot.classList.remove("cockpit-radar-hidden");

@@ -12,11 +12,7 @@ import {
   type ShipHullVisualProfile,
 } from "@battlefleet/shared";
 import { HULL_GLTF_URL_BY_ID } from "../runtime/hullGltfUrls";
-import {
-  getEffectiveHullProfile,
-  setHullProfilePatchForClass,
-  setShipHitboxDebugVisible,
-} from "../runtime/shipProfileRuntime";
+import { getEffectiveHullProfile, setHullProfilePatchForClass } from "../runtime/shipProfileRuntime";
 
 const CLASSES: { id: ShipClassId; label: string }[] = [
   { id: SHIP_CLASS_FAC, label: "FAC" },
@@ -85,9 +81,6 @@ function writeForm(root: HTMLElement, merged: ShipHullVisualProfile): void {
   q("hbHx").value = String(hb.halfExtents.x);
   q("hbHy").value = String(hb.halfExtents.y);
   q("hbHz").value = String(hb.halfExtents.z);
-
-  const hit = root.querySelector('[data-field="showHitbox"]') as HTMLInputElement;
-  hit.checked = localStorage.getItem("battlefleet_show_ship_hitbox") !== "0";
 }
 
 export function openShipProfileEditor(): Promise<void> {
@@ -109,7 +102,8 @@ export function openShipProfileEditor(): Promise<void> {
         <h2 class="ship-editor-title">Schiffsprofil (Client)</h2>
         <p class="ship-editor-hint">
           Speichern = Patch in <strong>localStorage</strong> (nur dieser Browser).
-          <strong>Rumpf</strong>, <strong>Skalierung</strong>, <strong>Hitbox-Anzeige</strong> wirken sofort im Client.
+          <strong>Rumpf</strong> und <strong>Skalierung</strong> wirken sofort im Client.
+          Hitbox-Debug-Overlay: Environment Debug → Tab „Schiff“ → „Hitbox (Drahtrahmen)“.
           <strong>Movement-Multiplikatoren</strong> im Spiel nutzt der Server aus den eingecheckten JSONs —
           für echte Balance: exportieren und Dateien in <code>shared/src/data/ships/</code> ersetzen.
         </p>
@@ -151,10 +145,6 @@ export function openShipProfileEditor(): Promise<void> {
           <label>Halbe Y <input type="number" step="0.1" min="0.05" data-field="hbHy" class="ship-editor-num" /></label>
           <label>Halbe Z <input type="number" step="0.1" min="0.05" data-field="hbHz" class="ship-editor-num" /></label>
         </div>
-        <label class="ship-editor-check">
-          <input type="checkbox" data-field="showHitbox" checked />
-          Hitbox im Spiel als Drahtrahmen
-        </label>
         <div class="ship-editor-actions">
           <button type="button" class="ship-editor-btn ship-editor-btn-primary" data-action="save">Speichern</button>
           <button type="button" class="ship-editor-btn" data-action="reset">Klasse zurücksetzen</button>
@@ -217,8 +207,6 @@ export function openShipProfileEditor(): Promise<void> {
       if (action === "save") {
         const patch = readForm(root);
         setHullProfilePatchForClass(currentClass, patch);
-        const hit = root.querySelector('[data-field="showHitbox"]') as HTMLInputElement;
-        setShipHitboxDebugVisible(hit.checked);
         refreshForm();
       }
       if (action === "reset") {

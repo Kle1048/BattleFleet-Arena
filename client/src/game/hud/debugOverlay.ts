@@ -13,15 +13,15 @@ export type DebugOverlayInfo = {
   warn?: string;
 };
 
-export function createDebugOverlay(): {
+export function createDebugOverlay(options?: {
+  /** Wenn gesetzt (z. B. `.cockpit-bridge`), wird dort eingehängt — Abstand per Flex `gap`. */
+  parent?: HTMLElement;
+}): {
   update: (info: DebugOverlayInfo) => void;
 } {
   const el = document.createElement("div");
   el.id = "debug-overlay";
-  el.style.cssText =
-    "position:fixed;top:48px;right:12px;z-index:9998;font:11px/1.4 system-ui,sans-serif;color:#0d2135;" +
-    "background:rgba(255,255,255,0.78);padding:8px 10px;border-radius:6px;pointer-events:none;text-align:right;" +
-    "max-width:min(280px,42vw);";
+  /* Layout: index.html `#debug-overlay` (in Brücke: skaliert mit Panel) */
 
   const metrics = document.createElement("div");
   const diag = document.createElement("div");
@@ -34,7 +34,7 @@ export function createDebugOverlay(): {
   el.appendChild(metrics);
   el.appendChild(diag);
   el.appendChild(warn);
-  document.body.appendChild(el);
+  (options?.parent ?? document.body).appendChild(el);
 
   return {
     update({ fps, roomId, playerCount, pingMs, diag: diagText, warn: warnText }): void {

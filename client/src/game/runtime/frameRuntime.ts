@@ -5,9 +5,13 @@ import {
   PROGRESSION_MAX_LEVEL,
   SPEED_FEEL_FACTOR,
   getShipClassProfile,
+  getAswmMagazineFromProfile,
+  getShipHullProfileByClass,
+  normalizeShipClassId,
   progressionMovementScale,
   progressionNavalRankEn,
   progressionXpToNextLevel,
+  type ShipClassId,
 } from "@battlefleet/shared";
 import {
   applyShipVisualRuntimeTuning,
@@ -59,9 +63,18 @@ type NetPlayerLike = {
   shipClass: string;
   displayName: string;
   radarActive?: boolean;
+  adHudIncomingAswm?: number;
+  aswmRemainingPort: number;
+  aswmRemainingStarboard: number;
 };
 
-type MissileLike = { missileId: number; x: number; z: number; headingRad: number };
+type MissileLike = {
+  missileId: number;
+  ownerId: string;
+  x: number;
+  z: number;
+  headingRad: number;
+};
 type TorpedoLike = { torpedoId: number; x: number; z: number; headingRad: number };
 type OwnedTorpedoLike = TorpedoLike & { ownerId: string };
 
@@ -74,6 +87,7 @@ type InputSample = {
   secondaryFire: boolean;
   torpedoFire: boolean;
   radarActive: boolean;
+  airDefenseEngage: boolean;
 };
 
 type CockpitLike = {
@@ -83,6 +97,13 @@ type CockpitLike = {
     throttle: number;
     rudder: number;
     headingRad: number;
+    worldX: number;
+    worldZ: number;
+    mainMountTrainRad: number;
+    aswmMagPortCap: number;
+    aswmMagStarboardCap: number;
+    aswmRemainingPort: number;
+    aswmRemainingStarboard: number;
     hp: number;
     maxHp: number;
     primaryCooldownSec: number;
@@ -99,6 +120,7 @@ type CockpitLike = {
     xpLine: string;
     shipClassLabel: string;
     playerDisplayName: string;
+    shipClassId: ShipClassId;
     radarBlips: RadarBlipNorm[];
     radarVisible: boolean;
     ownRadarActive: boolean;
@@ -139,6 +161,8 @@ type RuntimeState = {
   lastOobCountdown: number;
   lastLifeStateBySessionId: Map<string, string>;
   lastDamageSmokeAtBySessionId: Map<string, number>;
+  /** Vorheriger Wert von `adHudIncomingAswm` (lokaler Spieler) für Vampire-Toast. */
+  lastAdHudIncomingAswm: number;
 };
 
 export function createFrameRuntimeState(initialHudLevel = 1): RuntimeState {
@@ -147,6 +171,7 @@ export function createFrameRuntimeState(initialHudLevel = 1): RuntimeState {
     lastOobCountdown: 0,
     lastLifeStateBySessionId: new Map<string, string>(),
     lastDamageSmokeAtBySessionId: new Map<string, number>(),
+    lastAdHudIncomingAswm: 0,
   };
 }
 
@@ -169,6 +194,7 @@ export function runFrameRuntimeStep<
     artillerySpawnLocalZ: number;
     mineSpawnLocalZ: number;
     radarActive: boolean;
+    airDefenseEngage?: boolean;
   }) => void;
   mySessionId: string;
   cfgMaxSpeed: number;
@@ -256,6 +282,17 @@ export function runFrameRuntimeStep<
     state.lastOobCountdown = oobSec;
   }
 
+  if (matchEnded || !me || me.lifeState === PlayerLifeState.AwaitingRespawn) {
+    state.lastAdHudIncomingAswm = 0;
+  } else {
+    const inc = typeof me.adHudIncomingAswm === "number" ? me.adHudIncomingAswm : 0;
+    const prev = state.lastAdHudIncomingAswm;
+    if (!matchEnded && prev === 0 && inc > 0) {
+      gameMessageHud.showToast("Vampire incoming — Press E for Layered Defence", "info", 5500);
+    }
+    state.lastAdHudIncomingAswm = inc;
+  }
+
   const tuningGen = getShipDebugTuningGeneration();
   for (const [sessionId, vis] of visuals) {
     const p = playersById.get(sessionId);
@@ -329,6 +366,7 @@ export function runFrameRuntimeStep<
             tuningNow.aimOriginLocalZ - tuningNow.shipPivotLocalZ + tuningNow.artillerySpawnLocalZ,
           mineSpawnLocalZ: tuningNow.mineSpawnLocalZ,
           radarActive: inputSample.radarActive,
+          airDefenseEngage: inputSample.airDefenseEngage,
         });
       }
 
@@ -387,12 +425,37 @@ export function runFrameRuntimeStep<
         }
       }
 
+      const shipClassId = normalizeShipClassId(me.shipClass) as ShipClassId;
+      const hullVis = getShipHullProfileByClass(shipClassId);
+      const magCaps = getAswmMagazineFromProfile(hullVis, shipClassId);
+      const aswmMagPortCap = magCaps.port;
+      const aswmMagStarboardCap = magCaps.starboard;
+      const remPort =
+        typeof me.aswmRemainingPort === "number" && Number.isFinite(me.aswmRemainingPort)
+          ? me.aswmRemainingPort
+          : 0;
+      const remSb =
+        typeof me.aswmRemainingStarboard === "number" && Number.isFinite(me.aswmRemainingStarboard)
+          ? me.aswmRemainingStarboard
+          : 0;
+      const aimWorld = Math.atan2(me.aimX - p.x, me.aimZ - p.z);
+      let mainMountTrainRad = aimWorld - p.headingRad;
+      while (mainMountTrainRad > Math.PI) mainMountTrainRad -= Math.PI * 2;
+      while (mainMountTrainRad < -Math.PI) mainMountTrainRad += Math.PI * 2;
+
       cockpit.update({
         speed: speedKn,
         maxSpeed: maxSpeedKn,
         throttle: inputSample.throttle,
         rudder: p.rudder,
         headingRad: p.headingRad,
+        worldX: p.x,
+        worldZ: p.z,
+        mainMountTrainRad,
+        aswmMagPortCap,
+        aswmMagStarboardCap,
+        aswmRemainingPort: remPort,
+        aswmRemainingStarboard: remSb,
         hp: p.hp,
         maxHp: p.maxHp,
         primaryCooldownSec: p.primaryCooldownSec,
@@ -412,6 +475,7 @@ export function runFrameRuntimeStep<
           typeof me.displayName === "string" && me.displayName.trim().length > 0
             ? me.displayName.trim()
             : toShortSession(me.id),
+        shipClassId,
         radarBlips,
         radarVisible,
         ownRadarActive,

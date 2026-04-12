@@ -106,8 +106,15 @@ export function createArtilleryFx(scene: THREE.Scene, fx: FxSystem): {
       return { activeShells: flying.length };
     },
     onFired(msg: ArtyFiredMsg): void {
-      const r = 4.5;
-      const geo = new THREE.SphereGeometry(r, 10, 10);
+      const dx = msg.toX - msg.fromX;
+      const dz = msg.toZ - msg.fromZ;
+      const len = Math.hypot(dx, dz);
+      const headingRad = len > 1e-6 ? Math.atan2(dx, dz) : 0;
+      fx.spawnArtilleryMuzzle(msg.fromX, msg.fromZ, headingRad);
+
+      const r = 1.75;
+      /** Wenige Flächen — reicht für kleinen Tracer, günstiger als Kugel-Mesh. */
+      const geo = new THREE.OctahedronGeometry(r, 0);
       const mesh = new THREE.Mesh(geo, shellMat.clone());
       mesh.position.set(worldToRenderX(msg.fromX), 12, msg.fromZ);
       mesh.castShadow = true;

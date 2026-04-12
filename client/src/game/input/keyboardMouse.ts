@@ -12,6 +12,10 @@ export type InputSample = {
   torpedoFire: boolean;
   /** Suchrad an/aus — **R** toggelt (ESM-Sichtbarkeit für Gegner). */
   radarActive: boolean;
+  /**
+   * Ein Frame lang true nach **E** — Hardkill-Luftverteidigung bestätigen (Server öffnet Engagement-Fenster).
+   */
+  airDefenseEngage: boolean;
 };
 
 /**
@@ -27,11 +31,15 @@ export function createInputHandlers(
 } {
   const keys = new Set<string>();
   let radarActive = true;
+  let pendingAirDefenseEngage = false;
 
   const onDown = (e: KeyboardEvent): void => {
     keys.add(e.code);
     if (e.code === "KeyR" && !e.repeat) {
       radarActive = !radarActive;
+    }
+    if (e.code === "KeyE" && !e.repeat) {
+      pendingAirDefenseEngage = true;
     }
   };
   const onUp = (e: KeyboardEvent): void => {
@@ -100,6 +108,8 @@ export function createInputHandlers(
     const primaryFire = lmbHeld;
     const secondaryFire = rmbHeld;
     const torpedoFire = mmbHeld || keys.has("KeyQ");
+    const airDefenseEngage = pendingAirDefenseEngage;
+    pendingAirDefenseEngage = false;
     return {
       throttle,
       rudderInput,
@@ -109,6 +119,7 @@ export function createInputHandlers(
       secondaryFire,
       torpedoFire,
       radarActive,
+      airDefenseEngage,
     };
   }
 

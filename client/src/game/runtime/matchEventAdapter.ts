@@ -19,11 +19,13 @@ export type ParsedOwnerEvent = { ownerId: string };
 
 export type ParsedSimpleImpact = { x: number; z: number; kind: string };
 
+export type AirDefenseFxLayer = "sam" | "pd" | "ciws";
+
 export type ParsedAirDefenseEvent = {
   type: "airDefenseFire" | "airDefenseIntercept";
   x: number;
   z: number;
-  layer: "sam" | "ciws";
+  layer: AirDefenseFxLayer;
   defenderX: number | null;
   defenderZ: number | null;
   defenderId: string | null;
@@ -99,7 +101,7 @@ export function parseAirDefenseEvent(type: unknown, msg: unknown): ParsedAirDefe
   if (x == null || z == null) return null;
   if (String(rec.weapon) !== "aswm") return null;
   const layerRaw = String(rec.layer ?? "").toLowerCase();
-  if (layerRaw !== "sam" && layerRaw !== "ciws") return null;
+  if (layerRaw !== "sam" && layerRaw !== "pd" && layerRaw !== "ciws") return null;
   const defenderX = readFiniteNumber(rec.defenderX);
   const defenderZ = readFiniteNumber(rec.defenderZ);
   const defenderId = typeof rec.defenderId === "string" ? rec.defenderId : null;
@@ -107,7 +109,7 @@ export function parseAirDefenseEvent(type: unknown, msg: unknown): ParsedAirDefe
     type: t,
     x,
     z,
-    layer: layerRaw as "sam" | "ciws",
+    layer: layerRaw as AirDefenseFxLayer,
     defenderX,
     defenderZ,
     defenderId,

@@ -32,12 +32,7 @@ export function createGameMessageHud(): GameMessageHud {
   wrap.className = "game-message-hud";
   wrap.setAttribute("role", "status");
   wrap.setAttribute("aria-live", "polite");
-  wrap.style.cssText =
-    "position:fixed;top:12%;left:50%;transform:translateX(-50%);z-index:10000;" +
-    "width:min(520px,92vw);min-height:76px;box-sizing:border-box;display:none;" +
-    "flex-direction:column;align-items:center;justify-content:center;gap:8px;" +
-    "padding:14px 18px;text-align:center;font-family:system-ui,sans-serif;" +
-    "pointer-events:none;background:transparent;border:none;";
+  /* Layout + --hud-ui-scale: index.html `.game-message-hud` (default display:none) */
 
   const textShadow =
     "0 0 10px #000,0 1px 3px #000,0 2px 10px rgba(0,0,0,0.85)";

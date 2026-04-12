@@ -97,6 +97,8 @@ export function createFxSystem(scene: THREE.Scene): {
   spawnMissileImpact: (worldX: number, worldZ: number, kind: string) => void;
   /** ASuM-Start: kleiner Rauchschwall + kurze Glut (Seekarten-heading). */
   spawnMissileLaunchSmoke: (worldX: number, worldZ: number, headingRad: number) => void;
+  /** Artillerie: Muzzleflash + kleine Rauchwolke am Rohr; `headingRad` = Schussrichtung atan2(Δx,Δz). */
+  spawnArtilleryMuzzle: (worldX: number, worldZ: number, headingRad: number) => void;
   /**
    * ASuM-Flug: Rauch-Tick in Seekarten-XZ; `particleCount` ~2–12 (wird gekappt).
    * Partikel entlang der Tiefe gestaffelt, damit die Spur geschlossen wirkt.
@@ -592,6 +594,86 @@ export function createFxSystem(scene: THREE.Scene): {
     scheduleFx(performance.now() + 55, () => puff(false));
   }
 
+  function spawnArtilleryMuzzle(worldX: number, worldZ: number, headingRad: number): void {
+    if (!Number.isFinite(worldX) || !Number.isFinite(worldZ) || !Number.isFinite(headingRad)) return;
+    const sinH = Math.sin(headingRad);
+    const cosH = Math.cos(headingRad);
+    const rxW = -cosH;
+    const rzW = sinH;
+    const px0 = worldToRenderX(worldX);
+    const z0 = worldZ;
+
+    for (let i = 0; i < 4; i++) {
+      const ang = randRange(0, Math.PI * 2);
+      emit({
+        texture: "flashAdd",
+        x: px0 + Math.cos(ang) * randRange(0, 2),
+        y: randRange(9.5, 13.5),
+        z: z0 + Math.sin(ang) * randRange(0, 2),
+        vx: sinH * randRange(8, 18) * 0.12,
+        vy: randRange(4, 10),
+        vz: cosH * randRange(8, 18) * 0.12,
+        dragPerSec: 2.4,
+        maxAgeMs: randRange(70, 140),
+        sizeStart: randRange(4, 8),
+        sizeEnd: randRange(1.5, 3.5),
+        alphaStart: 0.72,
+        alphaEnd: 0,
+        colorStart: VisualColorTokens.artilleryImpactHitInner,
+        colorEnd: VisualColorTokens.artilleryImpactHitBurst,
+        spinPerSec: randRange(-1, 1),
+      });
+    }
+    for (let i = 0; i < 3; i++) {
+      const ang = randRange(0, Math.PI * 2);
+      emit({
+        texture: "soft",
+        x: px0 + Math.cos(ang) * randRange(0, 1.5),
+        y: randRange(10, 13),
+        z: z0 + Math.sin(ang) * randRange(0, 1.5),
+        vx: sinH * randRange(4, 12) * 0.1,
+        vy: randRange(5, 11),
+        vz: cosH * randRange(4, 12) * 0.1,
+        dragPerSec: 1.6,
+        maxAgeMs: randRange(100, 200),
+        sizeStart: randRange(3, 6),
+        sizeEnd: randRange(10, 18),
+        alphaStart: 0.55,
+        alphaEnd: 0,
+        colorStart: 0xffe8a8,
+        colorEnd: VisualColorTokens.artilleryImpactHitOuter,
+        spinPerSec: randRange(-0.6, 0.6),
+      });
+    }
+
+    for (let i = 0; i < 7; i++) {
+      const back = randRange(1, 6);
+      const side = randRange(-3, 3);
+      const ox = worldX - sinH * back + rxW * side;
+      const oz = worldZ - cosH * back + rzW * side;
+      const px = worldToRenderX(ox);
+      const baseMag = randRange(10, 22);
+      emit({
+        texture: "smoke",
+        x: px,
+        y: randRange(9.5, 13),
+        z: oz,
+        vx: sinH * baseMag * 0.032 + randRange(-4, 4) * 0.06,
+        vy: randRange(3, 8),
+        vz: -cosH * baseMag * 0.032 + randRange(-4, 4) * 0.06,
+        dragPerSec: 0.78,
+        maxAgeMs: randRange(450, 900),
+        sizeStart: randRange(3, 6),
+        sizeEnd: randRange(14, 24),
+        alphaStart: randRange(0.32, 0.45),
+        alphaEnd: 0,
+        colorStart: 0x9a9ea4,
+        colorEnd: 0x3a3e44,
+        spinPerSec: randRange(-0.35, 0.35),
+      });
+    }
+  }
+
   /** Neutrales Grau-Rauch, bewusst ohne Raketen-Rottöne (nur Schweif). */
   const MISSILE_TRAIL_SMOKE_A = 0xa8aeb6;
   const MISSILE_TRAIL_SMOKE_B = 0x4a525a;
@@ -786,6 +868,7 @@ export function createFxSystem(scene: THREE.Scene): {
     spawnArtilleryImpact,
     spawnMissileImpact,
     spawnMissileLaunchSmoke,
+    spawnArtilleryMuzzle,
     spawnMissileTrailStreamTick,
     spawnShipDamageSmokeTick,
     spawnTorpedoImpact,

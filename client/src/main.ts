@@ -2,13 +2,14 @@
  * Colyseus-Client — Pose, Input (LMB Primär, **RMB ASuM**), Interpolation,
  * **gameMessageHud**, Artillerie-, **ASuM** (`missileList`) + **Torpedos** (`torpedoList`), **SAM/CIWS** (`airDefenseFire` / `airDefenseIntercept`).
  *
- * Join **ohne** Root-Schema-Argument: State per **Reflection** (vom Server-Handshake).
- * Kein `BattleState` aus `@battlefleet/shared` übergeben — mit Vite-Alias + zweiter Schema-Kopie
- * entsteht sonst „getNextUniqueId“ / kaputtes `$changes.root` beim Decode.
+ * Join **mit** `BattleState` aus `@battlefleet/shared`: gleiche Feldreihenfolge wie der Server —
+ * Reflection allein ließ u. a. `aswmRemaining*` fehlen → HUD zeigte nur „rot“ (Remaining 0).
+ * Vite `resolve.dedupe: ["@colyseus/schema"]` hält eine Schema-Instanz (kein getNextUniqueId-Chaos).
  * `playerList`-Referenz nach jedem State-Wechsel neu binden (stale ArraySchema).
  */
 import * as THREE from "three";
 import {
+  BattleState,
   DESTROYER_LIKE_MVP,
   MATCH_PHASE_ENDED,
   PlayerLifeState,
@@ -17,6 +18,7 @@ import {
 import { createGameScene } from "./game/scene/createGameScene";
 import { createInputHandlers } from "./game/input/keyboardMouse";
 import { createCockpitHud } from "./game/hud/cockpitHud";
+import { createMessageLogPlaceholder } from "./game/hud/messageLogPlaceholder";
 import { createDebugOverlay } from "./game/hud/debugOverlay";
 import { createBotController } from "./game/bot/botController";
 import { createBotDebugPanel } from "./game/bot/botDebugPanel";
@@ -78,6 +80,7 @@ import {
   readMatchTimer,
   torpedoListOf,
 } from "./game/runtime/stateAdapter";
+import { clearPersistedClientSettings } from "./game/runtime/clearPersistedClientSettings";
 
 const COLYSEUS_URL = colyseusHttpBase(
   import.meta.env.VITE_COLYSEUS_URL,
@@ -87,13 +90,34 @@ const COLYSEUS_URL = colyseusHttpBase(
 const root = document.getElementById("app");
 if (!root) throw new Error("#app missing");
 
+/**
+ * Einmalig alle lokalen Client-Defaults wiederherstellen: Seite mit `?resetLocal=1` öffnen
+ * (z. B. nach Browser-Wechsel oder kaputten Debug-Werten). Löscht bekannte `localStorage`-Keys
+ * und lädt neu — **vor** `loadPersistedFollowCameraTuning()`.
+ */
+if (typeof window !== "undefined") {
+  const params = new URLSearchParams(window.location.search);
+  if (params.get("resetLocal") === "1") {
+    clearPersistedClientSettings();
+    params.delete("resetLocal");
+    const q = params.toString();
+    const url = `${window.location.pathname}${q ? `?${q}` : ""}${window.location.hash}`;
+    window.history.replaceState({}, "", url);
+    window.location.reload();
+  }
+}
+
+/** Größeres Fadenkreuz: dunkle Kontur + helle Mitte, damit es auf Wasser/Himmel gut lesbar ist. */
+const AIM_CROSSHAIR_SVG = `<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 32 32"><g stroke-linecap="round"><line x1="16" y1="2" x2="16" y2="11" stroke="#050a12" stroke-width="5"/><line x1="16" y1="21" x2="16" y2="30" stroke="#050a12" stroke-width="5"/><line x1="2" y1="16" x2="11" y2="16" stroke="#050a12" stroke-width="5"/><line x1="21" y1="16" x2="30" y2="16" stroke="#050a12" stroke-width="5"/><circle cx="16" cy="16" r="4" fill="none" stroke="#050a12" stroke-width="5"/><line x1="16" y1="2" x2="16" y2="11" stroke="#f5f9ff" stroke-width="2.5"/><line x1="16" y1="21" x2="16" y2="30" stroke="#f5f9ff" stroke-width="2.5"/><line x1="2" y1="16" x2="11" y2="16" stroke="#f5f9ff" stroke-width="2.5"/><line x1="21" y1="16" x2="30" y2="16" stroke="#f5f9ff" stroke-width="2.5"/><circle cx="16" cy="16" r="4" fill="none" stroke="#f5f9ff" stroke-width="2"/></g></svg>`;
+
 const renderer = createGameRenderer(root);
-renderer.domElement.style.cursor =
-  "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 16 16'%3E%3Cline x1='8' y1='1' x2='8' y2='6' stroke='white' stroke-width='1'/%3E%3Cline x1='8' y1='10' x2='8' y2='15' stroke='white' stroke-width='1'/%3E%3Cline x1='1' y1='8' x2='6' y2='8' stroke='white' stroke-width='1'/%3E%3Cline x1='10' y1='8' x2='15' y2='8' stroke='white' stroke-width='1'/%3E%3Ccircle cx='8' cy='8' r='1.6' fill='none' stroke='white' stroke-width='1'/%3E%3C/svg%3E\") 8 8, crosshair";
+renderer.domElement.style.cursor = `url("data:image/svg+xml,${encodeURIComponent(AIM_CROSSHAIR_SVG)}") 16 16, crosshair`;
 const assetManager = createAssetManager();
 
 loadPersistedFollowCameraTuning();
-const debugOverlay = createDebugOverlay();
+
+/** Nach Cockpit-HUD gesetzt — für bootstrap().catch */
+let debugOverlayForFatal: ReturnType<typeof createDebugOverlay> | null = null;
 
 async function bootstrap(): Promise<void> {
   const bundle = await createGameScene();
@@ -115,6 +139,15 @@ async function bootstrap(): Promise<void> {
 
   const input = createInputHandlers(renderer.domElement, getGroundPoint);
   const cockpit = createCockpitHud();
+  const bridgeEl = document.querySelector(".cockpit-bridge") as HTMLElement | null;
+  const opzEl = document.querySelector(".cockpit-opz") as HTMLElement | null;
+  if (!bridgeEl || !opzEl) {
+    throw new Error("Cockpit-HUD (.cockpit-bridge / .cockpit-opz) fehlt");
+  }
+  const debugOverlay = createDebugOverlay({ parent: bridgeEl });
+  debugOverlayForFatal = debugOverlay;
+  installGlobalRuntimeErrorHandlers(debugOverlay);
+  const messageLogPlaceholder = createMessageLogPlaceholder({ parent: opzEl });
   const botController = createBotController();
   const botDebugPanel = createBotDebugPanel();
   const gameMessageHud = createGameMessageHud();
@@ -163,10 +196,14 @@ async function bootstrap(): Promise<void> {
     return getShipHullGltfSourceForUrl(resolveMountGltfUrl(visualId));
   }
   const room = await withTimeout(
-    client.joinOrCreate("battle", {
-      shipClass: lobby.shipClass,
-      displayName: lobby.displayName,
-    }),
+    client.joinOrCreate(
+      "battle",
+      {
+        shipClass: lobby.shipClass,
+        displayName: lobby.displayName,
+      },
+      BattleState,
+    ),
     15_000,
     `Keine Antwort vom Spiel-Server. Prüfe: Server läuft? Firewall? Adresse ${COLYSEUS_URL}`,
   );
@@ -232,7 +269,7 @@ async function bootstrap(): Promise<void> {
       scheduleReload(1200);
     },
     onAirDefenseSound: ({ phase, layer }) => {
-      if (layer === "sam") {
+      if (layer === "sam" || layer === "pd") {
         if (phase === "fire") gameAudio.airDefenseSamFire();
         else gameAudio.airDefenseSamIntercept();
       } else {
@@ -247,6 +284,13 @@ async function bootstrap(): Promise<void> {
     onMissileLockOn: () => gameAudio.missileLockOn(),
     onAswmMagazineReloaded: () =>
       gameMessageHud.showToast("ASuM: Magazin nachgeladen", "info", 3500),
+    onSoftkillResult: (success) => {
+      gameMessageHud.showToast(
+        success ? "Softkill successful" : "Softkill failed",
+        success ? "info" : "danger",
+        3800,
+      );
+    },
     onWeaponHitAt: (x, z) => {
       const me = getPlayer(playerListOf(room), mySessionId);
       if (!me) {
@@ -298,6 +342,7 @@ async function bootstrap(): Promise<void> {
         window.removeEventListener("keydown", onBotToggleKey);
       },
     },
+    messageLogPlaceholder,
   ]);
   runtimeShutdown.bindWindowUnload();
 
@@ -484,7 +529,7 @@ async function bootstrap(): Promise<void> {
 bootstrap().catch((err) => {
   console.error(err);
   const detail = err instanceof Error ? err.message : String(err);
-  debugOverlay.update({
+  debugOverlayForFatal?.update({
     fps: 0,
     roomId: "FEHLER",
     playerCount: 0,
@@ -504,5 +549,3 @@ bootstrap().catch((err) => {
     // Ignore cleanup errors during fatal bootstrap failure.
   }
 });
-
-installGlobalRuntimeErrorHandlers(debugOverlay);

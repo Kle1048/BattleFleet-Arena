@@ -249,7 +249,7 @@ function playCiwsIntercept(
 /** Server `airDefenseFire`: nur ausgehende FK / Tracer — **ohne** Einschlag-Ring. */
 export function playAirDefenseFire(
   scene: THREE.Scene,
-  layer: "sam" | "ciws",
+  layer: "sam" | "pd" | "ciws",
   fromX: number,
   fromZ: number,
   toX: number,
@@ -258,8 +258,11 @@ export function playAirDefenseFire(
   try {
     const rx0 = worldToRenderX(fromX);
     const rx1 = worldToRenderX(toX);
-    if (layer === "sam") playSamIntercept(scene, rx0, fromZ, rx1, toZ, false);
-    else playCiwsIntercept(scene, rx0, fromZ, rx1, toZ, false);
+    if (layer === "sam" || layer === "pd") {
+      playSamIntercept(scene, rx0, fromZ, rx1, toZ, false);
+    } else {
+      playCiwsIntercept(scene, rx0, fromZ, rx1, toZ, false);
+    }
   } catch (e) {
     console.warn("[airDefenseFx] playAirDefenseFire", e);
   }
@@ -270,12 +273,14 @@ export function playAirDefenseHitBurst(
   scene: THREE.Scene,
   x: number,
   z: number,
-  layer: "sam" | "ciws",
+  layer: "sam" | "pd" | "ciws",
 ): void {
   try {
     const rx = worldToRenderX(x);
     if (layer === "sam") {
       interceptRingFlash(scene, rx, z, 0x88c8ff, 6, 22);
+    } else if (layer === "pd") {
+      interceptRingFlash(scene, rx, z, 0xa8d8ff, 5, 18);
     } else {
       interceptRingFlash(scene, rx, z, 0xffea90, 4, 15);
     }
@@ -292,7 +297,7 @@ export function showAirDefenseScreenPulse(
   mount: HTMLElement,
   worldX: number,
   worldZ: number,
-  layer: "sam" | "ciws",
+  layer: "sam" | "pd" | "ciws",
 ): void {
   const v = new THREE.Vector3(worldToRenderX(worldX), 1.4, worldZ);
   v.project(camera);
@@ -300,8 +305,13 @@ export function showAirDefenseScreenPulse(
   const px = (v.x * 0.5 + 0.5) * window.innerWidth;
   const py = (-v.y * 0.5 + 0.5) * window.innerHeight;
   const el = document.createElement("div");
-  const col = layer === "sam" ? "#66a8ff" : "#ffcc44";
-  const glow = layer === "sam" ? "rgba(136,200,255,0.95)" : "rgba(255,234,144,0.95)";
+  const col = layer === "sam" ? "#66a8ff" : layer === "pd" ? "#88b8ff" : "#ffcc44";
+  const glow =
+    layer === "sam"
+      ? "rgba(136,200,255,0.95)"
+      : layer === "pd"
+        ? "rgba(160,210,255,0.92)"
+        : "rgba(255,234,144,0.95)";
   el.style.cssText =
     `position:fixed;left:${px}px;top:${py}px;width:28px;height:28px;margin:-14px;border-radius:50%;` +
     `pointer-events:none;z-index:12000;background:${col};box-shadow:0 0 22px 6px ${glow};opacity:0.95;` +

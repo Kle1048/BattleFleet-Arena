@@ -58,6 +58,20 @@ export class PlayerState extends Schema {
    * `false` = „Radar aus“, keine ESM-Sichtbarkeit für andere.
    */
   declare radarActive: boolean;
+  /** Eingehende ASuM, die dieses Schiff als Luftverteidigungs-Ziel nutzen (~20 Hz). */
+  declare adHudIncomingAswm: number;
+  /** True, wenn mindestens eine Bedrohung im AD-Umschlag und Hardkill grundsätzlich möglich. */
+  declare adHudCanCommitHardkill: boolean;
+  /** Restzeit (s) für aktives Hardkill-Engagement nach Taste E; 0 = kein Fenster. */
+  declare adHardkillCommitRemainingSec: number;
+  /**
+   * True, wenn eine Bedrohung in SAM-Reichweite ist, aber das Suchrad aus ist — SAM schießt nur mit Radar.
+   */
+  declare adHudRadarAffectsSam: boolean;
+  /** Verbleibende ASuM-Runden Backbord (HUD). */
+  declare aswmRemainingPort: number;
+  /** Verbleibende ASuM-Runden Steuerbord (HUD). */
+  declare aswmRemainingStarboard: number;
 
   constructor() {
     super();
@@ -85,6 +99,12 @@ export class PlayerState extends Schema {
     this.shipClass = SHIP_CLASS_FAC;
     this.displayName = "";
     this.radarActive = true;
+    this.adHudIncomingAswm = 0;
+    this.adHudCanCommitHardkill = false;
+    this.adHardkillCommitRemainingSec = 0;
+    this.adHudRadarAffectsSam = false;
+    this.aswmRemainingPort = 0;
+    this.aswmRemainingStarboard = 0;
   }
 }
 
@@ -113,6 +133,12 @@ defineTypes(PlayerState, {
   shipClass: "string",
   displayName: "string",
   radarActive: "boolean",
+  adHudIncomingAswm: "number",
+  adHudCanCommitHardkill: "boolean",
+  adHardkillCommitRemainingSec: "number",
+  adHudRadarAffectsSam: "boolean",
+  aswmRemainingPort: "number",
+  aswmRemainingStarboard: "number",
 });
 
 /** Replizierte Lenkflugkörper (Task 7); Server autoritativ. */

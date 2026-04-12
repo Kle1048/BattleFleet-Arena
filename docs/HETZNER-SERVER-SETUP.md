@@ -39,7 +39,8 @@ Bei Anmeldung über **Google / SSO** gibt es oft kein klassisches GitHub-Passwor
 3. **IPv4** der VM notieren (für `ssh` und für `VITE_COLYSEUS_URL`).
 4. **Firewall** (empfohlen):
    - **TCP 22** — SSH (idealerweise nur von vertrauenswürdigen IPs).
-   - **TCP 2567** — Colyseus (für Tests oft `0.0.0.0/0`; später ggf. einschränken oder hinter Nginx/TLS).
+   - **TCP 2567** — Colyseus (nur nötig, wenn **kein** Reverse-Proxy davor; siehe Abschnitt 12).
+   - Mit **Nginx + HTTPS** zusätzlich: **TCP 80** und **TCP 443** (Let’s Encrypt + Clients). Dann kann **2567 von außen zu** bleiben, wenn Colyseus nur noch `127.0.0.1:2567` bedient.
 
 ---
 
@@ -175,6 +176,26 @@ git pull
 npm ci
 npm run build -w server
 systemctl restart battlefleet
+systemctl status battlefleet --no-pager
+```
+
+### 8.4 Von Windows (PowerShell) in einem Rutsch
+
+Pfade/IP anpassen (`ServerIP`, `RepoPath`):
+
+```powershell
+$ServerIP = "DEINE_VPS_IPV4"
+$RepoPath = "/opt/BattleFleet-Arena"
+
+ssh root@$ServerIP @"
+set -e
+cd $RepoPath
+git pull
+npm ci
+npm run build -w server
+systemctl restart battlefleet
+systemctl status battlefleet --no-pager
+"@
 ```
 
 ---
@@ -214,26 +235,40 @@ Browser: meist `http://localhost:5173` — der Client spricht Colyseus unter der
 
 ---
 
-## 12. Später: HTTPS / WSS
+## 12. HTTPS / WSS (Produktion: Nginx + Let’s Encrypt)
 
-Wird das Frontend unter **https** ausgeliefert und das Backend nur unter **http**, können Browser WebSockets blockieren (**Mixed Content**). Dann sinnvoll:
+Für Clients unter **HTTPS** (z. B. GitHub Pages) muss das Backend unter **`https://`** erreichbar sein, sonst blockieren Browser oft **Mixed Content** (`http://`-API von `https://`-Seite).
 
-- Eigene **Domain** auf die VPS-IP,
-- **Nginx** als Reverse Proxy,
-- **Let’s Encrypt** (TLS),
-- Client mit **`https://…`** / **`wss://…`** konfigurieren.
+**Kurzablauf:**
+
+1. **DNS:** Subdomain (z. B. `battlefleet-api.example.com`) als **A-Record** auf die **VPS-IPv4**.
+2. **Firewall:** **22**, **80**, **443** inbound; **2567** nur noch intern, wenn Nginx auf `127.0.0.1:2567` proxyt.
+3. **Nginx:** `server_name` = deine Subdomain; `location /` → `proxy_pass http://127.0.0.1:2567;` inkl. WebSocket-Header (`Upgrade`, `Connection`).
+4. **Certbot:** `certbot --nginx -d battlefleet-api.example.com`
+5. **Client-Build / GitHub Variable:** `VITE_COLYSEUS_URL=https://battlefleet-api.example.com` (ohne `:2567`, wenn alles über 443 läuft).
+
+Smoke-Test auf dem Server:
+
+```bash
+curl -I https://battlefleet-api.example.com
+```
+
+*(Antwort kann u. a. `404` von Express sein — wichtig ist, dass **HTTPS** und **nginx** sichtbar sind.)*
+
+Siehe auch [GITHUB-PAGES.md](./GITHUB-PAGES.md) für den statischen Client.
 
 ---
 
 ## 13. Kurz-Checkliste
 
-- [ ] Hetzner: Ubuntu, Firewall **22** + **2567**
+- [ ] Hetzner: Ubuntu; Firewall **22**; bei direktem Colyseus zusätzlich **2567**, bei Nginx/TLS **80** + **443**
 - [ ] Node LTS, Git, Repo unter z. B. `/opt/BattleFleet-Arena`
 - [ ] `npm ci`, `npm run build -w server` (oder volles `npm run build`)
 - [ ] `battlefleet.service` mit korrektem `WorkingDirectory` und `ExecStart` (`which npm`)
 - [ ] `systemctl enable --now battlefleet` bzw. `start` + `status`
-- [ ] Client: `VITE_COLYSEUS_URL=http://<VPS-IPv4>:2567` zum Testen
+- [ ] **Lokal testen:** `VITE_COLYSEUS_URL=http://<VPS-IPv4>:2567`
+- [ ] **Produktion (HTTPS-Frontend):** `VITE_COLYSEUS_URL=https://<api-subdomain>` nach Nginx/Let’s Encrypt
 
 ---
 
-*Stand: dokumentiert nach der gemeinsamen Einrichtung; Pfade und GitHub-User bei Bedarf anpassen.*
+*Stand: inkl. Nginx/TLS und Remote-Update; konkrete Domain/IP beim Projekt eintragen.*

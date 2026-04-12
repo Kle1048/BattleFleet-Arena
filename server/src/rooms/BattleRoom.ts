@@ -9,6 +9,7 @@ import {
   ASWM_HIT_RADIUS,
   ASWM_ISLAND_COLLISION_RADIUS,
   ASWM_LIFETIME_MS,
+  ASWM_SEEKER_ARM_DELAY_MS,
   type AswmTargetCandidate,
   BattleState,
   DEFAULT_MAP_ISLANDS,
@@ -34,12 +35,16 @@ import {
   MIN_RESPAWN_SEPARATION,
   participatesInWorldSimulation,
   pickAswmAcquisitionTarget,
+  AD_HARDKILL_COMMIT_DURATION_MS,
   AD_SAM_RANGE_SQ,
-  type AirDefenseLayer,
-  applyAirDefenseCooldownAfterRoll,
-  isAirDefenseLayerInRange,
-  pickAirDefenseEngagementLayer,
-  rollAirDefenseHit,
+  AD_SOFTKILL_RANGE_SQ,
+  AD_SOFTKILL_SAME_TARGET_REACQUIRE_BLOCK_MS,
+  type AirDefenseHardkillLayer,
+  applyHardkillCooldownAfterRoll,
+  isHardkillLayerInRange,
+  pickHardkillEngagementLayer,
+  rollHardkillHit,
+  trySoftkillBreakLock,
   resolveShipIslandCollisions,
   resolveShipShipCollisions,
   type ShipCollisionParticipant,
@@ -106,6 +111,8 @@ export type InputPayload = {
   mineSpawnLocalZ?: number;
   /** Suchrad an/aus — steuert ESM-Sichtbarkeit für Gegner (repliziert). */
   radarActive?: boolean;
+  /** Hardkill-Luftverteidigung bestätigen (Taste E, einmal pro Tastendruck). */
+  airDefenseEngage?: boolean;
 };
 
 type SimEntry = {
@@ -127,9 +134,16 @@ type SimEntry = {
   aswmReloadUntilMs: number;
   /** Date.now() ab Torpedo-Start erlaubt ist. */
   torpedoReadyAtMs: number;
-  /** Task 9 — SAM/CIWS: früheste nächste Schusszeit (0 = sofort verfügbar). */
+  /** Hardkill-Schichten: früheste nächste Schusszeit (0 = sofort verfügbar). */
   adSamNextAtMs: number;
+  adPdNextAtMs: number;
   adCiwsNextAtMs: number;
+  /** Softkill (ECM): letzter Versuch (Date.now()). */
+  adSoftkillLastUsedAtMs: number;
+  /** Nach Taste E: Hardkill-Fenster (Date.now()). */
+  adHardkillCommitUntilMs: number;
+  /** Flankenerkennung für einmaligen `airDefenseEngage`-Puls. */
+  lastAirDefenseEngagePressed: boolean;
   /** Nach Tod: Zeitpunkt des Respawns; `null` wenn nicht wartend. */
   respawnAtMs: number | null;
   /** Nach Respawn: Ende der Schutzphase; `0` = keine Invulnerabilität. */
@@ -174,7 +188,14 @@ export class BattleRoom extends Room<BattleState> {
   /** Nächster Tick: Wurf nach `airDefenseFire` (Raketen-ID → Verteidiger + Layer). */
   private readonly adPendingRollByMissileId = new Map<
     number,
-    { defenderId: string; layer: AirDefenseLayer }
+    { defenderId: string; layer: AirDefenseHardkillLayer }
+  >();
+  /** Softkill: höchstens ein Versuch pro Rakete+Verteidiger. */
+  private readonly adSoftkillAttemptedMissileDefender = new Set<string>();
+  /** Nach erfolgreichem Softkill: Seeker-Ziel `defenderId` bis `untilMs` nicht wieder annehmen. */
+  private readonly aswmSoftkillReacquireBlockByMissileId = new Map<
+    number,
+    { defenderId: string; untilMs: number }
   >();
   /** Task 10 — absolutes Ende (Date.now()); läuft ab Raum-Erstellung. */
   private matchEndsAtMs = 0;
@@ -223,6 +244,12 @@ export class BattleRoom extends Room<BattleState> {
       if (typeof payload.radarActive === "boolean") {
         row.radarActive = payload.radarActive;
       }
+
+      const engage = payload.airDefenseEngage === true;
+      if (engage && !row.lastAirDefenseEngagePressed) {
+        row.adHardkillCommitUntilMs = Date.now() + AD_HARDKILL_COMMIT_DURATION_MS;
+      }
+      row.lastAirDefenseEngagePressed = engage;
 
       if (payload.primaryFire === true) {
         this.tryPrimaryFire(client, row);
@@ -354,7 +381,11 @@ export class BattleRoom extends Room<BattleState> {
       aswmReloadUntilMs: 0,
       torpedoReadyAtMs: 0,
       adSamNextAtMs: 0,
+      adPdNextAtMs: 0,
       adCiwsNextAtMs: 0,
+      adSoftkillLastUsedAtMs: 0,
+      adHardkillCommitUntilMs: 0,
+      lastAirDefenseEngagePressed: false,
       respawnAtMs: null,
       invulnerableUntilMs: 0,
       radarActive: true,
@@ -388,6 +419,12 @@ export class BattleRoom extends Room<BattleState> {
     ps.score = 0;
     ps.kills = 0;
     ps.radarActive = true;
+    ps.adHudIncomingAswm = 0;
+    ps.adHudCanCommitHardkill = false;
+    ps.adHardkillCommitRemainingSec = 0;
+    ps.adHudRadarAffectsSam = false;
+    ps.aswmRemainingPort = simRow.aswmRemainingPort;
+    ps.aswmRemainingStarboard = simRow.aswmRemainingStarboard;
     this.state.playerList.push(ps);
     assertPlayerLifeInvariant(ps.lifeState, ps.hp, ps.maxHp);
     console.log(
@@ -473,7 +510,11 @@ export class BattleRoom extends Room<BattleState> {
     this.clearAswmMagazine(row);
     row.torpedoReadyAtMs = 0;
     row.adSamNextAtMs = 0;
+    row.adPdNextAtMs = 0;
     row.adCiwsNextAtMs = 0;
+    row.adSoftkillLastUsedAtMs = 0;
+    row.adHardkillCommitUntilMs = 0;
+    row.lastAirDefenseEngagePressed = false;
     this.pendingShells = this.pendingShells.filter((s) => s.ownerSessionId !== sessionId);
     assertPlayerLifeInvariant(p.lifeState, p.hp, p.maxHp);
   }
@@ -510,6 +551,8 @@ export class BattleRoom extends Room<BattleState> {
       else tl.deleteAt(i);
     }
     this.adPendingRollByMissileId.clear();
+    this.adSoftkillAttemptedMissileDefender.clear();
+    this.aswmSoftkillReacquireBlockByMissileId.clear();
   }
 
   /** Kein weiterer Kampf-Schaden / Projektile; Clients zeigen Scoreboard. */
@@ -566,7 +609,11 @@ export class BattleRoom extends Room<BattleState> {
       this.resetAswmMagazineFromClass(row, p.shipClass);
       row.torpedoReadyAtMs = 0;
       row.adSamNextAtMs = 0;
+      row.adPdNextAtMs = 0;
       row.adCiwsNextAtMs = 0;
+      row.adSoftkillLastUsedAtMs = 0;
+      row.adHardkillCommitUntilMs = 0;
+      row.lastAirDefenseEngagePressed = false;
       row.respawnAtMs = null;
       row.invulnerableUntilMs = now + SPAWN_PROTECTION_DURATION_MS;
       row.radarActive = true;
@@ -649,7 +696,11 @@ export class BattleRoom extends Room<BattleState> {
     this.resetAswmMagazineFromClass(row, p.shipClass);
     row.torpedoReadyAtMs = 0;
     row.adSamNextAtMs = 0;
+    row.adPdNextAtMs = 0;
     row.adCiwsNextAtMs = 0;
+    row.adSoftkillLastUsedAtMs = 0;
+    row.adHardkillCommitUntilMs = 0;
+    row.lastAirDefenseEngagePressed = false;
     row.invulnerableUntilMs = now + SPAWN_PROTECTION_DURATION_MS;
     row.radarActive = true;
 
@@ -867,6 +918,11 @@ export class BattleRoom extends Room<BattleState> {
   private removeMissileAt(index: number, missileId: number): void {
     this.missileSpawnedAt.delete(missileId);
     this.adPendingRollByMissileId.delete(missileId);
+    const prefix = `${missileId}|`;
+    for (const k of this.adSoftkillAttemptedMissileDefender) {
+      if (k.startsWith(prefix)) this.adSoftkillAttemptedMissileDefender.delete(k);
+    }
+    this.aswmSoftkillReacquireBlockByMissileId.delete(missileId);
     this.state.missileList.deleteAt(index);
   }
 
@@ -896,6 +952,63 @@ export class BattleRoom extends Room<BattleState> {
     return best;
   }
 
+  private resolveAirDefenseDefenderId(m: MissileState): string | null {
+    let adDefenderId: string | null = null;
+    if (m.targetId !== "") {
+      const t = this.findPlayer(m.targetId);
+      if (t && canTakeArtillerySplashDamage(t.lifeState)) {
+        adDefenderId = m.targetId;
+      }
+    }
+    if (adDefenderId == null) {
+      adDefenderId = this.findClosestAirDefenseDefenderForMissile(m.x, m.z, m.ownerId);
+    }
+    return adDefenderId;
+  }
+
+  private syncAirDefenseHud(now: number): void {
+    const incoming = new Map<string, number>();
+    const radarHint = new Map<string, boolean>();
+    for (let i = 0; i < this.state.missileList.length; i++) {
+      const m = this.state.missileList.at(i);
+      if (!m) continue;
+      const defId = this.resolveAirDefenseDefenderId(m);
+      if (!defId) continue;
+      incoming.set(defId, (incoming.get(defId) ?? 0) + 1);
+      const row = this.sim.get(defId);
+      const tgt = this.findPlayer(defId);
+      if (!row || !tgt) continue;
+      const hb = getShipHullProfileByClass(tgt.shipClass)?.collisionHitbox;
+      const distSq = minDistSqPointToShipHitboxFootprintXZ(
+        m.x,
+        m.z,
+        tgt.x,
+        tgt.z,
+        tgt.headingRad,
+        hb,
+      );
+      if (!row.radarActive && distSq <= AD_SAM_RANGE_SQ) {
+        radarHint.set(defId, true);
+      }
+    }
+    for (const p of this.state.playerList) {
+      if (p.lifeState === PlayerLifeState.AwaitingRespawn) {
+        p.adHudIncomingAswm = 0;
+        p.adHudCanCommitHardkill = false;
+        p.adHardkillCommitRemainingSec = 0;
+        p.adHudRadarAffectsSam = false;
+        continue;
+      }
+      const row = this.sim.get(p.id);
+      p.adHudIncomingAswm = incoming.get(p.id) ?? 0;
+      p.adHudCanCommitHardkill = p.adHudIncomingAswm > 0;
+      p.adHardkillCommitRemainingSec = row
+        ? Math.max(0, (row.adHardkillCommitUntilMs - now) / 1000)
+        : 0;
+      p.adHudRadarAffectsSam = radarHint.get(p.id) ?? false;
+    }
+  }
+
   private stepMissiles(dt: number, now: number): void {
     const half = AREA_OF_OPERATIONS_HALF_EXTENT;
     const list = this.state.missileList;
@@ -919,13 +1032,24 @@ export class BattleRoom extends Room<BattleState> {
           lifeState: q.lifeState,
         });
       }
-      const acquired = pickAswmAcquisitionTarget(
+      let acquired = pickAswmAcquisitionTarget(
         m.x,
         m.z,
         m.headingRad,
         m.ownerId,
         candidates,
       );
+      let reBlock = this.aswmSoftkillReacquireBlockByMissileId.get(m.missileId);
+      if (reBlock && now >= reBlock.untilMs) {
+        this.aswmSoftkillReacquireBlockByMissileId.delete(m.missileId);
+        reBlock = undefined;
+      }
+      if (reBlock && acquired === reBlock.defenderId) {
+        acquired = null;
+      }
+      if (now - spawned < ASWM_SEEKER_ARM_DELAY_MS) {
+        acquired = null;
+      }
       let tx: number | null = null;
       let tz: number | null = null;
       if (acquired != null) {
@@ -969,16 +1093,7 @@ export class BattleRoom extends Room<BattleState> {
         continue;
       }
 
-      let adDefenderId: string | null = null;
-      if (m.targetId !== "") {
-        const t = this.findPlayer(m.targetId);
-        if (t && canTakeArtillerySplashDamage(t.lifeState)) {
-          adDefenderId = m.targetId;
-        }
-      }
-      if (adDefenderId == null) {
-        adDefenderId = this.findClosestAirDefenseDefenderForMissile(m.x, m.z, m.ownerId);
-      }
+      const adDefenderId = this.resolveAirDefenseDefenderId(m);
       if (adDefenderId != null) {
         const tgt = this.findPlayer(adDefenderId);
         const defRow = this.sim.get(adDefenderId);
@@ -987,11 +1102,40 @@ export class BattleRoom extends Room<BattleState> {
         } else {
           const hb = getShipHullProfileByClass(tgt.shipClass)?.collisionHitbox;
           const distSq = minDistSqPointToShipHitboxFootprintXZ(m.x, m.z, tgt.x, tgt.z, tgt.headingRad, hb);
+
+          const skKey = `${m.missileId}|${adDefenderId}`;
+          if (distSq <= AD_SOFTKILL_RANGE_SQ && !this.adSoftkillAttemptedMissileDefender.has(skKey)) {
+            const sk = trySoftkillBreakLock({
+              nowMs: now,
+              defenderSoftkillLastUsedAtMs: defRow.adSoftkillLastUsedAtMs,
+              random01: Math.random,
+            });
+            if (sk.attempted) {
+              this.adSoftkillAttemptedMissileDefender.add(skKey);
+              defRow.adSoftkillLastUsedAtMs = sk.newSoftkillLastUsedAtMs;
+              if (sk.brokeLock) {
+                m.targetId = "";
+                this.aswmSoftkillReacquireBlockByMissileId.set(m.missileId, {
+                  defenderId: adDefenderId,
+                  untilMs: now + AD_SOFTKILL_SAME_TARGET_REACQUIRE_BLOCK_MS,
+                });
+              }
+              const defClient = this.clients.find((c) => c.sessionId === adDefenderId);
+              defClient?.send("softkillResult", { success: sk.brokeLock });
+            }
+          }
+
+          const hardkillActive = now < defRow.adHardkillCommitUntilMs;
+          const samAllowed = defRow.radarActive;
+          const pdAllowed = m.targetId === adDefenderId;
           const adInput = {
             distSq,
             nowMs: now,
             samNextAtMs: defRow.adSamNextAtMs,
+            pdNextAtMs: defRow.adPdNextAtMs,
             ciwsNextAtMs: defRow.adCiwsNextAtMs,
+            samAllowed,
+            pdAllowed,
           };
 
           let airDefenseConsumed = false;
@@ -1001,24 +1145,31 @@ export class BattleRoom extends Room<BattleState> {
               this.adPendingRollByMissileId.delete(m.missileId);
             } else {
               airDefenseConsumed = true;
-              if (!isAirDefenseLayerInRange(pending.layer, distSq)) {
-                const cdMiss = applyAirDefenseCooldownAfterRoll(
+              if (!hardkillActive) {
+                this.adPendingRollByMissileId.delete(m.missileId);
+              } else if (!isHardkillLayerInRange(pending.layer, distSq)) {
+                const cdMiss = applyHardkillCooldownAfterRoll(
                   pending.layer,
                   now,
                   defRow.adSamNextAtMs,
+                  defRow.adPdNextAtMs,
                   defRow.adCiwsNextAtMs,
                 );
                 defRow.adSamNextAtMs = cdMiss.samNextAtMs;
+                defRow.adPdNextAtMs = cdMiss.pdNextAtMs;
                 defRow.adCiwsNextAtMs = cdMiss.ciwsNextAtMs;
+                this.adPendingRollByMissileId.delete(m.missileId);
               } else {
-                const hit = rollAirDefenseHit(pending.layer, Math.random);
-                const cd = applyAirDefenseCooldownAfterRoll(
+                const hit = rollHardkillHit(pending.layer, Math.random);
+                const cd = applyHardkillCooldownAfterRoll(
                   pending.layer,
                   now,
                   defRow.adSamNextAtMs,
+                  defRow.adPdNextAtMs,
                   defRow.adCiwsNextAtMs,
                 );
                 defRow.adSamNextAtMs = cd.samNextAtMs;
+                defRow.adPdNextAtMs = cd.pdNextAtMs;
                 defRow.adCiwsNextAtMs = cd.ciwsNextAtMs;
                 if (hit) {
                   this.broadcast("airDefenseIntercept", {
@@ -1035,13 +1186,13 @@ export class BattleRoom extends Room<BattleState> {
                   this.removeMissileAt(i, m.missileId);
                   continue;
                 }
+                this.adPendingRollByMissileId.delete(m.missileId);
               }
-              this.adPendingRollByMissileId.delete(m.missileId);
             }
           }
 
-          if (!airDefenseConsumed) {
-            const layer = pickAirDefenseEngagementLayer(adInput);
+          if (!airDefenseConsumed && hardkillActive) {
+            const layer = pickHardkillEngagementLayer(adInput);
             if (layer != null) {
               this.adPendingRollByMissileId.set(m.missileId, {
                 defenderId: adDefenderId,
@@ -1409,6 +1560,8 @@ export class BattleRoom extends Room<BattleState> {
         (Math.max(row.aswmReloadUntilMs, row.aswmNextShotAtMs) - now) / 1000,
       );
       p.torpedoCooldownSec = Math.max(0, (row.torpedoReadyAtMs - now) / 1000);
+      p.aswmRemainingPort = row.aswmRemainingPort;
+      p.aswmRemainingStarboard = row.aswmRemainingStarboard;
 
       if (
         (p.lifeState === PlayerLifeState.Alive || p.lifeState === PlayerLifeState.SpawnProtected) &&
@@ -1446,5 +1599,6 @@ export class BattleRoom extends Room<BattleState> {
       this.stepMissiles(dt, now);
       this.stepTorpedoes(dt, now);
     }
+    this.syncAirDefenseHud(now);
   }
 }

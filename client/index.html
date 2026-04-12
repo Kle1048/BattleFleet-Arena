@@ -8,29 +8,63 @@
       * { box-sizing: border-box; margin: 0; padding: 0; }
       html, body { width: 100%; height: 100%; overflow: hidden; background: #5ec8f5; }
       #app { width: 100%; height: 100%; }
+      /**
+       * Globale HUD-Skalierung (~ Browser-Zoom 80 %).
+       * transform-origin je Element, damit Ecken/Anker stimmen.
+       */
+      :root {
+        --hud-ui-scale: 0.8;
+        --cockpit-hud-edge: 16px;
+        /* Flex-Gap innerhalb skalierter Brücke/OPZ: wirkt nach scale(0.8) wie 16px Rand */
+        --cockpit-hud-inner-gap: calc(var(--cockpit-hud-edge) / var(--hud-ui-scale));
+      }
       #hud {
         position: fixed; left: 16px; bottom: 16px; color: #9fb8d4;
         font-family: system-ui, sans-serif; font-size: 11px;
         text-shadow: 0 1px 2px #000; pointer-events: none; line-height: 1.45;
-        opacity: 0.92; max-width: 200px;
+        opacity: 0.92; max-width: min(240px, 38vw); z-index: 12;
+        transform: scale(var(--hud-ui-scale));
+        transform-origin: bottom left;
       }
       #title {
-        position: fixed; top: 16px; left: 50%; transform: translateX(-50%);
+        position: fixed; top: 16px; left: 50%;
+        transform: translateX(-50%) scale(var(--hud-ui-scale));
+        transform-origin: top center;
         color: #8ecfff; font-family: system-ui, sans-serif; font-size: 14px;
         letter-spacing: 0.08em; text-transform: uppercase; opacity: 0.9;
       }
-      .cockpit {
-        position: fixed; left: 16px; top: 16px;
-        pointer-events: none; z-index: 10;
+      .cockpit-hud-root {
+        position: fixed; inset: 0; pointer-events: none; z-index: 11;
         --speed-glow: 0.2;
+      }
+      /* Skalierung je Seite — Anker bleiben an linkem/rechtem Rand (nicht zur Mitte ziehen). */
+      .cockpit-bridge {
+        position: absolute; left: 16px; top: 16px;
+        display: flex;
+        flex-direction: row;
+        align-items: flex-start;
+        gap: var(--cockpit-hud-inner-gap);
+        transform: scale(var(--hud-ui-scale));
+        transform-origin: top left;
+      }
+      .cockpit-opz {
+        position: absolute; right: 16px; top: 16px;
+        display: flex;
+        flex-direction: row;
+        align-items: flex-start;
+        gap: var(--cockpit-hud-inner-gap);
+        transform: scale(var(--hud-ui-scale));
+        transform-origin: top right;
       }
       .cockpit-panel {
         display: flex;
         flex-direction: column;
         align-items: stretch;
-        gap: 12px;
+        gap: 10px;
         padding: 10px 14px 12px;
-        background: linear-gradient(180deg, rgba(12,28,52,0.92), rgba(8,18,36,0.96));
+        min-width: 200px;
+        max-width: 268px;
+        background: linear-gradient(180deg, rgba(12,28,52,0.94), rgba(8,18,36,0.97));
         border: 1px solid rgba(120, 190, 255, 0.28);
         border-radius: 10px;
         box-shadow:
@@ -38,6 +72,166 @@
           0 8px 28px rgba(0,0,0,0.45),
           0 0 calc(18px + var(--speed-glow) * 22px) rgba(80, 170, 255, var(--speed-glow));
         font-family: "Segoe UI", system-ui, sans-serif;
+      }
+      .cockpit-panel-head {
+        display: flex; align-items: center; gap: 8px;
+        padding-bottom: 4px;
+        margin-bottom: 2px;
+        border-bottom: 1px solid rgba(100, 160, 220, 0.22);
+      }
+      .cockpit-panel-head--bridge {
+        justify-content: center;
+      }
+      .cockpit-panel-head--opz {
+        justify-content: center;
+      }
+      .cockpit-panel-title {
+        font-weight: 700; letter-spacing: 0.12em; font-size: 10px;
+        color: rgba(200, 230, 255, 0.88);
+      }
+      .cockpit-compass-wrap {
+        align-self: center;
+        width: 112px; height: 112px;
+        border-radius: 50%;
+        border: 2px solid rgba(100, 170, 230, 0.35);
+        box-shadow: 0 0 16px rgba(40, 120, 200, 0.15) inset, 0 4px 14px rgba(0,0,0,0.4);
+        background: radial-gradient(circle at 50% 50%, #0a1a30 0%, #040a14 100%);
+      }
+      .cockpit-compass-svg { display: block; width: 100%; height: 100%; }
+      .cockpit-compass-rim {
+        stroke: rgba(140, 200, 255, 0.45); stroke-width: 1.2;
+        filter: drop-shadow(0 0 4px rgba(100, 180, 255, 0.35));
+      }
+      .cockpit-compass-lubber {
+        fill: rgba(255, 220, 120, 0.55);
+        stroke: rgba(255, 240, 200, 0.85); stroke-width: 0.6;
+      }
+      .cockpit-compass-tick {
+        stroke: rgba(180, 220, 255, 0.55); stroke-width: 1.1;
+      }
+      .cockpit-compass-tick-sec {
+        stroke: rgba(140, 180, 220, 0.28); stroke-width: 0.7;
+      }
+      .cockpit-compass-cardinal {
+        fill: rgba(210, 235, 255, 0.92);
+        font-size: 11px; font-weight: 700;
+        font-family: ui-monospace, Consolas, monospace;
+      }
+      .cockpit-compass-ctr-diamond {
+        fill: rgba(255, 200, 120, 0.95);
+        stroke: rgba(255, 240, 200, 0.9); stroke-width: 0.5;
+        filter: drop-shadow(0 0 5px rgba(255, 200, 100, 0.85));
+      }
+      .cockpit-subhead {
+        grid-column: 1/-1;
+        font-size: 9px; letter-spacing: 0.14em; text-transform: uppercase;
+        color: rgba(160, 210, 255, 0.65); margin-bottom: 2px;
+      }
+      .cockpit-hp-opz {
+        width: 100%;
+        padding-top: 6px;
+        margin-top: 2px;
+      }
+      .cockpit-weapons-block {
+        display: flex; flex-direction: column; gap: 6px;
+        width: 100%;
+        padding-top: 4px;
+        border-top: 1px solid rgba(0, 255, 100, 0.12);
+      }
+      .cockpit-aswm-mag {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 10px 12px;
+        width: 100%;
+        align-items: start;
+      }
+      .cockpit-aswm-col {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 5px;
+        min-width: 0;
+        width: fit-content;
+        max-width: 100%;
+      }
+      .cockpit-aswm-col--port {
+        justify-self: start;
+      }
+      .cockpit-aswm-col--starboard {
+        justify-self: end;
+      }
+      .cockpit-aswm-col-label {
+        font-size: 9px;
+        letter-spacing: 0.12em;
+        text-transform: uppercase;
+        color: rgba(160, 210, 255, 0.75);
+        font-weight: 600;
+      }
+      .cockpit-aswm-dots {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 4px;
+        flex-wrap: nowrap;
+      }
+      .cockpit-aswm-dot-row {
+        display: flex;
+        flex-direction: row;
+        align-items: center;
+        justify-content: center;
+        gap: 5px;
+        flex-wrap: nowrap;
+      }
+      .cockpit-aswm-dot {
+        display: inline-block;
+        box-sizing: border-box;
+        width: 10px;
+        height: 10px;
+        min-width: 10px;
+        min-height: 10px;
+        border-radius: 50%;
+        border: 1px solid rgba(0, 0, 0, 0.55);
+        flex-shrink: 0;
+        vertical-align: middle;
+      }
+      .cockpit-aswm-dot--ready {
+        background-color: #1ecf4a;
+        color: #1ecf4a;
+        box-shadow: 0 0 6px rgba(30, 207, 74, 0.95);
+      }
+      .cockpit-aswm-dot--fired {
+        background-color: #e02020;
+        color: #e02020;
+        box-shadow: 0 0 5px rgba(224, 32, 32, 0.85);
+      }
+      .cockpit-schematic-wrap {
+        width: 100%;
+        padding-top: 6px;
+        border-top: 1px solid rgba(100, 160, 220, 0.18);
+      }
+      .cockpit-schematic-host {
+        min-height: 118px;
+        display: flex; align-items: center; justify-content: center;
+      }
+      .cockpit-schematic-svg { width: 100%; max-height: 132px; }
+      .cockpit-schematic-hull {
+        fill: rgba(60, 100, 150, 0.25);
+        stroke: rgba(140, 190, 240, 0.55); stroke-width: 1;
+      }
+      .cockpit-schematic-mount { stroke: rgba(0,0,0,0.35); stroke-width: 0.4; }
+      .cockpit-schematic-mount--arty { fill: rgba(255, 180, 120, 0.95); }
+      .cockpit-schematic-mount--ciws { fill: rgba(120, 255, 180, 0.9); }
+      .cockpit-schematic-mount--sam { fill: rgba(120, 200, 255, 0.95); }
+      .cockpit-schematic-mount--torp { fill: rgba(100, 220, 255, 0.9); }
+      .cockpit-schematic-mount--ssm { fill: rgba(220, 160, 255, 0.95); }
+      .cockpit-schematic-mount--gen { fill: rgba(180, 190, 210, 0.85); }
+      .cockpit-schematic-train {
+        stroke: rgba(255, 220, 140, 0.95); stroke-width: 1.4;
+        stroke-linecap: round;
+      }
+      .cockpit-schematic-fixed {
+        stroke: rgba(255, 160, 220, 0.85); stroke-width: 1.2;
+        stroke-linecap: round;
       }
       .cockpit-readouts {
         display: flex; flex-direction: column; justify-content: center;
@@ -139,6 +333,9 @@
       .cockpit-radar-axis {
         stroke: rgba(0, 255, 100, 0.22); stroke-width: 0.7;
       }
+      .cockpit-radar-axis-45 {
+        stroke: rgba(0, 255, 100, 0.16); stroke-width: 0.65;
+      }
       .cockpit-radar-bow {
         fill: rgba(0, 255, 120, 0.35);
         stroke: rgba(0, 255, 100, 0.65); stroke-width: 0.6;
@@ -203,6 +400,8 @@
       }
       .match-end-overlay[hidden] { display: none !important; }
       .match-end-panel {
+        transform: scale(var(--hud-ui-scale));
+        transform-origin: center center;
         max-width: 420px; width: 90%; padding: 24px 28px;
         background: linear-gradient(180deg, rgba(14, 32, 56, 0.98), rgba(8, 20, 40, 0.99));
         border: 1px solid rgba(120, 190, 255, 0.35);
@@ -233,6 +432,8 @@
         pointer-events: auto;
       }
       .class-picker-panel {
+        transform: scale(var(--hud-ui-scale));
+        transform-origin: center center;
         max-width: 520px; width: 92%; padding: 28px 26px;
         background: linear-gradient(180deg, rgba(16, 36, 64, 0.98), rgba(6, 16, 36, 0.99));
         border: 1px solid rgba(100, 180, 255, 0.4);
@@ -276,6 +477,8 @@
         overflow-y: auto; padding: 24px 12px;
       }
       .ship-editor-panel {
+        transform: scale(var(--hud-ui-scale));
+        transform-origin: center center;
         max-width: 560px; width: 100%; padding: 22px 22px 26px;
         background: linear-gradient(180deg, rgba(14, 32, 56, 0.99), rgba(6, 14, 32, 0.99));
         border: 1px solid rgba(110, 190, 255, 0.42);
@@ -331,6 +534,112 @@
 
       .cockpit-ship-class { font-weight: 600; color: #a8d4ff; font-size: 13px; }
       .cockpit-player-name { font-weight: 600; color: #d0c8ff; font-size: 13px; max-width: 200px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; text-align: right; }
+
+      /* In .cockpit-opz eingehängt — gleicher Abstand zum OPZ wie Rand zum Bildschirm (nach Skalierung) */
+      .message-log-panel {
+        position: relative;
+        flex-shrink: 0;
+        z-index: 12;
+        width: min(280px, 34vw);
+        max-height: min(200px, 36vh);
+        overflow: hidden;
+        display: flex; flex-direction: column;
+        padding: 8px 10px 10px;
+        background: linear-gradient(180deg, rgba(10, 22, 42, 0.92), rgba(6, 14, 28, 0.96));
+        border: 1px solid rgba(120, 190, 255, 0.22);
+        border-radius: 8px;
+        box-shadow: 0 6px 22px rgba(0,0,0,0.4);
+        font-family: "Segoe UI", system-ui, sans-serif;
+        font-size: 10px; color: #a8c8e8; pointer-events: none;
+        line-height: 1.4;
+      }
+      .message-log-head {
+        font-size: 9px; letter-spacing: 0.14em; font-weight: 700;
+        color: rgba(180, 210, 240, 0.75); margin-bottom: 6px;
+        border-bottom: 1px solid rgba(100, 160, 220, 0.15);
+        padding-bottom: 4px;
+      }
+      .message-log-list {
+        list-style: none; margin: 0; padding: 0;
+        display: flex; flex-direction: column; gap: 4px;
+      }
+      .message-log-list li { opacity: 0.92; }
+      .message-log-time {
+        display: inline-block; min-width: 2.6rem; margin-right: 6px;
+        color: rgba(140, 180, 220, 0.65); font-variant-numeric: tabular-nums;
+      }
+
+      .game-message-hud {
+        display: none;
+        position: fixed;
+        top: 12%;
+        left: 50%;
+        z-index: 10000;
+        transform: translateX(-50%) scale(var(--hud-ui-scale));
+        transform-origin: top center;
+        width: min(520px, 92vw);
+        min-height: 76px;
+        box-sizing: border-box;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 8px;
+        padding: 14px 18px;
+        text-align: center;
+        font-family: system-ui, sans-serif;
+        pointer-events: none;
+        background: transparent;
+        border: none;
+      }
+
+      /* In .cockpit-bridge eingehängt — skaliert mit Panel, Abstand per Flex gap */
+      #debug-overlay {
+        position: relative;
+        flex-shrink: 0;
+        z-index: 8500;
+        font: 11px/1.4 system-ui, sans-serif;
+        color: #0d2135;
+        background: rgba(255, 255, 255, 0.82);
+        padding: 8px 10px;
+        border-radius: 6px;
+        pointer-events: none;
+        text-align: left;
+        max-width: min(280px, 92vw);
+      }
+
+      .bot-debug-panel {
+        position: fixed;
+        right: var(--cockpit-hud-edge);
+        bottom: var(--cockpit-hud-edge);
+        left: auto;
+        top: auto;
+        z-index: 8550;
+        transform: scale(var(--hud-ui-scale));
+        transform-origin: bottom right;
+        font: 11px/1.4 system-ui, sans-serif;
+        color: #d7ecff;
+        background: rgba(8, 22, 36, 0.82);
+        padding: 8px 10px;
+        border-radius: 6px;
+        max-width: min(360px, 42vw);
+        border: 1px solid rgba(160, 210, 255, 0.22);
+      }
+
+      .environment-debug-panel {
+        position: fixed;
+        left: 50%;
+        bottom: 12px;
+        z-index: 8600;
+        transform: translateX(-50%) scale(var(--hud-ui-scale));
+        transform-origin: bottom center;
+        max-width: min(420px, 92vw);
+        background: rgba(10, 20, 28, 0.92);
+        color: #d9efff;
+        border: 1px solid rgba(130, 180, 220, 0.35);
+        border-radius: 8px;
+        padding: 8px 10px;
+        font: 11px/1.35 system-ui, sans-serif;
+      }
     </style>
   </head>
   <body>

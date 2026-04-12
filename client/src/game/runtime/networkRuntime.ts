@@ -63,14 +63,16 @@ type RegisterNetworkHandlersOptions<TPlayerList> = {
   onTorpedoFireByLocalPlayer: () => void;
   onMineImpactNearLocalPlayer: (distance: number) => void;
   onConnectionClosed: () => void;
-  /** Optional: SAM/CIWS Feuer und Intercept (Server-Messages `airDefenseFire` / `airDefenseIntercept`). */
-  onAirDefenseSound?: (ev: { phase: "fire" | "intercept"; layer: "sam" | "ciws" }) => void;
+  /** Optional: Hardkill-Schichten — Feuer und Intercept (`airDefenseFire` / `airDefenseIntercept`). */
+  onAirDefenseSound?: (ev: { phase: "fire" | "intercept"; layer: "sam" | "pd" | "ciws" }) => void;
   /** Server `collisionContact`: Schiff↔Schiff / Schiff↔Insel (Kontaktbeginn). */
   onCollisionContact?: (kind: "ship" | "island") => void;
   /** Server `missileLockOn`: eigene ASuM hat Ziel erfasst. */
   onMissileLockOn?: () => void;
   /** Server `aswmMagazineReloaded`: Magazin nach Magic Reload wieder voll. */
   onAswmMagazineReloaded?: () => void;
+  /** Server `softkillResult`: nur Verteidiger — ECM-Versuch gegen eingehende ASuM. */
+  onSoftkillResult?: (success: boolean) => void;
   /** Direkter Waffentreffer (`kind === "hit"`) — Artillerie / ASuM / Torpedo. */
   onWeaponHitAt?: (worldX: number, worldZ: number) => void;
 };
@@ -103,6 +105,7 @@ export function registerNetworkHandlers<TPlayerList>(
     onWeaponHitAt,
     onMissileLockOn,
     onAswmMagazineReloaded,
+    onSoftkillResult,
   } = options;
 
   room.onMessage("collisionContact", (msg) => {
@@ -118,6 +121,12 @@ export function registerNetworkHandlers<TPlayerList>(
 
   room.onMessage("aswmMagazineReloaded", () => {
     onAswmMagazineReloaded?.();
+  });
+
+  room.onMessage("softkillResult", (msg) => {
+    const rec = msg as { success?: unknown };
+    const ok = rec?.success === true;
+    onSoftkillResult?.(ok);
   });
 
   room.onMessage("pong", (payloadUnknown) => {

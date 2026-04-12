@@ -5,9 +5,9 @@ import type { IslandCircle } from "./islands";
 export const ARTILLERY_PRIMARY_COOLDOWN_MS = 500;
 
 /** Basis-Flugzeit; leicht distanz-abhängig mit Cap (ms). */
-export const ARTILLERY_FLIGHT_TIME_BASE_MS = 360;
-export const ARTILLERY_FLIGHT_TIME_PER_UNIT_MS = 0.035;
-export const ARTILLERY_FLIGHT_TIME_MAX_MS = 520;
+export const ARTILLERY_FLIGHT_TIME_BASE_MS = 420;
+export const ARTILLERY_FLIGHT_TIME_PER_UNIT_MS = 0.042;
+export const ARTILLERY_FLIGHT_TIME_MAX_MS = 600;
 
 export const ARTILLERY_SPLASH_RADIUS = 19;
 export const ARTILLERY_DAMAGE = 11;

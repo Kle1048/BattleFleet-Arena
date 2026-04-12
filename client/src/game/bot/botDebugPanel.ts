@@ -15,10 +15,8 @@ export function createBotDebugPanel(): {
   dispose: () => void;
 } {
   const wrap = document.createElement("div");
-  wrap.style.cssText =
-    "position:fixed;right:12px;bottom:12px;z-index:9998;font:11px/1.4 system-ui,sans-serif;color:#d7ecff;" +
-    "background:rgba(8,22,36,0.82);padding:8px 10px;border-radius:6px;max-width:min(360px,42vw);" +
-    "border:1px solid rgba(160,210,255,0.22);";
+  wrap.className = "bot-debug-panel";
+  /* Layout + scale: index.html `.bot-debug-panel` */
   const header = document.createElement("div");
   header.style.cssText = "display:flex;align-items:center;justify-content:space-between;gap:8px;";
   const title = document.createElement("div");

@@ -18,6 +18,7 @@ import { VisualColorTokens, createShipHullAliveMaterial } from "../runtime/mater
 import { getEffectiveHullProfile, isShipHitboxDebugVisible } from "../runtime/shipProfileRuntime";
 import { clonePreparedShipHull, collectHullMeshMaterials } from "./shipGltfHull";
 import { createShipHitboxWireframe } from "./shipHitboxDebug";
+import { createLocalShipRangeRingsGroup } from "./shipRangeRingsDebug";
 import { attachMountVisualsToHullModel } from "./shipMountVisuals";
 import { assignToOverlayLayer } from "../runtime/renderOverlayLayers";
 
@@ -79,9 +80,13 @@ export function applyShipVisualRuntimeTuning(vis: ShipVisual): void {
   }
   if (vis.hitboxLogicalGroup && vis.shipHullScale > 1e-8) {
     vis.hitboxLogicalGroup.position.set(0, 0, user.shipPivotLocalZ / vis.shipHullScale);
+    vis.hitboxLogicalGroup.visible = isShipHitboxDebugVisible();
   }
   if (vis.weaponGuideGroup && !user.showWeaponArc) {
     vis.weaponGuideGroup.visible = false;
+  }
+  if (vis.rangeRingsGroup) {
+    vis.rangeRingsGroup.visible = user.showRangeRings;
   }
 }
 
@@ -148,6 +153,8 @@ export type ShipVisual = {
   mountGltfMaterials: THREE.Material[];
   /** Nur lokaler Spieler: Feuerbogen — bei Zerstörung ausgeblendet. */
   weaponGuideGroup: THREE.Group | null;
+  /** Nur lokaler Spieler: 100-m-Abstandsringe (Debug). */
+  rangeRingsGroup: THREE.Group | null;
   /**
    * Server-/JSON-Hitbox (Kanten), Kind von `group` mit `1/hullScale` — unabhängig vom GLB.
    * Position entlang +Z korrigiert den Sprite-/Modell-Pivot → Simulationsmittelpunkt.
@@ -259,8 +266,10 @@ export function setShipVisualLifeState(
   lifeState: string,
   isLocal: boolean,
 ): void {
-  const showArc = getShipDebugTuning().showWeaponArc;
-  const lifeVisualKey = `${lifeState}|${showArc ? "1" : "0"}`;
+  const tune = getShipDebugTuning();
+  const showArc = tune.showWeaponArc;
+  const showRings = tune.showRangeRings;
+  const lifeVisualKey = `${lifeState}|${showArc ? "1" : "0"}|${showRings ? "1" : "0"}`;
   if (vis._lastLifeVisualKey === lifeVisualKey) return;
   vis._lastLifeVisualKey = lifeVisualKey;
 
@@ -302,6 +311,9 @@ export function setShipVisualLifeState(
     if (vis.weaponGuideGroup) {
       vis.weaponGuideGroup.visible = false;
     }
+    if (vis.rangeRingsGroup) {
+      vis.rangeRingsGroup.visible = false;
+    }
     return;
   }
 
@@ -328,7 +340,7 @@ export function setShipVisualLifeState(
     aimMat.opacity = isLocal ? 1 : 0.92;
 
     if (vis.weaponGuideGroup) {
-      vis.weaponGuideGroup.visible = getShipDebugTuning().showWeaponArc;
+      vis.weaponGuideGroup.visible = tune.showWeaponArc;
       vis.weaponGuideGroup.traverse((o) => {
         const l = o as THREE.Line;
         const m = l.material as THREE.LineBasicMaterial | undefined;
@@ -338,6 +350,9 @@ export function setShipVisualLifeState(
           m.transparent = true;
         }
       });
+    }
+    if (vis.rangeRingsGroup) {
+      vis.rangeRingsGroup.visible = tune.showRangeRings;
     }
     return;
   }
@@ -376,7 +391,10 @@ export function setShipVisualLifeState(
   aimMat.opacity = aimOpacity;
 
   if (vis.weaponGuideGroup) {
-    vis.weaponGuideGroup.visible = getShipDebugTuning().showWeaponArc;
+    vis.weaponGuideGroup.visible = tune.showWeaponArc;
+  }
+  if (vis.rangeRingsGroup) {
+    vis.rangeRingsGroup.visible = tune.showRangeRings;
   }
 }
 
@@ -516,9 +534,16 @@ export function createShipVisual(options: {
     group.add(weaponGuideGroup);
   }
 
+  let rangeRingsGroup: THREE.Group | null = null;
+  if (options.isLocal) {
+    rangeRingsGroup = createLocalShipRangeRingsGroup(prof.hullScale);
+    rangeRingsGroup.visible = getShipDebugTuning().showRangeRings;
+    group.add(rangeRingsGroup);
+  }
+
   let hitboxLogicalGroup: THREE.Group | null = null;
   /** Hitbox unabhängig vom GLB: gleiche Einheiten wie Server — `group` hat `hullScale`, daher korrigieren. */
-  if (hullProfile?.collisionHitbox && isShipHitboxDebugVisible()) {
+  if (hullProfile?.collisionHitbox) {
     const hitboxRoot = new THREE.Group();
     hitboxRoot.name = "shipHitboxLogical";
     const inv = prof.hullScale > 1e-8 ? 1 / prof.hullScale : 1;
@@ -526,6 +551,7 @@ export function createShipVisual(options: {
     hitboxRoot.add(createShipHitboxWireframe(hullProfile.collisionHitbox));
     const tuning0 = getShipDebugTuning();
     hitboxRoot.position.set(0, 0, tuning0.shipPivotLocalZ / prof.hullScale);
+    hitboxRoot.visible = isShipHitboxDebugVisible();
     assignToOverlayLayer(hitboxRoot);
     group.add(hitboxRoot);
     hitboxLogicalGroup = hitboxRoot;
@@ -542,6 +568,7 @@ export function createShipVisual(options: {
     hullGltfMaterials,
     mountGltfMaterials,
     weaponGuideGroup,
+    rangeRingsGroup,
     hitboxLogicalGroup,
     shipHullScale: prof.hullScale,
   };

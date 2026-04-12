@@ -12,6 +12,8 @@ export type ShipDebugTuning = {
   /** Zusatz zu GLB-Rumpf-Y (negativ = tiefer ins Wasser / weniger „Schweben“). */
   gltfHullYOffset: number;
   showWeaponArc: boolean;
+  /** Lokaler Spieler: konzentrische 100-m-Abstandsringe (Luftverteidigung / Reichweiten-Debug). */
+  showRangeRings: boolean;
 };
 
 export const DEFAULT_SHIP_DEBUG_TUNING: Readonly<ShipDebugTuning> = {
@@ -24,6 +26,7 @@ export const DEFAULT_SHIP_DEBUG_TUNING: Readonly<ShipDebugTuning> = {
   wakeSpawnLocalZ: -60,
   gltfHullYOffset: -470,
   showWeaponArc: true,
+  showRangeRings: false,
 };
 
 let currentShipDebugTuning: ShipDebugTuning = {
@@ -110,6 +113,10 @@ export function applyShipDebugTuning(patch: Partial<ShipDebugTuning>): Readonly<
       typeof patch.showWeaponArc === "boolean"
         ? patch.showWeaponArc
         : currentShipDebugTuning.showWeaponArc,
+    showRangeRings:
+      typeof patch.showRangeRings === "boolean"
+        ? patch.showRangeRings
+        : currentShipDebugTuning.showRangeRings,
   };
   currentShipDebugTuning = next;
   shipDebugTuningGeneration += 1;

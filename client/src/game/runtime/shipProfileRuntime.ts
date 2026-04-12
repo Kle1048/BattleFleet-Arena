@@ -80,12 +80,17 @@ export function uniqueHullGltfUrlsForAllClasses(): string[] {
   return [...new Set(urls)];
 }
 
-/** Hitbox-Drahtrahmen: default an, `"0"` = aus. */
+/** Hitbox-Drahtrahmen: nur bei explizitem `"1"` an (Standard: aus). */
 export function isShipHitboxDebugVisible(): boolean {
-  if (typeof localStorage === "undefined") return true;
-  return localStorage.getItem(STORAGE_HITBOX) !== "0";
+  if (typeof localStorage === "undefined") return false;
+  return localStorage.getItem(STORAGE_HITBOX) === "1";
 }
 
 export function setShipHitboxDebugVisible(visible: boolean): void {
-  localStorage.setItem(STORAGE_HITBOX, visible ? "1" : "0");
+  if (typeof localStorage === "undefined") return;
+  try {
+    localStorage.setItem(STORAGE_HITBOX, visible ? "1" : "0");
+  } catch {
+    /* Quota / private mode */
+  }
 }

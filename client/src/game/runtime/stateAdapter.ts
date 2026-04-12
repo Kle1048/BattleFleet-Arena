@@ -28,6 +28,8 @@ export type NetPlayer = Pick<
   | "shipClass"
   | "displayName"
   | "radarActive"
+  | "aswmRemainingPort"
+  | "aswmRemainingStarboard"
 >;
 
 export type NetMissile = Pick<

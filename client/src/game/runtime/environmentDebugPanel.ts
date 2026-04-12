@@ -33,6 +33,11 @@ import {
   getWakeRuntimeTuning,
   resetWakeRuntimeTuning,
 } from "./wakeRuntimeTuning";
+import { clearPersistedClientSettings } from "./clearPersistedClientSettings";
+import {
+  isShipHitboxDebugVisible,
+  setShipHitboxDebugVisible,
+} from "./shipProfileRuntime";
 
 const STORAGE_KEY = "bfa.waterShaderTuning.v2";
 const SHIP_STORAGE_KEY = "bfa.shipDebugTuning.v2";
@@ -174,10 +179,8 @@ export function createEnvironmentDebugPanel(bundle: GameSceneBundle): { dispose:
   let env: EnvironmentTuning = bundle.getEnvironmentTuning();
 
   const root = document.createElement("div");
-  root.style.cssText =
-    "position:fixed;left:12px;bottom:12px;z-index:9999;max-width:min(420px,92vw);" +
-    "background:rgba(10,20,28,0.92);color:#d9efff;border:1px solid rgba(130,180,220,0.35);" +
-    "border-radius:8px;padding:8px 10px;font:11px/1.35 system-ui,sans-serif;";
+  root.className = "environment-debug-panel";
+  /* Layout + scale: index.html `.environment-debug-panel` */
   const header = document.createElement("div");
   header.style.cssText = "display:flex;align-items:center;justify-content:space-between;gap:8px;";
   const title = document.createElement("div");
@@ -197,8 +200,17 @@ export function createEnvironmentDebugPanel(bundle: GameSceneBundle): { dispose:
   resetAll.style.cssText =
     "background:#2a4a2a;color:#c8ffc8;border:1px solid rgba(130,220,150,0.45);" +
     "border-radius:5px;padding:2px 7px;cursor:pointer;font:11px system-ui,sans-serif;";
+  const clearBrowserStorage = document.createElement("button");
+  clearBrowserStorage.type = "button";
+  clearBrowserStorage.textContent = "Speicher leeren";
+  clearBrowserStorage.title =
+    "Alle lokalen Einstellungen aus dem Browser entfernen und neu laden (wie ?resetLocal=1).";
+  clearBrowserStorage.style.cssText =
+    "background:#4a3a2a;color:#ffd4a8;border:1px solid rgba(220,160,100,0.55);" +
+    "border-radius:5px;padding:2px 7px;cursor:pointer;font:11px system-ui,sans-serif;";
   headerButtons.appendChild(toggle);
   headerButtons.appendChild(resetAll);
+  headerButtons.appendChild(clearBrowserStorage);
   header.appendChild(title);
   header.appendChild(headerButtons);
   root.appendChild(header);
@@ -517,6 +529,38 @@ export function createEnvironmentDebugPanel(bundle: GameSceneBundle): { dispose:
   arcWrap.appendChild(arcToggle);
   panelShip.appendChild(arcWrap);
 
+  const ringsLabel = document.createElement("label");
+  ringsLabel.textContent = "Range rings (100 m)";
+  ringsLabel.title = "Lokales Schiff: Kreise im Abstand 100 m (Reichweiten-Debug).";
+  panelShip.appendChild(ringsLabel);
+  const ringsWrap = document.createElement("div");
+  ringsWrap.style.cssText = "display:flex;align-items:center;justify-content:flex-end;gap:6px;";
+  const ringsToggle = document.createElement("input");
+  ringsToggle.type = "checkbox";
+  ringsToggle.checked = currentShip.showRangeRings;
+  ringsToggle.addEventListener("change", () => {
+    currentShip.showRangeRings = ringsToggle.checked;
+    applyShipDebugTuning({ showRangeRings: ringsToggle.checked });
+    savePersistedShipTuning(currentShip);
+  });
+  ringsWrap.appendChild(ringsToggle);
+  panelShip.appendChild(ringsWrap);
+
+  const hitboxLabel = document.createElement("label");
+  hitboxLabel.textContent = "Hitbox (Drahtrahmen)";
+  hitboxLabel.title = "Server-Hitbox (AABB) als Debug-Overlay; wird in localStorage gespeichert.";
+  panelShip.appendChild(hitboxLabel);
+  const hitboxWrap = document.createElement("div");
+  hitboxWrap.style.cssText = "display:flex;align-items:center;justify-content:flex-end;gap:6px;";
+  const hitboxToggle = document.createElement("input");
+  hitboxToggle.type = "checkbox";
+  hitboxToggle.checked = isShipHitboxDebugVisible();
+  hitboxToggle.addEventListener("change", () => {
+    setShipHitboxDebugVisible(hitboxToggle.checked);
+  });
+  hitboxWrap.appendChild(hitboxToggle);
+  panelShip.appendChild(hitboxWrap);
+
   const shipFineRow = document.createElement("label");
   shipFineRow.style.cssText =
     "grid-column:1/-1;display:flex;align-items:center;gap:8px;cursor:pointer;font-size:0.82rem;margin-bottom:8px;";
@@ -767,6 +811,9 @@ export function createEnvironmentDebugPanel(bundle: GameSceneBundle): { dispose:
     applyShipDebugTuning(nextShip);
     savePersistedShipTuning(currentShip);
     arcToggle.checked = nextShip.showWeaponArc;
+    ringsToggle.checked = nextShip.showRangeRings;
+    setShipHitboxDebugVisible(false);
+    hitboxToggle.checked = false;
     for (const r of shipSliderRefs) {
       const v = nextShip[r.key];
       r.input.value = String(v);
@@ -821,9 +868,15 @@ export function createEnvironmentDebugPanel(bundle: GameSceneBundle): { dispose:
     wakeSampleRef.val.textContent = wakeRt.sampleMinDist.toFixed(3);
   });
 
+  clearBrowserStorage.addEventListener("click", () => {
+    clearPersistedClientSettings();
+    window.location.reload();
+  });
+
   const hint = document.createElement("div");
   hint.style.cssText = "margin-top:6px;font-size:10px;color:#84b5d9;";
-  hint.textContent = "Werte werden lokal gespeichert. Tabs reduzieren die Höhe.";
+  hint.textContent =
+    "Werte werden lokal gespeichert. Tabs reduzieren die Höhe. „Speicher leeren“ entfernt alle gespeicherten Client-Werte und lädt neu.";
   root.appendChild(hint);
 
   let expanded = false;

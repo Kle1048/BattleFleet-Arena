@@ -35,8 +35,9 @@ export const VisualColorTokens = {
   torpedoEmissive: 0x0a1820,
   torpedoImpactHit: 0xe08250,
   torpedoImpactWater: 0x6ec8e8,
-  artilleryShell: 0xffeed0,
-  artilleryShellEmissive: 0xffaa55,
+  /** Flugkörper — rot/orange wie Leuchtspurmunition. */
+  artilleryShell: 0xb81808,
+  artilleryShellEmissive: 0xff4400,
   artilleryImpactHitOuter: 0xff5500,
   artilleryImpactHitInner: 0xffcc66,
   artilleryImpactHitBurst: 0xff3300,
@@ -73,9 +74,9 @@ export function createArtilleryShellMaterial(): THREE.MeshStandardMaterial {
   return new THREE.MeshStandardMaterial({
     color: VisualColorTokens.artilleryShell,
     emissive: VisualColorTokens.artilleryShellEmissive,
-    emissiveIntensity: 0.35,
-    metalness: 0.2,
-    roughness: 0.45,
+    emissiveIntensity: 1.05,
+    metalness: 0.08,
+    roughness: 0.38,
     fog: false,
   });
 }

@@ -13,7 +13,12 @@ export const ASWM_SPEED = 190;
 /** Max. Drehgeschwindigkeit Richtung Ziel (rad/s). */
 export const ASWM_TURN_RATE_RAD_PER_S = 1.05;
 export const ASWM_LIFETIME_MS = 12_000;
-export const ASWM_HIT_RADIUS = 26;
+/**
+ * Treffer, wenn der Abstand vom Raketenmittelpunkt zur **Hitbox-Fußfläche** (XZ) ≤ diesem Wert ist
+ * (`circleIntersectsShipHitboxFootprintXZ`) — zusätzlicher Puffer **außerhalb** der Schiffs-AABB.
+ * Zuvor 26 m / 16 m; aktuell bewusst eng für ein knapperes Einschlagfenster.
+ */
+export const ASWM_HIT_RADIUS = 12;
 /** Kollision Insel: Zentrum FK gilt als innerhalb, wenn Distanz ≤ Inselradius + dieser Wert. */
 export const ASWM_ISLAND_COLLISION_RADIUS = 14;
 export const ASWM_DAMAGE = 28;
@@ -21,6 +26,8 @@ export const ASWM_COOLDOWN_MS = 3200;
 export const ASWM_MAX_PER_OWNER = 2;
 /** Mindestabstand zwischen ASuM-Schüssen bei noch gefülltem Magazin (Server). */
 export const ASWM_SHOT_INTERVAL_MS = 1000;
+/** Nach Start: Sucher/Zielerfassung erst aktiv — verhindert Nutzung im Nahkampf (Server). */
+export const ASWM_SEEKER_ARM_DELAY_MS = 1000;
 /** Nach leerem Magazin: Zeit bis Magic Reload (Server); FAC nutzt Default, DD/CG in Rumpf-JSON. */
 export const ASWM_MAGIC_RELOAD_MS = 20_000;
 /** Länge des Suchkegels (m): nur Ziele innerhalb dieser Entfernung zur Rakete. */
