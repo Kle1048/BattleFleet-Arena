@@ -27,6 +27,7 @@ export type NetPlayer = Pick<
   | "xp"
   | "shipClass"
   | "displayName"
+  | "radarActive"
 >;
 
 export type NetMissile = Pick<

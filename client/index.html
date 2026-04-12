@@ -25,7 +25,10 @@
         --speed-glow: 0.2;
       }
       .cockpit-panel {
-        display: flex; align-items: stretch; gap: 14px;
+        display: flex;
+        flex-direction: column;
+        align-items: stretch;
+        gap: 12px;
         padding: 10px 14px 12px;
         background: linear-gradient(180deg, rgba(12,28,52,0.92), rgba(8,18,36,0.96));
         border: 1px solid rgba(120, 190, 255, 0.28);
@@ -38,7 +41,7 @@
       }
       .cockpit-readouts {
         display: flex; flex-direction: column; justify-content: center;
-        gap: 8px; min-width: 168px;
+        gap: 8px; min-width: 168px; width: 100%;
       }
       .cockpit-row {
         display: flex; align-items: baseline; justify-content: space-between;
@@ -78,6 +81,118 @@
       .cockpit-match-time { font-variant-numeric: tabular-nums; font-weight: 600; color: #a8e8ff; font-size: 13px; }
       .cockpit-match-score { font-variant-numeric: tabular-nums; font-weight: 600; color: #ffe9a8; font-size: 13px; }
       .cockpit-kills { opacity: 0.85; font-weight: 500; }
+
+      /* Plan-Radar — phosphorgrün, 80er-Terminal-Stil (über der Textspalte) */
+      .cockpit-radar {
+        display: flex; flex-direction: column; align-items: center; gap: 4px;
+        flex-shrink: 0;
+        align-self: center;
+        padding-bottom: 6px;
+        margin-bottom: 2px;
+        border-bottom: 1px solid rgba(0, 255, 100, 0.1);
+      }
+      .cockpit-radar-hidden {
+        opacity: 0.35;
+        filter: saturate(0.5);
+      }
+      .cockpit-radar-head {
+        display: flex; flex-wrap: wrap; align-items: center; justify-content: center;
+        gap: 8px 12px; width: 100%; max-width: 200px;
+      }
+      .cockpit-radar-title {
+        font-family: ui-monospace, "Cascadia Mono", Consolas, monospace;
+        font-size: 9px; letter-spacing: 0.28em; color: #00ff66;
+        text-shadow: 0 0 6px rgba(0, 255, 102, 0.75), 0 0 14px rgba(0, 255, 80, 0.35);
+        opacity: 0.92;
+      }
+      .cockpit-own-radar-status {
+        font-family: ui-monospace, "Cascadia Mono", Consolas, monospace;
+        font-size: 8px; letter-spacing: 0.06em; color: #88ffaa;
+        text-shadow: 0 0 4px rgba(0, 255, 120, 0.5);
+      }
+      .cockpit-own-radar-status.cockpit-own-radar-off {
+        color: #668866;
+        text-shadow: none;
+        opacity: 0.75;
+      }
+      .cockpit-radar-bezel {
+        position: relative;
+        width: 112px; height: 112px;
+        border-radius: 50%;
+        border: 2px solid #0a3d1a;
+        box-shadow:
+          0 0 0 1px rgba(0, 255, 100, 0.25) inset,
+          0 0 20px rgba(0, 255, 80, 0.12),
+          0 4px 12px rgba(0, 0, 0, 0.5);
+        background: radial-gradient(circle at 50% 50%, #001a0d 0%, #000806 100%);
+      }
+      .cockpit-radar-svg {
+        display: block; width: 100%; height: 100%;
+      }
+      .cockpit-radar-ring-outer {
+        stroke: rgba(0, 255, 100, 0.55); stroke-width: 1.2;
+        filter: drop-shadow(0 0 3px rgba(0, 255, 100, 0.4));
+      }
+      .cockpit-radar-ring-mid, .cockpit-radar-ring-inner {
+        stroke: rgba(0, 255, 90, 0.28); stroke-width: 0.9;
+      }
+      .cockpit-radar-axis {
+        stroke: rgba(0, 255, 100, 0.22); stroke-width: 0.7;
+      }
+      .cockpit-radar-bow {
+        fill: rgba(0, 255, 120, 0.35);
+        stroke: rgba(0, 255, 100, 0.65); stroke-width: 0.6;
+      }
+      .cockpit-radar-ownship {
+        fill: #00ff88;
+        filter: drop-shadow(0 0 4px rgba(0, 255, 120, 0.9));
+      }
+      .cockpit-radar-blip {
+        fill: #66ff99;
+        stroke: #00ff66;
+        stroke-width: 0.4;
+        filter: drop-shadow(0 0 5px rgba(0, 255, 100, 0.95));
+      }
+      .cockpit-radar-esm-line {
+        fill: none;
+        stroke: rgba(255, 200, 80, 0.95);
+        stroke-width: 1.35;
+        stroke-dasharray: 4 3;
+        stroke-linecap: round;
+        filter: drop-shadow(0 0 4px rgba(255, 200, 100, 0.85));
+      }
+      .cockpit-radar-scan {
+        pointer-events: none;
+        position: absolute; inset: 0; border-radius: 50%;
+        background: repeating-linear-gradient(
+          0deg,
+          transparent 0px,
+          transparent 2px,
+          rgba(0, 255, 80, 0.05) 2px,
+          rgba(0, 255, 80, 0.05) 3px
+        );
+        animation: cockpit-radar-flicker 3.5s ease-in-out infinite;
+        mix-blend-mode: screen;
+      }
+      @keyframes cockpit-radar-flicker {
+        0%, 100% { opacity: 0.38; }
+        50% { opacity: 0.52; }
+      }
+      .cockpit-radar-foot {
+        display: flex; align-items: baseline; justify-content: center; gap: 10px;
+        flex-wrap: wrap; width: 100%; max-width: 200px;
+      }
+      .cockpit-radar-range {
+        font-family: ui-monospace, "Cascadia Mono", Consolas, monospace;
+        font-size: 9px; color: #00cc55;
+        text-shadow: 0 0 4px rgba(0, 255, 100, 0.5);
+        opacity: 0.85;
+      }
+      .cockpit-radar-esm-hint {
+        font-family: ui-monospace, "Cascadia Mono", Consolas, monospace;
+        font-size: 8px; letter-spacing: 0.2em; color: rgba(255, 200, 100, 0.75);
+        text-shadow: 0 0 6px rgba(255, 180, 60, 0.45);
+      }
 
       .match-end-overlay {
         position: fixed; inset: 0; z-index: 200;

@@ -10,6 +10,8 @@ export type InputSample = {
   secondaryFire: boolean;
   /** Torpedo (Task 8): **Mittlere Maustaste** gehalten oder **Q**. */
   torpedoFire: boolean;
+  /** Suchrad an/aus — **R** toggelt (ESM-Sichtbarkeit für Gegner). */
+  radarActive: boolean;
 };
 
 /**
@@ -24,9 +26,13 @@ export function createInputHandlers(
   dispose: () => void;
 } {
   const keys = new Set<string>();
+  let radarActive = true;
 
   const onDown = (e: KeyboardEvent): void => {
     keys.add(e.code);
+    if (e.code === "KeyR" && !e.repeat) {
+      radarActive = !radarActive;
+    }
   };
   const onUp = (e: KeyboardEvent): void => {
     keys.delete(e.code);
@@ -102,6 +108,7 @@ export function createInputHandlers(
       primaryFire,
       secondaryFire,
       torpedoFire,
+      radarActive,
     };
   }
 

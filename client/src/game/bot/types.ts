@@ -16,6 +16,7 @@ export type BotInputCommand = {
   primaryFire: boolean;
   secondaryFire: boolean;
   torpedoFire: boolean;
+  radarActive: boolean;
 };
 
 export type BotVisiblePlayer = {

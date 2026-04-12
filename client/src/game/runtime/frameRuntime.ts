@@ -28,6 +28,11 @@ import {
 import { applyCameraShakeStep } from "./cameraShakeRuntime";
 import { worldToRenderX, worldToRenderYaw } from "./renderCoords";
 import { getShipDebugTuning } from "./shipDebugTuning";
+import {
+  radarBlipNormalized,
+  esmLineTowardBlip,
+  type RadarBlipNorm,
+} from "../hud/radarHudMath";
 
 type NetPlayerLike = {
   id: string;
@@ -53,6 +58,7 @@ type NetPlayerLike = {
   xp: number;
   shipClass: string;
   displayName: string;
+  radarActive?: boolean;
 };
 
 type MissileLike = { missileId: number; x: number; z: number; headingRad: number };
@@ -67,6 +73,7 @@ type InputSample = {
   primaryFire: boolean;
   secondaryFire: boolean;
   torpedoFire: boolean;
+  radarActive: boolean;
 };
 
 type CockpitLike = {
@@ -92,6 +99,10 @@ type CockpitLike = {
     xpLine: string;
     shipClassLabel: string;
     playerDisplayName: string;
+    radarBlips: RadarBlipNorm[];
+    radarVisible: boolean;
+    ownRadarActive: boolean;
+    esmLines: { x1: number; y1: number; x2: number; y2: number }[];
   }) => void;
 };
 
@@ -151,6 +162,7 @@ export function runFrameRuntimeStep<
     torpedoFire: boolean;
     artillerySpawnLocalZ: number;
     mineSpawnLocalZ: number;
+    radarActive: boolean;
   }) => void;
   mySessionId: string;
   cfgMaxSpeed: number;
@@ -304,6 +316,7 @@ export function runFrameRuntimeStep<
           artillerySpawnLocalZ:
             tuningNow.aimOriginLocalZ - tuningNow.shipPivotLocalZ + tuningNow.artillerySpawnLocalZ,
           mineSpawnLocalZ: tuningNow.mineSpawnLocalZ,
+          radarActive: inputSample.radarActive,
         });
       }
 
@@ -336,6 +349,24 @@ export function runFrameRuntimeStep<
       }
       state.lastHudLevel = progLevel;
 
+      const radarBlips: RadarBlipNorm[] = [];
+      const esmLines: { x1: number; y1: number; x2: number; y2: number }[] = [];
+      let radarVisible = false;
+      const ownRadarActive = me.radarActive !== false;
+      if (!matchEnded && me.lifeState !== PlayerLifeState.AwaitingRespawn) {
+        radarVisible = true;
+        for (const other of playerList) {
+          if (other.id === mySessionId) continue;
+          if (other.lifeState === PlayerLifeState.AwaitingRespawn) continue;
+          const b = radarBlipNormalized(p.x, p.z, p.headingRad, other.x, other.z);
+          if (b && ownRadarActive) radarBlips.push(b);
+          const emitterOn = other.radarActive !== false;
+          if (emitterOn && b) {
+            esmLines.push(esmLineTowardBlip(b));
+          }
+        }
+      }
+
       cockpit.update({
         speed: speedKn,
         maxSpeed: maxSpeedKn,
@@ -361,6 +392,10 @@ export function runFrameRuntimeStep<
           typeof me.displayName === "string" && me.displayName.trim().length > 0
             ? me.displayName.trim()
             : toShortSession(me.id),
+        radarBlips,
+        radarVisible,
+        ownRadarActive,
+        esmLines,
       });
     }
   }

@@ -3,8 +3,8 @@
  * Kill geht an den **tödlichen Treffer** (letzter Schaden bis HP 0); Umgebung (OOB) zählt nicht.
  */
 
-/** Sichtbar im Schema / HUD (Sekunden). Aktuell **5 min**; PRD-Ziel u. a. 12 min. */
-export const MATCH_DURATION_SEC = 300;
+/** Sichtbar im Schema / HUD (Sekunden). */
+export const MATCH_DURATION_SEC = 720;
 
 export const MATCH_DURATION_MS = MATCH_DURATION_SEC * 1000;
 

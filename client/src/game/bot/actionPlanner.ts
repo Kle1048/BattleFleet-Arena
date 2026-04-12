@@ -75,6 +75,7 @@ export function planAction(input: ActionPlanningInput): BotInputCommand {
       primaryFire: false,
       secondaryFire: false,
       torpedoFire: false,
+      radarActive: true,
     };
   }
   if (intent === "RETREAT") {
@@ -88,6 +89,7 @@ export function planAction(input: ActionPlanningInput): BotInputCommand {
       primaryFire: false,
       secondaryFire: false,
       torpedoFire: false,
+      radarActive: true,
     };
   }
   if (intent === "ATTACK" || intent === "FINISH_TARGET") {
@@ -101,6 +103,7 @@ export function planAction(input: ActionPlanningInput): BotInputCommand {
       primaryFire: Math.abs(yawErr) < 0.35,
       secondaryFire: context.targetInMissileArc && self.secondaryCooldownSec <= 0.05,
       torpedoFire: context.targetInGunArc && self.torpedoCooldownSec <= 0.05,
+      radarActive: true,
     };
   }
   if (intent === "HOLD_ARC") {
@@ -114,6 +117,7 @@ export function planAction(input: ActionPlanningInput): BotInputCommand {
       primaryFire: false,
       secondaryFire: false,
       torpedoFire: false,
+      radarActive: true,
     };
   }
   if (intent === "CHASE") {
@@ -127,6 +131,7 @@ export function planAction(input: ActionPlanningInput): BotInputCommand {
       primaryFire: Math.abs(yawErr) < 0.3 && self.primaryCooldownSec <= 0.05,
       secondaryFire: false,
       torpedoFire: false,
+      radarActive: true,
     };
   }
   const throttle = 0.4;
@@ -139,5 +144,6 @@ export function planAction(input: ActionPlanningInput): BotInputCommand {
     primaryFire: false,
     secondaryFire: false,
     torpedoFire: false,
+    radarActive: true,
   };
 }

@@ -2,6 +2,8 @@
  * Brücken-Overlay: Kurs als 000°…359° (0° = Nord), Fahrt, Waffen-Cooldowns, Match/Punkte.
  */
 
+import { RADAR_RANGE_WORLD, type RadarBlipNorm } from "./radarHudMath";
+
 export type CockpitHudUpdate = {
   speed: number;
   maxSpeed: number;
@@ -36,6 +38,13 @@ export type CockpitHudUpdate = {
   shipClassLabel: string;
   /** Lobby-Anzeigename (oder gekürzte Session-ID). */
   playerDisplayName: string;
+  /** Kleines Plan-Radar: Kontakte relativ zum Bug, normiert ±1. */
+  radarBlips: RadarBlipNorm[];
+  radarVisible: boolean;
+  /** Eigenes Suchrad (repliziert) — steuert Sichtbarkeit für fremde ESM. */
+  ownRadarActive: boolean;
+  /** Passive ESM: Linien zum Peiler (Gegner mit aktivem Radar in Reichweite). */
+  esmLines: { x1: number; y1: number; x2: number; y2: number }[];
 };
 
 const BASE_URL = import.meta.env.BASE_URL;
@@ -49,12 +58,48 @@ function formatCourse(d: number): string {
   return `${Math.round(d).toString().padStart(3, "0")}°`;
 }
 
+const RADAR_BLIP_SCALE = 46;
+
 export function createCockpitHud(): { update: (u: CockpitHudUpdate) => void } {
   const wrap = document.createElement("div");
   wrap.className = "cockpit";
   wrap.setAttribute("aria-label", "Fahrt-Anzeige");
+  const radarRangeLabel = `${RADAR_RANGE_WORLD}m`;
   wrap.innerHTML = `
     <div class="cockpit-panel">
+      <div class="cockpit-radar" aria-hidden="true">
+        <div class="cockpit-radar-head">
+          <span class="cockpit-radar-title">TACTICAL</span>
+          <span class="cockpit-own-radar-status" title="R = Suchrad an/aus">RADAR ON</span>
+        </div>
+        <div class="cockpit-radar-bezel">
+          <svg class="cockpit-radar-svg" viewBox="-52 -52 104 104">
+            <defs>
+              <clipPath id="cockpitRadarClip"><circle cx="0" cy="0" r="47.5" /></clipPath>
+              <radialGradient id="cockpitRadarGlow" cx="50%" cy="50%" r="50%">
+                <stop offset="0%" stop-color="rgba(0,255,120,0.12)" />
+                <stop offset="70%" stop-color="rgba(0,40,20,0.35)" />
+                <stop offset="100%" stop-color="rgba(0,12,6,0.85)" />
+              </radialGradient>
+            </defs>
+            <circle cx="0" cy="0" r="50" fill="url(#cockpitRadarGlow)" />
+            <circle class="cockpit-radar-ring-outer" cx="0" cy="0" r="48" fill="none" />
+            <circle class="cockpit-radar-ring-mid" cx="0" cy="0" r="24" fill="none" />
+            <circle class="cockpit-radar-ring-inner" cx="0" cy="0" r="8" fill="none" />
+            <line class="cockpit-radar-axis" x1="0" y1="-48" x2="0" y2="48" />
+            <line class="cockpit-radar-axis" x1="-48" y1="0" x2="48" y2="0" />
+            <polygon class="cockpit-radar-bow" points="0,-44 -5,-36 5,-36" />
+            <g class="cockpit-radar-esm" clip-path="url(#cockpitRadarClip)"></g>
+            <circle class="cockpit-radar-ownship" cx="0" cy="0" r="2.2" />
+            <g class="cockpit-radar-blips" clip-path="url(#cockpitRadarClip)"></g>
+          </svg>
+          <div class="cockpit-radar-scan"></div>
+        </div>
+        <div class="cockpit-radar-foot">
+          <span class="cockpit-radar-range">${radarRangeLabel}</span>
+          <span class="cockpit-radar-esm-hint">ESM</span>
+        </div>
+      </div>
       <div class="cockpit-readouts">
         <div class="cockpit-row cockpit-row-header" style="display:flex;align-items:center;gap:8px;margin-bottom:2px;">
           <img
@@ -155,8 +200,41 @@ export function createCockpitHud(): { update: (u: CockpitHudUpdate) => void } {
   const killsSpan = wrap.querySelector(".cockpit-kills") as HTMLElement;
   const rankEl = wrap.querySelector(".cockpit-rank-en") as HTMLElement;
   const xpEl = wrap.querySelector(".cockpit-xp") as HTMLElement;
+  const radarRoot = wrap.querySelector(".cockpit-radar") as HTMLElement;
+  const ownRadarStatusEl = wrap.querySelector(".cockpit-own-radar-status") as HTMLElement;
+  const radarBlipsG = wrap.querySelector(".cockpit-radar-blips") as SVGGElement;
+  const radarEsmG = wrap.querySelector(".cockpit-radar-esm") as SVGGElement;
 
   document.body.appendChild(wrap);
+
+  const svgNs = "http://www.w3.org/2000/svg";
+
+  function drawEsmLines(lines: { x1: number; y1: number; x2: number; y2: number }[]): void {
+    radarEsmG.replaceChildren();
+    for (const ln of lines) {
+      const el = document.createElementNS(svgNs, "line");
+      el.setAttribute("x1", String(ln.x1));
+      el.setAttribute("y1", String(ln.y1));
+      el.setAttribute("x2", String(ln.x2));
+      el.setAttribute("y2", String(ln.y2));
+      el.setAttribute("class", "cockpit-radar-esm-line");
+      radarEsmG.appendChild(el);
+    }
+  }
+
+  function drawRadarBlips(blips: RadarBlipNorm[]): void {
+    radarBlipsG.replaceChildren();
+    for (const b of blips) {
+      const r = b.nx * b.nx + b.ny * b.ny;
+      if (r > 1.02) continue;
+      const dot = document.createElementNS(svgNs, "circle");
+      dot.setAttribute("cx", String(b.nx * RADAR_BLIP_SCALE));
+      dot.setAttribute("cy", String(b.ny * RADAR_BLIP_SCALE));
+      dot.setAttribute("r", "3");
+      dot.setAttribute("class", "cockpit-radar-blip");
+      radarBlipsG.appendChild(dot);
+    }
+  }
 
   function formatMatchTime(totalSec: number): string {
     const s = Math.max(0, Math.floor(totalSec));
@@ -200,6 +278,10 @@ export function createCockpitHud(): { update: (u: CockpitHudUpdate) => void } {
       xpLine,
       shipClassLabel,
       playerDisplayName,
+      radarBlips,
+      radarVisible,
+      ownRadarActive,
+      esmLines,
     }: CockpitHudUpdate): void {
       const deg = degFromHeading(headingRad);
 
@@ -283,6 +365,19 @@ export function createCockpitHud(): { update: (u: CockpitHudUpdate) => void } {
       killsSpan.textContent = `(${kills})`;
       rankEl.textContent = rankLabelEn;
       xpEl.textContent = xpLine;
+
+      ownRadarStatusEl.textContent = ownRadarActive ? "RADAR ON" : "RADAR OFF";
+      ownRadarStatusEl.classList.toggle("cockpit-own-radar-off", !ownRadarActive);
+
+      if (radarVisible) {
+        radarRoot.classList.remove("cockpit-radar-hidden");
+        drawEsmLines(esmLines);
+        drawRadarBlips(radarBlips);
+      } else {
+        radarRoot.classList.add("cockpit-radar-hidden");
+        radarEsmG.replaceChildren();
+        radarBlipsG.replaceChildren();
+      }
     },
   };
 }

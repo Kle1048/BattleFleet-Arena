@@ -53,6 +53,11 @@ export class PlayerState extends Schema {
   declare shipClass: string;
   /** Anzeigename (Lobby), serverbereinigt, max. Länge s. `displayName.ts`. */
   declare displayName: string;
+  /**
+   * Suchrad aktiv — wenn `true`, sendet das Schiff für Gegner eine ESM-Peilung (Passivelektronik).
+   * `false` = „Radar aus“, keine ESM-Sichtbarkeit für andere.
+   */
+  declare radarActive: boolean;
 
   constructor() {
     super();
@@ -79,6 +84,7 @@ export class PlayerState extends Schema {
     this.xp = 0;
     this.shipClass = SHIP_CLASS_FAC;
     this.displayName = "";
+    this.radarActive = true;
   }
 }
 
@@ -106,6 +112,7 @@ defineTypes(PlayerState, {
   xp: "number",
   shipClass: "string",
   displayName: "string",
+  radarActive: "boolean",
 });
 
 /** Replizierte Lenkflugkörper (Task 7); Server autoritativ. */

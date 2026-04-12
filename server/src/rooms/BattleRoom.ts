@@ -104,6 +104,8 @@ export type InputPayload = {
   artillerySpawnLocalZ?: number;
   /** Debug-Tuning: Minen-Ablage entlang Schiffs-Längsachse (lokales -Z = Heck). */
   mineSpawnLocalZ?: number;
+  /** Suchrad an/aus — steuert ESM-Sichtbarkeit für Gegner (repliziert). */
+  radarActive?: boolean;
 };
 
 type SimEntry = {
@@ -132,6 +134,8 @@ type SimEntry = {
   respawnAtMs: number | null;
   /** Nach Respawn: Ende der Schutzphase; `0` = keine Invulnerabilität. */
   invulnerableUntilMs: number;
+  /** Suchrad — ESM-Emission für Gegner. */
+  radarActive: boolean;
 };
 
 type PendingShell = {
@@ -215,6 +219,9 @@ export class BattleRoom extends Room<BattleState> {
       const mineSpawnLocalZ = payload.mineSpawnLocalZ;
       if (typeof mineSpawnLocalZ === "number" && Number.isFinite(mineSpawnLocalZ)) {
         row.mineSpawnLocalZ = clampRange(mineSpawnLocalZ, -140, 20);
+      }
+      if (typeof payload.radarActive === "boolean") {
+        row.radarActive = payload.radarActive;
       }
 
       if (payload.primaryFire === true) {
@@ -350,6 +357,7 @@ export class BattleRoom extends Room<BattleState> {
       adCiwsNextAtMs: 0,
       respawnAtMs: null,
       invulnerableUntilMs: 0,
+      radarActive: true,
     };
     this.resetAswmMagazineFromClass(simRow, shipClass);
     this.sim.set(client.sessionId, simRow);
@@ -379,6 +387,7 @@ export class BattleRoom extends Room<BattleState> {
     ps.torpedoCooldownSec = 0;
     ps.score = 0;
     ps.kills = 0;
+    ps.radarActive = true;
     this.state.playerList.push(ps);
     assertPlayerLifeInvariant(ps.lifeState, ps.hp, ps.maxHp);
     console.log(
@@ -560,6 +569,7 @@ export class BattleRoom extends Room<BattleState> {
       row.adCiwsNextAtMs = 0;
       row.respawnAtMs = null;
       row.invulnerableUntilMs = now + SPAWN_PROTECTION_DURATION_MS;
+      row.radarActive = true;
 
       p.x = spawnX;
       p.z = spawnZ;
@@ -583,6 +593,7 @@ export class BattleRoom extends Room<BattleState> {
       p.spawnProtectionSec = SPAWN_PROTECTION_DURATION_MS / 1000;
       p.score = 0;
       p.kills = 0;
+      p.radarActive = true;
 
       assertPlayerLifeInvariant(p.lifeState, p.hp, p.maxHp);
       idx++;
@@ -640,6 +651,7 @@ export class BattleRoom extends Room<BattleState> {
     row.adSamNextAtMs = 0;
     row.adCiwsNextAtMs = 0;
     row.invulnerableUntilMs = now + SPAWN_PROTECTION_DURATION_MS;
+    row.radarActive = true;
 
     p.x = row.ship.x;
     p.z = row.ship.z;
@@ -654,6 +666,7 @@ export class BattleRoom extends Room<BattleState> {
     p.lifeState = PlayerLifeState.SpawnProtected;
     p.respawnCountdownSec = 0;
     p.spawnProtectionSec = SPAWN_PROTECTION_DURATION_MS / 1000;
+    p.radarActive = true;
 
     assertPlayerLifeInvariant(p.lifeState, p.hp, p.maxHp);
   }
@@ -1388,6 +1401,7 @@ export class BattleRoom extends Room<BattleState> {
       p.rudder = row.ship.rudder;
       p.aimX = row.aimX;
       p.aimZ = row.aimZ;
+      p.radarActive = row.radarActive;
 
       p.primaryCooldownSec = Math.max(0, (row.primaryReadyAtMs - now) / 1000);
       p.secondaryCooldownSec = Math.max(
