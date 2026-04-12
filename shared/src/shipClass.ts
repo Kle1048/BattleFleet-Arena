@@ -94,12 +94,13 @@ const byId: Record<ShipClassId, ShipClassProfile> = {
 };
 
 /**
- * Schiffsklasse aus Match-Progressions-Level: 1–4 FAC, 5–6 Zerstörer, 7–10 Kreuzer.
+ * Schiffsklasse aus Match-Progressions-Level.
+ * Debug: frühere Freischaltung — 1–2 FAC, 3–4 Zerstörer, ab 5 Kreuzer (Release war 1–4 / 5–6 / 7–10).
  */
 export function shipClassIdForProgressionLevel(level: number): ShipClassId {
   const lv = Math.max(1, Math.min(10, Math.floor(Number(level) || 1)));
-  if (lv >= 7) return SHIP_CLASS_CRUISER;
-  if (lv >= 5) return SHIP_CLASS_DESTROYER;
+  if (lv >= 5) return SHIP_CLASS_CRUISER;
+  if (lv >= 3) return SHIP_CLASS_DESTROYER;
   return SHIP_CLASS_FAC;
 }
 

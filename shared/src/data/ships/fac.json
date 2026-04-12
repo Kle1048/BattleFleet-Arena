@@ -3,6 +3,10 @@
   "labelDe": "FAC (Schnellboot-Klasse)",
   "hullGltfId": "fac",
   "hullVisualScale": 1,
+  "clientVisualTuningDefaults": {
+    "gltfHullYOffset": -1465,
+    "spriteScale": 2
+  },
   "collisionHitbox": {
     "center": { "x": 0, "y": 0, "z": 0 },
     "halfExtents": { "x": 4, "y": 5, "z": 30 }

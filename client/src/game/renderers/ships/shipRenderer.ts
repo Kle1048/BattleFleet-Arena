@@ -31,10 +31,15 @@ export function createShipRenderer(
   removeShip: (sessionId: string) => boolean;
 } {
   const visuals = new Map<string, ShipVisual>();
+  /** Zuletzt gebaute Klasse pro Session — bei Wechsel (Progression) Rumpf neu laden. */
+  const shipClassBySession = new Map<string, ShipClassId>();
 
   function ensureShip(sessionId: string, shipClassId?: string): void {
-    if (visuals.has(sessionId)) return;
     const cid = normalizeShipClassId(shipClassId ?? SHIP_CLASS_FAC);
+    if (visuals.has(sessionId)) {
+      if (shipClassBySession.get(sessionId) === cid) return;
+      removeShip(sessionId);
+    }
     const template =
       options?.getHullGltfTemplate?.(cid) ?? options?.shipHullGltf ?? undefined;
     const vis = createShipVisual({
@@ -45,6 +50,7 @@ export function createShipRenderer(
     });
     scene.add(vis.group);
     visuals.set(sessionId, vis);
+    shipClassBySession.set(sessionId, cid);
   }
 
   function removeShip(sessionId: string): boolean {
@@ -52,6 +58,7 @@ export function createShipRenderer(
     if (!vis) return false;
     clearShipVisual(scene, vis);
     visuals.delete(sessionId);
+    shipClassBySession.delete(sessionId);
     return true;
   }
 
@@ -76,6 +83,7 @@ export function createShipRenderer(
         clearShipVisual(scene, vis);
       }
       visuals.clear();
+      shipClassBySession.clear();
     },
     getVisuals() {
       return visuals;

@@ -533,7 +533,7 @@ export function createEnvironmentDebugPanel(bundle: GameSceneBundle): { dispose:
   const shipSliderRefs: {
     key: keyof ShipDebugTuning;
     input: HTMLInputElement;
-    val: HTMLElement;
+    numInput: HTMLInputElement;
     min: number;
     max: number;
   }[] = [];
@@ -544,7 +544,7 @@ export function createEnvironmentDebugPanel(bundle: GameSceneBundle): { dispose:
     panelShip.appendChild(label);
 
     const wrap = document.createElement("div");
-    wrap.style.cssText = "display:flex;align-items:center;gap:6px;";
+    wrap.style.cssText = "display:flex;align-items:center;gap:6px;flex-wrap:wrap;";
     const input = document.createElement("input");
     input.type = "range";
     input.min = String(s.min);
@@ -552,24 +552,52 @@ export function createEnvironmentDebugPanel(bundle: GameSceneBundle): { dispose:
     input.step = "any";
     input.value = String(currentShip[s.key]);
     input.style.width = "110px";
-    const val = document.createElement("span");
-    val.style.cssText = "min-width:46px;text-align:right;color:#9ed3ff;";
-    val.textContent = Number(currentShip[s.key]).toFixed(3);
-    input.addEventListener("input", () => {
-      const raw = Number(input.value);
+    const numInput = document.createElement("input");
+    numInput.type = "number";
+    numInput.min = String(s.min);
+    numInput.max = String(s.max);
+    numInput.step = "any";
+    numInput.title = "Wert direkt eintragen; Enter oder Tab zum Übernehmen.";
+    numInput.style.cssText =
+      "width:88px;padding:2px 4px;font:11px system-ui,sans-serif;background:#0d1f2d;color:#cfefff;border:1px solid rgba(130,180,220,0.45);border-radius:4px;";
+    numInput.value = String(currentShip[s.key]);
+
+    const commitShipValue = (raw: number): void => {
+      if (!Number.isFinite(raw)) return;
       const step = effectiveShipSliderStep(s, shipFineCheckbox.checked);
       const next = clamp(snapToStep(raw, step), s.min, s.max);
-      input.value = String(next);
-      currentShip[s.key] = next;
-      val.textContent = next.toFixed(3);
-      applyShipDebugTuning({ [s.key]: next });
+      const tuned = applyShipDebugTuning({ [s.key]: next });
+      const applied = tuned[s.key] as number;
+      currentShip[s.key] = applied;
+      input.value = String(applied);
+      numInput.value = String(applied);
       savePersistedShipTuning(currentShip);
+    };
+
+    input.addEventListener("input", () => {
+      commitShipValue(Number(input.value));
     });
+    numInput.addEventListener("change", () => {
+      commitShipValue(Number(numInput.value));
+    });
+    numInput.addEventListener("keydown", (ev) => {
+      if (ev.key === "Enter") {
+        ev.preventDefault();
+        numInput.blur();
+      }
+    });
+
     wrap.appendChild(input);
-    wrap.appendChild(val);
+    wrap.appendChild(numInput);
     panelShip.appendChild(wrap);
-    shipSliderRefs.push({ key: s.key, input, val, min: s.min, max: s.max });
+    shipSliderRefs.push({ key: s.key, input, numInput, min: s.min, max: s.max });
   }
+
+  const shipManualHint = document.createElement("div");
+  shipManualHint.style.cssText = "grid-column:1/-1;font-size:10px;color:#8ab;line-height:1.35;margin-top:4px;";
+  shipManualHint.textContent =
+    "Zahlenfeld: Wert eintippen, mit Enter oder Fokus verlassen übernehmen (gleiche Grenzen / Raster wie der Slider).";
+  panelShip.appendChild(shipManualHint);
 
   /* ——— Tab: Kamera ——— */
   addSectionTitle(panelCam, "Follow Camera", false);
@@ -742,7 +770,7 @@ export function createEnvironmentDebugPanel(bundle: GameSceneBundle): { dispose:
     for (const r of shipSliderRefs) {
       const v = nextShip[r.key];
       r.input.value = String(v);
-      r.val.textContent = Number(v).toFixed(3);
+      r.numInput.value = String(v);
     }
     resetFollowCameraTuning();
     Object.assign(currentCamera, DEFAULT_FOLLOW_CAMERA_TUNING);

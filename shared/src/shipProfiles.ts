@@ -75,5 +75,9 @@ export function mergeShipHullVisualProfile(
     defaultRotatingMountFireSector:
       patch.defaultRotatingMountFireSector ?? base.defaultRotatingMountFireSector,
     collisionHitbox: patch.collisionHitbox ?? base.collisionHitbox,
+    clientVisualTuningDefaults:
+      patch.clientVisualTuningDefaults !== undefined
+        ? { ...base.clientVisualTuningDefaults, ...patch.clientVisualTuningDefaults }
+        : base.clientVisualTuningDefaults,
   };
 }

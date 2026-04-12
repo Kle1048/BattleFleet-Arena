@@ -346,12 +346,13 @@ async function bootstrap(): Promise<void> {
     const humanInput = input.sample();
     const missileList = missileListOf(room);
     const torpedoList = torpedoListOf(room);
+    const botEnabled = botController.isEnabled();
     const botInput = botController.update(
       now,
       playerList,
       mySessionId,
-      missileList ? [...missileList] : [],
-      torpedoList ? [...torpedoList] : [],
+      botEnabled && missileList ? [...missileList] : [],
+      botEnabled && torpedoList ? [...torpedoList] : [],
     );
     const samp = botInput ?? humanInput;
     const { phase: matchPhase, remainingSec: matchRemainingSecRaw } = readMatchTimer(room);

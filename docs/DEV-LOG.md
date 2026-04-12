@@ -57,3 +57,19 @@ npm run devlog:append
 
 > Shipped: Gameplay: ASuM-Magazine, Progression, Schiffsklassen; Visuals: Umwelt & Wasser 🚢 Wir hacken an einem AI-collab Wettkampfspiel — #Vibejam #indiedev
 
+---
+
+## 2026-04-12 — Snapshot: 3D hull GLBs, class visuals, tuning & perf (bad FPS)
+
+- **Autor:** Klemens1048
+- **Commit:** Snapshot: 3D hull GLBs, class visuals, tuning & perf (bad FPS)
+
+**Details:**
+
+- Includes hull profile cache, visual dirty checks, progression ship classes, feature-module inventory doc. Branch label: 3D Modells implemented bad FPS.
+- Made-with: Cursor
+
+### Vorschlag Twitter / X (#Vibejam)
+
+> ⚓ Snapshot: 3D hull GLBs, class visuals, tuning & perf (bad FPS) — BattleFleet Arena nimmt Fahrt auf für #Vibejam: KI-unterstütztes Naval-RTS. Wer baut noch mit am Jam? #gamedev #AIgames
+

@@ -1,8 +1,12 @@
 {
   "profileId": "destroyer",
   "labelDe": "Zerstörer",
-  "hullGltfId": "fac",
+  "hullGltfId": "destroyer",
   "hullVisualScale": 1.55,
+  "clientVisualTuningDefaults": {
+    "gltfHullYOffset": -182,
+    "spriteScale": 1
+  },
   "collisionHitbox": {
     "center": { "x": 0, "y": 0, "z": 0 },
     "halfExtents": { "x": 6, "y": 7.5, "z": 60 }

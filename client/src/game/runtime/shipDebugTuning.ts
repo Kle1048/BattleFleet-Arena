@@ -1,3 +1,6 @@
+import { normalizeShipClassId, SHIP_CLASS_FAC } from "@battlefleet/shared";
+import { getEffectiveHullProfile } from "./shipProfileRuntime";
+
 export type ShipDebugTuning = {
   spriteScale: number;
   aimOriginLocalZ: number;
@@ -37,6 +40,21 @@ function clamp(v: number, min: number, max: number): number {
 
 export function getShipDebugTuning(): Readonly<ShipDebugTuning> {
   return currentShipDebugTuning;
+}
+
+/**
+ * Volles Tuning inkl. klassenspezifischer Rumpf-Defaults (selten nötig — Hot Path nutzt
+ * `applyShipVisualRuntimeTuning` ohne zusätzliches Objekt).
+ */
+export function getShipDebugTuningForVisualClass(shipClassId: unknown): Readonly<ShipDebugTuning> {
+  const user = getShipDebugTuning();
+  const o = getEffectiveHullProfile(normalizeShipClassId(shipClassId ?? SHIP_CLASS_FAC))?.clientVisualTuningDefaults;
+  if (!o || (o.spriteScale === undefined && o.gltfHullYOffset === undefined)) return user;
+  return {
+    ...user,
+    spriteScale: o.spriteScale ?? user.spriteScale,
+    gltfHullYOffset: o.gltfHullYOffset ?? user.gltfHullYOffset,
+  };
 }
 
 export function applyShipDebugTuning(patch: Partial<ShipDebugTuning>): Readonly<ShipDebugTuning> {

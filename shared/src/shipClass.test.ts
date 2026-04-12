@@ -17,10 +17,10 @@ assert.equal(normalizeShipClassId("fac"), SHIP_CLASS_FAC);
 assert.equal(normalizeShipClassId("CRUISER"), SHIP_CLASS_CRUISER);
 
 assert.equal(shipClassIdForProgressionLevel(1), SHIP_CLASS_FAC);
-assert.equal(shipClassIdForProgressionLevel(4), SHIP_CLASS_FAC);
-assert.equal(shipClassIdForProgressionLevel(5), SHIP_CLASS_DESTROYER);
-assert.equal(shipClassIdForProgressionLevel(6), SHIP_CLASS_DESTROYER);
-assert.equal(shipClassIdForProgressionLevel(7), SHIP_CLASS_CRUISER);
+assert.equal(shipClassIdForProgressionLevel(2), SHIP_CLASS_FAC);
+assert.equal(shipClassIdForProgressionLevel(3), SHIP_CLASS_DESTROYER);
+assert.equal(shipClassIdForProgressionLevel(4), SHIP_CLASS_DESTROYER);
+assert.equal(shipClassIdForProgressionLevel(5), SHIP_CLASS_CRUISER);
 assert.equal(shipClassIdForProgressionLevel(10), SHIP_CLASS_CRUISER);
 
 const fac = getShipClassProfile(SHIP_CLASS_FAC);

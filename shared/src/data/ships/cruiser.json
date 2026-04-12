@@ -1,8 +1,12 @@
 {
   "profileId": "cruiser",
   "labelDe": "Kreuzer",
-  "hullGltfId": "fac",
+  "hullGltfId": "cruiser",
   "hullVisualScale": 2.05,
+  "clientVisualTuningDefaults": {
+    "gltfHullYOffset": -207,
+    "spriteScale": 0.7
+  },
   "collisionHitbox": {
     "center": { "x": 0, "y": 0, "z": 0 },
     "halfExtents": { "x": 8.5, "y": 10, "z": 85 }

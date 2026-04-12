@@ -56,6 +56,8 @@ export function createVisualRuntime<TPlayer extends PlayerLike>(
   const remoteInterp = new Map<string, InterpolationBuffer>();
   let playerListHandlersBoundTo: ArraySchema<TPlayer> | null = null;
   let stateSyncCount = 0;
+  let lastEnsurePlayerCount = -1;
+  const lastEnsureShipClassById = new Map<string, string>();
 
   const bindPlayerListHandlers = (): void => {
     const list = playerListOf(room);
@@ -68,6 +70,7 @@ export function createVisualRuntime<TPlayer extends PlayerLike>(
     list.onRemove((player) => {
       shipRenderer.removeShip(player.id);
       remoteInterp.delete(player.id);
+      lastEnsureShipClassById.delete(player.id);
     });
   };
 
@@ -93,7 +96,25 @@ export function createVisualRuntime<TPlayer extends PlayerLike>(
     visuals,
     remoteInterp,
     ensureVisualsForPlayers(list) {
-      if (visuals.size === list.length) return;
+      const n = list.length;
+      let dirty = n !== lastEnsurePlayerCount;
+      lastEnsurePlayerCount = n;
+      const present = new Set<string>();
+      for (const p of list) {
+        present.add(p.id);
+        const sc = typeof p.shipClass === "string" ? p.shipClass : "";
+        if (lastEnsureShipClassById.get(p.id) !== sc) {
+          dirty = true;
+          lastEnsureShipClassById.set(p.id, sc);
+        }
+      }
+      for (const id of lastEnsureShipClassById.keys()) {
+        if (!present.has(id)) {
+          lastEnsureShipClassById.delete(id);
+          dirty = true;
+        }
+      }
+      if (!dirty) return;
       for (const p of list) {
         const sc = typeof p.shipClass === "string" ? p.shipClass : undefined;
         shipRenderer.ensureShip(p.id, sc);
@@ -106,6 +127,8 @@ export function createVisualRuntime<TPlayer extends PlayerLike>(
       shipRenderer.dispose();
       remoteInterp.clear();
       playerListHandlersBoundTo = null;
+      lastEnsurePlayerCount = -1;
+      lastEnsureShipClassById.clear();
     },
   };
 }

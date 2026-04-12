@@ -5,6 +5,7 @@ import {
   PlayerLifeState,
   normalizeShipClassId,
   SHIP_CLASS_FAC,
+  type ShipClassId,
 } from "@battlefleet/shared";
 import { AssetUrls } from "../runtime/assetCatalog";
 import { getShipDebugTuning } from "../runtime/shipDebugTuning";
@@ -63,21 +64,23 @@ function shipSpriteWorldWidthFromTexture(texture: THREE.Texture): number {
 }
 
 export function applyShipVisualRuntimeTuning(vis: ShipVisual): void {
-  const tuning = getShipDebugTuning();
+  const user = getShipDebugTuning();
+  const def = getEffectiveHullProfile(vis.shipClassId)?.clientVisualTuningDefaults;
+  const spriteScale = def?.spriteScale ?? user.spriteScale;
+  const gltfHullYOffset = def?.gltfHullYOffset ?? user.gltfHullYOffset;
   // "aimOriginLocalZ" verschiebt den Turmdrehpunkt entlang der Schiffsachse.
-  vis.aimLine.position.z = tuning.aimOriginLocalZ;
+  vis.aimLine.position.z = user.aimOriginLocalZ;
   if (vis.hullSprite) {
-    // Einheitliche Skalierung des 2D-Schiffssprites für schnelle Iteration.
-    vis.hullSprite.scale.setScalar(tuning.spriteScale);
+    vis.hullSprite.scale.setScalar(spriteScale);
   }
   if (vis.hullModel) {
-    vis.hullModel.scale.setScalar(tuning.spriteScale);
-    vis.hullModel.position.y = vis.hullGltfBaseY + tuning.gltfHullYOffset;
+    vis.hullModel.scale.setScalar(spriteScale);
+    vis.hullModel.position.y = vis.hullGltfBaseY + gltfHullYOffset;
   }
   if (vis.hitboxLogicalGroup && vis.shipHullScale > 1e-8) {
-    vis.hitboxLogicalGroup.position.set(0, 0, tuning.shipPivotLocalZ / vis.shipHullScale);
+    vis.hitboxLogicalGroup.position.set(0, 0, user.shipPivotLocalZ / vis.shipHullScale);
   }
-  if (vis.weaponGuideGroup && !tuning.showWeaponArc) {
+  if (vis.weaponGuideGroup && !user.showWeaponArc) {
     vis.weaponGuideGroup.visible = false;
   }
 }
@@ -128,6 +131,8 @@ function createHullPrismGeometry(halfBeam: number): THREE.BufferGeometry {
 }
 
 export type ShipVisual = {
+  /** Für klassenspezifische Rumpf-Tuning-Defaults (JSON). */
+  shipClassId: ShipClassId;
   group: THREE.Group;
   /** Drehgruppe; Kind: Zylinder-Rohr (`MeshBasicMaterial`). */
   aimLine: THREE.Group;
@@ -150,6 +155,10 @@ export type ShipVisual = {
   hitboxLogicalGroup: THREE.Group | null;
   /** `ShipClassProfile.hullScale` — für Hitbox-Pivot. */
   shipHullScale: number;
+  /**
+   * Cache für `setShipVisualLifeState`: vermeidet pro Frame volle Material-Neusetzung bei unverändertem Zustand.
+   */
+  _lastLifeVisualKey?: string;
 };
 
 function hullAliveMaterial(isLocal: boolean): THREE.MeshStandardMaterial {
@@ -248,6 +257,11 @@ export function setShipVisualLifeState(
   lifeState: string,
   isLocal: boolean,
 ): void {
+  const showArc = getShipDebugTuning().showWeaponArc;
+  const lifeVisualKey = `${lifeState}|${showArc ? "1" : "0"}`;
+  if (vis._lastLifeVisualKey === lifeVisualKey) return;
+  vis._lastLifeVisualKey = lifeVisualKey;
+
   const wreck = lifeState === PlayerLifeState.AwaitingRespawn;
   const shielded = lifeState === PlayerLifeState.SpawnProtected;
   const hullMat = vis.hull.material as THREE.MeshStandardMaterial;
@@ -516,6 +530,7 @@ export function createShipVisual(options: {
   }
 
   const vis: ShipVisual = {
+    shipClassId: cid,
     group,
     aimLine: aimLineGroup,
     hull,

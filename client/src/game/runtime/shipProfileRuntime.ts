@@ -15,18 +15,28 @@ const STORAGE_HITBOX = "battlefleet_show_ship_hitbox";
 
 export type HullProfilePatchMap = Partial<Record<ShipClassId, Partial<ShipHullVisualProfile>>>;
 
+/** Vermeidet pro Frame localStorage + JSON.parse (Hot Path: `getShipDebugTuningForVisualClass` × Spieler). */
+let hullProfilePatchCache: HullProfilePatchMap | null = null;
+
+/** Gemergte Profile pro Klasse — ungültig bei Patch-Änderung. */
+const effectiveHullProfileByClass = new Map<ShipClassId, ShipHullVisualProfile>();
+
 export function loadHullProfilePatch(): HullProfilePatchMap {
+  if (hullProfilePatchCache !== null) return hullProfilePatchCache;
   try {
     const raw = localStorage.getItem(STORAGE_PATCH);
-    if (!raw) return {};
-    return JSON.parse(raw) as HullProfilePatchMap;
+    hullProfilePatchCache = raw ? (JSON.parse(raw) as HullProfilePatchMap) : {};
+    return hullProfilePatchCache;
   } catch {
-    return {};
+    hullProfilePatchCache = {};
+    return hullProfilePatchCache;
   }
 }
 
 export function saveHullProfilePatch(map: HullProfilePatchMap): void {
   localStorage.setItem(STORAGE_PATCH, JSON.stringify(map));
+  hullProfilePatchCache = map;
+  effectiveHullProfileByClass.clear();
 }
 
 export function setHullProfilePatchForClass(
@@ -42,13 +52,17 @@ export function setHullProfilePatchForClass(
   saveHullProfilePatch(all);
 }
 
-/** Basis-JSON + optionaler Client-Patch (localStorage). */
+/** Basis-JSON + optionaler Client-Patch (localStorage). Gecacht — bei Patch-Änderung siehe `saveHullProfilePatch`. */
 export function getEffectiveHullProfile(shipClass: unknown): ShipHullVisualProfile | undefined {
   const base = getShipHullProfileByClass(shipClass);
   if (!base) return undefined;
   const id = normalizeShipClassId(shipClass);
+  const hit = effectiveHullProfileByClass.get(id);
+  if (hit) return hit;
   const patch = loadHullProfilePatch()[id];
-  return mergeShipHullVisualProfile(base, patch);
+  const merged = mergeShipHullVisualProfile(base, patch);
+  effectiveHullProfileByClass.set(id, merged);
+  return merged;
 }
 
 export function resolveShipHullGltfUrlForClass(shipClass: ShipClassId): string {

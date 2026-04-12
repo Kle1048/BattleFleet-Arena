@@ -170,6 +170,14 @@ export type ShipHullVisualProfile = {
   aswmMagicReloadMs?: number;
   /** Optional: Standard-Belegung der Slots (Slot-ID → Visual-Asset-ID) */
   defaultLoadout?: ShipMountLoadout;
+  /**
+   * Optional: Sinnvolle Defaults für Client-Rumpf-Darstellung (Debug-Tuning).
+   * Überschreiben für dieses Profil nur die genannten Felder gegenüber dem globalen Panel.
+   */
+  clientVisualTuningDefaults?: {
+    spriteScale?: number;
+    gltfHullYOffset?: number;
+  };
 };
 
 export type AswmMagazineSpec = {
