@@ -1,5 +1,10 @@
 import assert from "node:assert/strict";
-import { ARTILLERY_RANGE, clampedLandPoint, tryComputeArtillerySalvo } from "./artillery";
+import {
+  ARTILLERY_ARC_HALF_ANGLE_RAD,
+  ARTILLERY_RANGE,
+  clampedLandPoint,
+  tryComputeArtillerySalvo,
+} from "./artillery";
 
 {
   const land = clampedLandPoint(0, 0, 50, 0, 0, ARTILLERY_RANGE);
@@ -16,7 +21,10 @@ import { ARTILLERY_RANGE, clampedLandPoint, tryComputeArtillerySalvo } from "./a
 }
 
 {
-  const salvo = tryComputeArtillerySalvo(0, 0, 0, 0, 200, () => 0.5);
+  const salvo = tryComputeArtillerySalvo(0, 0, 0, 0, 200, () => 0.5, {
+    kind: "symmetric",
+    halfAngleRadFromBow: ARTILLERY_ARC_HALF_ANGLE_RAD,
+  });
   assert.equal(salvo.ok, true);
   if (salvo.ok) {
     const dist = Math.hypot(salvo.landX, salvo.landZ);

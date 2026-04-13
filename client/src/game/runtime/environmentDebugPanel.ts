@@ -82,10 +82,8 @@ type ShipSliderDef = {
 
 const SHIP_SLIDERS: readonly ShipSliderDef[] = [
   { key: "spriteScale", label: "Sprite Scale", min: 0.5, max: 8, step: 0.1 },
-  { key: "aimOriginLocalZ", label: "Aim Origin Z", min: -80, max: 80, step: 0.1 },
   { key: "shipPivotLocalZ", label: "Ship Pivot Z", min: -80, max: 80, step: 0.1 },
   { key: "cameraPivotLocalZ", label: "Camera Pivot Z", min: -80, max: 80, step: 0.1 },
-  { key: "artillerySpawnLocalZ", label: "Artillery Spawn Trim Z", min: -80, max: 80, step: 0.1 },
   { key: "mineSpawnLocalZ", label: "Mine Spawn Z", min: -140, max: 20, step: 0.1 },
   { key: "wakeSpawnLocalZ", label: "Wake Spawn Z", min: -120, max: 40, step: 0.1 },
   {

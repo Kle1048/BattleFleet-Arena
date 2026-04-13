@@ -51,6 +51,7 @@ export function createHudRuntime(options: CreateHudRuntimeOptions): {
     colyseusWarn: string;
     fps: number;
     frameTimeMs?: number;
+    extraDiagLine?: string;
     perfMetrics?: {
       artillery?: { activeShells: number };
       missile?: { activeMissiles: number };
@@ -76,6 +77,7 @@ export function createHudRuntime(options: CreateHudRuntimeOptions): {
       colyseusWarn,
       fps,
       frameTimeMs,
+      extraDiagLine,
       perfMetrics,
     }) {
       let warn = colyseusWarn;
@@ -103,12 +105,13 @@ export function createHudRuntime(options: CreateHudRuntimeOptions): {
         typeof frameTimeMs === "number" && Number.isFinite(frameTimeMs)
           ? `\nFrame ${frameTimeMs.toFixed(1)} ms`
           : "";
+      const extraDiag = extraDiagLine ? `\n${extraDiagLine}` : "";
       debugOverlay.update({
         fps,
         roomId: roomId ? roomId.slice(0, 8) : "—",
         playerCount,
         pingMs,
-        diag: `STATE ${stateSyncCount} | keys: ${jsonKeys}${frameLine}${perfLine}\nKonsole → __BFA`,
+        diag: `STATE ${stateSyncCount} | keys: ${jsonKeys}${frameLine}${perfLine}${extraDiag}\nKonsole → __BFA`,
         warn: warn || undefined,
       });
     },

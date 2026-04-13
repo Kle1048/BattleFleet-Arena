@@ -1,6 +1,6 @@
 /**
  * Schiffs-Workbench: gleiche 3D-Pipeline wie das Spiel (Wasser, Inseln), ein Schiff,
- * Orbit-Kamera — ohne Colyseus. JSON-Patches über `openShipProfileEditor`.
+ * Orbit-Kamera — ohne Colyseus. Schiffsprofil-Panel rechts (`createShipProfileEditorPanel`).
  */
 
 import * as THREE from "three";
@@ -11,6 +11,7 @@ import {
   SHIP_CLASS_DESTROYER,
   SHIP_CLASS_FAC,
   type ShipClassId,
+  type ShipHullVisualProfile,
 } from "@battlefleet/shared";
 import { createGameScene } from "../game/scene/createGameScene";
 import { createShipVisual, setShipVisualLifeState, type ShipVisual } from "../game/scene/shipVisual";
@@ -22,12 +23,19 @@ import {
 import { resolveMountGltfUrl, uniqueMountVisualUrls } from "../game/runtime/mountGltfUrls";
 import { createGameRenderer, bindRendererResize } from "../game/runtime/rendererLifecycle";
 import { updateGameWaterAnimations } from "../game/runtime/materialLibrary";
-import { openShipProfileEditor } from "../game/ui/shipProfileEditor";
+import { createShipProfileEditorPanel } from "../game/ui/shipProfileEditor";
+import { getEffectiveHullProfile } from "../game/runtime/shipProfileRuntime";
+import { replaceWorkbenchShipMarkers } from "./workbenchShipMarkers";
 
-const root = document.getElementById("app");
-if (!root) throw new Error("#app missing");
+function requireElement(id: string): HTMLElement {
+  const el = document.getElementById(id);
+  if (!el) throw new Error(`#${id} missing`);
+  return el;
+}
 
-const renderer = createGameRenderer(root);
+const appRoot = requireElement("app");
+
+const renderer = createGameRenderer(appRoot);
 
 function parseShipClass(raw: string): ShipClassId {
   if (raw === SHIP_CLASS_DESTROYER) return SHIP_CLASS_DESTROYER;
@@ -35,12 +43,18 @@ function parseShipClass(raw: string): ShipClassId {
   return SHIP_CLASS_FAC;
 }
 
+function shipClassToWorkbenchSelect(cid: ShipClassId): string {
+  if (cid === SHIP_CLASS_DESTROYER) return "destroyer";
+  if (cid === SHIP_CLASS_CRUISER) return "cruiser";
+  return "fac";
+}
+
 async function boot(): Promise<void> {
   const bundle = await createGameScene();
   const { scene, camera, water, waterFoam } = bundle;
   const foamMat = waterFoam.material as THREE.Material;
 
-  bindRendererResize(camera, renderer);
+  bindRendererResize(camera, renderer, appRoot);
 
   const controls = new OrbitControls(camera, renderer.domElement);
   controls.enableDamping = true;
@@ -63,6 +77,25 @@ async function boot(): Promise<void> {
 
   let vis: ShipVisual | null = null;
 
+  /** Rumpf-GLB nachladen, falls noch nicht im Cache (z. B. neues hullGltfId in der Live-Vorschau). */
+  function mountShipWorkbench(shipClassId: ShipClassId): void {
+    const url = resolveShipHullGltfUrlForClass(shipClassId);
+    if (getShipHullGltfSourceForUrl(url)) {
+      mountShip(shipClassId);
+      return;
+    }
+    void loadShipHullGltfSource(url).then(() => mountShip(shipClassId));
+  }
+
+  let livePreviewMountTimer: ReturnType<typeof setTimeout> | null = null;
+  function scheduleLivePreviewMount(shipClassId: ShipClassId): void {
+    if (livePreviewMountTimer) clearTimeout(livePreviewMountTimer);
+    livePreviewMountTimer = setTimeout(() => {
+      livePreviewMountTimer = null;
+      mountShipWorkbench(shipClassId);
+    }, 80);
+  }
+
   function mountShip(shipClassId: ShipClassId): void {
     if (vis) {
       scene.remove(vis.group);
@@ -79,24 +112,34 @@ async function boot(): Promise<void> {
     next.group.rotation.y = 0;
     setShipVisualLifeState(next, PlayerLifeState.Alive, true);
     scene.add(next.group);
+    replaceWorkbenchShipMarkers(next, getEffectiveHullProfile(shipClassId));
     vis = next;
   }
 
   const classSelect = document.getElementById("ship-workbench-class") as HTMLSelectElement | null;
-  const profileBtn = document.getElementById("ship-workbench-profile-btn");
+  const profileDock = document.getElementById("ship-profile-dock");
+  if (!profileDock) throw new Error("#ship-profile-dock missing");
 
   const initialClass = classSelect ? parseShipClass(classSelect.value) : SHIP_CLASS_FAC;
   mountShip(initialClass);
 
-  classSelect?.addEventListener("change", () => {
-    mountShip(parseShipClass(classSelect.value));
+  const profilePanel = createShipProfileEditorPanel(profileDock, {
+    initialClass,
+    onLivePreview: (profile: ShipHullVisualProfile) => {
+      scheduleLivePreviewMount(profile.shipClassId);
+    },
+    onApplied: (cid) => {
+      if (classSelect) classSelect.value = shipClassToWorkbenchSelect(cid);
+      mountShipWorkbench(cid);
+    },
+    onClassChange: (cid) => {
+      if (classSelect) classSelect.value = shipClassToWorkbenchSelect(cid);
+    },
   });
 
-  profileBtn?.addEventListener("click", () => {
-    void openShipProfileEditor().then(() => {
-      const cid = classSelect ? parseShipClass(classSelect.value) : SHIP_CLASS_FAC;
-      mountShip(cid);
-    });
+  classSelect?.addEventListener("change", () => {
+    const cid = parseShipClass(classSelect.value);
+    profilePanel.setShipClass(cid);
   });
 
   function frame(nowMs: number): void {

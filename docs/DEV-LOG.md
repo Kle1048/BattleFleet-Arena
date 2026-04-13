@@ -115,3 +115,39 @@ npm run devlog:append
 
 > Shipped: feat(client,hud,shared): ASuM HUD, Colyseus BattleState, air defense, ship layout fixes 🚢 Wir hacken an einem AI-collab Wettkampfspiel — #Vibejam #indiedev
 
+---
+
+## 2026-04-12 — `7d84f9a`
+
+- **Autor:** Klemens1048
+- **Commit:** feat(client): ship workbench entry (editor.html) + Vite multi-page
+
+**Details:**
+
+- - Second page editor.html: orbit camera, water scene, class switcher, Schiffsprofil dialog
+- - dev:editor / npm run dev:editor; build outputs dist/editor.html
+- - editorShell.css mirrors ship-editor styles from index for profile overlay
+- Made-with: Cursor
+
+### Vorschlag Twitter / X (#Vibejam)
+
+> Shipped: feat(client): ship workbench entry (editor.html) + Vite multi-page 🚢 Wir hacken an einem AI-collab Wettkampfspiel — #Vibejam #indiedev
+
+---
+
+## 2026-04-13 — `2343f3c`
+
+- **Autor:** Klemens1048
+- **Commit:** feat(client,shared,server): workbench ship markers, air-defense targeting, profile JSON
+
+**Details:**
+
+- - Editor: workbenchShipMarkers, shell/CSS, mount GLBs (inkl. PDMS)
+- - Shared: airDefenseMissileTargeting, shipProfileEditorJson, mountFireSector/shipVisualLayout tests
+- - Client runtime/HUD: weapon schematic mini, mount URLs, ship visuals; BattleRoom sync
+- Made-with: Cursor
+
+### Vorschlag Twitter / X (#Vibejam)
+
+> Update: feat(client,shared,server): workbench ship markers, air-defense targeting, profile JSON | Naval Arena WIP · #Vibejam · wenn Code & KI zusammenlaufen ⚔️🎮
+

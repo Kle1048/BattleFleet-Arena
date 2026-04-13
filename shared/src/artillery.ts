@@ -1,4 +1,5 @@
 import type { IslandCircle } from "./islands";
+import type { MountFireSector } from "./shipVisualLayout";
 
 /** Task 5 — vereinfachte Artillerie (Plan A: geplanter Einschlag, kein echtes Ballistik-Mesh auf dem Server). */
 
@@ -40,11 +41,82 @@ function clamp(n: number, a: number, b: number): number {
   return Math.max(a, Math.min(b, n));
 }
 
-function shortestAngleDelta(fromRad: number, toRad: number): number {
+/** Öffentlich für Mount-Sektoren / Train-Klampen (Client + Tests). */
+export function shortestAngleDelta(fromRad: number, toRad: number): number {
   let d = toRad - fromRad;
   while (d > Math.PI) d -= Math.PI * 2;
   while (d < -Math.PI) d += Math.PI * 2;
   return d;
+}
+
+export function wrapPi(a: number): number {
+  let x = a;
+  while (x > Math.PI) x -= Math.PI * 2;
+  while (x < -Math.PI) x += Math.PI * 2;
+  return x;
+}
+
+/**
+ * Signed yaw vom Bug (0 = Bug, +π/2 = Steuerbord) zur Zielrichtung Schiff→(tx,tz).
+ * Gleiche Konvention wie `isInForwardArc` / `forwardXZ`.
+ */
+export function aimDirectionYawFromBowRad(
+  shipX: number,
+  shipZ: number,
+  headingRad: number,
+  tx: number,
+  tz: number,
+): number | null {
+  const dx = tx - shipX;
+  const dz = tz - shipZ;
+  const len = Math.hypot(dx, dz);
+  if (len < 1e-9) return null;
+  const ux = dx / len;
+  const uz = dz / len;
+  const f = forwardXZ(headingRad);
+  const cross = ux * f.z - uz * f.x;
+  const dot = Math.max(-1, Math.min(1, ux * f.x + uz * f.z));
+  return Math.atan2(cross, dot);
+}
+
+export function isYawWithinMountFireSector(yaw: number, sector: MountFireSector): boolean {
+  const y = wrapPi(yaw);
+  if (sector.kind === "symmetric") {
+    const c = sector.centerYawRadFromBow ?? 0;
+    return Math.abs(shortestAngleDelta(c, y)) <= sector.halfAngleRadFromBow + 1e-4;
+  }
+  return isYawInAsymmetricInterval(y, sector.minYawRadFromBow, sector.maxYawRadFromBow);
+}
+
+function isYawInAsymmetricInterval(yaw: number, minY: number, maxY: number): boolean {
+  const y = wrapPi(yaw);
+  const lo = wrapPi(minY);
+  const hi = wrapPi(maxY);
+  if (lo <= hi) return y >= lo - 1e-4 && y <= hi + 1e-4;
+  return y >= lo - 1e-4 || y <= hi + 1e-4;
+}
+
+/** Ziel-Richtung (Yaw vom Bug) in den Mount-Sektor klemmen — für Turm-Darstellung. */
+export function clampYawToMountSector(yaw: number, sector: MountFireSector): number {
+  const y = wrapPi(yaw);
+  if (sector.kind === "symmetric") {
+    const c = sector.centerYawRadFromBow ?? 0;
+    const h = sector.halfAngleRadFromBow;
+    const d = shortestAngleDelta(c, y);
+    const dc = clamp(d, -h, h);
+    return wrapPi(c + dc);
+  }
+  return clampYawToAsymmetricInterval(y, sector.minYawRadFromBow, sector.maxYawRadFromBow);
+}
+
+function clampYawToAsymmetricInterval(yaw: number, minY: number, maxY: number): number {
+  if (isYawInAsymmetricInterval(yaw, minY, maxY)) return wrapPi(yaw);
+  const y = wrapPi(yaw);
+  const lo = wrapPi(minY);
+  const hi = wrapPi(maxY);
+  const dLo = Math.abs(shortestAngleDelta(lo, y));
+  const dHi = Math.abs(shortestAngleDelta(hi, y));
+  return dLo <= dHi ? lo : hi;
 }
 
 /** Bug zeigt wie `headingRad` nach +Z, seitliche Komponente = sin(h), vorwärts = cos(h). */
@@ -207,6 +279,8 @@ export function computeFlightMs(distance: number): number {
 
 /**
  * Validiert Schuss und liefert Landepunkt + Flugzeit. `rng` = 0…1 für deterministische Tests optional.
+ * Optional `originX`/`originZ`: Mündung (Schuss startet auf Strahl Mündung→Ziel); sonst Schiffsmittelpunkt.
+ * `fireSector`: horizontaler Sektor relativ zum Bug (`MountFireSector` — symmetrisch mit optionalem Zentrum oder asymmetrisch).
  */
 export function tryComputeArtillerySalvo(
   shipX: number,
@@ -215,16 +289,24 @@ export function tryComputeArtillerySalvo(
   aimX: number,
   aimZ: number,
   rng: () => number = Math.random,
-  /** Task 12 — klassenabhängiger Bug-Bogen (Standard = ±120°). */
-  arcHalfAngleRad: number = ARTILLERY_ARC_HALF_ANGLE_RAD,
+  fireSector: MountFireSector = {
+    kind: "symmetric",
+    halfAngleRadFromBow: ARTILLERY_ARC_HALF_ANGLE_RAD,
+  },
+  originX?: number,
+  originZ?: number,
 ): ArtilleryFireResult {
-  if (!isInForwardArc(shipX, shipZ, headingRad, aimX, aimZ, arcHalfAngleRad)) {
+  const yawAim = aimDirectionYawFromBowRad(shipX, shipZ, headingRad, aimX, aimZ);
+  if (yawAim === null || !isYawWithinMountFireSector(yawAim, fireSector)) {
     return { ok: false, reason: "out_of_arc" };
   }
 
-  const base = clampedLandPoint(shipX, shipZ, aimX, aimZ, ARTILLERY_MIN_RANGE, ARTILLERY_MAX_RANGE);
-  let vx = base.x - shipX;
-  let vz = base.z - shipZ;
+  const ox = originX ?? shipX;
+  const oz = originZ ?? shipZ;
+
+  const base = clampedLandPoint(ox, oz, aimX, aimZ, ARTILLERY_MIN_RANGE, ARTILLERY_MAX_RANGE);
+  let vx = base.x - ox;
+  let vz = base.z - oz;
   const baseLen = Math.hypot(vx, vz);
   if (baseLen < 1e-6) return { ok: false, reason: "bad_range" };
   vx /= baseLen;
@@ -239,13 +321,12 @@ export function tryComputeArtillerySalvo(
     ARTILLERY_MAX_RANGE,
   );
 
-  let landX = shipX + dir.x * dist;
-  let landZ = shipZ + dir.z * dist;
+  let landX = ox + dir.x * dist;
+  let landZ = oz + dir.z * dist;
 
-  const bow = forwardXZ(headingRad);
-  const aimAngle = Math.atan2(dir.x, dir.z);
-  const bowAngle = Math.atan2(bow.x, bow.z);
-  if (Math.abs(shortestAngleDelta(bowAngle, aimAngle)) > arcHalfAngleRad + 1e-3) {
+  const f = forwardXZ(headingRad);
+  const shotYaw = Math.atan2(dir.x * f.z - dir.z * f.x, dir.x * f.x + dir.z * f.z);
+  if (!isYawWithinMountFireSector(shotYaw, fireSector)) {
     return { ok: false, reason: "spread_out_of_arc" };
   }
 

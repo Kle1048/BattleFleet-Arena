@@ -3,10 +3,8 @@ import { getEffectiveHullProfile } from "./shipProfileRuntime";
 
 export type ShipDebugTuning = {
   spriteScale: number;
-  aimOriginLocalZ: number;
   shipPivotLocalZ: number;
   cameraPivotLocalZ: number;
-  artillerySpawnLocalZ: number;
   mineSpawnLocalZ: number;
   wakeSpawnLocalZ: number;
   /** Zusatz zu GLB-Rumpf-Y (negativ = tiefer ins Wasser / weniger „Schweben“). */
@@ -18,10 +16,8 @@ export type ShipDebugTuning = {
 
 export const DEFAULT_SHIP_DEBUG_TUNING: Readonly<ShipDebugTuning> = {
   spriteScale: 3,
-  aimOriginLocalZ: 46.6,
   shipPivotLocalZ: 23,
   cameraPivotLocalZ: 0.4,
-  artillerySpawnLocalZ: -13.8,
   mineSpawnLocalZ: -22,
   wakeSpawnLocalZ: -60,
   gltfHullYOffset: -470,
@@ -59,11 +55,21 @@ export function getShipDebugTuning(): Readonly<ShipDebugTuning> {
 export function getShipDebugTuningForVisualClass(shipClassId: unknown): Readonly<ShipDebugTuning> {
   const user = getShipDebugTuning();
   const o = getEffectiveHullProfile(normalizeShipClassId(shipClassId ?? SHIP_CLASS_FAC))?.clientVisualTuningDefaults;
-  if (!o || (o.spriteScale === undefined && o.gltfHullYOffset === undefined)) return user;
+  if (
+    !o ||
+    (o.spriteScale === undefined &&
+      o.gltfHullYOffset === undefined &&
+      o.gltfHullOffsetX === undefined &&
+      o.gltfHullOffsetZ === undefined &&
+      o.shipPivotLocalZ === undefined)
+  ) {
+    return user;
+  }
   return {
     ...user,
     spriteScale: o.spriteScale ?? user.spriteScale,
     gltfHullYOffset: o.gltfHullYOffset ?? user.gltfHullYOffset,
+    shipPivotLocalZ: o.shipPivotLocalZ ?? user.shipPivotLocalZ,
   };
 }
 
@@ -74,11 +80,6 @@ export function applyShipDebugTuning(patch: Partial<ShipDebugTuning>): Readonly<
       0.2,
       8,
     ),
-    aimOriginLocalZ: clamp(
-      patch.aimOriginLocalZ ?? currentShipDebugTuning.aimOriginLocalZ,
-      -80,
-      80,
-    ),
     shipPivotLocalZ: clamp(
       patch.shipPivotLocalZ ?? currentShipDebugTuning.shipPivotLocalZ,
       -80,
@@ -86,11 +87,6 @@ export function applyShipDebugTuning(patch: Partial<ShipDebugTuning>): Readonly<
     ),
     cameraPivotLocalZ: clamp(
       patch.cameraPivotLocalZ ?? currentShipDebugTuning.cameraPivotLocalZ,
-      -80,
-      80,
-    ),
-    artillerySpawnLocalZ: clamp(
-      patch.artillerySpawnLocalZ ?? currentShipDebugTuning.artillerySpawnLocalZ,
       -80,
       80,
     ),

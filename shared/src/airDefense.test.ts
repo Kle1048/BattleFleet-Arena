@@ -20,6 +20,7 @@ import {
     ciwsNextAtMs: 0,
     samAllowed: true,
     pdAllowed: true,
+    ciwsAllowed: true,
   });
   assert.equal(layer, "sam");
   assert.equal(rollHardkillHit("sam", () => 0), true);
@@ -34,6 +35,7 @@ import {
     ciwsNextAtMs: 0,
     samAllowed: true,
     pdAllowed: true,
+    ciwsAllowed: true,
   });
   assert.equal(layer, null);
 }
@@ -47,6 +49,7 @@ import {
     ciwsNextAtMs: 0,
     samAllowed: true,
     pdAllowed: true,
+    ciwsAllowed: true,
   });
   assert.equal(layer, "sam");
 }
@@ -67,6 +70,7 @@ import {
     ciwsNextAtMs: ciwsNext,
     samAllowed: true,
     pdAllowed: true,
+    ciwsAllowed: true,
   });
   assert.equal(layer, "sam");
   assert.equal(rollHardkillHit("sam", () => 1), false);
@@ -83,6 +87,7 @@ import {
     ciwsNextAtMs: ciwsNext,
     samAllowed: true,
     pdAllowed: true,
+    ciwsAllowed: true,
   });
   assert.equal(layer, "pd");
   assert.equal(rollHardkillHit("pd", () => 0), true);
@@ -99,8 +104,39 @@ import {
     ciwsNextAtMs: 0,
     samAllowed: true,
     pdAllowed: true,
+    ciwsAllowed: true,
   });
   assert.equal(layer, "sam");
+}
+
+{
+  /** Nur CIWS-Ring: ohne montiertes CIWS keine Schicht. */
+  assert.equal(
+    pickHardkillEngagementLayer({
+      distSq: 50 * 50,
+      nowMs: 10_000,
+      samNextAtMs: 0,
+      pdNextAtMs: 0,
+      ciwsNextAtMs: 0,
+      samAllowed: false,
+      pdAllowed: false,
+      ciwsAllowed: false,
+    }),
+    null,
+  );
+  assert.equal(
+    pickHardkillEngagementLayer({
+      distSq: 50 * 50,
+      nowMs: 10_000,
+      samNextAtMs: 0,
+      pdNextAtMs: 0,
+      ciwsNextAtMs: 0,
+      samAllowed: false,
+      pdAllowed: false,
+      ciwsAllowed: true,
+    }),
+    "ciws",
+  );
 }
 
 {

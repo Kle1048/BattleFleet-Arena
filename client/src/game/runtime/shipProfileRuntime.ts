@@ -21,6 +21,30 @@ let hullProfilePatchCache: HullProfilePatchMap | null = null;
 /** Gemergte Profile pro Klasse — ungültig bei Patch-Änderung. */
 const effectiveHullProfileByClass = new Map<ShipClassId, ShipHullVisualProfile>();
 
+/**
+ * Nur Workbench / Editor: volles Profil aus dem Formular, ohne Speichern in localStorage.
+ * Überschreibt `getEffectiveHullProfile` bis `setHullProfileWorkbenchLivePreview(…, null)` oder Seitenende.
+ */
+const workbenchLivePreviewByClass = new Map<ShipClassId, ShipHullVisualProfile>();
+
+export function setHullProfileWorkbenchLivePreview(
+  shipClass: ShipClassId,
+  profile: ShipHullVisualProfile | null,
+): void {
+  const id = normalizeShipClassId(shipClass);
+  if (profile === null) {
+    workbenchLivePreviewByClass.delete(id);
+  } else {
+    workbenchLivePreviewByClass.set(id, profile);
+  }
+  effectiveHullProfileByClass.delete(id);
+}
+
+export function clearAllHullProfileWorkbenchLivePreviews(): void {
+  workbenchLivePreviewByClass.clear();
+  effectiveHullProfileByClass.clear();
+}
+
 export function loadHullProfilePatch(): HullProfilePatchMap {
   if (hullProfilePatchCache !== null) return hullProfilePatchCache;
   try {
@@ -57,6 +81,10 @@ export function getEffectiveHullProfile(shipClass: unknown): ShipHullVisualProfi
   const base = getShipHullProfileByClass(shipClass);
   if (!base) return undefined;
   const id = normalizeShipClassId(shipClass);
+  const live = workbenchLivePreviewByClass.get(id);
+  if (live !== undefined) {
+    return live;
+  }
   const hit = effectiveHullProfileByClass.get(id);
   if (hit) return hit;
   const patch = loadHullProfilePatch()[id];

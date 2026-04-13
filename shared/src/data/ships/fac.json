@@ -32,11 +32,16 @@
     },
     {
       "id": "ciws_aft",
-      "compatibleKinds": ["ciws"],
+      "compatibleKinds": ["artillery", "ciws", "sam_launcher", "pdms"],
       "socket": {
         "position": { "x": 0, "y": 1.35, "z": -5 }
       },
-      "defaultVisualId": "visual_ciws"
+      "fireSector": {
+        "kind": "symmetric",
+        "halfAngleRadFromBow": 2.0943951023931953,
+        "centerYawRadFromBow": 3.141592653589793
+      },
+      "defaultVisualId": "visual_pdms"
     }
   ],
   "fixedSeaSkimmerLaunchers": [
@@ -65,6 +70,6 @@
   "aswmMagicReloadMs": 20000,
   "defaultLoadout": {
     "main_fwd": "visual_artillery",
-    "ciws_aft": "visual_ciws"
+    "ciws_aft": "visual_pdms"
   }
 }

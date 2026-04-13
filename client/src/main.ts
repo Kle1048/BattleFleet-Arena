@@ -371,6 +371,9 @@ async function bootstrap(): Promise<void> {
         colyseusWarn,
         fps,
         frameTimeMs,
+        extraDiagLine: frameRuntimeState.aimLineSectorDebug
+          ? `AimDbg ${frameRuntimeState.aimLineSectorDebug}`
+          : undefined,
         perfMetrics: {
           artillery: artilleryFx.getStats(),
           missile: missileFx.getStats(),

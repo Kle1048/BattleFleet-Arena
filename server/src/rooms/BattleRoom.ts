@@ -81,6 +81,10 @@ import {
   getAswmMagazineFromProfile,
   getAswmMagicReloadMsFromProfile,
   getShipHullProfileByClass,
+  hullProvidesAirDefenseCiwsLayer,
+  hullProvidesAirDefensePdLayer,
+  hullProvidesAirDefenseSamLayer,
+  listPrimaryArtilleryMountConfigs,
   shipClassBaseMaxHp,
   normalizeShipClassId,
   SHIP_CLASS_FAC,
@@ -89,6 +93,7 @@ import {
   minDistSqPointToShipHitboxFootprintXZ,
   shipOverlapsAnyIsland,
   twoShipsObbOverlap,
+  shipLocalToWorldXZ,
 } from "@battlefleet/shared";
 
 const TICK_HZ = 20;
@@ -105,8 +110,6 @@ export type InputPayload = {
   secondaryFire?: boolean;
   /** Torpedo (Task 8): Mausrad-Klick gehalten oder Taste Q. */
   torpedoFire?: boolean;
-  /** Debug-Tuning: Mündungs-Offset entlang Schiffs-Längsachse (lokales +Z = Bug). */
-  artillerySpawnLocalZ?: number;
   /** Debug-Tuning: Minen-Ablage entlang Schiffs-Längsachse (lokales -Z = Heck). */
   mineSpawnLocalZ?: number;
   /** Suchrad an/aus — steuert ESM-Sichtbarkeit für Gegner (repliziert). */
@@ -120,7 +123,6 @@ type SimEntry = {
   lastRudderInput: number;
   aimX: number;
   aimZ: number;
-  artillerySpawnLocalZ: number;
   mineSpawnLocalZ: number;
   oobSinceMs: number | null;
   /** Date.now() ab dem Primärfeuer erlaubt ist. */
@@ -233,10 +235,6 @@ export class BattleRoom extends Room<BattleState> {
       const az = payload.aimZ;
       if (typeof ax === "number" && Number.isFinite(ax)) row.aimX = ax;
       if (typeof az === "number" && Number.isFinite(az)) row.aimZ = az;
-      const spawnLocalZ = payload.artillerySpawnLocalZ;
-      if (typeof spawnLocalZ === "number" && Number.isFinite(spawnLocalZ)) {
-        row.artillerySpawnLocalZ = clampRange(spawnLocalZ, -80, 80);
-      }
       const mineSpawnLocalZ = payload.mineSpawnLocalZ;
       if (typeof mineSpawnLocalZ === "number" && Number.isFinite(mineSpawnLocalZ)) {
         row.mineSpawnLocalZ = clampRange(mineSpawnLocalZ, -140, 20);
@@ -371,7 +369,6 @@ export class BattleRoom extends Room<BattleState> {
       lastRudderInput: 0,
       aimX,
       aimZ,
-      artillerySpawnLocalZ: 0,
       mineSpawnLocalZ: -22,
       oobSinceMs: null,
       primaryReadyAtMs: 0,
@@ -602,7 +599,6 @@ export class BattleRoom extends Room<BattleState> {
       row.lastRudderInput = 0;
       row.aimX = spawnX;
       row.aimZ = spawnZ + 80;
-      row.artillerySpawnLocalZ = 0;
       row.mineSpawnLocalZ = -22;
       row.oobSinceMs = null;
       row.primaryReadyAtMs = 0;
@@ -688,7 +684,6 @@ export class BattleRoom extends Room<BattleState> {
     row.ship.rudder = 0;
     row.aimX = spawn.x + Math.sin(spawn.headingRad) * 80;
     row.aimZ = spawn.z + Math.cos(spawn.headingRad) * 80;
-    row.artillerySpawnLocalZ = 0;
     row.mineSpawnLocalZ = -22;
     row.respawnAtMs = null;
     row.oobSinceMs = null;
@@ -762,40 +757,55 @@ export class BattleRoom extends Room<BattleState> {
     const now = Date.now();
     if (now < row.primaryReadyAtMs) return;
 
-    const arc = getShipClassProfile(p.shipClass).artilleryArcHalfAngleRad;
-    const muzzleLocalZ = row.artillerySpawnLocalZ;
-    const muzzleX = row.ship.x + Math.sin(row.ship.headingRad) * muzzleLocalZ;
-    const muzzleZ = row.ship.z + Math.cos(row.ship.headingRad) * muzzleLocalZ;
-    const salvo = tryComputeArtillerySalvo(
-      muzzleX,
-      muzzleZ,
-      row.ship.headingRad,
-      row.aimX,
-      row.aimZ,
-      Math.random,
-      arc,
-    );
-    if (!salvo.ok) return;
+    const classProf = getShipClassProfile(p.shipClass);
+    const hull = getShipHullProfileByClass(p.shipClass);
+    const mounts = listPrimaryArtilleryMountConfigs(hull, classProf.artilleryArcHalfAngleRad);
+    if (mounts.length === 0) return;
+
+    let anyShell = false;
+    for (const m of mounts) {
+      const w = shipLocalToWorldXZ(
+        row.ship.x,
+        row.ship.z,
+        row.ship.headingRad,
+        m.socket.x,
+        m.socket.z,
+      );
+      const salvo = tryComputeArtillerySalvo(
+        row.ship.x,
+        row.ship.z,
+        row.ship.headingRad,
+        row.aimX,
+        row.aimZ,
+        Math.random,
+        m.sector,
+        w.x,
+        w.z,
+      );
+      if (!salvo.ok) continue;
+      anyShell = true;
+      const shellId = this.nextShellId++;
+      this.pendingShells.push({
+        impactAtMs: now + salvo.flightMs,
+        landX: salvo.landX,
+        landZ: salvo.landZ,
+        ownerSessionId: client.sessionId,
+        shellId,
+      });
+
+      this.broadcast("artyFired", {
+        shellId,
+        ownerId: client.sessionId,
+        fromX: w.x,
+        fromZ: w.z,
+        toX: salvo.landX,
+        toZ: salvo.landZ,
+        flightMs: salvo.flightMs,
+      });
+    }
+    if (!anyShell) return;
 
     row.primaryReadyAtMs = now + progressionPrimaryCooldownMs(p.level);
-    const shellId = this.nextShellId++;
-    this.pendingShells.push({
-      impactAtMs: now + salvo.flightMs,
-      landX: salvo.landX,
-      landZ: salvo.landZ,
-      ownerSessionId: client.sessionId,
-      shellId,
-    });
-
-    this.broadcast("artyFired", {
-      shellId,
-      ownerId: client.sessionId,
-      fromX: muzzleX,
-      fromZ: muzzleZ,
-      toX: salvo.landX,
-      toZ: salvo.landZ,
-      flightMs: salvo.flightMs,
-    });
   }
 
   private trySecondaryFire(client: Client, row: SimEntry): void {
@@ -1126,8 +1136,12 @@ export class BattleRoom extends Room<BattleState> {
           }
 
           const hardkillActive = now < defRow.adHardkillCommitUntilMs;
-          const samAllowed = defRow.radarActive;
-          const pdAllowed = m.targetId === adDefenderId;
+          const defenderHull = getShipHullProfileByClass(tgt.shipClass);
+          const samAllowed =
+            defRow.radarActive && hullProvidesAirDefenseSamLayer(defenderHull);
+          const pdAllowed =
+            m.targetId === adDefenderId && hullProvidesAirDefensePdLayer(defenderHull);
+          const ciwsAllowed = hullProvidesAirDefenseCiwsLayer(defenderHull);
           const adInput = {
             distSq,
             nowMs: now,
@@ -1136,6 +1150,7 @@ export class BattleRoom extends Room<BattleState> {
             ciwsNextAtMs: defRow.adCiwsNextAtMs,
             samAllowed,
             pdAllowed,
+            ciwsAllowed,
           };
 
           let airDefenseConsumed = false;

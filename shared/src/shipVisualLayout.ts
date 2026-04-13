@@ -32,7 +32,14 @@ export type ShipSocketTransform = {
 };
 
 /** Was an einem Slot grundsätzlich montiert werden darf (Filter für Loadout). */
-export type MountVisualKind = "artillery" | "ciws" | "sam_launcher" | "sam_fixed_rail" | "generic";
+export type MountVisualKind =
+  | "artillery"
+  | "ciws"
+  | "sam_launcher"
+  | "sam_fixed_rail"
+  /** Point Defense / kleiner Lenkflugkörper — Slot-Filter wie CIWS/SAM, eigenes Loadout möglich. */
+  | "pdms"
+  | "generic";
 
 /**
  * Horizontaler Feuersektor für **drehbare** Mounts (Geschütz, CIWS, drehbarer SAM-Launcher),
@@ -49,6 +56,11 @@ export type MountFireSector =
       kind: "symmetric";
       /** Halber Öffnungswinkel relativ zur Bug-Richtung (Radiant), z. B. wie `ARTILLERY_ARC_HALF_ANGLE_RAD`. */
       halfAngleRadFromBow: number;
+      /**
+       * Mittelrichtung des Sektors relativ zur Bug-Achse (Radiant). Standard **0** = Bug.
+       * Z. B. **π** für heckwärts gerichtetes Geschütz (Sektor um das Heck herum).
+       */
+      centerYawRadFromBow?: number;
     }
   | {
       kind: "asymmetric";
@@ -176,9 +188,170 @@ export type ShipHullVisualProfile = {
    */
   clientVisualTuningDefaults?: {
     spriteScale?: number;
+    /** Zusatz zu GLB-Rumpf-Y (Schiff hoch/tief). */
     gltfHullYOffset?: number;
+    /** Optional: Zusatzverschiebung des Rumpf-GLB in Schiffslokal +X (Steuerbord). */
+    gltfHullOffsetX?: number;
+    /** Optional: Zusatzverschiebung entlang +Z (Bug). */
+    gltfHullOffsetZ?: number;
+    /**
+     * Optional: Längs-Offset des sichtbaren Rumpf-Drehpunkts vs. Simulationspunkt entlang +Z (Schiffslokal),
+     * gleiche Semantik wie `ShipDebugTuning.shipPivotLocalZ` — überschreibt den globalen Debug-Wert für dieses Profil.
+     */
+    shipPivotLocalZ?: number;
   };
 };
+
+/** Effektiver Horizontalbogen: Slot → Profil-Default → Klassen-`artilleryArcHalfAngleRad`. */
+export function resolveEffectiveMountFireSector(
+  slot: MountSlotDefinition,
+  profile: ShipHullVisualProfile,
+  classArcHalfAngleRad: number,
+): MountFireSector {
+  if (slot.fireSector) return slot.fireSector;
+  if (profile.defaultRotatingMountFireSector) return profile.defaultRotatingMountFireSector;
+  return {
+    kind: "symmetric",
+    halfAngleRadFromBow: classArcHalfAngleRad,
+  };
+}
+
+/** Primär-Artillerie: Slot erlaubt `artillery` und Loadout zeigt auf ein Artillerie-GLB. */
+export function slotEquippedWithPrimaryArtillery(
+  slot: MountSlotDefinition,
+  profile: ShipHullVisualProfile,
+): boolean {
+  if (!slot.compatibleKinds.includes("artillery")) return false;
+  const vid = profile.defaultLoadout?.[slot.id] ?? slot.defaultVisualId ?? "";
+  if (!vid) return false;
+  return vid === "visual_artillery" || /(^|_)artillery$/i.test(vid);
+}
+
+export type PrimaryArtilleryMountConfig = {
+  slotId: string;
+  socket: { x: number; y: number; z: number };
+  sector: MountFireSector;
+};
+
+/**
+ * Hardkill-Schicht **SAM** (äußerer Ring): nur mit `visual_sam` am Slot + Suchrad (siehe BattleRoom).
+ */
+export function hullProvidesAirDefenseSamLayer(hull: ShipHullVisualProfile | undefined): boolean {
+  if (!hull?.mountSlots?.length) return false;
+  const loadout = hull.defaultLoadout ?? {};
+  for (const slot of hull.mountSlots) {
+    const vid = loadout[slot.id] ?? slot.defaultVisualId ?? "";
+    if (vid === "visual_sam") return true;
+  }
+  return false;
+}
+
+/**
+ * Hardkill-Schicht **PD** (mittlerer Ring): `visual_pdms` (Point Defense / PDMS) im Default-Loadout.
+ */
+export function hullProvidesAirDefensePdLayer(hull: ShipHullVisualProfile | undefined): boolean {
+  if (!hull?.mountSlots?.length) return false;
+  const loadout = hull.defaultLoadout ?? {};
+  for (const slot of hull.mountSlots) {
+    const vid = loadout[slot.id] ?? slot.defaultVisualId ?? "";
+    if (vid === "visual_pdms") return true;
+  }
+  return false;
+}
+
+/**
+ * Hardkill-Schicht **CIWS** (innerster Ring): `visual_ciws` im Default-Loadout.
+ */
+export function hullProvidesAirDefenseCiwsLayer(hull: ShipHullVisualProfile | undefined): boolean {
+  if (!hull?.mountSlots?.length) return false;
+  const loadout = hull.defaultLoadout ?? {};
+  for (const slot of hull.mountSlots) {
+    const vid = loadout[slot.id] ?? slot.defaultVisualId ?? "";
+    if (vid === "visual_ciws") return true;
+  }
+  return false;
+}
+
+/** Alle Slots mit Primär-Artillerie — Reihenfolge = `mountSlots` (Bug→Heck typisch). */
+
+export function listPrimaryArtilleryMountConfigs(
+  hull: ShipHullVisualProfile | undefined,
+  classArcHalfAngleRad: number,
+): PrimaryArtilleryMountConfig[] {
+  if (!hull?.mountSlots?.length) return [];
+  const out: PrimaryArtilleryMountConfig[] = [];
+  for (const slot of hull.mountSlots) {
+    if (!slotEquippedWithPrimaryArtillery(slot, hull)) continue;
+    out.push({
+      slotId: slot.id,
+      socket: { x: slot.socket.position.x, y: slot.socket.position.y, z: slot.socket.position.z },
+      sector: resolveEffectiveMountFireSector(slot, hull, classArcHalfAngleRad),
+    });
+  }
+  return out;
+}
+
+/** Drehbare Waffen-/LW-Slots — gleiche Menge wie Client-`ROTATING_MOUNT_KINDS` / Train-Gruppen. */
+const ROTATING_WEAPON_GUIDE_KINDS: readonly MountVisualKind[] = [
+  "artillery",
+  "ciws",
+  "sam_launcher",
+  "pdms",
+];
+
+export function slotHasRotatingWeaponGuide(slot: MountSlotDefinition): boolean {
+  return slot.compatibleKinds.some((k) => ROTATING_WEAPON_GUIDE_KINDS.includes(k));
+}
+
+export type RotatingMountWeaponGuideConfig = {
+  slotId: string;
+  socket: { x: number; y: number; z: number };
+  sector: MountFireSector;
+};
+
+/** Alle `mountSlots` mit drehbarer Waffe — Feuerbogen-Visualisierung (Client). */
+export function listRotatingMountWeaponGuideConfigs(
+  hull: ShipHullVisualProfile | undefined,
+  classArcHalfAngleRad: number,
+): RotatingMountWeaponGuideConfig[] {
+  if (!hull?.mountSlots?.length) return [];
+  const out: RotatingMountWeaponGuideConfig[] = [];
+  for (const slot of hull.mountSlots) {
+    if (!slotHasRotatingWeaponGuide(slot)) continue;
+    out.push({
+      slotId: slot.id,
+      socket: {
+        x: slot.socket.position.x,
+        y: slot.socket.position.y,
+        z: slot.socket.position.z,
+      },
+      sector: resolveEffectiveMountFireSector(slot, hull, classArcHalfAngleRad),
+    });
+  }
+  return out;
+}
+
+/**
+ * Basis-Geschützrichtung im Schiff (Radiant): Bug = 0, Heck = π — heuristisch aus Socket-Z.
+ * Für Client-Train-Rotation relativ zur Bug-Achse.
+ */
+export function inferMountTrainBaseYawFromBow(slot: MountSlotDefinition): number {
+  return slot.socket.position.z < 0 ? Math.PI : 0;
+}
+
+/** Erster `mountSlots`-Eintrag mit Artillerie — Socket in Schiffslokal (+Z Bug). */
+export function getPrimaryArtilleryMountSocketLocal(
+  profile: ShipHullVisualProfile | undefined,
+): { x: number; y: number; z: number } | null {
+  if (!profile?.mountSlots?.length) return null;
+  for (const slot of profile.mountSlots) {
+    if (slot.compatibleKinds.includes("artillery")) {
+      const p = slot.socket.position;
+      return { x: p.x, y: p.y, z: p.z };
+    }
+  }
+  return null;
+}
 
 export type AswmMagazineSpec = {
   port: number;

@@ -6,14 +6,34 @@ import type {
 
 const svgNs = "http://www.w3.org/2000/svg";
 
-type MountKind = "artillery" | "ciws" | "sam" | "torpedo" | "ssm" | "generic";
+/**
+ * Nur für die **Mini-Draufsicht** (Farbe des Punktes + ggf. Train-Strich).
+ * Entspricht den Slot-`defaultVisualId`-Strings aus `defaultLoadout` / Profil-JSON —
+ * dieselben Keys wie in `mountGltfUrls.ts` (`MOUNT_VISUAL_GLB_BY_ID`).
+ */
+type MountKind = "artillery" | "ciws" | "sam" | "pd" | "torpedo" | "ssm" | "generic";
+
+/** Vorgabe-Farbe pro eingetragenem Standard-Visual (explizit, keine Heuristik). */
+const SCHEMATIC_KIND_BY_DEFAULT_VISUAL_ID: Partial<Record<string, MountKind>> = {
+  visual_artillery: "artillery",
+  visual_ciws: "ciws",
+  visual_sam: "sam",
+  /** PDMS — AD-Hardkill-Schicht PD (nicht CIWS, eigene Farbe `--pd`). */
+  visual_pdms: "pd",
+  visual_torpedo: "torpedo",
+};
 
 function classifyFromSlot(s: MountSlotDefinition): MountKind {
+  const vid = s.defaultVisualId ?? "";
+  const fromPreset = SCHEMATIC_KIND_BY_DEFAULT_VISUAL_ID[vid];
+  if (fromPreset) return fromPreset;
+
+  /** Kein `defaultVisualId` in der JSON-Vorgabe: grobe Zuordnung über `compatibleKinds`. */
   const kinds = s.compatibleKinds;
   if (kinds.includes("artillery")) return "artillery";
   if (kinds.includes("ciws")) return "ciws";
+  if (kinds.includes("pdms")) return "pd";
   if (kinds.includes("sam_launcher")) return "sam";
-  const vid = s.defaultVisualId ?? "";
   if (vid.includes("torpedo")) return "torpedo";
   if (vid.includes("ssm")) return "ssm";
   return "generic";
@@ -27,6 +47,8 @@ function kindClass(k: MountKind): string {
       return "cockpit-schematic-mount--ciws";
     case "sam":
       return "cockpit-schematic-mount--sam";
+    case "pd":
+      return "cockpit-schematic-mount--pd";
     case "torpedo":
       return "cockpit-schematic-mount--torp";
     case "ssm":
@@ -100,7 +122,8 @@ export function renderWeaponSchematic(
     const rotating =
       kinds.includes("artillery") ||
       kinds.includes("ciws") ||
-      kinds.includes("sam_launcher");
+      kinds.includes("sam_launcher") ||
+      kinds.includes("pdms");
     if (rotating) {
       const line = document.createElementNS(svgNs, "line");
       line.setAttribute("class", "cockpit-schematic-train");

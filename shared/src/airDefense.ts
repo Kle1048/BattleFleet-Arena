@@ -1,7 +1,7 @@
 /**
  * Layered air defense (server-authoritative helpers):
  * - **Softkill** (chaff/ECM): automatic, separate from hardkill; may break ASuM lock without destroying.
- * - **Hardkill**: SAM → PD → CIWS; only runs after player commits (see BattleRoom).
+ * - **Hardkill**: SAM → PD → CIWS; nur mit passendem Rumpf-Loadout pro Schicht (siehe BattleRoom); Commit nötig.
  *
  * Tick model for hardkill: entry in range + layer ready + commit window + pending → `airDefenseFire`;
  * next tick → hit roll + cooldown (`airDefenseIntercept` removes missile on hit).
@@ -53,6 +53,8 @@ export type HardkillAttemptInput = {
   samAllowed: boolean;
   /** PD: nur mit Lock des Flugkörpers auf dieses Schiff. */
   pdAllowed: boolean;
+  /** CIWS: nur mit `visual_ciws` am Slot (Loadout). */
+  ciwsAllowed: boolean;
 };
 
 /**
@@ -61,10 +63,11 @@ export type HardkillAttemptInput = {
 export function pickHardkillEngagementLayer(
   input: HardkillAttemptInput,
 ): AirDefenseHardkillLayer | null {
-  const { distSq, nowMs, samNextAtMs, pdNextAtMs, ciwsNextAtMs, samAllowed, pdAllowed } = input;
+  const { distSq, nowMs, samNextAtMs, pdNextAtMs, ciwsNextAtMs, samAllowed, pdAllowed, ciwsAllowed } =
+    input;
   if (distSq <= AD_SAM_RANGE_SQ && nowMs >= samNextAtMs && samAllowed) return "sam";
   if (distSq <= AD_PD_RANGE_SQ && nowMs >= pdNextAtMs && pdAllowed) return "pd";
-  if (distSq <= AD_CIWS_RANGE_SQ && nowMs >= ciwsNextAtMs) return "ciws";
+  if (distSq <= AD_CIWS_RANGE_SQ && nowMs >= ciwsNextAtMs && ciwsAllowed) return "ciws";
   return null;
 }
 

@@ -10,6 +10,8 @@ export const MOUNT_VISUAL_GLB_BY_ID: Record<string, string> = {
   visual_artillery: `${BASE}assets/systems/mount_artillery_turret.glb`,
   visual_ciws: `${BASE}assets/systems/mount_ciws_rotating.glb`,
   visual_sam: `${BASE}assets/systems/mount_sam_box.glb`,
+  /** PDMS-Box — Hardkill-Schicht **PD** (mittlerer Ring), nicht SAM. */
+  visual_pdms: `${BASE}assets/systems/mount_PDMS_box.glb`,
   visual_ssm: FALLBACK_MOUNT,
   visual_torpedo: `${BASE}assets/systems/mount_torpedo_launcher.glb`,
 };

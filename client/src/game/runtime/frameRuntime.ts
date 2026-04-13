@@ -1,6 +1,7 @@
 import type { ArraySchema } from "@colyseus/schema";
 import type * as THREE from "three";
 import {
+  pickThreatMissilePositionForDefender,
   PlayerLifeState,
   PROGRESSION_MAX_LEVEL,
   SPEED_FEEL_FACTOR,
@@ -11,11 +12,16 @@ import {
   progressionMovementScale,
   progressionNavalRankEn,
   progressionXpToNextLevel,
+  type AirDefenseMissileSnapshot,
+  type AirDefensePlayerSnapshot,
   type ShipClassId,
 } from "@battlefleet/shared";
 import {
   applyShipVisualRuntimeTuning,
   setShipVisualLifeState,
+  updateAimMountToTargetDebugLine,
+  updateArtilleryTrainRotationsFromAim,
+  type ArtilleryTrainAimOptions,
   type ShipVisual,
 } from "../scene/shipVisual";
 import {
@@ -30,7 +36,10 @@ import {
 } from "./cameraCullRuntime";
 import { applyCameraShakeStep } from "./cameraShakeRuntime";
 import { worldToRenderX, worldToRenderYaw } from "./renderCoords";
-import { getShipDebugTuning, getShipDebugTuningGeneration } from "./shipDebugTuning";
+import {
+  getShipDebugTuningForVisualClass,
+  getShipDebugTuningGeneration,
+} from "./shipDebugTuning";
 import {
   RADAR_ESM_RANGE_WORLD,
   esmLineTowardBlip,
@@ -64,6 +73,7 @@ type NetPlayerLike = {
   displayName: string;
   radarActive?: boolean;
   adHudIncomingAswm?: number;
+  adHardkillCommitRemainingSec?: number;
   aswmRemainingPort: number;
   aswmRemainingStarboard: number;
 };
@@ -71,6 +81,7 @@ type NetPlayerLike = {
 type MissileLike = {
   missileId: number;
   ownerId: string;
+  targetId: string;
   x: number;
   z: number;
   headingRad: number;
@@ -163,6 +174,8 @@ type RuntimeState = {
   lastDamageSmokeAtBySessionId: Map<string, number>;
   /** Vorheriger Wert von `adHudIncomingAswm` (lokaler Spieler) für Vampire-Toast. */
   lastAdHudIncomingAswm: number;
+  /** Live-Debug für Aim-Linien/Sektorprüfung (lokaler Spieler). */
+  aimLineSectorDebug: string;
 };
 
 export function createFrameRuntimeState(initialHudLevel = 1): RuntimeState {
@@ -172,6 +185,7 @@ export function createFrameRuntimeState(initialHudLevel = 1): RuntimeState {
     lastLifeStateBySessionId: new Map<string, string>(),
     lastDamageSmokeAtBySessionId: new Map<string, number>(),
     lastAdHudIncomingAswm: 0,
+    aimLineSectorDebug: "",
   };
 }
 
@@ -191,7 +205,6 @@ export function runFrameRuntimeStep<
     primaryFire: boolean;
     secondaryFire: boolean;
     torpedoFire: boolean;
-    artillerySpawnLocalZ: number;
     mineSpawnLocalZ: number;
     radarActive: boolean;
     airDefenseEngage?: boolean;
@@ -273,6 +286,18 @@ export function runFrameRuntimeStep<
     playersById.set(p.id, p);
   }
 
+  const adPlayerSnapshots: AirDefensePlayerSnapshot[] = [];
+  for (const pl of playerList) {
+    adPlayerSnapshots.push({
+      id: pl.id,
+      x: pl.x,
+      z: pl.z,
+      headingRad: pl.headingRad,
+      lifeState: pl.lifeState,
+      shipClass: pl.shipClass,
+    });
+  }
+
   const me = playersById.get(mySessionId);
   if (me) {
     const oobSec = me.oobCountdownSec ?? 0;
@@ -301,10 +326,15 @@ export function runFrameRuntimeStep<
       applyShipVisualRuntimeTuning(vis);
       vis.debugTuningGenApplied = tuningGen;
     }
-    const tuning = getShipDebugTuning();
+    const tuning = getShipDebugTuningForVisualClass(p.shipClass);
 
     const wreckSinkY = p.lifeState === PlayerLifeState.AwaitingRespawn ? -4.2 : 0;
 
+    let shipLineSimX = p.x;
+    let shipLineSimZ = p.z;
+    let shipLineHeadingRad = p.headingRad;
+    let aimLineSimX = p.x;
+    let aimLineSimZ = p.z;
     if (sessionId === mySessionId) {
       const yaw = worldToRenderYaw(p.headingRad);
       // Das sichtbare Sprite hat einen anderen Drehpunkt als die Simulationsposition.
@@ -313,8 +343,8 @@ export function runFrameRuntimeStep<
       const pivotDz = Math.cos(yaw) * tuning.shipPivotLocalZ;
       vis.group.position.set(worldToRenderX(p.x) - pivotDx, wreckSinkY, p.z - pivotDz);
       vis.group.rotation.y = yaw;
-      const yawAim = Math.atan2(inputSample.aimWorldX - p.x, inputSample.aimWorldZ - p.z);
-      vis.aimLine.rotation.y = -(yawAim - p.headingRad);
+      aimLineSimX = inputSample.aimWorldX;
+      aimLineSimZ = inputSample.aimWorldZ;
     } else {
       let buf = remoteInterp.get(sessionId);
       if (!buf) {
@@ -327,11 +357,64 @@ export function runFrameRuntimeStep<
       const pivotDz = Math.cos(yaw) * tuning.shipPivotLocalZ;
       vis.group.position.set(worldToRenderX(r.x) - pivotDx, wreckSinkY, r.z - pivotDz);
       vis.group.rotation.y = yaw;
-      const yawAim = Math.atan2(r.aimX - r.x, r.aimZ - r.z);
-      vis.aimLine.rotation.y = -(yawAim - r.headingRad);
+      aimLineSimX = r.aimX;
+      aimLineSimZ = r.aimZ;
+      shipLineSimX = r.x;
+      shipLineSimZ = r.z;
+      shipLineHeadingRad = r.headingRad;
     }
 
+    const layered =
+      typeof p.adHardkillCommitRemainingSec === "number" && p.adHardkillCommitRemainingSec > 0;
+    let aimOpts: ArtilleryTrainAimOptions | undefined;
+    if (vis.artilleryTrainIsAirDefense.some(Boolean)) {
+      let missileSim: { x: number; z: number } | null = null;
+      if (layered && missileList && missileList.length > 0) {
+        const missileSnaps: AirDefenseMissileSnapshot[] = [];
+        for (let mi = 0; mi < missileList.length; mi++) {
+          const m = missileList.at(mi);
+          if (!m) continue;
+          missileSnaps.push({
+            ownerId: m.ownerId,
+            targetId: m.targetId,
+            x: m.x,
+            z: m.z,
+          });
+        }
+        missileSim = pickThreatMissilePositionForDefender(missileSnaps, sessionId, adPlayerSnapshots);
+      }
+      aimOpts = {
+        layeredDefenseActive: layered,
+        missileSim,
+        shipSimX: shipLineSimX,
+        shipSimZ: shipLineSimZ,
+        shipHeadingRad: shipLineHeadingRad,
+      };
+    }
+    updateArtilleryTrainRotationsFromAim(vis, aimLineSimX, aimLineSimZ, aimOpts);
+
     setShipVisualLifeState(vis, p.lifeState, sessionId === mySessionId);
+
+    if (p.lifeState !== PlayerLifeState.AwaitingRespawn) {
+      const aimDebug = updateAimMountToTargetDebugLine(
+        vis,
+        shipLineSimX,
+        shipLineSimZ,
+        shipLineHeadingRad,
+        aimLineSimX,
+        aimLineSimZ,
+      );
+      if (sessionId === mySessionId) {
+        state.aimLineSectorDebug = aimDebug.join(" | ");
+      }
+    } else {
+      for (const c of vis.aimLine.children) {
+        (c as THREE.Line).visible = false;
+      }
+      if (sessionId === mySessionId) {
+        state.aimLineSectorDebug = "local: awaiting_respawn";
+      }
+    }
 
     if (p.lifeState !== PlayerLifeState.AwaitingRespawn) {
       const hpPercent = p.maxHp > 0 ? p.hp / p.maxHp : 1;
@@ -351,7 +434,7 @@ export function runFrameRuntimeStep<
       updateLocalFollowCameraFromPlayer(camera, p, dtMs);
 
       if (me.lifeState !== PlayerLifeState.AwaitingRespawn && !matchEnded) {
-        const tuningNow = getShipDebugTuning();
+        const tuningNow = getShipDebugTuningForVisualClass(me.shipClass);
         roomSendInput({
           throttle: inputSample.throttle,
           rudderInput: inputSample.rudderInput,
@@ -360,10 +443,6 @@ export function runFrameRuntimeStep<
           primaryFire: inputSample.primaryFire,
           secondaryFire: inputSample.secondaryFire,
           torpedoFire: inputSample.torpedoFire,
-          // Server erwartet Spawn-Offsets relativ zur Physikposition des Schiffs.
-          // Wir korrigieren daher die visuellen Trim-Werte zurück auf den Simulationsursprung.
-          artillerySpawnLocalZ:
-            tuningNow.aimOriginLocalZ - tuningNow.shipPivotLocalZ + tuningNow.artillerySpawnLocalZ,
           mineSpawnLocalZ: tuningNow.mineSpawnLocalZ,
           radarActive: inputSample.radarActive,
           airDefenseEngage: inputSample.airDefenseEngage,
