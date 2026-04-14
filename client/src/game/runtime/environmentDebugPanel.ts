@@ -38,6 +38,7 @@ import {
   isShipHitboxDebugVisible,
   setShipHitboxDebugVisible,
 } from "./shipProfileRuntime";
+import { appendToBottomDebugDock } from "./bottomDebugDock";
 
 const STORAGE_KEY = "bfa.waterShaderTuning.v2";
 const SHIP_STORAGE_KEY = "bfa.shipDebugTuning.v2";
@@ -892,7 +893,7 @@ export function createEnvironmentDebugPanel(bundle: GameSceneBundle): { dispose:
   });
   applyExpandedState();
 
-  document.body.appendChild(root);
+  appendToBottomDebugDock(root);
 
   return {
     dispose() {

@@ -8,6 +8,18 @@ const OOB_TITLE =
 
 const SPAWN_SHIELD_TITLE = "Spawn-Schutz aktiv";
 
+export type GameMessageToastHookPayload = {
+  text: string;
+  kind: "info" | "danger";
+  durationMs: number;
+  atMs: number;
+};
+
+export type GameMessageHudOptions = {
+  /** Jede Toast-Meldung zusätzlich ins Comms-Log (o. ä.) spiegeln. */
+  onToast?: (e: GameMessageToastHookPayload) => void;
+};
+
 export type GameMessageHud = {
   /**
    * Toast-Meldung (wird von OOB verdrängt, danach wieder angezeigt falls noch gültig).
@@ -27,7 +39,7 @@ export type GameMessageHud = {
   ) => void;
 };
 
-export function createGameMessageHud(): GameMessageHud {
+export function createGameMessageHud(options?: GameMessageHudOptions): GameMessageHud {
   const wrap = document.createElement("div");
   wrap.className = "game-message-hud";
   wrap.setAttribute("role", "status");
@@ -59,6 +71,12 @@ export function createGameMessageHud(): GameMessageHud {
       toastText = text;
       toastKind = kind;
       toastUntilMs = performance.now() + durationMs;
+      options?.onToast?.({
+        text,
+        kind,
+        durationMs,
+        atMs: performance.now(),
+      });
     },
     updateFrame(nowMs, oobCountdownSec, spawnProtectionSec) {
       if (oobCountdownSec > 0) {

@@ -18,7 +18,7 @@ import {
 import { createGameScene } from "./game/scene/createGameScene";
 import { createInputHandlers } from "./game/input/keyboardMouse";
 import { createCockpitHud } from "./game/hud/cockpitHud";
-import { createMessageLogPlaceholder } from "./game/hud/messageLogPlaceholder";
+import { createMessageLog } from "./game/hud/messageLog";
 import { createDebugOverlay } from "./game/hud/debugOverlay";
 import { createBotController } from "./game/bot/botController";
 import { createBotDebugPanel } from "./game/bot/botDebugPanel";
@@ -147,10 +147,18 @@ async function bootstrap(): Promise<void> {
   const debugOverlay = createDebugOverlay({ parent: bridgeEl });
   debugOverlayForFatal = debugOverlay;
   installGlobalRuntimeErrorHandlers(debugOverlay);
-  const messageLogPlaceholder = createMessageLogPlaceholder({ parent: opzEl });
+  const commsLog = createMessageLog({ parent: opzEl });
   const botController = createBotController();
-  const botDebugPanel = createBotDebugPanel();
-  const gameMessageHud = createGameMessageHud();
+  const setBotEnabled = (enabled: boolean): void => {
+    if (enabled) botController.enable();
+    else botController.disable();
+  };
+  const botDebugPanel = createBotDebugPanel({
+    onSetEnabled: setBotEnabled,
+  });
+  const gameMessageHud = createGameMessageHud({
+    onToast: (e) => commsLog.append({ text: e.text, kind: e.kind }),
+  });
   const fxSystem = createFxSystem(scene);
   const artilleryFx = createArtilleryFx(scene, fxSystem);
   const missileFx = createMissileFx(scene, fxSystem);
@@ -208,6 +216,10 @@ async function bootstrap(): Promise<void> {
     `Keine Antwort vom Spiel-Server. Prüfe: Server läuft? Firewall? Adresse ${COLYSEUS_URL}`,
   );
   const mySessionId = room.sessionId;
+  commsLog.append({
+    text: `OPZ-Kanal offen — Raum ${room.roomId.slice(0, 8)}…`,
+    kind: "info",
+  });
 
   const matchEndHud = createMatchEndHud(() => {
     // Fallback: bei bereits geschlossener WS kann `leave()` hängen.
@@ -226,8 +238,7 @@ async function bootstrap(): Promise<void> {
   }
   const onBotToggleKey = (e: KeyboardEvent): void => {
     if (e.code !== "KeyB") return;
-    if (botController.isEnabled()) botController.disable();
-    else botController.enable();
+    setBotEnabled(!botController.isEnabled());
   };
   window.addEventListener("keydown", onBotToggleKey);
   const frameRuntimeState = createFrameRuntimeState(1);
@@ -342,7 +353,7 @@ async function bootstrap(): Promise<void> {
         window.removeEventListener("keydown", onBotToggleKey);
       },
     },
-    messageLogPlaceholder,
+    commsLog,
   ]);
   runtimeShutdown.bindWindowUnload();
 

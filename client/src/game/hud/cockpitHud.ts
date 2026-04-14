@@ -61,6 +61,25 @@ function formatCourse(d: number): string {
 
 const RADAR_BLIP_SCALE = 46;
 
+const BRIDGE_COMPACT_KEY = "bfa.hud.bridgeCompact";
+const OPZ_COMPACT_KEY = "bfa.hud.opzCompact";
+
+function readHudCompact(key: string): boolean {
+  try {
+    return localStorage.getItem(key) === "1";
+  } catch {
+    return false;
+  }
+}
+
+function writeHudCompact(key: string, compact: boolean): void {
+  try {
+    localStorage.setItem(key, compact ? "1" : "0");
+  } catch {
+    /* ignore quota / private mode */
+  }
+}
+
 export function createCockpitHud(): { update: (u: CockpitHudUpdate) => void } {
   const radarRangeLabel = `${RADAR_RANGE_WORLD}m`;
   const wrap = document.createElement("div");
@@ -71,7 +90,15 @@ export function createCockpitHud(): { update: (u: CockpitHudUpdate) => void } {
       <div class="cockpit-panel cockpit-panel--bridge">
         <div class="cockpit-panel-head cockpit-panel-head--bridge">
           <span class="cockpit-panel-title">BRIDGE</span>
+          <button type="button" class="cockpit-panel-toggle" aria-expanded="true" title="Nur Kurs anzeigen" aria-label="Brücke reduzieren oder erweitern">−</button>
         </div>
+        <div class="cockpit-bridge-minimal" hidden>
+          <div class="cockpit-row cockpit-row-minimal">
+            <span class="cockpit-label">Kurs</span>
+            <span class="cockpit-course cockpit-course-minimal">000°</span>
+          </div>
+        </div>
+        <div class="cockpit-bridge-body">
         <div class="cockpit-compass-wrap" aria-hidden="true">
           <svg class="cockpit-compass-svg" viewBox="-52 -52 104 104">
             <defs>
@@ -143,6 +170,7 @@ export function createCockpitHud(): { update: (u: CockpitHudUpdate) => void } {
             <span class="cockpit-match-score"><span class="cockpit-score-val">0</span> <span class="cockpit-kills">(0)</span></span>
           </div>
         </div>
+        </div>
       </div>
     </div>
 
@@ -150,6 +178,7 @@ export function createCockpitHud(): { update: (u: CockpitHudUpdate) => void } {
       <div class="cockpit-panel cockpit-panel--opz">
         <div class="cockpit-panel-head cockpit-panel-head--opz">
           <span class="cockpit-panel-title">OPZ</span>
+          <button type="button" class="cockpit-panel-toggle" aria-expanded="true" title="Nur HP anzeigen" aria-label="OPZ reduzieren oder erweitern">−</button>
         </div>
         <div class="cockpit-radar" aria-hidden="true">
           <div class="cockpit-radar-head">
@@ -222,6 +251,42 @@ export function createCockpitHud(): { update: (u: CockpitHudUpdate) => void } {
       </div>
     </div>
   `;
+
+  const bridgePanel = wrap.querySelector(".cockpit-panel--bridge") as HTMLElement;
+  const opzPanel = wrap.querySelector(".cockpit-panel--opz") as HTMLElement;
+  const bridgeToggle = wrap.querySelector(".cockpit-panel--bridge .cockpit-panel-toggle") as HTMLButtonElement;
+  const opzToggle = wrap.querySelector(".cockpit-panel--opz .cockpit-panel-toggle") as HTMLButtonElement;
+  const bridgeMinimal = wrap.querySelector(".cockpit-bridge-minimal") as HTMLElement;
+  const bridgeBody = wrap.querySelector(".cockpit-bridge-body") as HTMLElement;
+  const courseMinimalEl = wrap.querySelector(".cockpit-course-minimal") as HTMLElement;
+
+  const applyBridgeCompact = (compact: boolean): void => {
+    bridgePanel.classList.toggle("cockpit-panel--compact", compact);
+    bridgeToggle.setAttribute("aria-expanded", compact ? "false" : "true");
+    bridgeToggle.textContent = compact ? "+" : "−";
+    bridgeToggle.title = compact ? "Brücke voll anzeigen" : "Nur Kurs anzeigen";
+    bridgeMinimal.hidden = !compact;
+    bridgeBody.hidden = compact;
+    writeHudCompact(BRIDGE_COMPACT_KEY, compact);
+  };
+
+  const applyOpzCompact = (compact: boolean): void => {
+    opzPanel.classList.toggle("cockpit-panel--compact", compact);
+    opzToggle.setAttribute("aria-expanded", compact ? "false" : "true");
+    opzToggle.textContent = compact ? "+" : "−";
+    opzToggle.title = compact ? "OPZ voll anzeigen" : "Nur HP anzeigen";
+    writeHudCompact(OPZ_COMPACT_KEY, compact);
+  };
+
+  applyBridgeCompact(readHudCompact(BRIDGE_COMPACT_KEY));
+  applyOpzCompact(readHudCompact(OPZ_COMPACT_KEY));
+
+  bridgeToggle.addEventListener("click", () => {
+    applyBridgeCompact(!bridgePanel.classList.contains("cockpit-panel--compact"));
+  });
+  opzToggle.addEventListener("click", () => {
+    applyOpzCompact(!opzPanel.classList.contains("cockpit-panel--compact"));
+  });
 
   const playerNameEl = wrap.querySelector(".cockpit-player-name") as HTMLElement;
   const shipClassEl = wrap.querySelector(".cockpit-ship-class") as HTMLElement;
@@ -393,7 +458,9 @@ export function createCockpitHud(): { update: (u: CockpitHudUpdate) => void } {
       speedVal.textContent = `${spd}`;
       speedVal.style.opacity = Math.abs(speed) < 0.4 ? "0.55" : "1";
 
-      courseEl.textContent = formatCourse(deg);
+      const courseStr = formatCourse(deg);
+      courseEl.textContent = courseStr;
+      courseMinimalEl.textContent = courseStr;
 
       const hDeg = (headingRad * 180) / Math.PI;
       compassRose.setAttribute("transform", `rotate(${-hDeg})`);

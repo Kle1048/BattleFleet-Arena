@@ -1,4 +1,6 @@
 /** Pro Frame aus Tastatur + Maus; NDC wie WebGL (−1…1, Y oben positiv). Torpedo: **Q** + **Mittelklick**. */
+import { createMobileControls } from "./mobileControls";
+
 export type InputSample = {
   throttle: number;
   rudderInput: number;
@@ -30,6 +32,7 @@ export function createInputHandlers(
   dispose: () => void;
 } {
   const keys = new Set<string>();
+  const mobileControls = createMobileControls();
   let radarActive = true;
   let pendingAirDefenseEngage = false;
 
@@ -94,6 +97,7 @@ export function createInputHandlers(
   window.addEventListener("pointerup", onPointerUp);
 
   function sample(): InputSample {
+    const mobile = mobileControls.sample();
     let throttle = 0;
     if (keys.has("KeyW")) throttle += 1;
     if (keys.has("KeyS")) throttle -= 1;
@@ -104,10 +108,17 @@ export function createInputHandlers(
     if (keys.has("KeyD")) rudderInput += 1;
     rudderInput = Math.max(-1, Math.min(1, rudderInput));
 
+    if (mobile.active) {
+      if (Math.abs(mobile.throttle) > 0.01) throttle = mobile.throttle;
+      if (Math.abs(mobile.rudderInput) > 0.01) rudderInput = mobile.rudderInput;
+      if (mobile.radarTogglePressed) radarActive = !radarActive;
+      if (mobile.airDefensePressed) pendingAirDefenseEngage = true;
+    }
+
     const hit = getGroundPoint(mouseNdcX, mouseNdcY);
-    const primaryFire = lmbHeld;
-    const secondaryFire = rmbHeld;
-    const torpedoFire = mmbHeld || keys.has("KeyQ");
+    const primaryFire = lmbHeld || mobile.primaryFire;
+    const secondaryFire = rmbHeld || mobile.secondaryFire;
+    const torpedoFire = mmbHeld || keys.has("KeyQ") || mobile.torpedoFire;
     const airDefenseEngage = pendingAirDefenseEngage;
     pendingAirDefenseEngage = false;
     return {
@@ -133,6 +144,7 @@ export function createInputHandlers(
       canvas.removeEventListener("pointerup", onPointerUp);
       canvas.removeEventListener("pointercancel", onPointerUp);
       window.removeEventListener("pointerup", onPointerUp);
+      mobileControls.dispose();
     },
   };
 }

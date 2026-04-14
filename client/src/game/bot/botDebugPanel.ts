@@ -1,4 +1,5 @@
 import type { BotInputCommand, BotIntent, BotLogEntry, TacticalContext } from "./types";
+import { appendToBottomDebugDock } from "../runtime/bottomDebugDock";
 
 export type BotDebugState = {
   enabled: boolean;
@@ -10,24 +11,40 @@ export type BotDebugState = {
   logs: BotLogEntry[];
 };
 
-export function createBotDebugPanel(): {
+type BotDebugPanelOptions = {
+  onSetEnabled?: (enabled: boolean) => void;
+};
+
+export function createBotDebugPanel(options: BotDebugPanelOptions = {}): {
   render: (state: BotDebugState) => void;
   dispose: () => void;
 } {
   const wrap = document.createElement("div");
   wrap.className = "bot-debug-panel";
-  /* Layout + scale: index.html `.bot-debug-panel` */
+  /* Layout: index.html `.bot-debug-panel` + `#bottom-debug-dock` */
   const header = document.createElement("div");
   header.style.cssText = "display:flex;align-items:center;justify-content:space-between;gap:8px;";
   const title = document.createElement("div");
   title.style.cssText = "font-weight:700;";
-  const toggle = document.createElement("button");
-  toggle.type = "button";
-  toggle.style.cssText =
+  const actions = document.createElement("div");
+  actions.style.cssText = "display:flex;align-items:center;gap:6px;";
+  const botToggle = document.createElement("button");
+  botToggle.type = "button";
+  botToggle.style.cssText =
+    "background:#123f2b;color:#d8ffeb;border:1px solid rgba(120,220,180,0.48);" +
+    "border-radius:7px;padding:6px 10px;cursor:pointer;font:600 12px system-ui,sans-serif;" +
+    "touch-action:manipulation;";
+  botToggle.setAttribute("aria-label", "Bot aktivieren oder deaktivieren");
+  const collapseToggle = document.createElement("button");
+  collapseToggle.type = "button";
+  collapseToggle.style.cssText =
     "background:#153247;color:#bfe7ff;border:1px solid rgba(130,180,220,0.45);" +
-    "border-radius:5px;padding:2px 7px;cursor:pointer;font:11px system-ui,sans-serif;";
+    "border-radius:5px;padding:4px 8px;cursor:pointer;font:11px system-ui,sans-serif;" +
+    "touch-action:manipulation;";
   header.appendChild(title);
-  header.appendChild(toggle);
+  actions.appendChild(botToggle);
+  actions.appendChild(collapseToggle);
+  header.appendChild(actions);
   wrap.appendChild(header);
 
   const content = document.createElement("div");
@@ -35,16 +52,27 @@ export function createBotDebugPanel(): {
   wrap.appendChild(content);
 
   let expanded = true;
+  let botEnabled = false;
   const applyExpandedState = (): void => {
     content.style.display = expanded ? "block" : "none";
-    toggle.textContent = expanded ? "Hide" : "Show";
+    collapseToggle.textContent = expanded ? "Hide" : "Show";
   };
-  toggle.addEventListener("click", () => {
+  const applyBotToggleState = (): void => {
+    botToggle.textContent = botEnabled ? "Bot: ON" : "Bot: OFF";
+    botToggle.style.background = botEnabled ? "#14643f" : "#4b2121";
+    botToggle.style.borderColor = botEnabled ? "rgba(120,220,180,0.58)" : "rgba(255,145,145,0.52)";
+    botToggle.style.color = botEnabled ? "#d8ffeb" : "#ffe0e0";
+  };
+  collapseToggle.addEventListener("click", () => {
     expanded = !expanded;
     applyExpandedState();
   });
+  botToggle.addEventListener("click", () => {
+    options.onSetEnabled?.(!botEnabled);
+  });
+  applyBotToggleState();
   applyExpandedState();
-  document.body.appendChild(wrap);
+  appendToBottomDebugDock(wrap);
 
   let lastRenderedEnabled: boolean | null = null;
 
@@ -52,11 +80,13 @@ export function createBotDebugPanel(): {
   const yn = (b: boolean) => (b ? "ja" : "nein");
   return {
     render(state): void {
+      botEnabled = state.enabled;
+      applyBotToggleState();
       if (!state.enabled) {
-        title.textContent = "Bot INAKTIV (Taste B)";
+        title.textContent = "Bot INAKTIV (Taste B / Button)";
         if (lastRenderedEnabled !== false) {
           content.innerHTML =
-            '<div style="opacity:0.88;">Bot ist aus — <b>B</b> zum Aktivieren.</div>';
+            '<div style="opacity:0.88;">Bot ist aus — <b>B</b> oder Button zum Aktivieren.</div>';
           lastRenderedEnabled = false;
         }
         return;
@@ -64,7 +94,7 @@ export function createBotDebugPanel(): {
       lastRenderedEnabled = true;
       const c = state.context;
       const status = state.enabled ? "AKTIV" : "INAKTIV";
-      title.textContent = `Bot ${status} (Taste B)`;
+      title.textContent = `Bot ${status} (Taste B / Button)`;
       const inputLines = state.lastInputs
         .slice(-5)
         .map((q) => `T ${fmt(q.throttle)} R ${fmt(q.rudderInput)} F ${q.primaryFire ? 1 : 0}`)
