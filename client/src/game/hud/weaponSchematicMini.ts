@@ -23,8 +23,8 @@ const SCHEMATIC_KIND_BY_DEFAULT_VISUAL_ID: Partial<Record<string, MountKind>> = 
   visual_torpedo: "torpedo",
 };
 
-function classifyFromSlot(s: MountSlotDefinition): MountKind {
-  const vid = s.defaultVisualId ?? "";
+function classifyFromSlot(s: MountSlotDefinition, loadout: Record<string, string> | undefined): MountKind {
+  const vid = (loadout?.[s.id] ?? s.defaultVisualId ?? "").trim();
   const fromPreset = SCHEMATIC_KIND_BY_DEFAULT_VISUAL_ID[vid];
   if (fromPreset) return fromPreset;
 
@@ -69,6 +69,8 @@ export function renderWeaponSchematic(
   host.replaceChildren();
   if (!profile) return;
 
+  const loadout = profile.defaultLoadout;
+
   const svg = document.createElementNS(svgNs, "svg");
   svg.setAttribute("viewBox", "-52 -58 104 116");
   svg.setAttribute("class", "cockpit-schematic-svg");
@@ -108,7 +110,7 @@ export function renderWeaponSchematic(
   svg.appendChild(hull);
 
   for (const s of profile.mountSlots ?? []) {
-    const k = classifyFromSlot(s);
+    const k = classifyFromSlot(s, loadout);
     const mx = (s.socket.position.x - midX) * scale;
     const my = -s.socket.position.z * scale;
     const g = document.createElementNS(svgNs, "g");

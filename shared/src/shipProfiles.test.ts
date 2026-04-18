@@ -5,11 +5,15 @@ import { SHIP_CLASS_DESTROYER, SHIP_CLASS_CRUISER } from "./shipClass";
 import {
   getAswmMagazineFromProfile,
   getAswmMagicReloadMsFromProfile,
+  getAuthoritativeShipHullProfile,
+  getShipHullProfileByClass,
   mergeShipHullVisualProfile,
   SHIP_HULL_PROFILE_BY_CLASS,
 } from "./shipProfiles";
 
 const base = SHIP_HULL_PROFILE_BY_CLASS[SHIP_CLASS_FAC];
+
+assert.strictEqual(getAuthoritativeShipHullProfile(SHIP_CLASS_FAC), getShipHullProfileByClass(SHIP_CLASS_FAC));
 
 const merged = mergeShipHullVisualProfile(base, {
   hullVisualScale: 1.5,

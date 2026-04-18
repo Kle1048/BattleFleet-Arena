@@ -1,5 +1,6 @@
 import type { ShipClassId } from "./shipClass";
 import type { ShipHullMovementDefinition } from "./shipMovement";
+import { weaponEngagementRangeWorldForMountVisualId } from "./mountWeaponRange";
 
 /**
  * Rumpf-lokales Koordinatensystem (wie im Client / Blender-Export üblich):
@@ -79,11 +80,25 @@ export type MountSlotDefinition = {
   /** Optional: Standard-Visual, wenn kein Loadout gesetzt */
   defaultVisualId?: string;
   /**
+   * Optional: Basis-Yaw des Mount-GLB relativ zur **Spiel-Bug-Richtung** (+Z), überschreibt
+   * `inferMountTrainBaseYawFromBow` (sonst: Socket-Z negativ → π, sonst 0).
+   */
+  trainBaseYawRadFromBow?: number;
+  /**
    * Feuersektor nur für **drehbare** Systeme relevant (`artillery`, `ciws`, `sam_launcher`).
    * Fehlt der Eintrag → Server/Client können auf `defaultRotatingMountFireSector` des Profils
    * oder auf die Schiffsklasse (`artilleryArcHalfAngleRad`) zurückfallen.
    */
   fireSector?: MountFireSector;
+};
+
+/**
+ * Autorierung eines Mount-Slots im Profil-JSON: **`socket` optional**, wenn die Lage aus
+ * `data/ships/mountSockets/<profileId>.json` (oder später GLB-`SOCKET_*`) kommt.
+ * Spiel/Server nutzen immer {@link MountSlotDefinition} nach {@link resolveMountSlotsWithSocketRegistry}.
+ */
+export type MountSlotDefinitionInput = Omit<MountSlotDefinition, "socket"> & {
+  socket?: ShipSocketTransform;
 };
 
 /**
@@ -216,6 +231,27 @@ export function resolveEffectiveMountFireSector(
   };
 }
 
+/**
+ * Verbindet Profil-`mountSlots` (Feuersektoren, Loadout, …) mit Positionsdaten aus einem Registry
+ * (z. B. `mountSockets/fac.json` — manuell oder aus Blender/glTF-Export generiert).
+ * Priorität: explizites `slot.socket` im Profil, sonst `socketRegistry[slot.id]`.
+ */
+export function resolveMountSlotsWithSocketRegistry(
+  profileId: string,
+  slots: readonly MountSlotDefinitionInput[],
+  socketRegistry: Readonly<Partial<Record<string, ShipSocketTransform>>>,
+): MountSlotDefinition[] {
+  return slots.map((s) => {
+    const socket = s.socket ?? socketRegistry[s.id];
+    if (!socket?.position) {
+      throw new Error(
+        `[${profileId}] Mount "${s.id}": kein socket — im Profil setzen oder in mountSockets/${profileId}.json.`,
+      );
+    }
+    return { ...s, socket };
+  });
+}
+
 /** Primär-Artillerie: Slot erlaubt `artillery` und Loadout zeigt auf ein Artillerie-GLB. */
 export function slotEquippedWithPrimaryArtillery(
   slot: MountSlotDefinition,
@@ -291,8 +327,11 @@ export function listPrimaryArtilleryMountConfigs(
   return out;
 }
 
-/** Drehbare Waffen-/LW-Slots — gleiche Menge wie Client-`ROTATING_MOUNT_KINDS` / Train-Gruppen. */
-const ROTATING_WEAPON_GUIDE_KINDS: readonly MountVisualKind[] = [
+/**
+ * Mount-`compatibleKinds`, die eine **Train-Yaw**-Gruppe und Feuerbogen-Logik bekommen
+ * (Client: `attachMountVisualsToHullModel`; Shared: `listRotatingMountWeaponGuideConfigs`).
+ */
+export const ROTATING_WEAPON_GUIDE_KINDS: readonly MountVisualKind[] = [
   "artillery",
   "ciws",
   "sam_launcher",
@@ -303,13 +342,26 @@ export function slotHasRotatingWeaponGuide(slot: MountSlotDefinition): boolean {
   return slot.compatibleKinds.some((k) => ROTATING_WEAPON_GUIDE_KINDS.includes(k));
 }
 
+/**
+ * Daten für einen Mount-Feuerbogen ohne Three.js — gleiche Semantik wie
+ * `ClientRotatingMountTrainBinding.weaponGuide` nach `attachMountVisualsToHullModel` (Client).
+ */
 export type RotatingMountWeaponGuideConfig = {
   slotId: string;
+  /** Aktuelles Loadout am Slot (`defaultLoadout` / `defaultVisualId`), z. B. `visual_sam`. */
+  visualId: string;
+  /** Horizontale Waffen-Reichweite (m), aus `weaponEngagementRangeWorldForMountVisualId(visualId)`. */
+  engagementRangeWorld: number;
   socket: { x: number; y: number; z: number };
   sector: MountFireSector;
 };
 
-/** Alle `mountSlots` mit drehbarer Waffe — Feuerbogen-Visualisierung (Client). */
+/**
+ * Alle `mountSlots`, deren `compatibleKinds` `ROTATING_WEAPON_GUIDE_KINDS` schneiden.
+ *
+ * Nutzung: Tests, Editor-Hilfen, Vorschau **ohne** GLB. Der laufende Client baut dieselben Felder
+ * beim Mounten in `weaponGuide` pro `ClientRotatingMountTrainBinding`.
+ */
 export function listRotatingMountWeaponGuideConfigs(
   hull: ShipHullVisualProfile | undefined,
   classArcHalfAngleRad: number,
@@ -318,8 +370,11 @@ export function listRotatingMountWeaponGuideConfigs(
   const out: RotatingMountWeaponGuideConfig[] = [];
   for (const slot of hull.mountSlots) {
     if (!slotHasRotatingWeaponGuide(slot)) continue;
+    const vid = (hull.defaultLoadout?.[slot.id] ?? slot.defaultVisualId ?? "").trim();
     out.push({
       slotId: slot.id,
+      visualId: vid,
+      engagementRangeWorld: weaponEngagementRangeWorldForMountVisualId(vid),
       socket: {
         x: slot.socket.position.x,
         y: slot.socket.position.y,
@@ -336,6 +391,8 @@ export function listRotatingMountWeaponGuideConfigs(
  * Für Client-Train-Rotation relativ zur Bug-Achse.
  */
 export function inferMountTrainBaseYawFromBow(slot: MountSlotDefinition): number {
+  const o = slot.trainBaseYawRadFromBow;
+  if (typeof o === "number" && Number.isFinite(o)) return o;
   return slot.socket.position.z < 0 ? Math.PI : 0;
 }
 

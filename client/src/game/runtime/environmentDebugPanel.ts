@@ -1,13 +1,12 @@
-import type * as THREE from "three";
+import {
+  SHIP_CLASS_CRUISER,
+  SHIP_CLASS_DESTROYER,
+  SHIP_CLASS_FAC,
+  type ShipClassId,
+} from "@battlefleet/shared";
 import type { GameSceneBundle } from "../scene/createGameScene";
 import { sunAnglesFromPosition } from "../scene/environmentSun";
 import { LIGHTING_PRESETS, type LightingPresetId } from "../scene/lightingPresets";
-import {
-  applyWaterShaderTuning,
-  DEFAULT_WATER_SHADER_TUNING,
-  readWaterShaderTuning,
-  type WaterShaderTuning,
-} from "./materialLibrary";
 import {
   applyFollowCameraTuning,
   DEFAULT_FOLLOW_CAMERA_TUNING,
@@ -28,11 +27,6 @@ import {
   DEFAULT_ENVIRONMENT_TUNING,
   type EnvironmentTuning,
 } from "./environmentTuning";
-import {
-  applyWakeRuntimeTuning,
-  getWakeRuntimeTuning,
-  resetWakeRuntimeTuning,
-} from "./wakeRuntimeTuning";
 import { clearPersistedClientSettings } from "./clearPersistedClientSettings";
 import {
   isShipHitboxDebugVisible,
@@ -40,36 +34,7 @@ import {
 } from "./shipProfileRuntime";
 import { appendToBottomDebugDock } from "./bottomDebugDock";
 
-const STORAGE_KEY = "bfa.waterShaderTuning.v2";
 const SHIP_STORAGE_KEY = "bfa.shipDebugTuning.v2";
-
-type SliderDef = {
-  key: keyof WaterShaderTuning;
-  label: string;
-  min: number;
-  max: number;
-  step: number;
-};
-
-const SLIDERS: readonly SliderDef[] = [
-  { key: "uvScale", label: "UV Scale", min: 8, max: 48, step: 0.5 },
-  { key: "depthAmp", label: "Depth Amp", min: 0.05, max: 0.6, step: 0.01 },
-  { key: "flowMix", label: "Flow Intensity", min: 0, max: 0.3, step: 0.01 },
-  { key: "shoreMix", label: "Shore Foam", min: 0, max: 0.8, step: 0.01 },
-  { key: "wakeCoreMix", label: "Wake Core", min: 0, max: 0.8, step: 0.01 },
-  { key: "wakeOuterMix", label: "Wake Outer", min: 0, max: 0.5, step: 0.01 },
-  { key: "wakeOuterWidthMul", label: "Wake Width", min: 0.5, max: 2.0, step: 0.01 },
-  { key: "wakeOuterNoiseMix", label: "Wake Noise", min: 0, max: 1, step: 0.01 },
-  {
-    key: "wakeSegDecay",
-    label: "Wake Schweif (Abklingen)",
-    min: 0.04,
-    max: 0.32,
-    step: 0.01,
-  },
-  { key: "timeX", label: "Drift X", min: 0.002, max: 0.08, step: 0.001 },
-  { key: "timeY", label: "Drift Y", min: 0.002, max: 0.08, step: 0.001 },
-];
 
 type ShipSliderDef = {
   key: {
@@ -86,7 +51,7 @@ const SHIP_SLIDERS: readonly ShipSliderDef[] = [
   { key: "shipPivotLocalZ", label: "Ship Pivot Z", min: -80, max: 80, step: 0.1 },
   { key: "cameraPivotLocalZ", label: "Camera Pivot Z", min: -80, max: 80, step: 0.1 },
   { key: "mineSpawnLocalZ", label: "Mine Spawn Z", min: -140, max: 20, step: 0.1 },
-  { key: "wakeSpawnLocalZ", label: "Wake Spawn Z", min: -120, max: 40, step: 0.1 },
+  { key: "wakeSpawnLocalZ", label: "Wake Heck ΔZ (Referenz)", min: -22, max: 12, step: 0.1 },
   {
     key: "gltfHullYOffset",
     label: "GLB Rumpf Y (Senken −)",
@@ -113,31 +78,18 @@ function clamp(v: number, min: number, max: number): number {
   return Math.max(min, Math.min(max, v));
 }
 
-function loadPersisted(): Partial<WaterShaderTuning> {
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    if (!raw) return {};
-    const parsed = JSON.parse(raw) as Partial<WaterShaderTuning>;
-    return parsed && typeof parsed === "object" ? parsed : {};
-  } catch {
-    return {};
-  }
-}
-
-function savePersisted(value: Partial<WaterShaderTuning>): void {
-  try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(value));
-  } catch {
-    // ignore storage errors
-  }
-}
-
 function loadPersistedShipTuning(): Partial<ShipDebugTuning> {
   try {
     const raw = localStorage.getItem(SHIP_STORAGE_KEY);
     if (!raw) return {};
     const parsed = JSON.parse(raw) as Partial<ShipDebugTuning>;
-    return parsed && typeof parsed === "object" ? parsed : {};
+    if (!parsed || typeof parsed !== "object") return {};
+    /** Früher: absoluter Z-Wert (z. B. −60). Jetzt: Offset zu `SHIP_STERN_Z` — Alt-Werte verwerfen. */
+    if (typeof parsed.wakeSpawnLocalZ === "number" && parsed.wakeSpawnLocalZ < -35) {
+      const { wakeSpawnLocalZ: _drop, ...rest } = parsed;
+      return rest;
+    }
+    return parsed;
   } catch {
     return {};
   }
@@ -160,13 +112,15 @@ function numberToHexInput(n: number): string {
   return `#${n.toString(16).padStart(6, "0")}`;
 }
 
-export function createEnvironmentDebugPanel(bundle: GameSceneBundle): { dispose: () => void } {
-  const foamMat = bundle.waterFoam.material as THREE.Material;
-  const base = readWaterShaderTuning(foamMat);
-  if (!base) return { dispose() {} };
+export type EnvironmentDebugPanelOptions = {
+  /** Nach Raumbeitritt setzen: wechselt die Spielerklasse serverseitig (nur Debug). */
+  getDebugShipClassSender?: () => ((shipClass: ShipClassId) => void) | undefined;
+};
 
-  const persisted = loadPersisted();
-  applyWaterShaderTuning(foamMat, persisted);
+export function createEnvironmentDebugPanel(
+  bundle: GameSceneBundle,
+  options?: EnvironmentDebugPanelOptions,
+): { dispose: () => void } {
   const persistedShip = loadPersistedShipTuning();
   applyShipDebugTuning(persistedShip);
 
@@ -231,7 +185,6 @@ export function createEnvironmentDebugPanel(bundle: GameSceneBundle): { dispose:
 
   const panelEnv = makePanel();
   const panelWaterThree = makePanel();
-  const panelFoam = makePanel();
   const panelShip = makePanel();
   const panelCam = makePanel();
 
@@ -441,70 +394,6 @@ export function createEnvironmentDebugPanel(bundle: GameSceneBundle): { dispose:
   panelWaterThree.appendChild(reflWrap);
   panelWaterThree.appendChild(reflNote);
 
-  /* ——— Tab: Schaum / Wake ——— */
-  addSectionTitle(panelFoam, "Schaum-Overlay (Custom)", false);
-  const current: WaterShaderTuning = {
-    ...base,
-    ...persisted,
-  };
-
-  const waterSliderRefs: {
-    key: keyof WaterShaderTuning;
-    input: HTMLInputElement;
-    val: HTMLElement;
-    min: number;
-    max: number;
-  }[] = [];
-
-  for (const s of SLIDERS) {
-    const label = document.createElement("label");
-    label.textContent = s.label;
-    panelFoam.appendChild(label);
-
-    const wrap = document.createElement("div");
-    wrap.style.cssText = "display:flex;align-items:center;gap:6px;";
-    const input = document.createElement("input");
-    input.type = "range";
-    input.min = String(s.min);
-    input.max = String(s.max);
-    input.step = String(s.step);
-    input.value = String(current[s.key]);
-    input.style.width = "110px";
-    const val = document.createElement("span");
-    val.style.cssText = "min-width:46px;text-align:right;color:#9ed3ff;";
-    val.textContent = Number(current[s.key]).toFixed(3);
-    input.addEventListener("input", () => {
-      const raw = Number(input.value);
-      const next = clamp(raw, s.min, s.max);
-      current[s.key] = next;
-      val.textContent = next.toFixed(3);
-      applyWaterShaderTuning(foamMat, { [s.key]: next });
-      savePersisted(current);
-    });
-    wrap.appendChild(input);
-    wrap.appendChild(val);
-    panelFoam.appendChild(wrap);
-    waterSliderRefs.push({ key: s.key, input, val, min: s.min, max: s.max });
-  }
-
-  let wakeRt = getWakeRuntimeTuning();
-  const wakeSampleRef = addSlider(
-    panelFoam,
-    "Wake Punktabstand (Welt)",
-    1.2,
-    10,
-    0.1,
-    wakeRt.sampleMinDist,
-    (v) => {
-      applyWakeRuntimeTuning({ sampleMinDist: v });
-    },
-  );
-  const wakeHint = document.createElement("div");
-  wakeHint.style.cssText = "grid-column:1/-1;font-size:10px;color:#8ab;line-height:1.35;";
-  wakeHint.textContent =
-    "Größerer Abstand: längere Spur bei max. Punkten. Kleineres Abklingen: sichtbar längerer Schweif.";
-  panelFoam.appendChild(wakeHint);
-
   /* ——— Tab: Schiff ——— */
   addSectionTitle(panelShip, "Ship / Sprite", false);
   const currentShip: ShipDebugTuning = {
@@ -545,6 +434,24 @@ export function createEnvironmentDebugPanel(bundle: GameSceneBundle): { dispose:
   ringsWrap.appendChild(ringsToggle);
   panelShip.appendChild(ringsWrap);
 
+  const mountAimLabel = document.createElement("label");
+  mountAimLabel.textContent = "Mount-Ziellinien";
+  mountAimLabel.title =
+    "Linien von Geschütz-Sockets zum Zielpunkt (Maus/Aim); rein visuell, in localStorage gespeichert.";
+  panelShip.appendChild(mountAimLabel);
+  const mountAimWrap = document.createElement("div");
+  mountAimWrap.style.cssText = "display:flex;align-items:center;justify-content:flex-end;gap:6px;";
+  const mountAimToggle = document.createElement("input");
+  mountAimToggle.type = "checkbox";
+  mountAimToggle.checked = currentShip.showMountAimLines;
+  mountAimToggle.addEventListener("change", () => {
+    currentShip.showMountAimLines = mountAimToggle.checked;
+    applyShipDebugTuning({ showMountAimLines: mountAimToggle.checked });
+    savePersistedShipTuning(currentShip);
+  });
+  mountAimWrap.appendChild(mountAimToggle);
+  panelShip.appendChild(mountAimWrap);
+
   const hitboxLabel = document.createElement("label");
   hitboxLabel.textContent = "Hitbox (Drahtrahmen)";
   hitboxLabel.title = "Server-Hitbox (AABB) als Debug-Overlay; wird in localStorage gespeichert.";
@@ -559,6 +466,35 @@ export function createEnvironmentDebugPanel(bundle: GameSceneBundle): { dispose:
   });
   hitboxWrap.appendChild(hitboxToggle);
   panelShip.appendChild(hitboxWrap);
+
+  addSectionTitle(panelShip, "Match: Schiff wechseln (Debug)", true);
+  const shipDbgHint = document.createElement("div");
+  shipDbgHint.style.cssText =
+    "grid-column:1/-1;font-size:10px;color:#8ab;line-height:1.35;margin-bottom:4px;";
+  shipDbgHint.textContent =
+    "Nur im laufenden Spiel: Klasse per Server setzen (GLB, Magazin, maxHp). Ohne Raum: Konsole.";
+  panelShip.appendChild(shipDbgHint);
+  const shipDbgRow = document.createElement("div");
+  shipDbgRow.style.cssText =
+    "grid-column:1/-1;display:flex;flex-wrap:wrap;gap:6px;align-items:center;justify-content:flex-start;";
+  const mkShipDbgBtn = (label: string, shipClass: ShipClassId): void => {
+    const b = document.createElement("button");
+    b.type = "button";
+    b.textContent = label;
+    b.style.cssText =
+      "background:#153247;color:#bfe7ff;border:1px solid rgba(130,180,220,0.45);" +
+      "border-radius:5px;padding:4px 10px;cursor:pointer;font:11px system-ui,sans-serif;";
+    b.addEventListener("click", () => {
+      const send = options?.getDebugShipClassSender?.();
+      if (send) send(shipClass);
+      else console.warn("[BattleFleet] Debug-Schiff: noch nicht mit Raum verbunden.");
+    });
+    shipDbgRow.appendChild(b);
+  };
+  mkShipDbgBtn("FAC", SHIP_CLASS_FAC);
+  mkShipDbgBtn("Zerstörer", SHIP_CLASS_DESTROYER);
+  mkShipDbgBtn("Kreuzer", SHIP_CLASS_CRUISER);
+  panelShip.appendChild(shipDbgRow);
 
   const shipFineRow = document.createElement("label");
   shipFineRow.style.cssText =
@@ -748,11 +684,10 @@ export function createEnvironmentDebugPanel(bundle: GameSceneBundle): { dispose:
   lagWrap.appendChild(lagVal);
   panelCam.appendChild(lagWrap);
 
-  type TabId = "env" | "water" | "foam" | "ship" | "cam";
+  type TabId = "env" | "water" | "ship" | "cam";
   const tabPanels: { id: TabId; label: string; el: HTMLDivElement }[] = [
     { id: "env", label: "Umgebung", el: panelEnv },
     { id: "water", label: "Wasser (Three)", el: panelWaterThree },
-    { id: "foam", label: "Schaum", el: panelFoam },
     { id: "ship", label: "Schiff", el: panelShip },
     { id: "cam", label: "Kamera", el: panelCam },
   ];
@@ -796,21 +731,13 @@ export function createEnvironmentDebugPanel(bundle: GameSceneBundle): { dispose:
   setTab("env");
 
   resetAll.addEventListener("click", () => {
-    const nextWater: WaterShaderTuning = { ...DEFAULT_WATER_SHADER_TUNING };
-    Object.assign(current, nextWater);
-    applyWaterShaderTuning(foamMat, nextWater);
-    savePersisted(current);
-    for (const r of waterSliderRefs) {
-      const v = nextWater[r.key];
-      r.input.value = String(v);
-      r.val.textContent = Number(v).toFixed(3);
-    }
     const nextShip: ShipDebugTuning = { ...DEFAULT_SHIP_DEBUG_TUNING };
     Object.assign(currentShip, nextShip);
     applyShipDebugTuning(nextShip);
     savePersistedShipTuning(currentShip);
     arcToggle.checked = nextShip.showWeaponArc;
     ringsToggle.checked = nextShip.showRangeRings;
+    mountAimToggle.checked = nextShip.showMountAimLines;
     setShipHitboxDebugVisible(false);
     hitboxToggle.checked = false;
     for (const r of shipSliderRefs) {
@@ -861,10 +788,6 @@ export function createEnvironmentDebugPanel(bundle: GameSceneBundle): { dispose:
     wcPick.value = numberToHexInput(env.waterColorHex);
     wsPick.value = numberToHexInput(env.waterSunColorHex);
     reflSel.value = String(env.reflectionTextureSize);
-    resetWakeRuntimeTuning();
-    wakeRt = getWakeRuntimeTuning();
-    wakeSampleRef.input.value = String(wakeRt.sampleMinDist);
-    wakeSampleRef.val.textContent = wakeRt.sampleMinDist.toFixed(3);
   });
 
   clearBrowserStorage.addEventListener("click", () => {

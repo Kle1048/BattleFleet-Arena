@@ -1,6 +1,7 @@
 import {
   AREA_OF_OPERATIONS_HALF_EXTENT,
   DEFAULT_MAP_ISLANDS,
+  FEATURE_MINES_ENABLED,
   SHIP_ISLAND_COLLISION_RADIUS,
 } from "@battlefleet/shared";
 import type { ActionPlanningInput, BotInputCommand } from "./types";
@@ -108,7 +109,10 @@ export function planAction(input: ActionPlanningInput): BotInputCommand {
       aimWorldZ,
       primaryFire: Math.abs(yawErr) < 0.35,
       secondaryFire: context.targetInMissileArc && self.secondaryCooldownSec <= 0.05,
-      torpedoFire: context.targetInGunArc && self.torpedoCooldownSec <= 0.05,
+      torpedoFire:
+        FEATURE_MINES_ENABLED &&
+        context.targetInGunArc &&
+        self.torpedoCooldownSec <= 0.05,
       radarActive: true,
       airDefenseEngage: false,
     };

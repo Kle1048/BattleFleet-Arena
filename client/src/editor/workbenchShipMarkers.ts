@@ -91,7 +91,14 @@ function hullMeshBoundingBoxWorld(hullModel: THREE.Group): THREE.Box3 {
     if (!(o instanceof THREE.Mesh)) return;
     let p: THREE.Object3D | null = o;
     while (p && p !== hullModel) {
-      if (p.name.startsWith("mount_") || p.name.startsWith("ssm_")) return;
+      if (
+        p.name.startsWith("mount_") ||
+        p.name.startsWith("ssm_") ||
+        p.name.startsWith("SOCKET_") ||
+        p.name.startsWith("RAIL_")
+      ) {
+        return;
+      }
       p = p.parent;
     }
     const b = new THREE.Box3().setFromObject(o);
@@ -274,7 +281,7 @@ function addSsmRailMarker(hullMarkers: THREE.Group, L: FixedSeaSkimmerLauncherSp
 }
 
 /**
- * Aktualisiert Marker nach `createShipVisual` / Remount. Nutzt aktuelles `getEffectiveHullProfile`.
+ * Aktualisiert Marker nach `createShipVisual` / Remount. Nutzt `getEffectiveHullProfile` (Workbench-Entwurf).
  */
 export function replaceWorkbenchShipMarkers(
   vis: ShipVisual,

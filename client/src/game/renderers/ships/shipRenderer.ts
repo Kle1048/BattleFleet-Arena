@@ -48,6 +48,7 @@ export function createShipRenderer(
       hullGltfSource: template ?? undefined,
       getMountGltfTemplate: options?.getMountGltfTemplate,
     });
+    vis.group.userData.bfaShipSessionId = sessionId;
     scene.add(vis.group);
     visuals.set(sessionId, vis);
     shipClassBySession.set(sessionId, cid);

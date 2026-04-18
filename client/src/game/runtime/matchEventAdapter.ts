@@ -29,6 +29,8 @@ export type ParsedAirDefenseEvent = {
   defenderX: number | null;
   defenderZ: number | null;
   defenderId: string | null;
+  /** Server: `missileId` / `id`. */
+  missileId: number | null;
 };
 
 function readFiniteNumber(v: unknown): number | null {
@@ -105,6 +107,8 @@ export function parseAirDefenseEvent(type: unknown, msg: unknown): ParsedAirDefe
   const defenderX = readFiniteNumber(rec.defenderX);
   const defenderZ = readFiniteNumber(rec.defenderZ);
   const defenderId = typeof rec.defenderId === "string" ? rec.defenderId : null;
+  const missileIdRaw = readFiniteNumber(rec.id) ?? readFiniteNumber(rec.missileId);
+  const missileId = missileIdRaw != null ? missileIdRaw : null;
   return {
     type: t,
     x,
@@ -113,5 +117,6 @@ export function parseAirDefenseEvent(type: unknown, msg: unknown): ParsedAirDefe
     defenderX,
     defenderZ,
     defenderId,
+    missileId,
   };
 }

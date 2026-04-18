@@ -1,9 +1,10 @@
 import assert from "node:assert/strict";
-import { spawnTorpedoFromFireDirection, stepTorpedoStraight } from "./torpedo";
+import { spawnTorpedoFromFireDirection, stepTorpedoStraight, TORPEDO_SPAWN_FORWARD } from "./torpedo";
 
 {
+  /** Mine: Heck entlang Bug (+Z), `TORPEDO_SPAWN_FORWARD` (negativ) von der Schiffsposition. */
   const p = spawnTorpedoFromFireDirection(55, 55, 155, 55, 0);
-  assert.ok(p.z < 30 && Math.abs(p.x - 55) < 2);
+  assert.ok(Math.abs(p.x - 55) < 1e-6 && Math.abs(p.z - (55 + TORPEDO_SPAWN_FORWARD)) < 1e-6);
 }
 
 {

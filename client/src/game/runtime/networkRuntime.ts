@@ -1,6 +1,7 @@
 import type * as THREE from "three";
 import { playAirDefenseFire, playAirDefenseHitBurst, showAirDefenseScreenPulse } from "../effects/airDefenseFx";
 import {
+  type AirDefenseFxLayer,
   parseAirDefenseEvent,
   parseArtyFiredEvent,
   parseArtyImpactEvent,
@@ -8,6 +9,12 @@ import {
   parseSimpleImpactEvent,
 } from "./matchEventAdapter";
 import { findPlayerPositionById } from "./networkStateAdapter";
+
+function airDefenseLayerLabelDe(layer: AirDefenseFxLayer): string {
+  if (layer === "sam") return "SAM";
+  if (layer === "pd") return "PDMS";
+  return "CIWS";
+}
 
 type RoomLike = {
   state: unknown;
@@ -43,6 +50,8 @@ type ImpactFxLike = {
   flashImpact: (x: number, z: number, kind: string) => void;
 };
 
+type PdmsMuzzleSeekCoords = { x: number; y: number; z: number };
+
 type RegisterNetworkHandlersOptions<TPlayerList> = {
   room: RoomLike;
   mySessionId: string;
@@ -75,6 +84,12 @@ type RegisterNetworkHandlersOptions<TPlayerList> = {
   onSoftkillResult?: (success: boolean) => void;
   /** Direkter Waffentreffer (`kind === "hit"`) — Artillerie / ASuM / Torpedo. */
   onWeaponHitAt?: (worldX: number, worldZ: number) => void;
+  /** PDMS `airDefenseFire`: Mündung `bf_muzzle` am `visual_pdms`-Mount; nach `createVisualRuntime` setzen. */
+  getPdmsMuzzleSeek?: (defenderId: string) => PdmsMuzzleSeekCoords | null;
+  /** Comms-Room: Flugabwehr Feuer / erfolgreicher Abfang. */
+  appendAirDefenseComms?: (entry: { text: string; kind?: "info" | "danger" }) => void;
+  /** Kurzname für Spieler-ID (Anzeige im Comms-Text). */
+  formatPlayerLabel?: (sessionId: string) => string;
 };
 
 export function registerNetworkHandlers<TPlayerList>(
@@ -106,6 +121,9 @@ export function registerNetworkHandlers<TPlayerList>(
     onMissileLockOn,
     onAswmMagazineReloaded,
     onSoftkillResult,
+    getPdmsMuzzleSeek,
+    appendAirDefenseComms,
+    formatPlayerLabel,
   } = options;
 
   room.onMessage("collisionContact", (msg) => {
@@ -249,7 +267,18 @@ export function registerNetworkHandlers<TPlayerList>(
     if (!parsed) return;
     const { x, z, layer } = parsed;
 
+    const defenderName =
+      parsed.defenderId != null
+        ? (formatPlayerLabel?.(parsed.defenderId) ?? parsed.defenderId.slice(0, 8))
+        : "Verteidiger";
+    const ziel =
+      parsed.missileId != null ? ` (Ziel ASuM #${parsed.missileId})` : "";
+
     if (parsed.type === "airDefenseIntercept") {
+      appendAirDefenseComms?.({
+        text: `LW: ${airDefenseLayerLabelDe(layer)} Abfang ERFOLG — ${defenderName}${ziel}`,
+        kind: "info",
+      });
       onAirDefenseSound?.({ phase: "intercept", layer });
       showAirDefenseScreenPulse(camera, document.body, x, z, layer);
       playAirDefenseHitBurst(scene, x, z, layer);
@@ -265,7 +294,20 @@ export function registerNetworkHandlers<TPlayerList>(
       fromX = pos.x;
       fromZ = pos.z;
     }
+    let pdLaunchY: number | undefined;
+    if (layer === "pd" && parsed.defenderId && getPdmsMuzzleSeek) {
+      const muzzle = getPdmsMuzzleSeek(parsed.defenderId);
+      if (muzzle) {
+        fromX = muzzle.x;
+        fromZ = muzzle.z;
+        pdLaunchY = muzzle.y;
+      }
+    }
+    appendAirDefenseComms?.({
+      text: `LW: ${airDefenseLayerLabelDe(layer)} Feuer — ${defenderName}${ziel}`,
+      kind: "info",
+    });
     onAirDefenseSound?.({ phase: "fire", layer });
-    playAirDefenseFire(scene, layer, fromX, fromZ, x, z);
+    playAirDefenseFire(scene, layer, fromX, fromZ, x, z, pdLaunchY);
   });
 }

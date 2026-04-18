@@ -21,13 +21,29 @@ export const DESTROYER_BASE_SPEED_KN = 26;
 /** Globaler Faktor für mehr Dynamik bei unveränderter Knotenanzeige. */
 export const SPEED_FEEL_FACTOR = 2.5;
 
+/**
+ * Trägheit: Gas baut langsamer auf / Bremsen weicher (`forwardAccel`, `backwardAccel`, `dragWhenNeutral`).
+ * `maxSpeed` bleibt unverändert — nur der Weg zur Zielgeschwindigkeit wird länger.
+ */
+export const SHIP_INERTIA_ACCEL_MUL = 0.5;
+
+/**
+ * Trägheit: Ruder folgt der Tastatur langsamer (`smoothRudder` — niedriger = schwerfälliger).
+ */
+export const SHIP_INERTIA_RUDDER_RESP_MUL = 0.45;
+
+/**
+ * Trägheit: maximale Gierrate bei vollem Ruder (`stepMovement` — niedriger = weiterer Wendekreis bei gleicher Fahrt).
+ */
+export const SHIP_INERTIA_TURN_RATE_MUL = 0.7;
+
 export const DESTROYER_LIKE_MVP: ShipMovementConfig = {
   maxSpeed: DESTROYER_BASE_SPEED_KN * SPEED_FEEL_FACTOR,
-  forwardAccel: 14 * SPEED_FEEL_FACTOR,
-  backwardAccel: 22 * SPEED_FEEL_FACTOR,
-  dragWhenNeutral: 6 * SPEED_FEEL_FACTOR,
-  maxTurnRateRad: 1.05,
-  rudderResponsiveness: 8,
+  forwardAccel: 14 * SPEED_FEEL_FACTOR * SHIP_INERTIA_ACCEL_MUL,
+  backwardAccel: 22 * SPEED_FEEL_FACTOR * SHIP_INERTIA_ACCEL_MUL,
+  dragWhenNeutral: 6 * SPEED_FEEL_FACTOR * SHIP_INERTIA_ACCEL_MUL,
+  maxTurnRateRad: 1.05 * SHIP_INERTIA_TURN_RATE_MUL,
+  rudderResponsiveness: 8 * SHIP_INERTIA_RUDDER_RESP_MUL,
   minSpeedForFullTurn: 8 * SPEED_FEEL_FACTOR,
 };
 

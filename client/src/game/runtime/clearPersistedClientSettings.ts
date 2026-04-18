@@ -1,5 +1,5 @@
 /**
- * Alle bekannten `localStorage`-Schlüssel dieses Clients (Debug, Kamera, Wasser, Schiffs-Patches).
+ * Alle bekannten `localStorage`-Schlüssel dieses Clients (Debug, Kamera, Schiffs-Patches).
  * Bei neuen persistierten Keys hier ergänzen — sonst bleiben alte Werte beim „Reset“ stehen.
  */
 export const BATTLEFLEET_LOCAL_STORAGE_KEYS: readonly string[] = [

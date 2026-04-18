@@ -1,6 +1,6 @@
 import { AD_SAM_RANGE_SQ } from "./airDefense";
 import { canTakeArtillerySplashDamage } from "./playerLife";
-import { getShipHullProfileByClass } from "./shipProfiles";
+import { getAuthoritativeShipHullProfile } from "./shipProfiles";
 import { minDistSqPointToShipHitboxFootprintXZ } from "./shipHitboxCollision";
 
 /**
@@ -35,7 +35,7 @@ export function resolveAirDefenseDefenderIdForMissile(
   for (const pl of players) {
     if (pl.id === m.ownerId) continue;
     if (!canTakeArtillerySplashDamage(pl.lifeState)) continue;
-    const hb = getShipHullProfileByClass(pl.shipClass)?.collisionHitbox;
+    const hb = getAuthoritativeShipHullProfile(pl.shipClass)?.collisionHitbox;
     const d2 = minDistSqPointToShipHitboxFootprintXZ(m.x, m.z, pl.x, pl.z, pl.headingRad, hb);
     if (d2 <= AD_SAM_RANGE_SQ && d2 < bestD2) {
       bestD2 = d2;

@@ -1,6 +1,6 @@
 import { DEFAULT_MAP_ISLANDS } from "./islands";
 import { circleIntersectsShipHitboxFootprintXZ } from "./shipHitboxCollision";
-import { getShipHullProfileByClass } from "./shipProfiles";
+import { getAuthoritativeShipHullProfile } from "./shipProfiles";
 import { hitboxWorldCenterXZ, satOBB2DOverlapMTV } from "./shipShipCollision";
 
 /** Gleiche Daten wie für Server-Physik / Client-Anzeige (Klassen-Id → Hitbox). */
@@ -12,7 +12,7 @@ export type ShipCollisionPose = {
 };
 
 export function shipOverlapsAnyIsland(pose: ShipCollisionPose): boolean {
-  const hb = getShipHullProfileByClass(pose.shipClass)?.collisionHitbox;
+  const hb = getAuthoritativeShipHullProfile(pose.shipClass)?.collisionHitbox;
   if (!hb) return false;
   for (const is of DEFAULT_MAP_ISLANDS) {
     if (
@@ -33,8 +33,8 @@ export function shipOverlapsAnyIsland(pose: ShipCollisionPose): boolean {
 }
 
 export function twoShipsObbOverlap(a: ShipCollisionPose, b: ShipCollisionPose): boolean {
-  const hbA = getShipHullProfileByClass(a.shipClass)?.collisionHitbox;
-  const hbB = getShipHullProfileByClass(b.shipClass)?.collisionHitbox;
+  const hbA = getAuthoritativeShipHullProfile(a.shipClass)?.collisionHitbox;
+  const hbB = getAuthoritativeShipHullProfile(b.shipClass)?.collisionHitbox;
   if (!hbA || !hbB) return false;
   const hxA = Math.max(0, hbA.halfExtents.x);
   const hzA = Math.max(0, hbA.halfExtents.z);

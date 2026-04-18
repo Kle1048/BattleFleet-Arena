@@ -2,8 +2,19 @@ import * as THREE from "three";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
 import { SHIP_BOW_Z, SHIP_STERN_Z } from "./createGameScene";
 
-/** glTF: +Y oben, typisch Bug −Z. Spiel: Bug +Z (Nord) — drehe um 180° um Y. */
-const SHIP_GLTF_YAW_RAD = Math.PI;
+/**
+ * **Rumpf-Skalierung bis zur Szene** (für Distanzen/Overlays mitzudenken):
+ *
+ * 1. **`prepareShipGltfInstance`** (pro Klon): Rumpf-GLB kommt **bereits** in Profil-Orientierung
+ *    (+Y oben, **+Z Bug**); horizontale Bounding-Box auf Länge `TARGET_HULL_LENGTH` ×
+ *    `SHIP_GLTF_EXTRA_SCALE` — Ergebnis steht in `hullModel.scale`.
+ * 2. **`attachMountVisualsToHullModel`**: inverse Skalierung am Socket (`1/hullModel.scale.x`), damit
+ *    Mount-GLBs in denselben **lokalen** Einheiten wie die Socket-Koordinaten im JSON sitzen.
+ * 3. **`createShipVisual`**: optional `hullVisualScale` multipliziert `hullModel.scale` **nach** dem Mounten.
+ * 4. **`applyShipVisualRuntimeTuning`**: setzt `hullModel.scale.setScalar(hullModelBaseUniformScale * spriteScale)` —
+ *    dabei ist `hullModelBaseUniformScale` das Ergebnis aus 1–3; `spriteScale` ist ein zusätzlicher Faktor (Profil/Debug).
+ * 5. **`ShipVisual.group`**: `scale` = `ShipClassProfile.hullScale` (Klassen-Silhouette in der Welt).
+ */
 
 const TARGET_HULL_LENGTH = SHIP_BOW_Z - SHIP_STERN_Z;
 /** Zusätzlicher Faktor auf die normierte Rumpflänge (visuelle Größe im Spiel). */
@@ -82,7 +93,6 @@ function unionMeshBoundingBox(root: THREE.Object3D): THREE.Box3 {
 }
 
 function prepareShipGltfInstance(root: THREE.Object3D): void {
-  root.rotation.y = SHIP_GLTF_YAW_RAD;
   root.updateMatrixWorld(true);
   const box = unionMeshBoundingBox(root);
   const size = box.getSize(new THREE.Vector3());

@@ -151,3 +151,43 @@ npm run devlog:append
 
 > Update: feat(client,shared,server): workbench ship markers, air-defense targeting, profile JSON | Naval Arena WIP · #Vibejam · wenn Code & KI zusammenlaufen ⚔️🎮
 
+---
+
+## 2026-04-14 — `a8dfbd3`
+
+- **Autor:** Klemens1048
+- **Commit:** client: Mobile-HUD, kollabierbare Panels und Comms-Log
+
+**Details:**
+
+- - NippleJS-Joystick plus Touch-Button-Grid; Merge mit Tastatur/Maus-Input.
+- - Brücke/OPZ/Debug-Overlay per Toggle verkleinerbar (Kurs bzw. HP bzw. FPS/Ping); Zustand in localStorage.
+- - Comms-Room: transparentes Panel, Scroll-Log, Toast-Spiegelung, Leeren; Verbindungszeile nach Join.
+- - Bot-Debug per Button; Environment- und Bot-Panel im gemeinsamen bottom-debug-dock.
+- - nipplejs-Dependency; messageLog ersetzt Placeholder.
+- Made-with: Cursor
+
+### Vorschlag Twitter / X (#Vibejam)
+
+> Shipped: client: Mobile-HUD, kollabierbare Panels und Comms-Log 🚢 Wir hacken an einem AI-collab Wettkampfspiel — #Vibejam #indiedev
+
+---
+
+## 2026-04-18 — `48afbc6`
+
+- **Autor:** Klemens1048
+- **Commit:** feat: ship wake ribbons, mounts/sockets, editor & gameplay polish
+
+**Details:**
+
+- - Replace legacy wake trail with shader-based ribbon (all ships, LOD, stern at SHIP_STERN_Z)
+- - Shared: wakeRibbonMath, wakeLod, mount ranges, primary artillery engagement, mount socket JSON
+- - Client: fire control channel, weapon sector overlay, GLB socket helpers, hull updates
+- - Server/shared: ship profiles, hitbox, air defense, torpedo tweaks; test runner script
+- - Docs: DEV-LOG, Ship-Model-Module; remove obsolete wakeTrail/wakeRuntimeTuning
+- Made-with: Cursor
+
+### Vorschlag Twitter / X (#Vibejam)
+
+> ⚓ feat: ship wake ribbons, mounts/sockets, editor & gameplay polish — BattleFleet Arena nimmt Fahrt auf für #Vibejam: KI-unterstütztes Naval-RTS. Wer baut noch mit am Jam? #gamedev #AIgames
+

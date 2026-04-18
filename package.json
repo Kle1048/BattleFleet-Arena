@@ -3,6 +3,7 @@
   "private": true,
   "workspaces": ["client", "server", "shared"],
   "scripts": {
+    "test": "npm run test -w shared",
     "devlog:append": "node scripts/append-dev-log.mjs",
     "dev": "concurrently -n server,client -c blue,green \"npm run dev -w server\" \"npm run dev -w client\"",
     "dev:client": "npm run dev -w client",

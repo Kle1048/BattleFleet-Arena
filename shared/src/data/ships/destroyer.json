@@ -2,7 +2,7 @@
   "profileId": "destroyer",
   "labelDe": "Zerstörer",
   "hullGltfId": "destroyer",
-  "hullVisualScale": 1.55,
+  "hullVisualScale": 0.012,
   "clientVisualTuningDefaults": {
     "gltfHullYOffset": 0,
     "spriteScale": 1
@@ -25,33 +25,21 @@
     {
       "id": "main_fwd",
       "compatibleKinds": ["artillery"],
-      "socket": {
-        "position": { "x": 0, "y": 1.55, "z": 10 }
-      },
       "defaultVisualId": "visual_artillery"
     },
     {
       "id": "ciws_fwd",
       "compatibleKinds": ["ciws"],
-      "socket": {
-        "position": { "x": 0, "y": 2.1, "z": 4.5 }
-      },
       "defaultVisualId": "visual_ciws"
     },
     {
       "id": "sam_mid",
       "compatibleKinds": ["sam_launcher"],
-      "socket": {
-        "position": { "x": 0, "y": 1.85, "z": -1 }
-      },
       "defaultVisualId": "visual_sam"
     },
     {
       "id": "ssm_port",
       "compatibleKinds": ["generic"],
-      "socket": {
-        "position": { "x": -3.2, "y": 1.35, "z": 4 }
-      },
       "defaultVisualId": "visual_ssm"
     }
   ],

@@ -9,7 +9,8 @@ const FALLBACK_HULL = `${BASE}assets/S143A.glb`;
  * weder im Schiffseditor-Dropdown noch beim Laden (Fallback: `S143A.glb`).
  *
  * Rümpfe: `npm run generate:placeholder-glb -w client` erzeugt einfache Boxen unter `assets/ships/`.
- * Profil inkl. Overrides: `shipProfileRuntime.resolveShipHullGltfUrlForClass`.
+ * Profil: Spiel nutzt `shipProfileRuntime.resolveShipHullGltfUrlForClass` (gebündelt);
+ * Workbench: `resolveShipHullGltfUrlForWorkbenchPreview`.
  */
 export const HULL_GLTF_URL_BY_ID: Record<string, string> = {
   fac: `${BASE}assets/ships/hull_fac.glb`,

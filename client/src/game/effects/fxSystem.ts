@@ -97,8 +97,16 @@ export function createFxSystem(scene: THREE.Scene): {
   spawnMissileImpact: (worldX: number, worldZ: number, kind: string) => void;
   /** ASuM-Start: kleiner Rauchschwall + kurze Glut (Seekarten-heading). */
   spawnMissileLaunchSmoke: (worldX: number, worldZ: number, headingRad: number) => void;
-  /** Artillerie: Muzzleflash + kleine Rauchwolke am Rohr; `headingRad` = Schussrichtung atan2(Δx,Δz). */
-  spawnArtilleryMuzzle: (worldX: number, worldZ: number, headingRad: number) => void;
+  /**
+   * Artillerie: Muzzleflash + kleine Rauchwolke am Rohr; `headingRad` = Schussrichtung atan2(Δx,Δz).
+   * Optional `baseWorldY`: Mündungshöhe (Three.js-Y); sonst feste Deck-Höhe wie zuvor.
+   */
+  spawnArtilleryMuzzle: (
+    worldX: number,
+    worldZ: number,
+    headingRad: number,
+    baseWorldY?: number,
+  ) => void;
   /**
    * ASuM-Flug: Rauch-Tick in Seekarten-XZ; `particleCount` ~2–12 (wird gekappt).
    * Partikel entlang der Tiefe gestaffelt, damit die Spur geschlossen wirkt.
@@ -119,6 +127,11 @@ export function createFxSystem(scene: THREE.Scene): {
   spawnTorpedoImpact: (worldX: number, worldZ: number, kind: string) => void;
   /** Schiff zerstört: mehrere große Hit-Bursts (Seekarten-XZ). */
   spawnShipDestroyedExplosion: (worldX: number, worldZ: number) => void;
+  /**
+   * Softkill / Düppel: große Rauchwolken Backbord & Steuerbord achtern, ~`altitudeM` über Wasser;
+   * halten sich ~1 s am Ort, dann weiches Ausfaden (`alphaLerpPow`).
+   */
+  spawnSoftkillChaffCloud: (worldX: number, worldZ: number, headingRad: number, altitudeM?: number) => void;
   getStats: () => { activeParticles: number; pooledParticles: number };
 } {
   const texSoft = makeRadialTexture([
@@ -594,7 +607,12 @@ export function createFxSystem(scene: THREE.Scene): {
     scheduleFx(performance.now() + 55, () => puff(false));
   }
 
-  function spawnArtilleryMuzzle(worldX: number, worldZ: number, headingRad: number): void {
+  function spawnArtilleryMuzzle(
+    worldX: number,
+    worldZ: number,
+    headingRad: number,
+    baseWorldY?: number,
+  ): void {
     if (!Number.isFinite(worldX) || !Number.isFinite(worldZ) || !Number.isFinite(headingRad)) return;
     const sinH = Math.sin(headingRad);
     const cosH = Math.cos(headingRad);
@@ -602,13 +620,16 @@ export function createFxSystem(scene: THREE.Scene): {
     const rzW = sinH;
     const px0 = worldToRenderX(worldX);
     const z0 = worldZ;
+    const useMuzzleY = Number.isFinite(baseWorldY);
+    const yBurst = (lo: number, hi: number) =>
+      useMuzzleY ? (baseWorldY as number) + randRange(-1.2, 1.2) : randRange(lo, hi);
 
     for (let i = 0; i < 4; i++) {
       const ang = randRange(0, Math.PI * 2);
       emit({
         texture: "flashAdd",
         x: px0 + Math.cos(ang) * randRange(0, 2),
-        y: randRange(9.5, 13.5),
+        y: yBurst(9.5, 13.5),
         z: z0 + Math.sin(ang) * randRange(0, 2),
         vx: sinH * randRange(8, 18) * 0.12,
         vy: randRange(4, 10),
@@ -629,7 +650,7 @@ export function createFxSystem(scene: THREE.Scene): {
       emit({
         texture: "soft",
         x: px0 + Math.cos(ang) * randRange(0, 1.5),
-        y: randRange(10, 13),
+        y: yBurst(10, 13),
         z: z0 + Math.sin(ang) * randRange(0, 1.5),
         vx: sinH * randRange(4, 12) * 0.1,
         vy: randRange(5, 11),
@@ -656,7 +677,7 @@ export function createFxSystem(scene: THREE.Scene): {
       emit({
         texture: "smoke",
         x: px,
-        y: randRange(9.5, 13),
+        y: yBurst(9.5, 13),
         z: oz,
         vx: sinH * baseMag * 0.032 + randRange(-4, 4) * 0.06,
         vy: randRange(3, 8),
@@ -818,6 +839,78 @@ export function createFxSystem(scene: THREE.Scene): {
     });
   }
 
+  const SOFTKILL_CHAFF_DEFAULT_ALT_M = 20;
+
+  function spawnSoftkillChaffCloud(
+    worldX: number,
+    worldZ: number,
+    headingRad: number,
+    altitudeM = SOFTKILL_CHAFF_DEFAULT_ALT_M,
+  ): void {
+    if (!Number.isFinite(worldX) || !Number.isFinite(worldZ) || !Number.isFinite(headingRad)) return;
+    const h = altitudeM;
+    if (!Number.isFinite(h) || h < 2) return;
+
+    const sinH = Math.sin(headingRad);
+    const cosH = Math.cos(headingRad);
+    /** Bug (+Z) in Seekarten-XZ. */
+    const fwdX = sinH;
+    const fwdZ = cosH;
+    const aftX = -fwdX;
+    const aftZ = -fwdZ;
+    /** Steuerbord (+X relativ zum Bug). */
+    const stbdX = cosH;
+    const stbdZ = -sinH;
+
+    const CHAFF_SMOKE_A = 0xd0d8e0;
+    const CHAFF_SMOKE_B = 0x7a8490;
+    const t0 = performance.now();
+
+    function puffAt(wx: number, wy: number, wz: number, delayMs: number, spreadIdx: number): void {
+      scheduleFx(t0 + delayMs, () => {
+        const px = worldToRenderX(wx);
+        const jitterY = randRange(-1.2, 1.6);
+        const drift = 0.15 + spreadIdx * 0.06;
+        emit({
+          texture: "smoke",
+          x: px + randRange(-1.8, 1.8),
+          y: wy + jitterY,
+          z: wz + randRange(-1.8, 1.8),
+          vx: randRange(-drift, drift),
+          vy: randRange(-0.12, 0.18),
+          vz: randRange(-drift, drift),
+          dragPerSec: 0.45,
+          maxAgeMs: randRange(1550, 1850),
+          sizeStart: randRange(12, 18),
+          sizeEnd: randRange(32, 48),
+          alphaStart: randRange(0.4, 0.52),
+          alphaEnd: 0,
+          colorStart: CHAFF_SMOKE_A,
+          colorEnd: CHAFF_SMOKE_B,
+          spinPerSec: randRange(-0.22, 0.22),
+          alphaLerpPow: randRange(6.5, 8.5),
+        });
+      });
+    }
+
+    /** Weiter achtern als früher (~Bug-Pivot); nacheinander mit festem Abstand (ms). */
+    const CHAFF_PUFF_COUNT = 8;
+    const CHAFF_STAGGER_MS = 58;
+    const CHAFF_AFT_MIN = 30;
+    const CHAFF_AFT_MAX = 52;
+    const CHAFF_BEAM_MIN = 8;
+    const CHAFF_BEAM_MAX = 14;
+
+    for (let i = 0; i < CHAFF_PUFF_COUNT; i++) {
+      const side = i % 2 === 0 ? -1 : 1;
+      const aftAlong = randRange(CHAFF_AFT_MIN, CHAFF_AFT_MAX);
+      const beam = side * randRange(CHAFF_BEAM_MIN, CHAFF_BEAM_MAX);
+      const wx = worldX + aftX * aftAlong + stbdX * beam;
+      const wz = worldZ + aftZ * aftAlong + stbdZ * beam;
+      puffAt(wx, h, wz, i * CHAFF_STAGGER_MS, i);
+    }
+  }
+
   function update(dtMs: number): void {
     flushPendingFx();
     const dt = Math.max(0, dtMs) * 0.001;
@@ -873,6 +966,7 @@ export function createFxSystem(scene: THREE.Scene): {
     spawnShipDamageSmokeTick,
     spawnTorpedoImpact,
     spawnShipDestroyedExplosion,
+    spawnSoftkillChaffCloud,
     getStats() {
       const active = activeCount();
       return { activeParticles: active, pooledParticles: particles.length - active };

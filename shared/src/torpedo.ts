@@ -2,6 +2,12 @@
 
 import { forwardXZ } from "./artillery";
 
+/**
+ * Globale Minen-Freigabe (Server + Client).
+ * Auf `true` setzen, um Minen wieder zu aktivieren — Logik bleibt ansonsten unverändert.
+ */
+export const FEATURE_MINES_ENABLED = false;
+
 export const TORPEDO_SPEED = 58;
 export const TORPEDO_LIFETIME_MS = 45_000;
 /** Wird als Minen-Trigger-Radius genutzt. */

@@ -3,8 +3,11 @@ import {
   AD_CIWS_RANGE_SQ,
   AD_PD_RANGE_SQ,
   AD_SAM_RANGE_SQ,
+  AD_SAM_PD_INTERCEPT_TRAVEL_MS_MAX,
+  AD_SAM_PD_INTERCEPT_TRAVEL_MS_MIN,
   AD_SOFTKILL_COOLDOWN_MS,
   applyHardkillCooldownAfterRoll,
+  computeSamPdInterceptTravelMs,
   isHardkillLayerInRange,
   pickHardkillEngagementLayer,
   rollHardkillHit,
@@ -172,6 +175,13 @@ import {
     random01: () => 0,
   });
   assert.equal(r3.attempted, false);
+}
+
+{
+  assert.equal(computeSamPdInterceptTravelMs(0), AD_SAM_PD_INTERCEPT_TRAVEL_MS_MIN);
+  const mid = computeSamPdInterceptTravelMs(240);
+  assert.ok(mid >= AD_SAM_PD_INTERCEPT_TRAVEL_MS_MIN && mid <= AD_SAM_PD_INTERCEPT_TRAVEL_MS_MAX);
+  assert.equal(computeSamPdInterceptTravelMs(1e9), AD_SAM_PD_INTERCEPT_TRAVEL_MS_MAX);
 }
 
 console.log("airDefense tests ok");

@@ -147,6 +147,11 @@ export const gameAudio = {
         beep(95, 140, 0.09, "sawtooth");
         window.setTimeout(() => beep(55, 180, 0.07, "sine"), 45);
         break;
+      case "softkillChaff":
+        beep(420, 45, 0.042, "square");
+        window.setTimeout(() => beep(280, 55, 0.038, "triangle"), 38);
+        window.setTimeout(() => beep(190, 70, 0.034, "sawtooth"), 95);
+        break;
       default:
         break;
     }
@@ -202,5 +207,10 @@ export const gameAudio = {
   /** Schiffszerstörung — große Detonation. */
   explosion(gain = 0.42): void {
     this.playSoundId("explosion", Math.max(0.08, Math.min(0.65, gain)));
+  },
+
+  /** Softkill / Düppel — kurzer Rausch-ähnlicher Burst. */
+  softkillChaff(gain = 0.34): void {
+    this.playSoundId("softkillChaff", Math.max(0.08, Math.min(0.55, gain)));
   },
 };

@@ -1,17 +1,20 @@
 import { normalizeShipClassId, SHIP_CLASS_FAC } from "@battlefleet/shared";
-import { getEffectiveHullProfile } from "./shipProfileRuntime";
+import { getAuthoritativeHullProfile } from "./shipProfileRuntime";
 
 export type ShipDebugTuning = {
   spriteScale: number;
   shipPivotLocalZ: number;
   cameraPivotLocalZ: number;
   mineSpawnLocalZ: number;
+  /** Zusatz zu `SHIP_STERN_Z` (Referenz-Heck); negativ = weiter achtern — siehe Wake. */
   wakeSpawnLocalZ: number;
   /** Zusatz zu GLB-Rumpf-Y (negativ = tiefer ins Wasser / weniger „Schweben“). */
   gltfHullYOffset: number;
   showWeaponArc: boolean;
   /** Lokaler Spieler: konzentrische 100-m-Abstandsringe (Luftverteidigung / Reichweiten-Debug). */
   showRangeRings: boolean;
+  /** Debug-Linien von Geschütz-Mounts zum Zielpunkt (Maus / Aim). */
+  showMountAimLines: boolean;
 };
 
 export const DEFAULT_SHIP_DEBUG_TUNING: Readonly<ShipDebugTuning> = {
@@ -19,10 +22,11 @@ export const DEFAULT_SHIP_DEBUG_TUNING: Readonly<ShipDebugTuning> = {
   shipPivotLocalZ: 23,
   cameraPivotLocalZ: 0.4,
   mineSpawnLocalZ: -22,
-  wakeSpawnLocalZ: -60,
+  wakeSpawnLocalZ: -1.5,
   gltfHullYOffset: -470,
   showWeaponArc: true,
   showRangeRings: false,
+  showMountAimLines: true,
 };
 
 let currentShipDebugTuning: ShipDebugTuning = {
@@ -54,7 +58,7 @@ export function getShipDebugTuning(): Readonly<ShipDebugTuning> {
  */
 export function getShipDebugTuningForVisualClass(shipClassId: unknown): Readonly<ShipDebugTuning> {
   const user = getShipDebugTuning();
-  const o = getEffectiveHullProfile(normalizeShipClassId(shipClassId ?? SHIP_CLASS_FAC))?.clientVisualTuningDefaults;
+  const o = getAuthoritativeHullProfile(normalizeShipClassId(shipClassId ?? SHIP_CLASS_FAC))?.clientVisualTuningDefaults;
   if (
     !o ||
     (o.spriteScale === undefined &&
@@ -97,8 +101,8 @@ export function applyShipDebugTuning(patch: Partial<ShipDebugTuning>): Readonly<
     ),
     wakeSpawnLocalZ: clamp(
       patch.wakeSpawnLocalZ ?? currentShipDebugTuning.wakeSpawnLocalZ,
-      -120,
-      40,
+      -22,
+      12,
     ),
     gltfHullYOffset: clamp(
       patch.gltfHullYOffset ?? currentShipDebugTuning.gltfHullYOffset,
@@ -113,6 +117,10 @@ export function applyShipDebugTuning(patch: Partial<ShipDebugTuning>): Readonly<
       typeof patch.showRangeRings === "boolean"
         ? patch.showRangeRings
         : currentShipDebugTuning.showRangeRings,
+    showMountAimLines:
+      typeof patch.showMountAimLines === "boolean"
+        ? patch.showMountAimLines
+        : currentShipDebugTuning.showMountAimLines,
   };
   currentShipDebugTuning = next;
   shipDebugTuningGeneration += 1;

@@ -2,11 +2,7 @@ import * as THREE from "three";
 import { Water } from "three/examples/jsm/objects/Water.js";
 import { Sky } from "three/examples/jsm/objects/Sky.js";
 import { AREA_OF_OPERATIONS_HALF_EXTENT, DEFAULT_MAP_ISLANDS } from "@battlefleet/shared";
-import {
-  VisualColorTokens,
-  createWaterFoamOverlayMaterial,
-  setWaterIslands,
-} from "../runtime/materialLibrary";
+import { VisualColorTokens } from "../runtime/materialLibrary";
 import {
   computeFollowCamBackOffset,
   getFollowCameraTuning,
@@ -54,8 +50,6 @@ export type GameSceneBundle = {
   camera: THREE.PerspectiveCamera;
   /** three.js `Water` (Reflexion + Normalmap). */
   water: THREE.Mesh;
-  /** Transparenter Schaum/Küste/Kielwasser über dem Wasser. */
-  waterFoam: THREE.Mesh;
   sky: Sky;
   ambient: THREE.AmbientLight;
   sun: THREE.DirectionalLight;
@@ -269,18 +263,11 @@ export async function createGameScene(): Promise<GameSceneBundle> {
   const wm = water.material as THREE.ShaderMaterial;
   if (wm.uniforms.size) wm.uniforms.size.value = tuning.waterSize;
 
-  const foamMat = createWaterFoamOverlayMaterial();
-  const waterFoam = new THREE.Mesh(new THREE.PlaneGeometry(MAP_HALF * 2, MAP_HALF * 2, 1, 1), foamMat);
-  waterFoam.rotation.x = -Math.PI / 2;
-  waterFoam.position.y = 0.08;
-  waterFoam.renderOrder = 2;
-
   const sky = new Sky();
   sky.scale.setScalar(450_000);
   scene.add(sky);
 
   scene.add(water);
-  scene.add(waterFoam);
 
   /** Grenze des Einsatzgebiets — deckungsgleich mit Server-`AREA_OF_OPERATIONS_HALF_EXTENT`. */
   const opHalf = AREA_OF_OPERATIONS_HALF_EXTENT;
@@ -326,13 +313,6 @@ export async function createGameScene(): Promise<GameSceneBundle> {
   scene.add(sun);
   scene.add(sun.target);
 
-  const islandRenderData = DEFAULT_MAP_ISLANDS.map((is) => ({
-    x: worldToRenderX(is.x),
-    z: is.z,
-    radius: is.radius,
-  }));
-  setWaterIslands(foamMat, islandRenderData);
-
   applyEnvironmentState(tuning, { scene, sky, ambient, sun, water });
 
   const getEnvironmentTuning = (): EnvironmentTuning => ({ ...tuning });
@@ -346,7 +326,6 @@ export async function createGameScene(): Promise<GameSceneBundle> {
     scene,
     camera,
     water,
-    waterFoam,
     sky,
     ambient,
     sun,

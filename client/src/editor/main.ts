@@ -17,7 +17,7 @@ import { createGameScene } from "../game/scene/createGameScene";
 import { createShipVisual, setShipVisualLifeState, type ShipVisual } from "../game/scene/shipVisual";
 import { loadShipHullGltfSource, getShipHullGltfSourceForUrl } from "../game/scene/shipGltfHull";
 import {
-  resolveShipHullGltfUrlForClass,
+  resolveShipHullGltfUrlForWorkbenchPreview,
   uniqueHullGltfUrlsForAllClasses,
 } from "../game/runtime/shipProfileRuntime";
 import { resolveMountGltfUrl, uniqueMountVisualUrls } from "../game/runtime/mountGltfUrls";
@@ -51,8 +51,7 @@ function shipClassToWorkbenchSelect(cid: ShipClassId): string {
 
 async function boot(): Promise<void> {
   const bundle = await createGameScene();
-  const { scene, camera, water, waterFoam } = bundle;
-  const foamMat = waterFoam.material as THREE.Material;
+  const { scene, camera, water } = bundle;
 
   bindRendererResize(camera, renderer, appRoot);
 
@@ -68,7 +67,7 @@ async function boot(): Promise<void> {
   await Promise.all([...hullUrls, ...mountUrls].map((u) => loadShipHullGltfSource(u)));
 
   function getHullGltfTemplate(shipClassId: ShipClassId): THREE.Group | null {
-    return getShipHullGltfSourceForUrl(resolveShipHullGltfUrlForClass(shipClassId));
+    return getShipHullGltfSourceForUrl(resolveShipHullGltfUrlForWorkbenchPreview(shipClassId));
   }
 
   function getMountGltfTemplate(visualId: string): THREE.Group | null {
@@ -79,7 +78,7 @@ async function boot(): Promise<void> {
 
   /** Rumpf-GLB nachladen, falls noch nicht im Cache (z. B. neues hullGltfId in der Live-Vorschau). */
   function mountShipWorkbench(shipClassId: ShipClassId): void {
-    const url = resolveShipHullGltfUrlForClass(shipClassId);
+    const url = resolveShipHullGltfUrlForWorkbenchPreview(shipClassId);
     if (getShipHullGltfSourceForUrl(url)) {
       mountShip(shipClassId);
       return;
@@ -144,7 +143,7 @@ async function boot(): Promise<void> {
 
   function frame(nowMs: number): void {
     controls.update();
-    updateGameWaterAnimations(water, foamMat, nowMs);
+    updateGameWaterAnimations(water, nowMs);
     renderer.render(scene, camera);
     requestAnimationFrame(frame);
   }

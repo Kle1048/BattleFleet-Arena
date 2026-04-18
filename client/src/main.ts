@@ -1,5 +1,5 @@
 /**
- * Colyseus-Client — Pose, Input (LMB Primär, **RMB ASuM**), Interpolation,
+ * Colyseus-Client — Pose, Input (LMB / Leertaste Primär, **RMB ASuM**), Interpolation,
  * **gameMessageHud**, Artillerie-, **ASuM** (`missileList`) + **Torpedos** (`torpedoList`), **SAM/CIWS** (`airDefenseFire` / `airDefenseIntercept`).
  *
  * Join **mit** `BattleState` aus `@battlefleet/shared`: gleiche Feldreihenfolge wie der Server —
@@ -13,10 +13,10 @@ import {
   DESTROYER_LIKE_MVP,
   MATCH_PHASE_ENDED,
   PlayerLifeState,
-  getShipClassProfile,
 } from "@battlefleet/shared";
 import { createGameScene } from "./game/scene/createGameScene";
 import { createInputHandlers } from "./game/input/keyboardMouse";
+import { createFireControlChannel } from "./game/input/fireControlChannel";
 import { createCockpitHud } from "./game/hud/cockpitHud";
 import { createMessageLog } from "./game/hud/messageLog";
 import { createDebugOverlay } from "./game/hud/debugOverlay";
@@ -50,18 +50,14 @@ import {
 } from "./game/runtime/shipProfileRuntime";
 import type { ShipClassId } from "@battlefleet/shared";
 import { getShipHullGltfSourceForUrl, loadShipHullGltfSource } from "./game/scene/shipGltfHull";
-import { renderToWorldX, worldToRenderX } from "./game/runtime/renderCoords";
 import {
-  MAX_SHIP_WAKES,
-  applyWaterShaderTuning,
-  updateGameWaterAnimations,
-  updateWaterShipWakes,
-} from "./game/runtime/materialLibrary";
-import { getWakeSampleMinDistSq } from "./game/runtime/wakeRuntimeTuning";
-import { createWakeTrailState, pushWakeTrailSample } from "./game/runtime/wakeTrail";
+  getPdmsMuzzleSeekCoords,
+  getPrimaryArtilleryMuzzleSeekCoords,
+} from "./game/scene/shipMountVisuals";
+import { renderToWorldX } from "./game/runtime/renderCoords";
+import { updateGameWaterAnimations } from "./game/runtime/materialLibrary";
 import { createEnvironmentDebugPanel } from "./game/runtime/environmentDebugPanel";
 import { installReflectionCameraLayerMask } from "./game/runtime/renderOverlayLayers";
-import { getShipDebugTuning } from "./game/runtime/shipDebugTuning";
 import {
   createCameraCullRuntimeState,
   isArtyWorldPointInCullRange,
@@ -81,6 +77,7 @@ import {
   torpedoListOf,
 } from "./game/runtime/stateAdapter";
 import { clearPersistedClientSettings } from "./game/runtime/clearPersistedClientSettings";
+import { createShipWakeRibbonSystem } from "./game/scene/shipWakeRibbon";
 
 const COLYSEUS_URL = colyseusHttpBase(
   import.meta.env.VITE_COLYSEUS_URL,
@@ -121,9 +118,11 @@ let debugOverlayForFatal: ReturnType<typeof createDebugOverlay> | null = null;
 
 async function bootstrap(): Promise<void> {
   const bundle = await createGameScene();
-  const { scene, camera, water, waterFoam } = bundle;
-  const foamMat = waterFoam.material as THREE.Material;
-  const environmentDebugPanel = createEnvironmentDebugPanel(bundle);
+  const { scene, camera, water } = bundle;
+  const debugShipSwitchRef: { send?: (id: ShipClassId) => void } = {};
+  const environmentDebugPanel = createEnvironmentDebugPanel(bundle, {
+    getDebugShipClassSender: () => debugShipSwitchRef.send,
+  });
   const cfg = DESTROYER_LIKE_MVP;
 
   const groundPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
@@ -216,6 +215,9 @@ async function bootstrap(): Promise<void> {
     `Keine Antwort vom Spiel-Server. Prüfe: Server läuft? Firewall? Adresse ${COLYSEUS_URL}`,
   );
   const mySessionId = room.sessionId;
+  debugShipSwitchRef.send = (id) => {
+    room.send("debugSetShipClass", { shipClass: id });
+  };
   commsLog.append({
     text: `OPZ-Kanal offen — Raum ${room.roomId.slice(0, 8)}…`,
     kind: "info",
@@ -243,7 +245,7 @@ async function bootstrap(): Promise<void> {
   window.addEventListener("keydown", onBotToggleKey);
   const frameRuntimeState = createFrameRuntimeState(1);
   const cameraCullState = createCameraCullRuntimeState();
-  let localWakeTrail: ReturnType<typeof createWakeTrailState> | null = null;
+  let resolvePdmsMuzzleSeek: ((defenderId: string) => { x: number; y: number; z: number } | null) | undefined;
 
   registerNetworkHandlers({
     room,
@@ -277,6 +279,7 @@ async function bootstrap(): Promise<void> {
       });
     },
     onConnectionClosed: () => {
+      debugShipSwitchRef.send = undefined;
       scheduleReload(1200);
     },
     onAirDefenseSound: ({ phase, layer }) => {
@@ -296,6 +299,11 @@ async function bootstrap(): Promise<void> {
     onAswmMagazineReloaded: () =>
       gameMessageHud.showToast("ASuM: Magazin nachgeladen", "info", 3500),
     onSoftkillResult: (success) => {
+      gameAudio.softkillChaff(0.32);
+      const skMe = getPlayer(playerListOf(room), mySessionId);
+      if (skMe && skMe.lifeState !== PlayerLifeState.AwaitingRespawn) {
+        fxSystem.spawnSoftkillChaffCloud(skMe.x, skMe.z, skMe.headingRad);
+      }
       gameMessageHud.showToast(
         success ? "Softkill successful" : "Softkill failed",
         success ? "info" : "danger",
@@ -314,6 +322,12 @@ async function bootstrap(): Promise<void> {
       const prox = 1 - d / maxD;
       gameAudio.weaponHit(0.18 + 0.48 * prox);
     },
+    getPdmsMuzzleSeek: (defenderId) => resolvePdmsMuzzleSeek?.(defenderId) ?? null,
+    appendAirDefenseComms: (e) => commsLog.append(e),
+    formatPlayerLabel: (id) => {
+      const p = getPlayer(playerListOf(room), id);
+      return playerDisplayLabel(p ?? { id });
+    },
   });
 
   const visualRuntime = createVisualRuntime({
@@ -331,6 +345,17 @@ async function bootstrap(): Promise<void> {
     joinedAt,
   });
   const { visuals, remoteInterp } = visualRuntime;
+  const shipWakeRibbonSystem = createShipWakeRibbonSystem(scene);
+  artilleryFx.setMuzzleSeekResolver((ownerId) => getPrimaryArtilleryMuzzleSeekCoords(visuals.get(ownerId)));
+  resolvePdmsMuzzleSeek = (defenderId) => getPdmsMuzzleSeekCoords(visuals.get(defenderId));
+  const fireControl = createFireControlChannel({
+    scene,
+    camera,
+    canvas: renderer.domElement,
+    mySessionId,
+    playerLabel: playerDisplayLabel,
+    onToast: (text, kind, durationMs) => gameMessageHud.showToast(text, kind, durationMs),
+  });
   const runtimeShutdown = createRuntimeShutdown([
     visualRuntime,
     artilleryFx,
@@ -354,6 +379,8 @@ async function bootstrap(): Promise<void> {
       },
     },
     commsLog,
+    fireControl,
+    shipWakeRibbonSystem,
   ]);
   runtimeShutdown.bindWindowUnload();
 
@@ -397,7 +424,11 @@ async function bootstrap(): Promise<void> {
     /** Nach ROOM_STATE können Callbacks fehlen — fehlende Meshes nachziehen. */
     visualRuntime.ensureVisualsForPlayers(playerList);
 
-    const humanInput = input.sample();
+    const { phase: matchPhase, remainingSec: matchRemainingSecRaw } = readMatchTimer(room);
+    const matchEnded = matchPhase === MATCH_PHASE_ENDED;
+
+    let humanInput = input.sample();
+    humanInput = fireControl.applyToInput(humanInput, playerList, matchEnded);
     const missileList = missileListOf(room);
     const torpedoList = torpedoListOf(room);
     const botEnabled = botController.isEnabled();
@@ -409,8 +440,6 @@ async function bootstrap(): Promise<void> {
       botEnabled && torpedoList ? [...torpedoList] : [],
     );
     const samp = botInput ?? humanInput;
-    const { phase: matchPhase, remainingSec: matchRemainingSecRaw } = readMatchTimer(room);
-    const matchEnded = matchPhase === MATCH_PHASE_ENDED;
 
     hudRuntime.updateMatchEndHud({ matchEnded, players: playerList });
 
@@ -466,41 +495,20 @@ async function bootstrap(): Promise<void> {
         }
       },
     });
+
+    const meLod = getPlayer(playerList, mySessionId);
+    shipWakeRibbonSystem.updateFromPlayers({
+      players: playerList,
+      visuals,
+      lodAnchorWorld: meLod ? { x: meLod.x, z: meLod.z } : undefined,
+      nowSeconds: now * 0.001,
+    });
+
     botDebugPanel.render(botController.getDebugState());
 
     fxSystem.update(frameTimeMs);
 
-    const wakeUpload: { trail: ReturnType<typeof createWakeTrailState>; strength: number }[] = [];
-    const minDistWakeSq = getWakeSampleMinDistSq();
-    const meWake = getPlayer(playerList, mySessionId);
-
-    if (!meWake || matchEnded || meWake.lifeState === PlayerLifeState.AwaitingRespawn) {
-      localWakeTrail = null;
-    } else {
-      if (!localWakeTrail) localWakeTrail = createWakeTrailState();
-      const p = meWake;
-      const wx = p.x;
-      const wz = p.z;
-      const h = p.headingRad;
-      const profWake = getShipClassProfile(p.shipClass);
-      const refSp = cfg.maxSpeed * profWake.movementSpeedMul;
-      const speedRatio = refSp > 0 ? Math.min(1, Math.max(0, p.speed / refSp)) : 0;
-      const moving = speedRatio > 0.06 ? 1 : 0;
-      const strength = speedRatio * speedRatio * moving;
-      const sinH = Math.sin(h);
-      const cosH = Math.cos(h);
-      const sz = getShipDebugTuning().wakeSpawnLocalZ;
-      const sternRx = worldToRenderX(wx) - sz * sinH;
-      const sternZ = wz + sz * cosH;
-      pushWakeTrailSample(localWakeTrail, sternRx, sternZ, minDistWakeSq);
-      if (localWakeTrail.length >= 2 && strength >= 0.02) {
-        wakeUpload.push({ trail: localWakeTrail, strength });
-      }
-    }
-
-    updateWaterShipWakes(foamMat, wakeUpload.slice(0, MAX_SHIP_WAKES));
-
-    updateGameWaterAnimations(water, foamMat, now);
+    updateGameWaterAnimations(water, now);
     renderer.render(scene, camera);
     requestAnimationFrame(frame);
   }
@@ -519,23 +527,6 @@ async function bootstrap(): Promise<void> {
     },
     get pingMs(): number | null {
       return pingMs;
-    },
-    waterShader: {
-      set: (patch: {
-        uvScale?: number;
-        timeX?: number;
-        timeY?: number;
-        depthBase?: number;
-        depthAmp?: number;
-        flowTime?: number;
-        flowMix?: number;
-        shoreMix?: number;
-        wakeCoreMix?: number;
-        wakeOuterMix?: number;
-        wakeOuterWidthMul?: number;
-        wakeOuterNoiseMix?: number;
-        wakeSegDecay?: number;
-      }) => applyWaterShaderTuning(foamMat, patch),
     },
   };
 }

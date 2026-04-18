@@ -1,11 +1,13 @@
 import assert from "node:assert/strict";
 import { SHIP_HULL_PROFILE_BY_CLASS } from "./shipProfiles";
-import { SHIP_CLASS_DESTROYER, SHIP_CLASS_FAC } from "./shipClass";
+import { SHIP_CLASS_DESTROYER, SHIP_CLASS_FAC, getShipClassProfile } from "./shipClass";
 import {
   getPrimaryArtilleryMountSocketLocal,
   hullProvidesAirDefenseCiwsLayer,
   hullProvidesAirDefensePdLayer,
   hullProvidesAirDefenseSamLayer,
+  listRotatingMountWeaponGuideConfigs,
+  ROTATING_WEAPON_GUIDE_KINDS,
   type ShipHullVisualProfile,
 } from "./shipVisualLayout";
 
@@ -39,7 +41,11 @@ import {
 }
 
 {
+  assert.equal(ROTATING_WEAPON_GUIDE_KINDS.length, 4);
   const fac = SHIP_HULL_PROFILE_BY_CLASS[SHIP_CLASS_FAC];
+  const arc = getShipClassProfile(SHIP_CLASS_FAC).artilleryArcHalfAngleRad;
+  const guides = listRotatingMountWeaponGuideConfigs(fac, arc);
+  assert.equal(guides.length, fac.mountSlots.filter((s) => s.compatibleKinds.some((k) => ROTATING_WEAPON_GUIDE_KINDS.includes(k))).length);
   assert.equal(fac.defaultLoadout?.ciws_aft, "visual_pdms");
   assert.equal(hullProvidesAirDefenseSamLayer(fac), false);
   assert.equal(hullProvidesAirDefensePdLayer(fac), true);

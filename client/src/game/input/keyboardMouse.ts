@@ -1,4 +1,5 @@
 /** Pro Frame aus Tastatur + Maus; NDC wie WebGL (−1…1, Y oben positiv). Torpedo: **Q** + **Mittelklick**. */
+import { FEATURE_MINES_ENABLED } from "@battlefleet/shared";
 import { createMobileControls } from "./mobileControls";
 
 export type InputSample = {
@@ -6,7 +7,7 @@ export type InputSample = {
   rudderInput: number;
   aimWorldX: number;
   aimWorldZ: number;
-  /** True solange **LMB gehalten** (Servertakt entscheidet über Cooldown / Dauerfeuer). */
+  /** True solange **LMB gehalten** oder **Leertaste** (Servertakt entscheidet über Cooldown / Dauerfeuer). */
   primaryFire: boolean;
   /** True solange **RMB gehalten** — ASuM (Task 7). */
   secondaryFire: boolean;
@@ -38,6 +39,9 @@ export function createInputHandlers(
 
   const onDown = (e: KeyboardEvent): void => {
     keys.add(e.code);
+    if (e.code === "Space") {
+      e.preventDefault();
+    }
     if (e.code === "KeyR" && !e.repeat) {
       radarActive = !radarActive;
     }
@@ -116,9 +120,10 @@ export function createInputHandlers(
     }
 
     const hit = getGroundPoint(mouseNdcX, mouseNdcY);
-    const primaryFire = lmbHeld || mobile.primaryFire;
+    const primaryFire = lmbHeld || keys.has("Space") || mobile.primaryFire;
     const secondaryFire = rmbHeld || mobile.secondaryFire;
-    const torpedoFire = mmbHeld || keys.has("KeyQ") || mobile.torpedoFire;
+    const torpedoFire =
+      FEATURE_MINES_ENABLED && (mmbHeld || keys.has("KeyQ") || mobile.torpedoFire);
     const airDefenseEngage = pendingAirDefenseEngage;
     pendingAirDefenseEngage = false;
     return {

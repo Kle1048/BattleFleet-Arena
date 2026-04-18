@@ -1,3 +1,4 @@
+import { FEATURE_MINES_ENABLED } from "@battlefleet/shared";
 import nipplejs from "nipplejs";
 
 export type MobileControlSample = {
@@ -121,7 +122,11 @@ export function createMobileControls(): {
 
   btnAirDefense.style.gridColumn = "1 / span 2";
 
-  actionGrid.append(btnPrimary, btnSecondary, btnTorpedo, btnRadar, btnAirDefense);
+  if (FEATURE_MINES_ENABLED) {
+    actionGrid.append(btnPrimary, btnSecondary, btnTorpedo, btnRadar, btnAirDefense);
+  } else {
+    actionGrid.append(btnPrimary, btnSecondary, btnRadar, btnAirDefense);
+  }
   document.body.appendChild(root);
 
   let throttle = 0;
@@ -138,9 +143,11 @@ export function createMobileControls(): {
   bindHoldButton(btnSecondary, (held) => {
     secondaryFire = held;
   }, "rgba(98,38,100,0.96)");
-  bindHoldButton(btnTorpedo, (held) => {
-    torpedoFire = held;
-  }, "rgba(24,88,116,0.96)");
+  if (FEATURE_MINES_ENABLED) {
+    bindHoldButton(btnTorpedo, (held) => {
+      torpedoFire = held;
+    }, "rgba(24,88,116,0.96)");
+  }
 
   const bindTapButton = (
     btn: HTMLButtonElement,
@@ -196,7 +203,7 @@ export function createMobileControls(): {
         rudderInput,
         primaryFire,
         secondaryFire,
-        torpedoFire,
+        torpedoFire: FEATURE_MINES_ENABLED && torpedoFire,
         radarTogglePressed,
         airDefensePressed,
       };

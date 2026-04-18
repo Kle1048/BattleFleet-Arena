@@ -1,8 +1,8 @@
 import * as THREE from "three";
 import type {
+  FixedSeaSkimmerLauncherSpec,
   MountFireSector,
   MountSlotDefinition,
-  MountVisualKind,
   RotatingMountWeaponGuideConfig,
   ShipHullVisualProfile,
 } from "@battlefleet/shared";
@@ -10,21 +10,60 @@ import {
   getShipClassProfile,
   inferMountTrainBaseYawFromBow,
   resolveEffectiveMountFireSector,
+  ROTATING_WEAPON_GUIDE_KINDS,
+  weaponEngagementRangeWorldForMountVisualId,
 } from "@battlefleet/shared";
 import { resolveMountGltfUrl } from "../runtime/mountGltfUrls";
+import { renderToWorldX } from "../runtime/renderCoords";
 import { cloneMeshMaterialsDeep, collectHullMeshMaterials } from "./shipGltfHull";
+import { readMarkedSocketTransformsFromHullGltf } from "./shipSocketGltf";
+
+/** Blender/gltf Empty am Rohrende / Startpunkt — Artillerie (`mount_artillery_turret.glb`), PDMS (`mount_PDMS_box.glb`). */
+export const ARTILLERY_MUZZLE_NODE_NAME = "bf_muzzle";
+
+const _muzzleWorldScratch = new THREE.Vector3();
 
 type SocketLike = {
   position: { x: number; y: number; z: number };
   eulerRad?: { x: number; y: number; z: number };
 };
 
+function mergeMountSlotSocket(
+  slot: MountSlotDefinition,
+  fromGltf: Map<string, { position: { x: number; y: number; z: number }; eulerRad?: { x: number; y: number; z: number } }>,
+): SocketLike {
+  const g = fromGltf.get(slot.id);
+  if (!g) return slot.socket;
+  const eulerMeaningful =
+    g.eulerRad &&
+    Math.abs(g.eulerRad.x) + Math.abs(g.eulerRad.y) + Math.abs(g.eulerRad.z) > 1e-6;
+  return {
+    position: g.position,
+    eulerRad: eulerMeaningful ? g.eulerRad : slot.socket.eulerRad,
+  };
+}
+
+function mergeRailSocket(
+  launcher: FixedSeaSkimmerLauncherSpec,
+  fromGltf: Map<string, { position: { x: number; y: number; z: number }; eulerRad?: { x: number; y: number; z: number } }>,
+): SocketLike {
+  const g = fromGltf.get(launcher.id);
+  if (!g) return launcher.socket;
+  const eulerMeaningful =
+    g.eulerRad &&
+    Math.abs(g.eulerRad.x) + Math.abs(g.eulerRad.y) + Math.abs(g.eulerRad.z) > 1e-6;
+  return {
+    position: g.position,
+    eulerRad: eulerMeaningful ? g.eulerRad : launcher.socket.eulerRad,
+  };
+}
+
 /** Zusätzlicher Faktor auf das geklonte GLB (nach inversem Hull-Scale). */
 const MOUNT_VISUAL_EXTRA_SCALE: Partial<Record<string, number>> = {
-  visual_artillery: 200,
-  visual_ciws: 200,
-  visual_sam: 200,
-  visual_pdms: 200,
+  visual_artillery: 100,
+  visual_ciws: 100,
+  visual_sam: 100,
+  visual_pdms: 100,
 };
 
 /** SAM / CIWS / PDMS — Train folgt bei Layered Defence dem Flugkörper, nicht dem Aim-Punkt. */
@@ -36,37 +75,75 @@ function isAirDefenseMountVisualId(visualId: string): boolean {
   );
 }
 
-/** Horizontale Zielrichtung (Yaw) wie beim Bug-Peilen — drehbare Geschütz-/LW-Systeme. */
-const ROTATING_MOUNT_KINDS: readonly MountVisualKind[] = [
-  "artillery",
-  "ciws",
-  "sam_launcher",
-  "pdms",
-];
+/** Ein drehbarer Mount mit Train-Gruppe — vorher 5 parallele Arrays + separater Weapon-Guide-Eintrag. */
+export type ClientRotatingMountTrainBinding = {
+  slotId: string;
+  train: THREE.Group;
+  anchor: THREE.Group;
+  isAirDefense: boolean;
+  /** Bug=0 / Heck=π — Modell-Basis am Socket (nicht in `weaponGuide`). */
+  baseYawFromBow: number;
+  /** Feuerbogen-Overlay; Sektor für Train-Klemme: `weaponGuide.sector`. */
+  weaponGuide: RotatingMountWeaponGuideConfig;
+  /** Optional: Kind `ARTILLERY_MUZZLE_NODE_NAME` im Mount-Clone — Muzzle-Flash-Position. */
+  muzzleRef: THREE.Object3D | null;
+};
+
+/** Ein `mount_*`-Socket mit Debug-Aim-Linie — vorher 4 parallele Arrays. */
+export type ClientAimLineMountBinding = {
+  anchor: THREE.Group;
+  slotId: string;
+  /** Beim Montieren gesetzt; drehbare Slots haben Sektor, sonst `null`. */
+  mountFireSector: MountFireSector | null;
+  baseYawFromBow: number;
+};
 
 export type AttachMountVisualsResult = {
   materials: THREE.Material[];
-  /** Horizontale Drehung zur Feuerrichtung (wie `aimLine`), nur für Artillerie-Slots. */
-  artilleryTrainGroups: THREE.Group[];
-  /** Parallel zu `artilleryTrainGroups`: Socket-`Group` (Parent der Train-Gruppe) für Welt→lokal. */
-  artilleryTrainMountAnchors: THREE.Group[];
-  /** Parallel: `true` = Flugabwehr-Mount (Ziel bei Layered Defence: ASuM, nicht Aim). */
-  artilleryTrainIsAirDefense: boolean[];
-  /** Parallel zu `artilleryTrainGroups` — Feuersektor für Train-Klemme (Client). */
-  mountTrainFireSectors: MountFireSector[];
-  /** Parallel: Bug=0 / Heck=π — Basis für Geschützmodell am Socket. */
-  mountTrainBaseYawFromBow: number[];
-  /** Alle `mount_*`-Sockets in Profil-Reihenfolge — je eine Debug-Ziellinie Mündung→Ziel. */
-  aimLineMountAnchors: THREE.Group[];
-  /** Parallel zu `aimLineMountAnchors`: Slot-ID (`mountSlots[i].id`) für autoritative Sektor-Resolution. */
-  aimLineMountSlotIds: string[];
-  /** Parallel zu `aimLineMountAnchors`: Feuersektor falls drehbarer Mount, sonst `null`. */
-  aimLineMountFireSectors: Array<MountFireSector | null>;
-  /** Parallel zu `aimLineMountAnchors`: Nullrichtung des Mounts (Bug=0, Heck=π). */
-  aimLineMountBaseYawFromBow: number[];
-  /** Alle erfolgreich geladenen drehbaren Mounts — Feuerbogen (Socket + Sektor wie Profil). */
-  rotatingMountWeaponGuideEntries: RotatingMountWeaponGuideConfig[];
+  rotatingMountTrains: ClientRotatingMountTrainBinding[];
+  aimLineMounts: ClientAimLineMountBinding[];
 };
+
+/**
+ * Erstes Geschütz-Mount (nicht LW) mit `muzzleRef`: Weltposition in Seekarten-XZ + Szenen-Y.
+ * `x`/`z` passen zu Server-`fromX`/`fromZ`; `y` aus Three.js für Partikel.
+ */
+export function getPrimaryArtilleryMuzzleSeekCoords(vis: {
+  rotatingMountTrains: ClientRotatingMountTrainBinding[];
+} | null | undefined): { x: number; y: number; z: number } | null {
+  if (!vis?.rotatingMountTrains?.length) return null;
+  for (const m of vis.rotatingMountTrains) {
+    if (m.isAirDefense) continue;
+    const ref = m.muzzleRef;
+    if (!ref) return null;
+    ref.getWorldPosition(_muzzleWorldScratch);
+    return {
+      x: renderToWorldX(_muzzleWorldScratch.x),
+      y: _muzzleWorldScratch.y,
+      z: _muzzleWorldScratch.z,
+    };
+  }
+  return null;
+}
+
+/** PDMS-Start (`visual_pdms`) am Empty `ARTILLERY_MUZZLE_NODE_NAME` — gleiche Konvention wie Artillerie. */
+export function getPdmsMuzzleSeekCoords(vis: {
+  rotatingMountTrains: ClientRotatingMountTrainBinding[];
+} | null | undefined): { x: number; y: number; z: number } | null {
+  if (!vis?.rotatingMountTrains?.length) return null;
+  for (const m of vis.rotatingMountTrains) {
+    if (m.weaponGuide.visualId !== "visual_pdms") continue;
+    const ref = m.muzzleRef;
+    if (!ref) return null;
+    ref.getWorldPosition(_muzzleWorldScratch);
+    return {
+      x: renderToWorldX(_muzzleWorldScratch.x),
+      y: _muzzleWorldScratch.y,
+      z: _muzzleWorldScratch.z,
+    };
+  }
+  return null;
+}
 
 /**
  * Montagepunkte aus dem Profil: Kind von `hullModel`, mit inversem Hull-Scale,
@@ -79,18 +156,11 @@ export function attachMountVisualsToHullModel(
   getTemplate: (visualId: string) => THREE.Group | null,
 ): AttachMountVisualsResult {
   const materials: THREE.Material[] = [];
-  const artilleryTrainGroups: THREE.Group[] = [];
-  const artilleryTrainMountAnchors: THREE.Group[] = [];
-  const artilleryTrainIsAirDefense: boolean[] = [];
-  const mountTrainFireSectors: MountFireSector[] = [];
-  const mountTrainBaseYawFromBow: number[] = [];
-  const aimLineMountAnchors: THREE.Group[] = [];
-  const aimLineMountSlotIds: string[] = [];
-  const aimLineMountFireSectors: Array<MountFireSector | null> = [];
-  const aimLineMountBaseYawFromBow: number[] = [];
-  const rotatingMountWeaponGuideEntries: RotatingMountWeaponGuideConfig[] = [];
+  const rotatingMountTrains: ClientRotatingMountTrainBinding[] = [];
+  const aimLineMounts: ClientAimLineMountBinding[] = [];
   const loadout = profile.defaultLoadout ?? {};
   const classArc = getShipClassProfile(profile.shipClassId).artilleryArcHalfAngleRad;
+  const { sockets: gltfSockets, rails: gltfRails } = readMarkedSocketTransformsFromHullGltf(hullModel);
   const sx = hullModel.scale.x;
   const inv = sx > 1e-8 ? 1 / sx : 1;
 
@@ -117,6 +187,12 @@ export function attachMountVisualsToHullModel(
     const anchor = new THREE.Group();
     anchor.name = name;
     const p = socket.position;
+    const mergedTrainSlot: MountSlotDefinition | undefined = opts?.trainSlot
+      ? {
+          ...opts.trainSlot,
+          socket: { ...opts.trainSlot.socket, position: { x: p.x, y: p.y, z: p.z } },
+        }
+      : undefined;
     anchor.position.set(p.x, p.y, p.z);
     const e = socket.eulerRad;
     const ly = opts?.launchYawRad;
@@ -141,34 +217,40 @@ export function attachMountVisualsToHullModel(
       train.name = `${name}_trainYaw`;
       anchor.add(train);
       parent = train;
-      artilleryTrainGroups.push(train);
-      artilleryTrainMountAnchors.push(anchor);
-      artilleryTrainIsAirDefense.push(isAirDefenseMountVisualId(visualId));
-      if (opts.trainSlot) {
-        mountTrainFireSectors.push(
-          resolveEffectiveMountFireSector(opts.trainSlot, profile, classArc),
-        );
-        mountTrainBaseYawFromBow.push(inferMountTrainBaseYawFromBow(opts.trainSlot));
-        rotatingMountWeaponGuideEntries.push({
-          slotId: opts.trainSlot.id,
+      if (mergedTrainSlot) {
+        const sector = resolveEffectiveMountFireSector(mergedTrainSlot, profile, classArc);
+        const baseYaw = inferMountTrainBaseYawFromBow(mergedTrainSlot);
+        const weaponGuide: RotatingMountWeaponGuideConfig = {
+          slotId: mergedTrainSlot.id,
+          visualId,
+          engagementRangeWorld: weaponEngagementRangeWorldForMountVisualId(visualId),
           socket: { x: p.x, y: p.y, z: p.z },
-          sector: resolveEffectiveMountFireSector(opts.trainSlot, profile, classArc),
+          sector,
+        };
+        rotatingMountTrains.push({
+          slotId: mergedTrainSlot.id,
+          train,
+          anchor,
+          isAirDefense: isAirDefenseMountVisualId(visualId),
+          baseYawFromBow: baseYaw,
+          weaponGuide,
+          muzzleRef: clone.getObjectByName(ARTILLERY_MUZZLE_NODE_NAME) ?? null,
         });
       }
     }
     parent.add(clone);
     hullModel.add(anchor);
     if (name.startsWith("mount_")) {
-      aimLineMountAnchors.push(anchor);
-      aimLineMountSlotIds.push(opts?.trainSlot?.id ?? name.slice("mount_".length));
-      aimLineMountFireSectors.push(
-        opts?.trainSlot
-          ? resolveEffectiveMountFireSector(opts.trainSlot, profile, classArc)
-          : null,
-      );
-      aimLineMountBaseYawFromBow.push(
-        opts?.trainSlot ? inferMountTrainBaseYawFromBow(opts.trainSlot) : 0,
-      );
+      const slotId = opts?.trainSlot?.id ?? name.slice("mount_".length);
+      const sec = mergedTrainSlot
+        ? resolveEffectiveMountFireSector(mergedTrainSlot, profile, classArc)
+        : null;
+      aimLineMounts.push({
+        anchor,
+        slotId,
+        mountFireSector: sec,
+        baseYawFromBow: mergedTrainSlot ? inferMountTrainBaseYawFromBow(mergedTrainSlot) : 0,
+      });
     }
     materials.push(...collectHullMeshMaterials(clone));
   };
@@ -177,9 +259,9 @@ export function attachMountVisualsToHullModel(
     const vid = loadout[slot.id] ?? slot.defaultVisualId;
     if (!vid) continue;
     const addArtilleryTrain = slot.compatibleKinds.some((k) =>
-      ROTATING_MOUNT_KINDS.includes(k),
+      ROTATING_WEAPON_GUIDE_KINDS.includes(k),
     );
-    attachAtSocket(`mount_${slot.id}`, slot.socket, vid, {
+    attachAtSocket(`mount_${slot.id}`, mergeMountSlotSocket(slot, gltfSockets), vid, {
       addArtilleryTrain,
       trainSlot: addArtilleryTrain ? slot : undefined,
     });
@@ -188,22 +270,14 @@ export function attachMountVisualsToHullModel(
   for (const L of profile.fixedSeaSkimmerLaunchers ?? []) {
     const vid = L.visualId;
     if (!vid) continue;
-    attachAtSocket(`ssm_${L.id}`, L.socket, vid, {
+    attachAtSocket(`ssm_${L.id}`, mergeRailSocket(L, gltfRails), vid, {
       launchYawRad: L.launchYawRadFromBow,
     });
   }
 
   return {
     materials,
-    artilleryTrainGroups,
-    artilleryTrainMountAnchors,
-    artilleryTrainIsAirDefense,
-    mountTrainFireSectors,
-    mountTrainBaseYawFromBow,
-    aimLineMountAnchors,
-    aimLineMountSlotIds,
-    aimLineMountFireSectors,
-    aimLineMountBaseYawFromBow,
-    rotatingMountWeaponGuideEntries,
+    rotatingMountTrains,
+    aimLineMounts,
   };
 }

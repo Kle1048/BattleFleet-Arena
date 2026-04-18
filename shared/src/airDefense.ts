@@ -3,8 +3,10 @@
  * - **Softkill** (chaff/ECM): automatic, separate from hardkill; may break ASuM lock without destroying.
  * - **Hardkill**: SAM → PD → CIWS; nur mit passendem Rumpf-Loadout pro Schicht (siehe BattleRoom); Commit nötig.
  *
- * Tick model for hardkill: entry in range + layer ready + commit window + pending → `airDefenseFire`;
- * next tick → hit roll + cooldown (`airDefenseIntercept` removes missile on hit).
+ * Tick model: in range + ready + commit → `airDefenseFire` (Client: Abfang-FK startet).
+ * - **SAM / PD**: nach Flugzeit (`computeSamPdInterceptTravelMs`) Trefferwurf am ASuM-Standort — Treffer: beide weg;
+ *   Fehlschuss: nur Abfang „verbraucht“ (Cooldown), ASuM fliegt weiter.
+ * - **CIWS**: Trefferwurf im nächsten Tick (nahezu sofort).
  */
 
 /** Äußerer SAM-Ring (m). */
@@ -37,6 +39,22 @@ export const AD_CIWS_COOLDOWN_MS = 520;
 export const AD_SAM_P_HIT = 0.22;
 export const AD_PD_P_HIT = 0.35;
 export const AD_CIWS_P_HIT = 0.28;
+
+/** Mittlere Geschwindigkeit SAM/PD-Abfangkörper (m/s) — bestimmt Server-Flugzeit bis Trefferwurf. */
+export const AD_SAM_PD_INTERCEPT_SPEED_MPS = 480;
+export const AD_SAM_PD_INTERCEPT_TRAVEL_MS_MIN = 220;
+export const AD_SAM_PD_INTERCEPT_TRAVEL_MS_MAX = 1050;
+
+/**
+ * Flugzeit Verteidiger↔ASuM für SAM/PD (ms), an Entfernung gekoppelt — grob an Client-VFX angelehnt.
+ */
+export function computeSamPdInterceptTravelMs(distM: number): number {
+  if (!Number.isFinite(distM) || distM <= 0) return AD_SAM_PD_INTERCEPT_TRAVEL_MS_MIN;
+  const raw = (distM / AD_SAM_PD_INTERCEPT_SPEED_MPS) * 1000;
+  return Math.round(
+    Math.max(AD_SAM_PD_INTERCEPT_TRAVEL_MS_MIN, Math.min(AD_SAM_PD_INTERCEPT_TRAVEL_MS_MAX, raw)),
+  );
+}
 
 /** Dauer des Hardkill-Engagement-Fensters nach Taste „Commit“ (ms). */
 export const AD_HARDKILL_COMMIT_DURATION_MS = 15_000;

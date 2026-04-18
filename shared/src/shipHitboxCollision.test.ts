@@ -1,5 +1,9 @@
 import assert from "node:assert/strict";
-import { circleIntersectsShipHitboxFootprintXZ, minDistSqPointToShipHitboxFootprintXZ } from "./shipHitboxCollision";
+import {
+  circleIntersectsShipHitboxFootprintXZ,
+  minDistSqPointToShipHitboxFootprintXZ,
+  shipHitboxFootprintCircumcircleWorldXZ,
+} from "./shipHitboxCollision";
 
 const box: import("./shipVisualLayout").ShipCollisionHitbox = {
   center: { x: 0, y: 0, z: 0 },
@@ -25,5 +29,11 @@ assert.ok(
 // 90° gedreht: Bug zeigt nach +X
 const h = Math.PI / 2;
 assert.ok(circleIntersectsShipHitboxFootprintXZ(8.5, 0, 1, 0, 0, h, box));
+
+// Umkreis: heading 0, Schiff bei (100,200), Box wie oben → Zentrum = Schiff, Radius ≈ hypot(2,9)*margin
+const circ = shipHitboxFootprintCircumcircleWorldXZ(100, 200, 0, box);
+assert.equal(circ.cx, 100);
+assert.equal(circ.cz, 200);
+assert.ok(Math.abs(circ.radius - Math.hypot(2, 9) * 1.06) < 1e-9);
 
 console.log("shipHitboxCollision tests ok");

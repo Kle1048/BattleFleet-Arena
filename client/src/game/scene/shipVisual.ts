@@ -5,7 +5,6 @@ import {
   clampYawToMountSector,
   forwardXZ,
   getShipClassProfile,
-  getShipHullProfileByClass,
   inferMountTrainBaseYawFromBow,
   isYawWithinMountFireSector,
   PlayerLifeState,
@@ -28,7 +27,12 @@ import { getEffectiveHullProfile, isShipHitboxDebugVisible } from "../runtime/sh
 import { clonePreparedShipHull, collectHullMeshMaterials } from "./shipGltfHull";
 import { createShipHitboxWireframe } from "./shipHitboxDebug";
 import { createLocalShipRangeRingsGroup } from "./shipRangeRingsDebug";
-import { attachMountVisualsToHullModel } from "./shipMountVisuals";
+import {
+  attachMountVisualsToHullModel,
+  type ClientAimLineMountBinding,
+  type ClientRotatingMountTrainBinding,
+} from "./shipMountVisuals";
+import { createLocalPlayerWeaponGuideOverlay } from "./shipWeaponSectorOverlay";
 import { assignToOverlayLayer } from "../runtime/renderOverlayLayers";
 import { worldToRenderX } from "../runtime/renderCoords";
 
@@ -73,6 +77,11 @@ function shipSpriteWorldWidthFromTexture(texture: THREE.Texture): number {
   return SHIP_SPRITE_BASE_WORLD_HEIGHT * aspect;
 }
 
+/**
+ * Wendet Profil-/Debug-Tuning auf den bereits gebauten `ShipVisual` an.
+ * GLB-Rumpf: `hullModel.scale` = `hullModelBaseUniformScale * spriteScale` — `spriteScale` ist ein **zusätzlicher**
+ * Faktor auf die Pipeline aus `shipGltfHull.ts` (prepare × `hullVisualScale`), siehe `shipGltfHull.ts`.
+ */
 export function applyShipVisualRuntimeTuning(vis: ShipVisual): void {
   const user = getShipDebugTuning();
   const def = getEffectiveHullProfile(vis.shipClassId)?.clientVisualTuningDefaults;
@@ -85,7 +94,7 @@ export function applyShipVisualRuntimeTuning(vis: ShipVisual): void {
     vis.hullSprite.scale.setScalar(spriteScale);
   }
   if (vis.hullModel) {
-    vis.hullModel.scale.setScalar(spriteScale);
+    vis.hullModel.scale.setScalar(vis.hullModelBaseUniformScale * spriteScale);
     vis.hullModel.position.set(
       vis.hullGltfBaseX + gltfHullOffsetX,
       vis.hullGltfBaseY + gltfHullYOffset,
@@ -97,12 +106,13 @@ export function applyShipVisualRuntimeTuning(vis: ShipVisual): void {
     vis.hitboxLogicalGroup.position.set(0, 0, 0);
     vis.hitboxLogicalGroup.visible = isShipHitboxDebugVisible();
   }
-  if (vis.weaponGuideGroup && !user.showWeaponArc) {
-    vis.weaponGuideGroup.visible = false;
+  if (vis.weaponGuideGroup) {
+    vis.weaponGuideGroup.visible = user.showWeaponArc;
   }
   if (vis.rangeRingsGroup) {
     vis.rangeRingsGroup.visible = user.showRangeRings;
   }
+  vis.aimLine.visible = user.showMountAimLines;
 }
 
 function createHullPrismGeometry(halfBeam: number): THREE.BufferGeometry {
@@ -168,24 +178,10 @@ export type ShipVisual = {
   hullGltfMaterials: THREE.Material[];
   /** Mount-/System-GLBs (gleiche Life-State-Behandlung wie Rumpf). */
   mountGltfMaterials: THREE.Material[];
-  /** Artillerie: Yaw-Gruppe am Mount zur Feuerrichtung. */
-  artilleryTrainGroups: THREE.Group[];
-  /** Parallel zu `artilleryTrainGroups`: Mount-Anchor (gleiche Pivot-Geometrie wie Aim-Linie). */
-  artilleryTrainMountAnchors: THREE.Group[];
-  /** Parallel: Flugabwehr-Zug (SAM/CIWS/PDMS) — bei Layered Defence Ziel = ASuM statt Aim. */
-  artilleryTrainIsAirDefense: boolean[];
-  /** `mount_*`-Sockets in Profil-Reihenfolge — parallele Debug-Linien zum Zielpunkt. */
-  aimLineMountAnchors: THREE.Group[];
-  /** Parallel zu `aimLineMountAnchors`: Slot-ID zur Zuordnung autoritativer Profile. */
-  aimLineMountSlotIds: string[];
-  /** Parallel zu `aimLineMountAnchors`: Feuersektor für Mount oder `null`. */
-  aimLineMountFireSectors: Array<MountFireSector | null>;
-  /** Parallel zu `aimLineMountAnchors`: Nullrichtung des Mounts (Bug=0, Heck=π). */
-  aimLineMountBaseYawFromBow: number[];
-  /** Parallel zu `artilleryTrainGroups` — Server-/Profil-Feuersektor. */
-  mountTrainFireSectors: MountFireSector[];
-  /** Parallel: Bug=0 / Heck=π — Modell-Basis am Socket. */
-  mountTrainBaseYawFromBow: number[];
+  /** Drehbare Mounts mit Train-Yaw (Geschütz / LW). */
+  rotatingMountTrains: ClientRotatingMountTrainBinding[];
+  /** `mount_*`-Sockets — je eine Debug-Ziellinie Mündung→Ziel. */
+  aimLineMounts: ClientAimLineMountBinding[];
   /** Nur lokaler Spieler: Feuerbogen — bei Zerstörung ausgeblendet. */
   weaponGuideGroup: THREE.Group | null;
   /** Nur lokaler Spieler: 100-m-Abstandsringe (Debug). */
@@ -203,6 +199,11 @@ export type ShipVisual = {
   _lastLifeVisualKey?: string;
   /** Zuletzt angewendete `getShipDebugTuningGeneration()` — vermeidet redundantes `applyShipVisualRuntimeTuning`. */
   debugTuningGenApplied?: number;
+  /**
+   * GLB-Rumpf: einheitliche Skala nach `prepareShipGltfInstance` × `hullVisualScale`, **bevor**
+   * `spriteScale` aus Profil/Debug angewendet wird (`base * spriteScale` in `applyShipVisualRuntimeTuning`).
+   */
+  hullModelBaseUniformScale: number;
 };
 
 function hullAliveMaterial(isLocal: boolean): THREE.MeshStandardMaterial {
@@ -223,21 +224,22 @@ function resolveAimLineSectorForIndex(
   vis: ShipVisual,
   index: number,
 ): MountFireSector | null {
-  const slotId = vis.aimLineMountSlotIds[index];
-  const hull = getShipHullProfileByClass(vis.shipClassId);
+  const b = vis.aimLineMounts[index];
+  if (!b) return null;
+  const slotId = b.slotId;
+  const hull = getEffectiveHullProfile(vis.shipClassId);
   const classArc = getShipClassProfile(vis.shipClassId).artilleryArcHalfAngleRad;
   const slot = slotId ? hull?.mountSlots.find((s) => s.id === slotId) : undefined;
 
-  let baseSector =
-    vis.aimLineMountFireSectors[index] ?? vis.mountTrainFireSectors[index] ?? null;
-  // Autoritativ wie Server: falls Client-Patch/Visual-Profil abweicht, Slot-Sektor aus Shared-Basis nutzen.
+  const train = vis.rotatingMountTrains.find((t) => t.slotId === slotId);
+  let baseSector = b.mountFireSector ?? train?.weaponGuide.sector ?? null;
   if (slot && hull) baseSector = resolveEffectiveMountFireSector(slot, hull, classArc);
   if (!baseSector) return null;
   if (baseSector.kind !== "symmetric") return baseSector;
   if (baseSector.centerYawRadFromBow !== undefined) return baseSector;
   const baseYaw = slot
     ? inferMountTrainBaseYawFromBow(slot)
-    : (vis.aimLineMountBaseYawFromBow[index] ?? vis.mountTrainBaseYawFromBow[index] ?? 0);
+    : (b.baseYawFromBow ?? train?.baseYawFromBow ?? 0);
   return { ...baseSector, centerYawRadFromBow: baseYaw };
 }
 
@@ -331,7 +333,10 @@ export function setShipVisualLifeState(
   const tune = getShipDebugTuning();
   const showArc = tune.showWeaponArc;
   const showRings = tune.showRangeRings;
-  const lifeVisualKey = `${lifeState}|${showArc ? "1" : "0"}|${showRings ? "1" : "0"}`;
+  const showMountAim = tune.showMountAimLines;
+  const lifeVisualKey = `${lifeState}|${showArc ? "1" : "0"}|${showRings ? "1" : "0"}|${
+    showMountAim ? "1" : "0"
+  }`;
   if (vis._lastLifeVisualKey === lifeVisualKey) return;
   vis._lastLifeVisualKey = lifeVisualKey;
 
@@ -495,16 +500,11 @@ export function createShipVisual(options: {
   let hullGltfBaseZ = 0;
   let hullGltfMaterials: THREE.Material[] = [];
   let mountGltfMaterials: THREE.Material[] = [];
-  let artilleryTrainGroups: THREE.Group[] = [];
-  let artilleryTrainMountAnchors: THREE.Group[] = [];
-  let artilleryTrainIsAirDefense: boolean[] = [];
-  let mountTrainFireSectors: MountFireSector[] = [];
-  let mountTrainBaseYawFromBow: number[] = [];
-  let aimLineMountAnchors: THREE.Group[] = [];
-  let aimLineMountSlotIds: string[] = [];
-  let aimLineMountFireSectors: Array<MountFireSector | null> = [];
-  let aimLineMountBaseYawFromBow: number[] = [];
+  let rotatingMountTrains: ClientRotatingMountTrainBinding[] = [];
+  let aimLineMounts: ClientAimLineMountBinding[] = [];
   let hullSprite: THREE.Mesh | null = null;
+  /** Nach prepare × `hullVisualScale`, vor `spriteScale` (Runtime-Tuning). */
+  let hullModelBaseUniformScale = 1;
 
   if (options.hullGltfSource) {
     hullModel = clonePreparedShipHull(options.hullGltfSource);
@@ -515,20 +515,14 @@ export function createShipVisual(options: {
     if (hullProfile && options.getMountGltfTemplate) {
       const mounted = attachMountVisualsToHullModel(hullModel, hullProfile, options.getMountGltfTemplate);
       mountGltfMaterials = mounted.materials;
-      artilleryTrainGroups = mounted.artilleryTrainGroups;
-      artilleryTrainMountAnchors = mounted.artilleryTrainMountAnchors;
-      artilleryTrainIsAirDefense = mounted.artilleryTrainIsAirDefense;
-      mountTrainFireSectors = mounted.mountTrainFireSectors;
-      mountTrainBaseYawFromBow = mounted.mountTrainBaseYawFromBow;
-      aimLineMountAnchors = mounted.aimLineMountAnchors;
-      aimLineMountSlotIds = mounted.aimLineMountSlotIds;
-      aimLineMountFireSectors = mounted.aimLineMountFireSectors;
-      aimLineMountBaseYawFromBow = mounted.aimLineMountBaseYawFromBow;
+      rotatingMountTrains = mounted.rotatingMountTrains;
+      aimLineMounts = mounted.aimLineMounts;
     }
     const hvScale = hullProfile?.hullVisualScale ?? 1;
     if (Math.abs(hvScale - 1) > 1e-6) {
       hullModel.scale.multiplyScalar(hvScale);
     }
+    hullModelBaseUniformScale = hullModel.scale.x;
     group.add(hullModel);
     hull.visible = false;
   } else {
@@ -556,7 +550,7 @@ export function createShipVisual(options: {
 
   const aimOpacity = options.isLocal ? 0.95 : 0.88;
   const aimLineGroup = new THREE.Group();
-  const aimLineCount = Math.max(aimLineMountAnchors.length, 1);
+  const aimLineCount = Math.max(aimLineMounts.length, 1);
   for (let i = 0; i < aimLineCount; i++) {
     const aimDebugGeom = new THREE.BufferGeometry().setFromPoints([
       new THREE.Vector3(0, 0, 0),
@@ -576,10 +570,28 @@ export function createShipVisual(options: {
     aimLineGroup.add(aimDebugLine);
   }
   assignToOverlayLayer(aimLineGroup);
+  aimLineGroup.visible = getShipDebugTuning().showMountAimLines;
   group.add(aimLineGroup);
 
-  // Feuersektor-Overlay bewusst deaktiviert.
-  const weaponGuideGroup: THREE.Group | null = null;
+  let weaponGuideGroup: THREE.Group | null = null;
+  if (options.isLocal) {
+    const userTuning = getShipDebugTuning();
+    const spriteScaleForGuide =
+      hullProfile?.clientVisualTuningDefaults?.spriteScale ?? userTuning.spriteScale;
+    const hullModelUniformScale = hullModelBaseUniformScale * spriteScaleForGuide;
+    weaponGuideGroup = createLocalPlayerWeaponGuideOverlay({
+      shipGroup: group,
+      hullModel,
+      hullScale: prof.hullScale,
+      hullModelUniformScale,
+      artilleryArcHalfAngleRad: prof.artilleryArcHalfAngleRad,
+      hullProfile: hullProfile ?? undefined,
+      mountEntries:
+        hullModel && rotatingMountTrains.length > 0
+          ? rotatingMountTrains.map((t) => t.weaponGuide)
+          : null,
+    });
+  }
 
   let rangeRingsGroup: THREE.Group | null = null;
   if (options.isLocal) {
@@ -615,19 +627,13 @@ export function createShipVisual(options: {
     hullGltfBaseZ,
     hullGltfMaterials,
     mountGltfMaterials,
-    artilleryTrainGroups,
-    artilleryTrainMountAnchors,
-    artilleryTrainIsAirDefense,
-    mountTrainFireSectors,
-    mountTrainBaseYawFromBow,
-    aimLineMountAnchors,
-    aimLineMountSlotIds,
-    aimLineMountFireSectors,
-    aimLineMountBaseYawFromBow,
+    rotatingMountTrains,
+    aimLineMounts,
     weaponGuideGroup,
     rangeRingsGroup,
     hitboxLogicalGroup,
     shipHullScale: prof.hullScale,
+    hullModelBaseUniformScale,
   };
   applyShipVisualRuntimeTuning(vis);
   return vis;
@@ -656,7 +662,7 @@ export type ArtilleryTrainAimOptions = {
 
 /**
  * Bug-relativer Mittelpunkt des LW-Feuersektors — **Nullstellung** (Profil: `fireSector.centerYawRadFromBow`,
- * sonst Socket-Heuristik `mountTrainBaseYawFromBow` / Z hinter Mittschiff ≈ π).
+ * sonst Socket-Heuristik `baseYawFromBow` am Mount / Z hinter Mittschiff ≈ π).
  */
 function neutralBowYawRadForAawMount(
   sector: MountFireSector | undefined,
@@ -716,17 +722,12 @@ export function updateArtilleryTrainRotationsFromAim(
   aimSimZ: number,
   aimOptions?: ArtilleryTrainAimOptions,
 ): void {
-  const trains = vis.artilleryTrainGroups;
-  const anchors = vis.artilleryTrainMountAnchors;
-  const aaw = vis.artilleryTrainIsAirDefense;
-  const sectors = vis.mountTrainFireSectors;
-  const bases = vis.mountTrainBaseYawFromBow;
-  for (let i = 0; i < trains.length; i++) {
-    const train = trains[i];
-    const anchor = anchors[i];
+  for (const m of vis.rotatingMountTrains) {
+    const { train, anchor, isAirDefense, baseYawFromBow, weaponGuide } = m;
+    const sector = weaponGuide.sector;
     if (!train || !anchor) continue;
 
-    if (aaw[i] !== true) {
+    if (!isAirDefense) {
       setTrainRotationTowardSimAim(train, anchor, aimSimX, aimSimZ);
       continue;
     }
@@ -740,8 +741,7 @@ export function updateArtilleryTrainRotationsFromAim(
         aimOptions.missileSim.z,
       );
       if (relRaw !== null) {
-        const sector = sectors[i];
-        const relC = sector ? clampYawToMountSector(relRaw, sector) : relRaw;
+        const relC = clampYawToMountSector(relRaw, sector);
         const f = forwardXZ(aimOptions.shipHeadingRad);
         const base = Math.atan2(f.x, f.z);
         const ang = base + relC;
@@ -756,8 +756,8 @@ export function updateArtilleryTrainRotationsFromAim(
       setAawTrainNeutralTowardSectorCenter(
         train,
         anchor,
-        sectors[i],
-        bases[i] ?? 0,
+        sector,
+        baseYawFromBow,
         aimOptions.shipSimX,
         aimOptions.shipSimZ,
         aimOptions.shipHeadingRad,
@@ -780,8 +780,16 @@ export function updateAimMountToTargetDebugLine(
   aimSimX: number,
   aimSimZ: number,
 ): string[] {
+  if (!getShipDebugTuning().showMountAimLines) {
+    for (let i = 0; i < vis.aimLine.children.length; i++) {
+      const line = vis.aimLine.children[i] as THREE.Line | undefined;
+      if (line) line.visible = false;
+    }
+    return [];
+  }
+
   const debug: string[] = [];
-  const anchors = vis.aimLineMountAnchors;
+  const mounts = vis.aimLineMounts;
   _aimMountWorldB.set(worldToRenderX(aimSimX), 0, aimSimZ);
   const g = vis.group;
   g.worldToLocal(_aimMountWorldB);
@@ -792,7 +800,7 @@ export function updateAimMountToTargetDebugLine(
   for (let i = 0; i < vis.aimLine.children.length; i++) {
     const line = vis.aimLine.children[i] as THREE.Line | undefined;
     if (!line?.geometry) continue;
-    const anchor = anchors[i];
+    const anchor = mounts[i]?.anchor;
     if (!anchor) {
       line.visible = false;
       debug.push(`M${i}: no-anchor`);
@@ -807,7 +815,7 @@ export function updateAimMountToTargetDebugLine(
     line.geometry.computeBoundingSphere();
     const mat = line.material as THREE.LineBasicMaterial | undefined;
     if (mat) {
-      const slotId = vis.aimLineMountSlotIds[i] ?? `#${i}`;
+      const slotId = vis.aimLineMounts[i]?.slotId ?? `#${i}`;
       const sector = resolveAimLineSectorForIndex(vis, i);
       const aimYaw = aimDirectionYawFromBowRad(
         shipSimX,

@@ -12,12 +12,14 @@
   },
   "scripts": {
     "build": "esbuild src/index.ts --bundle --packages=external --platform=node --format=esm --outfile=dist/index.js",
-    "prepare": "npm run build"
+    "prepare": "npm run build",
+    "test": "node scripts/run-tests.mjs"
   },
   "dependencies": {
     "@colyseus/schema": "^2.0.37"
   },
   "devDependencies": {
-    "esbuild": "^0.25.0"
+    "esbuild": "^0.25.0",
+    "tsx": "^4.19.3"
   }
 }

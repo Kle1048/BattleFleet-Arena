@@ -2,7 +2,7 @@ import {
   SHIP_CLASS_CRUISER,
   SHIP_CLASS_DESTROYER,
   SHIP_CLASS_FAC,
-  getShipHullProfileByClass,
+  getAuthoritativeShipHullProfile,
   mergeShipHullVisualProfile,
   normalizeShipClassId,
   type ShipClassId,
@@ -15,10 +15,10 @@ const STORAGE_HITBOX = "battlefleet_show_ship_hitbox";
 
 export type HullProfilePatchMap = Partial<Record<ShipClassId, Partial<ShipHullVisualProfile>>>;
 
-/** Vermeidet pro Frame localStorage + JSON.parse (Hot Path: `getShipDebugTuningForVisualClass` × Spieler). */
+/** Vermeidet pro Frame localStorage + JSON.parse (Hot Path: `getEffectiveHullProfile` im Editor). */
 let hullProfilePatchCache: HullProfilePatchMap | null = null;
 
-/** Gemergte Profile pro Klasse — ungültig bei Patch-Änderung. */
+/** Gemergte Profile pro Klasse — nur für `getEffectiveHullProfile` (Editor/Vorschau). */
 const effectiveHullProfileByClass = new Map<ShipClassId, ShipHullVisualProfile>();
 
 /**
@@ -26,6 +26,13 @@ const effectiveHullProfileByClass = new Map<ShipClassId, ShipHullVisualProfile>(
  * Überschreibt `getEffectiveHullProfile` bis `setHullProfileWorkbenchLivePreview(…, null)` oder Seitenende.
  */
 const workbenchLivePreviewByClass = new Map<ShipClassId, ShipHullVisualProfile>();
+
+/**
+ * **Multiplayer / Spiel:** `getAuthoritativeShipHullProfile` — kein localStorage, keine Workbench-Vorschau.
+ */
+export function getAuthoritativeHullProfile(shipClass: unknown): ShipHullVisualProfile | undefined {
+  return getAuthoritativeShipHullProfile(shipClass);
+}
 
 export function setHullProfileWorkbenchLivePreview(
   shipClass: ShipClassId,
@@ -63,6 +70,10 @@ export function saveHullProfilePatch(map: HullProfilePatchMap): void {
   effectiveHullProfileByClass.clear();
 }
 
+/**
+ * Entwurf nur für **Profil-Editor** (localStorage). Wirkt **nicht** im laufenden Spiel —
+ * dort gilt ausschließlich `getAuthoritativeHullProfile`.
+ */
 export function setHullProfilePatchForClass(
   shipClass: ShipClassId,
   patch: Partial<ShipHullVisualProfile> | null,
@@ -76,9 +87,12 @@ export function setHullProfilePatchForClass(
   saveHullProfilePatch(all);
 }
 
-/** Basis-JSON + optionaler Client-Patch (localStorage). Gecacht — bei Patch-Änderung siehe `saveHullProfilePatch`. */
+/**
+ * **Nur Editor / Workbench / Profil-Panel:** Basis-JSON + localStorage-Entwurf + Live-Vorschau.
+ * Nicht für Match-Rendering oder Gameplay-Hilfen verwenden — siehe `getAuthoritativeHullProfile`.
+ */
 export function getEffectiveHullProfile(shipClass: unknown): ShipHullVisualProfile | undefined {
-  const base = getShipHullProfileByClass(shipClass);
+  const base = getAuthoritativeShipHullProfile(shipClass);
   if (!base) return undefined;
   const id = normalizeShipClassId(shipClass);
   const live = workbenchLivePreviewByClass.get(id);
@@ -93,7 +107,15 @@ export function getEffectiveHullProfile(shipClass: unknown): ShipHullVisualProfi
   return merged;
 }
 
+/** Spiel & Server: Rumpf-URL aus gebündeltem Profil (ohne Client-Patch). */
 export function resolveShipHullGltfUrlForClass(shipClass: ShipClassId): string {
+  const p = getAuthoritativeHullProfile(shipClass);
+  const id = p?.hullGltfId ?? "s143a";
+  return resolveShipHullGltfUrl(id);
+}
+
+/** Workbench: `hullGltfId` inkl. Editor-Patch/Vorschau. */
+export function resolveShipHullGltfUrlForWorkbenchPreview(shipClass: ShipClassId): string {
   const p = getEffectiveHullProfile(shipClass);
   const id = p?.hullGltfId ?? "s143a";
   return resolveShipHullGltfUrl(id);

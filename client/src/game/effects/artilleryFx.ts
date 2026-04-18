@@ -4,6 +4,8 @@ import { createArtilleryShellMaterial } from "../runtime/materialLibrary";
 import { worldToRenderX } from "../runtime/renderCoords";
 import type { FxSystem } from "./fxSystem";
 
+export type ArtilleryMuzzleSeekCoords = { x: number; y: number; z: number };
+
 export type ArtyFiredMsg = {
   shellId: number;
   ownerId: string;
@@ -52,9 +54,12 @@ export function createArtilleryFx(scene: THREE.Scene, fx: FxSystem): {
   onFired: (msg: ArtyFiredMsg) => void;
   onImpact: (msg: ArtyImpactMsg, options?: ArtyImpactOptions) => void;
   getStats: () => { activeShells: number };
+  /** Nach `createVisualRuntime`: Mündung aus Mount-GLB (`bf_muzzle`), sonst Fallback Socket-XZ. */
+  setMuzzleSeekResolver: (fn: ((ownerId: string) => ArtilleryMuzzleSeekCoords | null) | null) => void;
 } & GameRenderer<never> {
   const flying: FlyingShell[] = [];
   const shellMat = createArtilleryShellMaterial();
+  let resolveMuzzleSeek: ((ownerId: string) => ArtilleryMuzzleSeekCoords | null) | null = null;
 
   function removeShellById(shellId: number): void {
     const idx = flying.findIndex((f) => f.shellId === shellId);
@@ -105,12 +110,18 @@ export function createArtilleryFx(scene: THREE.Scene, fx: FxSystem): {
     getStats() {
       return { activeShells: flying.length };
     },
+    setMuzzleSeekResolver(fn) {
+      resolveMuzzleSeek = fn;
+    },
     onFired(msg: ArtyFiredMsg): void {
       const dx = msg.toX - msg.fromX;
       const dz = msg.toZ - msg.fromZ;
       const len = Math.hypot(dx, dz);
       const headingRad = len > 1e-6 ? Math.atan2(dx, dz) : 0;
-      fx.spawnArtilleryMuzzle(msg.fromX, msg.fromZ, headingRad);
+      const muzzle = resolveMuzzleSeek?.(msg.ownerId);
+      const mx = muzzle ? muzzle.x : msg.fromX;
+      const mz = muzzle ? muzzle.z : msg.fromZ;
+      fx.spawnArtilleryMuzzle(mx, mz, headingRad, muzzle?.y);
 
       const r = 1.75;
       /** Wenige Flächen — reicht für kleinen Tracer, günstiger als Kugel-Mesh. */

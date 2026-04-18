@@ -29,6 +29,8 @@ export const SoundFiles = {
   weaponHit: "weapon_hit.wav",
   /** Große Detonation: Schiffszerstörung. */
   explosion: "explosion.wav",
+  /** ECM / Düppel — Softkill-Versuch (optional WAV). */
+  softkillChaff: "softkill_chaff.wav",
 } as const;
 
 export type SoundId = keyof typeof SoundFiles;
@@ -49,6 +51,7 @@ export const SoundUrls: Record<SoundId, string> = {
   airDefenseCiwsIntercept: `${BASE}${SoundFiles.airDefenseCiwsIntercept}`,
   weaponHit: `${BASE}${SoundFiles.weaponHit}`,
   explosion: `${BASE}${SoundFiles.explosion}`,
+  softkillChaff: `${BASE}${SoundFiles.softkillChaff}`,
 };
 
 /** Welche logischen Sounds es gibt (für Preload / Debug). */
@@ -68,4 +71,5 @@ export const ALL_SOUND_IDS: readonly SoundId[] = [
   "airDefenseCiwsIntercept",
   "weaponHit",
   "explosion",
+  "softkillChaff",
 ];

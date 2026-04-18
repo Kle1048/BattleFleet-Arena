@@ -7,7 +7,7 @@ import {
   SHIP_CLASS_CRUISER,
   SHIP_CLASS_DESTROYER,
   SHIP_CLASS_FAC,
-  getShipHullProfileByClass,
+  getAuthoritativeShipHullProfile,
   parseDefaultLoadoutJson,
   parseFixedSeaSkimmerLaunchersJson,
   parseMountSlotsJson,
@@ -317,7 +317,7 @@ export function createShipProfileEditorPanel(
           <label class="ship-editor-field"><span>hullGltfId</span>
             <select data-field="hullGltfId" class="ship-editor-input">${hullOptions}</select></label>
           <label class="ship-editor-field"><span>hullVisualScale</span>
-            <input type="range" data-field="hullVisualScale" min="0.25" max="3" step="0.05" value="1" class="ship-editor-range" />
+            <input type="range" data-field="hullVisualScale" min="0.001" max="3" step="0.0001" value="1" class="ship-editor-range" />
             <span class="ship-editor-range-val" data-range-for="hullVisualScale">1</span></label>
         </div>
         <div class="ship-editor-tab-panel" data-tab-panel="movement" role="tabpanel" hidden>
@@ -515,7 +515,7 @@ export function createShipProfileEditorPanel(
       if (action === "save") {
         try {
           const profile = readFullProfile(root);
-          if (!getShipHullProfileByClass(profile.shipClassId)) {
+          if (!getAuthoritativeShipHullProfile(profile.shipClassId)) {
             window.alert("Unbekannte shipClassId.");
             return;
           }
@@ -560,7 +560,7 @@ export function createShipProfileEditorPanel(
         reader.onload = () => {
           try {
             const data = JSON.parse(String(reader.result)) as ShipHullVisualProfile;
-            if (!data.shipClassId || !getShipHullProfileByClass(data.shipClassId)) {
+            if (!data.shipClassId || !getAuthoritativeShipHullProfile(data.shipClassId)) {
               throw new Error("Ungültige oder unbekannte shipClassId");
             }
             setHullProfilePatchForClass(data.shipClassId, data);

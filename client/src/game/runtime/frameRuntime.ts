@@ -1,13 +1,13 @@
 import type { ArraySchema } from "@colyseus/schema";
 import type * as THREE from "three";
 import {
+  FEATURE_MINES_ENABLED,
   pickThreatMissilePositionForDefender,
   PlayerLifeState,
   PROGRESSION_MAX_LEVEL,
   SPEED_FEEL_FACTOR,
   getShipClassProfile,
   getAswmMagazineFromProfile,
-  getShipHullProfileByClass,
   normalizeShipClassId,
   progressionMovementScale,
   progressionNavalRankEn,
@@ -24,6 +24,7 @@ import {
   type ArtilleryTrainAimOptions,
   type ShipVisual,
 } from "../scene/shipVisual";
+import { getAuthoritativeHullProfile } from "./shipProfileRuntime";
 import {
   DEFAULT_INTERPOLATION_DELAY_MS,
   createInterpolationBuffer,
@@ -364,10 +365,10 @@ export function runFrameRuntimeStep<
       shipLineHeadingRad = r.headingRad;
     }
 
-    const layered =
-      typeof p.adHardkillCommitRemainingSec === "number" && p.adHardkillCommitRemainingSec > 0;
+    /** LW-Mounts zur Rakete: solange Server „incoming“ meldet — unabhängig vom E-Hardkill-Fenster. */
+    const layered = typeof p.adHudIncomingAswm === "number" && p.adHudIncomingAswm > 0;
     let aimOpts: ArtilleryTrainAimOptions | undefined;
-    if (vis.artilleryTrainIsAirDefense.some(Boolean)) {
+    if (vis.rotatingMountTrains.some((t) => t.isAirDefense)) {
       let missileSim: { x: number; z: number } | null = null;
       if (layered && missileList && missileList.length > 0) {
         const missileSnaps: AirDefenseMissileSnapshot[] = [];
@@ -442,7 +443,7 @@ export function runFrameRuntimeStep<
           aimZ: inputSample.aimWorldZ,
           primaryFire: inputSample.primaryFire,
           secondaryFire: inputSample.secondaryFire,
-          torpedoFire: inputSample.torpedoFire,
+          torpedoFire: FEATURE_MINES_ENABLED && inputSample.torpedoFire,
           mineSpawnLocalZ: tuningNow.mineSpawnLocalZ,
           radarActive: inputSample.radarActive,
           airDefenseEngage: inputSample.airDefenseEngage,
@@ -505,7 +506,7 @@ export function runFrameRuntimeStep<
       }
 
       const shipClassId = normalizeShipClassId(me.shipClass) as ShipClassId;
-      const hullVis = getShipHullProfileByClass(shipClassId);
+      const hullVis = getAuthoritativeHullProfile(shipClassId);
       const magCaps = getAswmMagazineFromProfile(hullVis, shipClassId);
       const aswmMagPortCap = magCaps.port;
       const aswmMagStarboardCap = magCaps.starboard;

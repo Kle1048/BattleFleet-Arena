@@ -6,9 +6,7 @@ import { worldToRenderX } from "../runtime/renderCoords";
  * sonst sind FK/Tracer nur wenige Pixel groß.
  */
 const FLIGHT_Y = 16;
-const SAM_FLIGHT_MS = 720;
-/** Zweite SAM startet nach dieser Verzögerung am selben Startpunkt. */
-const SAM_STAGGER_MS = 95;
+const SAM_FLIGHT_MS = 780;
 const SAM_CONE_R = 3.2;
 const SAM_CONE_H = 22;
 
@@ -102,6 +100,18 @@ function buildSamInterceptMissile(): THREE.Group {
   return group;
 }
 
+/** Quadratische Bézier — Punkt t∈[0,1]. */
+function bezierQuad1D(p0: number, p1: number, p2: number, t: number): number {
+  const o = 1 - t;
+  return o * o * p0 + 2 * o * t * p1 + t * t * p2;
+}
+
+/** Ableitung d/dt (für Fluglage tangential zur Bahn). */
+function bezierQuadDeriv1D(p0: number, p1: number, p2: number, t: number): number {
+  const o = 1 - t;
+  return 2 * o * (p1 - p0) + 2 * t * (p2 - p1);
+}
+
 function playSamIntercept(
   scene: THREE.Scene,
   fromX: number,
@@ -109,6 +119,7 @@ function playSamIntercept(
   toX: number,
   toZ: number,
   withEndBurst: boolean,
+  launchY: number = FLIGHT_Y,
 ): void {
   const dx = toX - fromX;
   const dz = toZ - fromZ;
@@ -119,23 +130,47 @@ function playSamIntercept(
     }
     return;
   }
-  const h = headingRadFromDelta(dx, dz);
 
-  const easeOut = (u: number): number => 1 - (1 - u) * (1 - u);
+  const sx = fromX;
+  const sz = fromZ;
+  const ex = toX;
+  const ez = toZ;
+  const sy = launchY;
+  const ey = launchY;
+
+  /** Hundekurve: Kontrollpunkt seitlich zur Streckenmitte + leichte Höhe. */
+  const mx = (sx + ex) * 0.5;
+  const mz = (sz + ez) * 0.5;
+  const perpX = -dz / len;
+  const perpZ = dx / len;
+  const bend = len * randRange(0.12, 0.22);
+  const side = Math.random() < 0.5 ? -1 : 1;
+  const cx = mx + perpX * bend * side;
+  const cz = mz + perpZ * bend * side;
+  const cy = launchY + Math.min(10, len * 0.055);
+
+  const easeFlight = (u: number): number =>
+    u < 0.5 ? 4 * u * u * u : 1 - Math.pow(-2 * u + 2, 3) / 2;
 
   const runFlight = (group: THREE.Group, tStart: number): void => {
     const step = (): void => {
       const u = Math.min(1, (performance.now() - tStart) / SAM_FLIGHT_MS);
-      const e = easeOut(u);
-      group.position.set(
-        fromX + (toX - fromX) * e,
-        FLIGHT_Y,
-        fromZ + (toZ - fromZ) * e,
-      );
+      const t = easeFlight(u);
+      const px = bezierQuad1D(sx, cx, ex, t);
+      const py = bezierQuad1D(sy, cy, ey, t);
+      const pz = bezierQuad1D(sz, cz, ez, t);
+      group.position.set(px, py, pz);
+
+      const tx = bezierQuadDeriv1D(sx, cx, ex, t);
+      const tz = bezierQuadDeriv1D(sz, cz, ez, t);
+      const horiz = Math.hypot(tx, tz);
+      if (horiz > 1e-5) {
+        group.rotation.y = Math.atan2(tx, tz);
+      }
+
       if (u >= 1) {
-        remaining -= 1;
         disposeSamGroup(scene, group);
-        if (remaining <= 0 && withEndBurst) {
+        if (withEndBurst) {
           interceptRingFlash(scene, toX, toZ, 0x88c8ff, 6, 22);
         }
         return;
@@ -145,21 +180,21 @@ function playSamIntercept(
     requestAnimationFrame(step);
   };
 
-  let remaining = 2;
+  const g = buildSamInterceptMissile();
+  g.position.set(sx, sy, sz);
+  const tx0 = bezierQuadDeriv1D(sx, cx, ex, 0);
+  const tz0 = bezierQuadDeriv1D(sz, cz, ez, 0);
+  if (Math.hypot(tx0, tz0) > 1e-5) {
+    g.rotation.y = Math.atan2(tx0, tz0);
+  } else {
+    g.rotation.y = headingRadFromDelta(dx, dz);
+  }
+  scene.add(g);
+  runFlight(g, performance.now());
+}
 
-  const g1 = buildSamInterceptMissile();
-  g1.rotation.y = h;
-  g1.position.set(fromX, FLIGHT_Y, fromZ);
-  scene.add(g1);
-  runFlight(g1, performance.now());
-
-  window.setTimeout(() => {
-    const g2 = buildSamInterceptMissile();
-    g2.rotation.y = h;
-    g2.position.set(fromX, FLIGHT_Y, fromZ);
-    scene.add(g2);
-    runFlight(g2, performance.now());
-  }, SAM_STAGGER_MS);
+function randRange(min: number, max: number): number {
+  return min + Math.random() * (max - min);
 }
 
 function playCiwsIntercept(
@@ -246,7 +281,10 @@ function playCiwsIntercept(
   }
 }
 
-/** Server `airDefenseFire`: nur ausgehende FK / Tracer — **ohne** Einschlag-Ring. */
+/**
+ * Server `airDefenseFire`: nur ausgehende FK / Tracer — **ohne** Einschlag-Ring.
+ * `pdLaunchY`: optional Mündungs-Höhe (Three.js) für PDMS; sonst fester `FLIGHT_Y` wie SAM.
+ */
 export function playAirDefenseFire(
   scene: THREE.Scene,
   layer: "sam" | "pd" | "ciws",
@@ -254,12 +292,15 @@ export function playAirDefenseFire(
   fromZ: number,
   toX: number,
   toZ: number,
+  pdLaunchY?: number,
 ): void {
   try {
     const rx0 = worldToRenderX(fromX);
     const rx1 = worldToRenderX(toX);
     if (layer === "sam" || layer === "pd") {
-      playSamIntercept(scene, rx0, fromZ, rx1, toZ, false);
+      const y =
+        layer === "pd" && Number.isFinite(pdLaunchY) ? (pdLaunchY as number) : FLIGHT_Y;
+      playSamIntercept(scene, rx0, fromZ, rx1, toZ, false, y);
     } else {
       playCiwsIntercept(scene, rx0, fromZ, rx1, toZ, false);
     }

@@ -66,6 +66,43 @@ export function minDistSqPointToShipHitboxFootprintXZ(
 /**
  * Kreis um (`cx`,`cz`) mit Radius `r` schneidet die Hitbox-Fußfläche (in XZ).
  */
+/**
+ * Welt-XZ-Mittelpunkt der Hitbox-Fußfläche und Umkreisradius (alle Ecken der AABB liegen auf oder innerhalb).
+ * `shipX`/`shipZ` müssen zum gleichen Bezugspunkt gehören wie die Hitbox-Daten (z. B. Modell-Ursprung unter `ShipVisual.group`, nicht zwingend Simulations-Drehpunkt).
+ */
+export function shipHitboxFootprintCircumcircleWorldXZ(
+  shipX: number,
+  shipZ: number,
+  headingRad: number,
+  hitbox: ShipCollisionHitbox | null | undefined,
+): { cx: number; cz: number; radius: number } {
+  if (!hitbox) {
+    return { cx: shipX, cz: shipZ, radius: 36 };
+  }
+  const bx = hitbox.center.x;
+  const bz = hitbox.center.z;
+  const hx = Math.max(0, hitbox.halfExtents.x);
+  const hz = Math.max(0, hitbox.halfExtents.z);
+  const cW = shipLocalDeltaToWorldXZ(bx, bz, headingRad);
+  const cx = shipX + cW.ox;
+  const cz = shipZ + cW.oz;
+  const corners: [number, number][] = [
+    [bx - hx, bz - hz],
+    [bx + hx, bz - hz],
+    [bx - hx, bz + hz],
+    [bx + hx, bz + hz],
+  ];
+  let maxR = 0;
+  for (const [lx, lz] of corners) {
+    const w = shipLocalDeltaToWorldXZ(lx, lz, headingRad);
+    const wx = shipX + w.ox;
+    const wz = shipZ + w.oz;
+    maxR = Math.max(maxR, Math.hypot(wx - cx, wz - cz));
+  }
+  const margin = 1.06;
+  return { cx, cz, radius: maxR * margin };
+}
+
 export function circleIntersectsShipHitboxFootprintXZ(
   cx: number,
   cz: number,

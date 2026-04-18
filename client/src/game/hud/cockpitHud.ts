@@ -2,7 +2,8 @@
  * HUD: **Brücke** (links, Navigation) und **OPZ** (rechts, Radar + Waffen + HP).
  */
 
-import { getShipHullProfileByClass, type ShipClassId } from "@battlefleet/shared";
+import { FEATURE_MINES_ENABLED, type ShipClassId } from "@battlefleet/shared";
+import { getAuthoritativeHullProfile } from "../runtime/shipProfileRuntime";
 import { RADAR_RANGE_WORLD, type RadarBlipNorm } from "./radarHudMath";
 import { cockpitRadarBlipsKey, cockpitRadarEsmKey, type CockpitEsmLine } from "./cockpitRadarKeys";
 import { renderWeaponSchematic } from "./weaponSchematicMini";
@@ -239,7 +240,7 @@ export function createCockpitHud(): { update: (u: CockpitHudUpdate) => void } {
               <div class="cockpit-aswm-dots cockpit-aswm-dots-starboard"></div>
             </div>
           </div>
-          <div class="cockpit-row">
+          <div class="cockpit-row cockpit-row-mines">
             <span class="cockpit-label">Minen</span>
             <span class="cockpit-torpedo-cd">—</span>
           </div>
@@ -298,6 +299,8 @@ export function createCockpitHud(): { update: (u: CockpitHudUpdate) => void } {
   const primaryCdEl = wrap.querySelector(".cockpit-primary-cd") as HTMLElement;
   const secondaryCdEl = wrap.querySelector(".cockpit-secondary-cd") as HTMLElement;
   const torpedoCdEl = wrap.querySelector(".cockpit-torpedo-cd") as HTMLElement;
+  const minesRow = wrap.querySelector(".cockpit-row-mines") as HTMLElement;
+  minesRow.hidden = !FEATURE_MINES_ENABLED;
   const lifeRow = wrap.querySelector(".cockpit-row-life") as HTMLElement;
   const lifeStatusEl = wrap.querySelector(".cockpit-life-status") as HTMLElement;
   const matchTimeEl = wrap.querySelector(".cockpit-match-time") as HTMLElement;
@@ -516,18 +519,20 @@ export function createCockpitHud(): { update: (u: CockpitHudUpdate) => void } {
         secondaryCdEl.style.opacity = "0.55";
       }
 
-      if (torpedoCooldownSec > 0.05) {
-        torpedoCdEl.textContent = `${torpedoCooldownSec.toFixed(1)} s`;
-        torpedoCdEl.style.opacity = "0.9";
-        torpedoCdEl.style.color = "";
-      } else if (mineCount >= mineMaxCount) {
-        torpedoCdEl.textContent = "MAX";
-        torpedoCdEl.style.opacity = "1";
-        torpedoCdEl.style.color = "#ff6b6b";
-      } else {
-        torpedoCdEl.textContent = "bereit";
-        torpedoCdEl.style.opacity = "0.55";
-        torpedoCdEl.style.color = "";
+      if (FEATURE_MINES_ENABLED) {
+        if (torpedoCooldownSec > 0.05) {
+          torpedoCdEl.textContent = `${torpedoCooldownSec.toFixed(1)} s`;
+          torpedoCdEl.style.opacity = "0.9";
+          torpedoCdEl.style.color = "";
+        } else if (mineCount >= mineMaxCount) {
+          torpedoCdEl.textContent = "MAX";
+          torpedoCdEl.style.opacity = "1";
+          torpedoCdEl.style.color = "#ff6b6b";
+        } else {
+          torpedoCdEl.textContent = "bereit";
+          torpedoCdEl.style.opacity = "0.55";
+          torpedoCdEl.style.color = "";
+        }
       }
 
       if (respawnCountdownSec > 0.05) {
@@ -555,7 +560,7 @@ export function createCockpitHud(): { update: (u: CockpitHudUpdate) => void } {
       fillAswmMagRow(aswmDotsPort, aswmMagPortCap, aswmRemainingPort);
       fillAswmMagRow(aswmDotsStarboard, aswmMagStarboardCap, aswmRemainingStarboard);
 
-      const prof = getShipHullProfileByClass(shipClassId);
+      const prof = getAuthoritativeHullProfile(shipClassId);
       const sk = `${shipClassId}:${mainMountTrainRad.toFixed(3)}`;
       if (sk !== lastSchematicKey) {
         lastSchematicKey = sk;
