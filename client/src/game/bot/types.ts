@@ -6,7 +6,8 @@ export type BotIntent =
   | "TAKE_COVER"
   | "RETREAT"
   | "EVADE_MISSILES"
-  | "FINISH_TARGET";
+  | "FINISH_TARGET"
+  | "SEEK_SEA_CONTROL";
 
 export type BotInputCommand = {
   throttle: number;
@@ -25,12 +26,16 @@ export type BotVisiblePlayer = {
   x: number;
   z: number;
   headingRad: number;
+  /** Replizierte Schiffsklasse — für ASuM-Rail-Winkel / Bot. */
+  shipClass: string;
   hp: number;
   maxHp: number;
   lifeState: string;
   primaryCooldownSec: number;
   secondaryCooldownSec: number;
   torpedoCooldownSec: number;
+  /** Server: Anzahl eingehender ASuM (gleiche Quelle wie HUD „Vampire incoming“). */
+  adHudIncomingAswm: number;
 };
 
 export type BotVisibleMissile = { missileId: number; ownerId: string; x: number; z: number };
@@ -49,8 +54,12 @@ export type TacticalContext = {
   aggressionScore: number;
   survivalScore: number;
   bestTargetId: string | null;
+  /** Quadrat-Distanz zum gewählten Ziel (nur wenn `bestTargetId` gesetzt). */
+  bestTargetDistSq: number | null;
   targetInGunArc: boolean;
   targetInMissileArc: boolean;
+  /** Eigenes Schiff in der Sea-Control-Zone (passives XP). */
+  selfInSeaControlZone: boolean;
   incomingMissileThreat: boolean;
   incomingMissileCount: number;
   preferredRange: "close" | "medium" | "long";

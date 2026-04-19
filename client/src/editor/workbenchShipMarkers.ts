@@ -8,9 +8,11 @@ import type {
   FixedSeaSkimmerLauncherSpec,
   MountFireSector,
   MountSlotDefinition,
+  PrimitiveMountFireSector,
   ShipHullVisualProfile,
 } from "@battlefleet/shared";
 import {
+  flattenMountFireSectorUnions,
   getShipClassProfile,
   inferMountTrainBaseYawFromBow,
   resolveEffectiveMountFireSector,
@@ -129,6 +131,22 @@ function effectiveSectorCenterYaw(slot: MountSlotDefinition, sector: MountFireSe
   if (sector.kind === "symmetric") {
     return sector.centerYawRadFromBow ?? inferMountTrainBaseYawFromBow(slot);
   }
+  if (sector.kind === "union") {
+    const flat = flattenMountFireSectorUnions(sector);
+    if (flat.length === 0) return inferMountTrainBaseYawFromBow(slot);
+    let sx = 0;
+    let sz = 0;
+    for (const p of flat) {
+      const cy =
+        p.kind === "symmetric"
+          ? p.centerYawRadFromBow ?? inferMountTrainBaseYawFromBow(slot)
+          : wrapPi((p.minYawRadFromBow + p.maxYawRadFromBow) * 0.5);
+      sx += Math.sin(cy);
+      sz += Math.cos(cy);
+    }
+    const n = flat.length;
+    return Math.atan2(sx / n, sz / n);
+  }
   return wrapPi((sector.minYawRadFromBow + sector.maxYawRadFromBow) * 0.5);
 }
 
@@ -148,6 +166,67 @@ function makeHorizontalLine(
   const line = new THREE.Line(geom, mat);
   line.renderOrder = 7;
   return line;
+}
+
+/** Ein symmetrischer oder asymmetrischer Teilsektor — Drahtrahmen in die Socket-Gruppe. */
+function addWorkbenchPrimitiveSectorArc(
+  g: THREE.Group,
+  slot: MountSlotDefinition,
+  sector: PrimitiveMountFireSector,
+  rayLen: number,
+  R: number,
+): void {
+  if (sector.kind === "symmetric") {
+    const c = sector.centerYawRadFromBow ?? inferMountTrainBaseYawFromBow(slot);
+    const h = sector.halfAngleRadFromBow;
+    const a0 = c - h;
+    const a1 = c + h;
+    const arcPts: THREE.Vector3[] = [];
+    for (let i = 0; i <= MOUNT_SECTOR_ARC_SEGMENTS; i++) {
+      const t = i / MOUNT_SECTOR_ARC_SEGMENTS;
+      const ang = a0 + t * (a1 - a0);
+      const d = bowDirXZ(ang);
+      arcPts.push(d.clone().multiplyScalar(R));
+    }
+    const arcGeom = new THREE.BufferGeometry().setFromPoints(arcPts);
+    const arcMat = new THREE.LineBasicMaterial({
+      color: COLOR_MOUNT_SECTOR,
+      depthTest: true,
+      transparent: true,
+      opacity: 0.88,
+    });
+    const arc = new THREE.Line(arcGeom, arcMat);
+    arc.renderOrder = 7;
+    g.add(arc);
+
+    const d0 = bowDirXZ(a0);
+    const d1 = bowDirXZ(a1);
+    g.add(makeHorizontalLine(new THREE.Vector3(0, 0, 0), d0.clone().multiplyScalar(rayLen), COLOR_MOUNT_SECTOR, 0.85));
+    g.add(makeHorizontalLine(new THREE.Vector3(0, 0, 0), d1.clone().multiplyScalar(rayLen), COLOR_MOUNT_SECTOR, 0.85));
+    return;
+  }
+  const lo = sector.minYawRadFromBow;
+  const hi = sector.maxYawRadFromBow;
+  const dLo = bowDirXZ(lo);
+  const dHi = bowDirXZ(hi);
+  g.add(makeHorizontalLine(new THREE.Vector3(0, 0, 0), dLo.clone().multiplyScalar(rayLen), COLOR_MOUNT_SECTOR, 0.85));
+  g.add(makeHorizontalLine(new THREE.Vector3(0, 0, 0), dHi.clone().multiplyScalar(rayLen), COLOR_MOUNT_SECTOR, 0.85));
+  const arcPts: THREE.Vector3[] = [];
+  for (let i = 0; i <= MOUNT_SECTOR_ARC_SEGMENTS; i++) {
+    const t = i / MOUNT_SECTOR_ARC_SEGMENTS;
+    const ang = wrapPi(lo + t * wrapPi(hi - lo));
+    arcPts.push(bowDirXZ(ang).multiplyScalar(R));
+  }
+  const arcGeom = new THREE.BufferGeometry().setFromPoints(arcPts);
+  const arcMat = new THREE.LineBasicMaterial({
+    color: COLOR_MOUNT_SECTOR,
+    depthTest: true,
+    transparent: true,
+    opacity: 0.88,
+  });
+  const arc = new THREE.Line(arcGeom, arcMat);
+  arc.renderOrder = 7;
+  g.add(arc);
 }
 
 /**
@@ -179,56 +258,12 @@ function addMountCenterlineAndSector(
   const rayLen = MOUNT_SECTOR_ARC_RADIUS * 1.08;
   const R = MOUNT_SECTOR_ARC_RADIUS;
 
-  if (sector.kind === "symmetric") {
-    const c = sector.centerYawRadFromBow ?? inferMountTrainBaseYawFromBow(slot);
-    const h = sector.halfAngleRadFromBow;
-    const a0 = c - h;
-    const a1 = c + h;
-    const arcPts: THREE.Vector3[] = [];
-    for (let i = 0; i <= MOUNT_SECTOR_ARC_SEGMENTS; i++) {
-      const t = i / MOUNT_SECTOR_ARC_SEGMENTS;
-      const ang = a0 + t * (a1 - a0);
-      const d = bowDirXZ(ang);
-      arcPts.push(d.clone().multiplyScalar(R));
+  if (sector.kind === "union") {
+    for (const sub of flattenMountFireSectorUnions(sector)) {
+      addWorkbenchPrimitiveSectorArc(g, slot, sub, rayLen, R);
     }
-    const arcGeom = new THREE.BufferGeometry().setFromPoints(arcPts);
-    const arcMat = new THREE.LineBasicMaterial({
-      color: COLOR_MOUNT_SECTOR,
-      depthTest: true,
-      transparent: true,
-      opacity: 0.88,
-    });
-    const arc = new THREE.Line(arcGeom, arcMat);
-    arc.renderOrder = 7;
-    g.add(arc);
-
-    const d0 = bowDirXZ(a0);
-    const d1 = bowDirXZ(a1);
-    g.add(makeHorizontalLine(new THREE.Vector3(0, 0, 0), d0.clone().multiplyScalar(rayLen), COLOR_MOUNT_SECTOR, 0.85));
-    g.add(makeHorizontalLine(new THREE.Vector3(0, 0, 0), d1.clone().multiplyScalar(rayLen), COLOR_MOUNT_SECTOR, 0.85));
   } else {
-    const lo = sector.minYawRadFromBow;
-    const hi = sector.maxYawRadFromBow;
-    const dLo = bowDirXZ(lo);
-    const dHi = bowDirXZ(hi);
-    g.add(makeHorizontalLine(new THREE.Vector3(0, 0, 0), dLo.clone().multiplyScalar(rayLen), COLOR_MOUNT_SECTOR, 0.85));
-    g.add(makeHorizontalLine(new THREE.Vector3(0, 0, 0), dHi.clone().multiplyScalar(rayLen), COLOR_MOUNT_SECTOR, 0.85));
-    const arcPts: THREE.Vector3[] = [];
-    for (let i = 0; i <= MOUNT_SECTOR_ARC_SEGMENTS; i++) {
-      const t = i / MOUNT_SECTOR_ARC_SEGMENTS;
-      const ang = wrapPi(lo + t * wrapPi(hi - lo));
-      arcPts.push(bowDirXZ(ang).multiplyScalar(R));
-    }
-    const arcGeom = new THREE.BufferGeometry().setFromPoints(arcPts);
-    const arcMat = new THREE.LineBasicMaterial({
-      color: COLOR_MOUNT_SECTOR,
-      depthTest: true,
-      transparent: true,
-      opacity: 0.88,
-    });
-    const arc = new THREE.Line(arcGeom, arcMat);
-    arc.renderOrder = 7;
-    g.add(arc);
+    addWorkbenchPrimitiveSectorArc(g, slot, sector, rayLen, R);
   }
 
   hullMarkers.add(g);

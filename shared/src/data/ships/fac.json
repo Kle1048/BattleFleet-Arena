@@ -4,7 +4,7 @@
   "hullGltfId": "fac",
   "hullVisualScale": 0.00968,
   "clientVisualTuningDefaults": {
-    "gltfHullYOffset": -231,
+    "gltfHullYOffset": -365,
     "spriteScale": 1
   },
   "collisionHitbox": {
@@ -19,14 +19,18 @@
   },
   "defaultRotatingMountFireSector": {
     "kind": "symmetric",
-    "halfAngleRadFromBow": 2.0943951023931953
+    "halfAngleRadFromBow": 3.141592653589793
   },
   "mountSlots": [
     {
       "id": "main_fwd",
       "compatibleKinds": ["artillery"],
       "trainBaseYawRadFromBow": 0,
-      "defaultVisualId": "visual_artillery"
+      "defaultVisualId": "visual_artillery",
+      "fireSector": {
+        "kind": "symmetric",
+        "halfAngleRadFromBow": 2.0943951023931953
+      }
     },
     {
       "id": "ciws_aft",
@@ -34,7 +38,7 @@
       "trainBaseYawRadFromBow": 3.141592653589793,
       "fireSector": {
         "kind": "symmetric",
-        "halfAngleRadFromBow": 2.0943951023931953,
+        "halfAngleRadFromBow": 2.6179938779914944,
         "centerYawRadFromBow": 3.141592653589793
       },
       "defaultVisualId": "visual_pdms"

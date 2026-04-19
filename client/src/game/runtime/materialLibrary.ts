@@ -6,6 +6,8 @@ export const VisualColorTokens = {
   gridMajor: 0xf0f8ff,
   gridMinor: 0x6ab8e8,
   opsBorder: 0xff5522,
+  /** Sea-Control-Zone (Kartenmitte, hohes passives XP). */
+  seaControlBorder: 0x22cc66,
   islandSand: 0xc8b898,
   islandVegetation: 0x3d6b45,
   islandShore: 0xe0d4bc,

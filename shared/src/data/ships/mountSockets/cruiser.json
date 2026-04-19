@@ -5,14 +5,7 @@
   "ciws_fwd": {
     "position": { "x": 0, "y": 2.35, "z": 6 }
   },
-  "sam_fwd": {
-    "position": { "x": 0, "y": 2.1, "z": 1 }
-  },
-  "ssm_starboard": {
-    "position": { "x": 4.2, "y": 1.6, "z": 5 }
-  },
-  "torp_aft": {
-    "position": { "x": 0, "y": 1.35, "z": -13 },
-    "eulerRad": { "x": 0, "y": 3.141592653589793, "z": 0 }
+  "sam_aft": {
+    "position": { "x": 0, "y": 2.1, "z": -6 }
   }
 }

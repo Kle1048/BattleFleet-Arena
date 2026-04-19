@@ -6,7 +6,7 @@ export type ShipDebugTuning = {
   shipPivotLocalZ: number;
   cameraPivotLocalZ: number;
   mineSpawnLocalZ: number;
-  /** Zusatz zu `SHIP_STERN_Z` (Referenz-Heck); negativ = weiter achtern — siehe Wake. */
+  /** Zusatz zum Heck der Hitbox (min Z der AABB); negativ = weiter achtern — siehe Wake. */
   wakeSpawnLocalZ: number;
   /** Zusatz zu GLB-Rumpf-Y (negativ = tiefer ins Wasser / weniger „Schweben“). */
   gltfHullYOffset: number;
@@ -65,7 +65,8 @@ export function getShipDebugTuningForVisualClass(shipClassId: unknown): Readonly
       o.gltfHullYOffset === undefined &&
       o.gltfHullOffsetX === undefined &&
       o.gltfHullOffsetZ === undefined &&
-      o.shipPivotLocalZ === undefined)
+      o.shipPivotLocalZ === undefined &&
+      o.wakeSpawnLocalZ === undefined)
   ) {
     return user;
   }
@@ -74,6 +75,7 @@ export function getShipDebugTuningForVisualClass(shipClassId: unknown): Readonly
     spriteScale: o.spriteScale ?? user.spriteScale,
     gltfHullYOffset: o.gltfHullYOffset ?? user.gltfHullYOffset,
     shipPivotLocalZ: o.shipPivotLocalZ ?? user.shipPivotLocalZ,
+    wakeSpawnLocalZ: o.wakeSpawnLocalZ ?? user.wakeSpawnLocalZ,
   };
 }
 
@@ -101,8 +103,8 @@ export function applyShipDebugTuning(patch: Partial<ShipDebugTuning>): Readonly<
     ),
     wakeSpawnLocalZ: clamp(
       patch.wakeSpawnLocalZ ?? currentShipDebugTuning.wakeSpawnLocalZ,
-      -22,
-      12,
+      -35,
+      30,
     ),
     gltfHullYOffset: clamp(
       patch.gltfHullYOffset ?? currentShipDebugTuning.gltfHullYOffset,

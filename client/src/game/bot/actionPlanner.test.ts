@@ -11,12 +11,14 @@ function base(intent: ActionPlanningInput["intent"]): ActionPlanningInput {
         x: 0,
         z: 0,
         headingRad: 0,
+        shipClass: "fac",
         hp: 100,
         maxHp: 100,
         lifeState: "alive",
         primaryCooldownSec: 0,
         secondaryCooldownSec: 0,
         torpedoCooldownSec: 0,
+        adHudIncomingAswm: 0,
       },
       enemies: [
         {
@@ -24,12 +26,14 @@ function base(intent: ActionPlanningInput["intent"]): ActionPlanningInput {
           x: 0,
           z: 100,
           headingRad: 0,
+          shipClass: "fac",
           hp: 50,
           maxHp: 100,
           lifeState: "alive",
           primaryCooldownSec: 0,
           secondaryCooldownSec: 0,
           torpedoCooldownSec: 0,
+          adHudIncomingAswm: 0,
         },
       ],
       missiles: [],
@@ -40,8 +44,10 @@ function base(intent: ActionPlanningInput["intent"]): ActionPlanningInput {
       aggressionScore: 0.8,
       survivalScore: 0.3,
       bestTargetId: "enemy",
+      bestTargetDistSq: 100 * 100,
       targetInGunArc: true,
       targetInMissileArc: true,
+      selfInSeaControlZone: true,
       incomingMissileThreat: false,
       incomingMissileCount: 0,
       preferredRange: "medium",
@@ -67,6 +73,22 @@ function base(intent: ActionPlanningInput["intent"]): ActionPlanningInput {
     context: { ...base("EVADE_MISSILES").context, incomingMissileThreat: true },
   });
   if (cmd.primaryFire) throw new Error("Expected evade command without primary fire");
+}
+
+{
+  const cmd = planAction({
+    ...base("ATTACK"),
+    snapshot: {
+      ...base("ATTACK").snapshot,
+      self: { ...base("ATTACK").snapshot.self, adHudIncomingAswm: 2 },
+    },
+  });
+  if (!cmd.airDefenseEngage) throw new Error("Expected airDefenseEngage when adHud incoming");
+}
+
+{
+  const cmd = planAction(base("ATTACK"));
+  if (cmd.airDefenseEngage) throw new Error("Expected no airDefenseEngage without adHud incoming");
 }
 
 console.log("bot action planner tests ok");

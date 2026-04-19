@@ -51,7 +51,7 @@ const SHIP_SLIDERS: readonly ShipSliderDef[] = [
   { key: "shipPivotLocalZ", label: "Ship Pivot Z", min: -80, max: 80, step: 0.1 },
   { key: "cameraPivotLocalZ", label: "Camera Pivot Z", min: -80, max: 80, step: 0.1 },
   { key: "mineSpawnLocalZ", label: "Mine Spawn Z", min: -140, max: 20, step: 0.1 },
-  { key: "wakeSpawnLocalZ", label: "Wake Heck ΔZ (Referenz)", min: -22, max: 12, step: 0.1 },
+  { key: "wakeSpawnLocalZ", label: "Wake Heck ΔZ (zu Hitbox-Heck)", min: -35, max: 30, step: 0.1 },
   {
     key: "gltfHullYOffset",
     label: "GLB Rumpf Y (Senken −)",
@@ -84,7 +84,7 @@ function loadPersistedShipTuning(): Partial<ShipDebugTuning> {
     if (!raw) return {};
     const parsed = JSON.parse(raw) as Partial<ShipDebugTuning>;
     if (!parsed || typeof parsed !== "object") return {};
-    /** Früher: absoluter Z-Wert (z. B. −60). Jetzt: Offset zu `SHIP_STERN_Z` — Alt-Werte verwerfen. */
+    /** Früher: absoluter Z-Wert (z. B. −60). Jetzt: Offset zum Heck der Hitbox — sehr negative Alt-Werte verwerfen. */
     if (typeof parsed.wakeSpawnLocalZ === "number" && parsed.wakeSpawnLocalZ < -35) {
       const { wakeSpawnLocalZ: _drop, ...rest } = parsed;
       return rest;

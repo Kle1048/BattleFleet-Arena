@@ -1,7 +1,11 @@
 import * as THREE from "three";
 import { Water } from "three/examples/jsm/objects/Water.js";
 import { Sky } from "three/examples/jsm/objects/Sky.js";
-import { AREA_OF_OPERATIONS_HALF_EXTENT, DEFAULT_MAP_ISLANDS } from "@battlefleet/shared";
+import {
+  AREA_OF_OPERATIONS_HALF_EXTENT,
+  DEFAULT_MAP_ISLANDS,
+  SEA_CONTROL_ZONE_HALF_EXTENT,
+} from "@battlefleet/shared";
 import { VisualColorTokens } from "../runtime/materialLibrary";
 import {
   computeFollowCamBackOffset,
@@ -291,6 +295,29 @@ export async function createGameScene(): Promise<GameSceneBundle> {
   opsAreaBorder.renderOrder = OVERLAY_RENDER_ORDER;
   assignToOverlayLayer(opsAreaBorder);
   scene.add(opsAreaBorder);
+
+  /** Sea Control — quadratisch, Server `isInSeaControlZone` / `SEA_CONTROL_ZONE_HALF_EXTENT`. */
+  const scHalf = SEA_CONTROL_ZONE_HALF_EXTENT;
+  const scY = 0.16;
+  const scPts = [
+    new THREE.Vector3(worldToRenderX(-scHalf), scY, -scHalf),
+    new THREE.Vector3(worldToRenderX(scHalf), scY, -scHalf),
+    new THREE.Vector3(worldToRenderX(scHalf), scY, scHalf),
+    new THREE.Vector3(worldToRenderX(-scHalf), scY, scHalf),
+    new THREE.Vector3(worldToRenderX(-scHalf), scY, -scHalf),
+  ];
+  const scGeom = new THREE.BufferGeometry().setFromPoints(scPts);
+  const scMat = new THREE.LineBasicMaterial({
+    color: VisualColorTokens.seaControlBorder,
+    depthWrite: false,
+    depthTest: false,
+    transparent: true,
+    opacity: 0.92,
+  });
+  const seaControlBorder = new THREE.Line(scGeom, scMat);
+  seaControlBorder.renderOrder = OVERLAY_RENDER_ORDER;
+  assignToOverlayLayer(seaControlBorder);
+  scene.add(seaControlBorder);
 
   await preloadIslandGltfTemplates();
   let islandIdx = 0;

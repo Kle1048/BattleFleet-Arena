@@ -30,6 +30,7 @@ export type NetPlayer = Pick<
   | "radarActive"
   | "aswmRemainingPort"
   | "aswmRemainingStarboard"
+  | "adHudIncomingAswm"
 >;
 
 export type NetMissile = Pick<

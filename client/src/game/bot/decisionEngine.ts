@@ -19,6 +19,18 @@ export class DecisionTreeStrategy implements BotDecisionStrategy {
     ) {
       return "FINISH_TARGET";
     }
+    /** Zone ansteuern nur ohne Nahkampf-Gegner (sonst Kampf nicht verlassen). */
+    const enemyInMediumRange =
+      context.bestTargetDistSq != null && context.bestTargetDistSq < 400 * 400;
+    if (
+      !context.selfInSeaControlZone &&
+      !context.incomingMissileThreat &&
+      hpPercent > 0.28 &&
+      !enemyInMediumRange &&
+      context.dangerScore < 0.48
+    ) {
+      return "SEEK_SEA_CONTROL";
+    }
     if (context.targetInGunArc && snapshot.self.primaryCooldownSec <= 0.05 && context.dangerScore < 0.7) {
       return "ATTACK";
     }

@@ -328,6 +328,23 @@ async function bootstrap(): Promise<void> {
       const p = getPlayer(playerListOf(room), id);
       return playerDisplayLabel(p ?? { id });
     },
+    airDefenseSamLaunchFx: {
+      spawnMissileLaunchSmoke: (worldX, worldZ, headingRad) =>
+        fxSystem.spawnMissileLaunchSmoke(worldX, worldZ, headingRad),
+      spawnMissileTrailStreamTick: (worldX, worldZ, headingRad, particleCount) =>
+        fxSystem.spawnMissileTrailStreamTick(worldX, worldZ, headingRad, particleCount),
+    },
+    getMissileWorldXZById: (missileId) => {
+      const list = missileListOf(room);
+      if (!list) return null;
+      for (let i = 0; i < list.length; i++) {
+        const m = list.at(i);
+        if (m && m.missileId === missileId) {
+          return { x: m.x, z: m.z };
+        }
+      }
+      return null;
+    },
   });
 
   const visualRuntime = createVisualRuntime({

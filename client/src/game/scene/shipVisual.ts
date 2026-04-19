@@ -3,6 +3,7 @@ import {
   ARTILLERY_RANGE,
   aimDirectionYawFromBowRad,
   clampYawToMountSector,
+  flattenMountFireSectorUnions,
   forwardXZ,
   getShipClassProfile,
   inferMountTrainBaseYawFromBow,
@@ -672,6 +673,22 @@ function neutralBowYawRadForAawMount(
   if (sector.kind === "symmetric") {
     return sector.centerYawRadFromBow ?? baseYawFromBow;
   }
+  if (sector.kind === "union") {
+    const flat = flattenMountFireSectorUnions(sector);
+    if (flat.length === 0) return baseYawFromBow;
+    let sx = 0;
+    let sz = 0;
+    for (const p of flat) {
+      const m =
+        p.kind === "symmetric"
+          ? p.centerYawRadFromBow ?? baseYawFromBow
+          : wrapPi((p.minYawRadFromBow + p.maxYawRadFromBow) * 0.5);
+      sx += Math.sin(m);
+      sz += Math.cos(m);
+    }
+    const n = flat.length;
+    return Math.atan2(sx / n, sz / n);
+  }
   return wrapPi((sector.minYawRadFromBow + sector.maxYawRadFromBow) * 0.5);
 }
 
@@ -831,8 +848,10 @@ export function updateAimMountToTargetDebugLine(
       if (sector) {
         if (sector.kind === "symmetric") {
           secDbg = `sym(c=${(sector.centerYawRadFromBow ?? 0).toFixed(2)},h=${sector.halfAngleRadFromBow.toFixed(2)})`;
-        } else {
+        } else if (sector.kind === "asymmetric") {
           secDbg = `asym(${sector.minYawRadFromBow.toFixed(2)}..${sector.maxYawRadFromBow.toFixed(2)})`;
+        } else {
+          secDbg = `union(n=${sector.sectors.length})`;
         }
       }
       debug.push(

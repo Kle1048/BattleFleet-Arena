@@ -1,5 +1,11 @@
 import type * as THREE from "three";
-import { playAirDefenseFire, playAirDefenseHitBurst, showAirDefenseScreenPulse } from "../effects/airDefenseFx";
+import {
+  type AirDefenseSamLaunchFx,
+  playAirDefenseFire,
+  playAirDefenseHitBurst,
+  showAirDefenseScreenPulse,
+} from "../effects/airDefenseFx";
+import { worldToRenderX } from "./renderCoords";
 import {
   type AirDefenseFxLayer,
   parseAirDefenseEvent,
@@ -90,6 +96,10 @@ type RegisterNetworkHandlersOptions<TPlayerList> = {
   appendAirDefenseComms?: (entry: { text: string; kind?: "info" | "danger" }) => void;
   /** Kurzname für Spieler-ID (Anzeige im Comms-Text). */
   formatPlayerLabel?: (sessionId: string) => string;
+  /** LW SAM/PDMS: live ASuM-Position (Welt-XZ) für Abfang-VFX — gleiche `missileId` wie Server-Event. */
+  getMissileWorldXZById?: (missileId: number) => { x: number; z: number } | null;
+  /** SAM/PDMS: Start-Rauch + Schweif wie ASuM (`spawnMissileLaunchSmoke` / `spawnMissileTrailStreamTick`). */
+  airDefenseSamLaunchFx?: AirDefenseSamLaunchFx | null;
 };
 
 export function registerNetworkHandlers<TPlayerList>(
@@ -124,6 +134,8 @@ export function registerNetworkHandlers<TPlayerList>(
     getPdmsMuzzleSeek,
     appendAirDefenseComms,
     formatPlayerLabel,
+    getMissileWorldXZById,
+    airDefenseSamLaunchFx,
   } = options;
 
   room.onMessage("collisionContact", (msg) => {
@@ -308,6 +320,29 @@ export function registerNetworkHandlers<TPlayerList>(
       kind: "info",
     });
     onAirDefenseSound?.({ phase: "fire", layer });
-    playAirDefenseFire(scene, layer, fromX, fromZ, x, z, pdLaunchY);
+    let getTrackedTargetXZ: (() => { x: number; z: number } | null) | undefined;
+    if (
+      parsed.missileId != null &&
+      typeof getMissileWorldXZById === "function" &&
+      (layer === "sam" || layer === "pd")
+    ) {
+      const mid = parsed.missileId;
+      getTrackedTargetXZ = () => {
+        const w = getMissileWorldXZById(mid);
+        if (!w) return null;
+        return { x: worldToRenderX(w.x), z: w.z };
+      };
+    }
+    playAirDefenseFire(
+      scene,
+      layer,
+      fromX,
+      fromZ,
+      x,
+      z,
+      pdLaunchY,
+      getTrackedTargetXZ,
+      airDefenseSamLaunchFx ?? null,
+    );
   });
 }

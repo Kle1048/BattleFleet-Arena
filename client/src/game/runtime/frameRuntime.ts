@@ -9,9 +9,13 @@ import {
   getShipClassProfile,
   getAswmMagazineFromProfile,
   normalizeShipClassId,
+  shipClassIdForProgressionLevel,
   progressionMovementScale,
   progressionNavalRankEn,
   progressionXpToNextLevel,
+  esmDetectionRangeMul,
+  esmEmitterStrokeCss,
+  resolveAirDefenseDefenderIdForMissile,
   type AirDefenseMissileSnapshot,
   type AirDefensePlayerSnapshot,
   type ShipClassId,
@@ -24,6 +28,11 @@ import {
   type ArtilleryTrainAimOptions,
   type ShipVisual,
 } from "../scene/shipVisual";
+import {
+  pruneVisualRollSmoothed,
+  stepVisualRollSmoothed,
+  visualRollRadFromRudderAndSpeed,
+} from "../scene/shipVisualRoll";
 import { getAuthoritativeHullProfile } from "./shipProfileRuntime";
 import {
   DEFAULT_INTERPOLATION_DELAY_MS,
@@ -41,6 +50,7 @@ import {
   getShipDebugTuningForVisualClass,
   getShipDebugTuningGeneration,
 } from "./shipDebugTuning";
+import type { CockpitRadarThreatLine } from "../hud/cockpitRadarKeys";
 import {
   RADAR_ESM_RANGE_WORLD,
   esmLineTowardBlip,
@@ -136,7 +146,8 @@ type CockpitLike = {
     radarBlips: RadarBlipNorm[];
     radarVisible: boolean;
     ownRadarActive: boolean;
-    esmLines: { x1: number; y1: number; x2: number; y2: number }[];
+    esmLines: { x1: number; y1: number; x2: number; y2: number; stroke?: string }[];
+    radarThreatLines: CockpitRadarThreatLine[];
   }) => void;
 };
 
@@ -336,6 +347,7 @@ export function runFrameRuntimeStep<
     let shipLineHeadingRad = p.headingRad;
     let aimLineSimX = p.x;
     let aimLineSimZ = p.z;
+    let rudderForRoll = p.rudder;
     if (sessionId === mySessionId) {
       const yaw = worldToRenderYaw(p.headingRad);
       // Das sichtbare Sprite hat einen anderen Drehpunkt als die Simulationsposition.
@@ -344,6 +356,7 @@ export function runFrameRuntimeStep<
       const pivotDz = Math.cos(yaw) * tuning.shipPivotLocalZ;
       vis.group.position.set(worldToRenderX(p.x) - pivotDx, wreckSinkY, p.z - pivotDz);
       vis.group.rotation.y = yaw;
+      rudderForRoll = p.rudder;
       aimLineSimX = inputSample.aimWorldX;
       aimLineSimZ = inputSample.aimWorldZ;
     } else {
@@ -358,12 +371,20 @@ export function runFrameRuntimeStep<
       const pivotDz = Math.cos(yaw) * tuning.shipPivotLocalZ;
       vis.group.position.set(worldToRenderX(r.x) - pivotDx, wreckSinkY, r.z - pivotDz);
       vis.group.rotation.y = yaw;
+      rudderForRoll = r.rudder;
       aimLineSimX = r.aimX;
       aimLineSimZ = r.aimZ;
       shipLineSimX = r.x;
       shipLineSimZ = r.z;
       shipLineHeadingRad = r.headingRad;
     }
+
+    vis.group.rotation.x = 0;
+    const rollTarget =
+      p.lifeState === PlayerLifeState.AwaitingRespawn
+        ? 0
+        : visualRollRadFromRudderAndSpeed(rudderForRoll, p.speed);
+    vis.group.rotation.z = stepVisualRollSmoothed(sessionId, rollTarget, dtMs / 1000);
 
     /** LW-Mounts zur Rakete: solange Server „incoming“ meldet — unabhängig vom E-Hardkill-Fenster. */
     const layered = typeof p.adHudIncomingAswm === "number" && p.adHudIncomingAswm > 0;
@@ -457,7 +478,13 @@ export function runFrameRuntimeStep<
       const progXp = typeof me.xp === "number" ? me.xp : 0;
       const xpSeg = progressionXpToNextLevel(progLevel, progXp);
       const xpLine = progLevel >= PROGRESSION_MAX_LEVEL ? "MAX" : `${xpSeg.intoLevel} / ${xpSeg.need}`;
-      const profShip = getShipClassProfile(me.shipClass);
+      /** Während Respawn-Warte: Server behält Wrack-Rumpf in `shipClass`; HUD zeigt Zielklasse nach Degradierung. */
+      const cockpitClassId = normalizeShipClassId(
+        me.lifeState === PlayerLifeState.AwaitingRespawn
+          ? shipClassIdForProgressionLevel(progLevel)
+          : me.shipClass,
+      ) as ShipClassId;
+      const profShip = getShipClassProfile(cockpitClassId);
       const maxSp =
         cfgMaxSpeed *
         profShip.movementSpeedMul *
@@ -480,7 +507,8 @@ export function runFrameRuntimeStep<
       state.lastHudLevel = progLevel;
 
       const radarBlips: RadarBlipNorm[] = [];
-      const esmLines: { x1: number; y1: number; x2: number; y2: number }[] = [];
+      const esmLines: { x1: number; y1: number; x2: number; y2: number; stroke?: string }[] = [];
+      const radarThreatLines: CockpitRadarThreatLine[] = [];
       let radarVisible = false;
       const ownRadarActive = me.radarActive !== false;
       if (!matchEnded && me.lifeState !== PlayerLifeState.AwaitingRespawn) {
@@ -492,20 +520,52 @@ export function runFrameRuntimeStep<
           if (b && ownRadarActive) radarBlips.push(b);
           const emitterOn = other.radarActive !== false;
           if (emitterOn) {
+            const esmRangeWorld = RADAR_ESM_RANGE_WORLD * esmDetectionRangeMul(other.shipClass);
             const bEsm = radarBlipNormalized(
               p.x,
               p.z,
               p.headingRad,
               other.x,
               other.z,
+              esmRangeWorld,
+            );
+            if (bEsm) {
+              const line = esmLineTowardBlip(bEsm);
+              esmLines.push({ ...line, stroke: esmEmitterStrokeCss(other.shipClass) });
+            }
+          }
+        }
+        if (missileList) {
+          for (let mi = 0; mi < missileList.length; mi++) {
+            const m = missileList.at(mi);
+            if (!m) continue;
+            if (m.ownerId === mySessionId) continue;
+            const snap: AirDefenseMissileSnapshot = {
+              ownerId: m.ownerId,
+              targetId: m.targetId,
+              x: m.x,
+              z: m.z,
+            };
+            if (resolveAirDefenseDefenderIdForMissile(snap, adPlayerSnapshots) !== mySessionId) {
+              continue;
+            }
+            const bM = radarBlipNormalized(
+              p.x,
+              p.z,
+              p.headingRad,
+              m.x,
+              m.z,
               RADAR_ESM_RANGE_WORLD,
             );
-            if (bEsm) esmLines.push(esmLineTowardBlip(bEsm));
+            if (!bM) continue;
+            const line = esmLineTowardBlip(bM);
+            const lockedOnMe = m.targetId === mySessionId;
+            radarThreatLines.push({ ...line, dashed: !lockedOnMe });
           }
         }
       }
 
-      const shipClassId = normalizeShipClassId(me.shipClass) as ShipClassId;
+      const shipClassId = cockpitClassId;
       const hullVis = getAuthoritativeHullProfile(shipClassId);
       const magCaps = getAswmMagazineFromProfile(hullVis, shipClassId);
       const aswmMagPortCap = magCaps.port;
@@ -560,9 +620,12 @@ export function runFrameRuntimeStep<
         radarVisible,
         ownRadarActive,
         esmLines,
+        radarThreatLines,
       });
     }
   }
+
+  pruneVisualRollSmoothed(new Set(visuals.keys()));
 
   refreshArtilleryCullFromLocalPlayer(cameraCullState, me, window.innerWidth, window.innerHeight);
 

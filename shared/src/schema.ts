@@ -41,7 +41,7 @@ export class PlayerState extends Schema {
   declare secondaryCooldownSec: number;
   /** Sekunden bis Torpedo bereit (~20 Hz). Task 8. */
   declare torpedoCooldownSec: number;
-  /** Task 10 — Punktestand (nur Kills, kein Assist). */
+  /** Runden-Score (Sieg = höchster Wert); sinkt nicht bei Tod (im Gegensatz zu `xp`). */
   declare score: number;
   /** Task 10 — Kills (tödlicher Treffer). */
   declare kills: number;

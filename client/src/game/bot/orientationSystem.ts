@@ -1,7 +1,10 @@
+import {
+  ARTILLERY_ARC_HALF_ANGLE_RAD,
+  BOT_ASWM_MAX_BORE_YAW_ERR_RAD,
+  isInSeaControlZone,
+  minFixedSeaSkimmerLauncherYawErrorRad,
+} from "@battlefleet/shared";
 import type { BotMemory, PerceptionSnapshot, TacticalContext } from "./types";
-
-const GUN_ARC_HALF_ANGLE = (40 * Math.PI) / 180;
-const MISSILE_ARC_HALF_ANGLE = (65 * Math.PI) / 180;
 
 function wrapPi(a: number): number {
   let x = a;
@@ -23,24 +26,36 @@ function clamp01(v: number): number {
 export function orient(snapshot: PerceptionSnapshot, _memory: BotMemory): TacticalContext {
   const self = snapshot.self;
   let bestTargetId: string | null = null;
-  let bestTargetDistSq = Infinity;
+  let closestEnemyDistSq = Infinity;
   for (const e of snapshot.enemies) {
     const d2 = distSq(self.x, self.z, e.x, e.z);
-    if (d2 < bestTargetDistSq) {
-      bestTargetDistSq = d2;
+    if (d2 < closestEnemyDistSq) {
+      closestEnemyDistSq = d2;
       bestTargetId = e.id;
     }
   }
 
   const bestEnemy = snapshot.enemies.find((e) => e.id === bestTargetId) ?? null;
+  const bestTargetDistSq: number | null = bestEnemy ? closestEnemyDistSq : null;
   let targetInGunArc = false;
   let targetInMissileArc = false;
   if (bestEnemy) {
     const yawToTarget = Math.atan2(bestEnemy.x - self.x, bestEnemy.z - self.z);
     const rel = Math.abs(wrapPi(yawToTarget - self.headingRad));
-    targetInGunArc = rel <= GUN_ARC_HALF_ANGLE;
-    targetInMissileArc = rel <= MISSILE_ARC_HALF_ANGLE;
+    targetInGunArc = rel <= ARTILLERY_ARC_HALF_ANGLE_RAD;
+    const boreErr = minFixedSeaSkimmerLauncherYawErrorRad(
+      self.shipClass,
+      self.x,
+      self.z,
+      self.headingRad,
+      bestEnemy.x,
+      bestEnemy.z,
+    );
+    targetInMissileArc =
+      boreErr !== null && boreErr <= BOT_ASWM_MAX_BORE_YAW_ERR_RAD;
   }
+
+  const selfInSeaControlZone = isInSeaControlZone(self.x, self.z);
 
   const incomingMissileCount = snapshot.missiles.filter((m) => {
     return distSq(self.x, self.z, m.x, m.z) <= 240 * 240;
@@ -70,8 +85,10 @@ export function orient(snapshot: PerceptionSnapshot, _memory: BotMemory): Tactic
     aggressionScore,
     survivalScore,
     bestTargetId,
+    bestTargetDistSq,
     targetInGunArc,
     targetInMissileArc,
+    selfInSeaControlZone,
     incomingMissileThreat,
     incomingMissileCount,
     preferredRange,

@@ -4,9 +4,10 @@
   "hullGltfId": "cruiser",
   "hullVisualScale": 0.01393,
   "clientVisualTuningDefaults": {
-    "gltfHullYOffset": -207,
-    "gltfHullOffsetZ": -17,
-    "spriteScale": 1
+    "gltfHullYOffset": -308,
+    "gltfHullOffsetZ": 0,
+    "spriteScale": 1,
+    "wakeSpawnLocalZ": 20
   },
   "collisionHitbox": {
     "center": { "x": 0, "y": 0, "z": 0 },
@@ -20,33 +21,36 @@
   },
   "defaultRotatingMountFireSector": {
     "kind": "symmetric",
-    "halfAngleRadFromBow": 2.0943951023931953
+    "halfAngleRadFromBow": 3.141592653589793
   },
   "mountSlots": [
     {
       "id": "main_fwd",
       "compatibleKinds": ["artillery"],
-      "defaultVisualId": "visual_artillery"
+      "defaultVisualId": "visual_artillery",
+      "fireSector": {
+        "kind": "symmetric",
+        "halfAngleRadFromBow": 2.0943951023931953
+      }
     },
     {
       "id": "ciws_fwd",
       "compatibleKinds": ["ciws"],
-      "defaultVisualId": "visual_ciws"
+      "defaultVisualId": "visual_ciws",
+      "fireSector": {
+        "kind": "symmetric",
+        "halfAngleRadFromBow": 2.6179938779914944
+      }
     },
     {
-      "id": "sam_fwd",
+      "id": "sam_aft",
       "compatibleKinds": ["sam_launcher"],
-      "defaultVisualId": "visual_sam"
-    },
-    {
-      "id": "ssm_starboard",
-      "compatibleKinds": ["generic"],
-      "defaultVisualId": "visual_ssm"
-    },
-    {
-      "id": "torp_aft",
-      "compatibleKinds": ["generic"],
-      "defaultVisualId": "visual_torpedo"
+      "defaultVisualId": "visual_sam",
+      "fireSector": {
+        "kind": "symmetric",
+        "halfAngleRadFromBow": 2.0943951023931953,
+        "centerYawRadFromBow": 3.141592653589793
+      }
     }
   ],
   "fixedSeaSkimmerLaunchers": [
@@ -76,8 +80,6 @@
   "defaultLoadout": {
     "main_fwd": "visual_artillery",
     "ciws_fwd": "visual_ciws",
-    "sam_fwd": "visual_sam",
-    "ssm_starboard": "visual_ssm",
-    "torp_aft": "visual_torpedo"
+    "sam_aft": "visual_sam"
   }
 }

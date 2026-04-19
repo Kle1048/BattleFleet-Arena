@@ -80,12 +80,16 @@ function writeFireSector(root: HTMLElement, fs: MountFireSector | undefined): vo
     sym.hidden = false;
     asym.hidden = true;
     (root.querySelector('[data-field="fsHalf"]') as HTMLInputElement).value = String(fs.halfAngleRadFromBow);
-  } else {
+  } else if (fs.kind === "asymmetric") {
     kindEl.value = "asymmetric";
     sym.hidden = true;
     asym.hidden = false;
     (root.querySelector('[data-field="fsMin"]') as HTMLInputElement).value = String(fs.minYawRadFromBow);
     (root.querySelector('[data-field="fsMax"]') as HTMLInputElement).value = String(fs.maxYawRadFromBow);
+  } else {
+    kindEl.value = "";
+    sym.hidden = true;
+    asym.hidden = true;
   }
 }
 

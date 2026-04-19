@@ -162,7 +162,7 @@ Damit **Slot-IDs** aus dem JSON (`mountSlots[].id`) in Blender wiederfindbar sin
 
 | Muster | Beispiel |
 |--------|----------|
-| `SOCKET_<slot_id>` | `SOCKET_main_fwd`, `SOCKET_ciws_fwd`, `SOCKET_sam_mid` |
+| `SOCKET_<slot_id>` | z. B. `SOCKET_main_fwd`, `SOCKET_ciws_fwd`, `SOCKET_sam_aft` (je nach Profil) |
 
 **`slot_id`** muss **exakt** wie in `mountSlots[].id` und in `mountSockets/<profileId>.json` lauten. Position des Empties in **Profil-Koordinaten** (+Z Bug) ablesen und in die Registry eintragen.
 

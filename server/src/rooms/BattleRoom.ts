@@ -66,10 +66,12 @@ import {
   stepMovement,
   tryComputeArtillerySalvo,
   tryPickRespawnPosition,
+  pickRimSpawnDeterministic,
   MATCH_DURATION_MS,
+  MATCH_PASSIVE_XP_BASE,
+  MATCH_PASSIVE_XP_INTERVAL_MS,
   MATCH_PHASE_ENDED,
   MATCH_PHASE_RUNNING,
-  SCORE_PER_KILL,
   isValidKillAttribution,
   PROGRESSION_XP_PER_KILL,
   progressionIncomingDamageFactor,
@@ -98,6 +100,9 @@ import {
   shipOverlapsAnyIsland,
   twoShipsObbOverlap,
   shipLocalToWorldXZ,
+  isInSeaControlZone,
+  missileBearingInHardkillLayerMountSector,
+  SEA_CONTROL_XP_MULTIPLIER,
 } from "@battlefleet/shared";
 
 const TICK_HZ = 20;
@@ -216,6 +221,8 @@ export class BattleRoom extends Room<BattleState> {
   /** Task 10 — absolutes Ende (Date.now()); läuft ab Raum-Erstellung. */
   private matchEndsAtMs = 0;
   private matchEndBroadcastSent = false;
+  /** Letzter Zeitpunkt für passives Score-Tick (alle Spieler). */
+  private lastPassiveXpAtMs = 0;
   /** Pro Spieler: Insel-Overlap vor `resolveShipIslandCollisions` (Vor-Frame für Kanten-SFX). */
   private collisionIslandOverlapPrev = new Map<string, boolean>();
   /** OBB-überlappende Schiff-Paare (`idA|idB`), Vor-Frame für Kanten-SFX bei Schiff-Schiff. */
@@ -300,6 +307,7 @@ export class BattleRoom extends Room<BattleState> {
       this.physicsStep(dtSec);
     }, 1000 / TICK_HZ);
 
+    this.lastPassiveXpAtMs = Date.now();
     this.maxClients = 16;
   }
 
@@ -376,27 +384,68 @@ export class BattleRoom extends Room<BattleState> {
     p.hp = Math.min(p.hp + Math.max(0, d), p.maxHp);
   }
 
-  /** Task 11 — nach Kill (serverseitig, nur Leben-Progression). */
+  /** Leben-XP + Runden-Score + Level; gleiche Logik für Kills und passives Tick. */
+  private grantXpAndProgress(p: PlayerState, row: SimEntry | undefined, amount: number): void {
+    if (amount <= 0) return;
+    p.xp += amount;
+    p.score += amount;
+    const targetLevel = progressionLevelFromTotalXp(p.xp);
+    while (p.level < targetLevel) {
+      p.level += 1;
+      this.syncShipClassAndHpAfterLevelUp(p, row);
+    }
+  }
+
+  /** Task 11 — nach Kill (serverseitig, nur Leben-Progression + Score). */
   private grantXpForKill(killer: PlayerState): void {
     const row = this.sim.get(killer.id);
-    killer.xp += PROGRESSION_XP_PER_KILL;
-    const targetLevel = progressionLevelFromTotalXp(killer.xp);
-    while (killer.level < targetLevel) {
-      killer.level += 1;
-      this.syncShipClassAndHpAfterLevelUp(killer, row);
+    this.grantXpAndProgress(killer, row, PROGRESSION_XP_PER_KILL);
+  }
+
+  /** Passives XP für alle im Kampf simulierten Spieler; Sea Control ×5. */
+  private applyPassiveXpTick(now: number): void {
+    if (this.state.matchPhase !== MATCH_PHASE_RUNNING) return;
+    if (now - this.lastPassiveXpAtMs < MATCH_PASSIVE_XP_INTERVAL_MS) return;
+    this.lastPassiveXpAtMs = now;
+
+    for (const p of this.state.playerList) {
+      if (!participatesInWorldSimulation(p.lifeState)) continue;
+      const row = this.sim.get(p.id);
+      const mult = isInSeaControlZone(p.x, p.z) ? SEA_CONTROL_XP_MULTIPLIER : 1;
+      const amt = MATCH_PASSIVE_XP_BASE * mult;
+      this.grantXpAndProgress(p, row, amt);
     }
   }
 
   onJoin(client: Client, options?: { shipClass?: string; displayName?: string }) {
     const shipClass = SHIP_CLASS_FAC;
     const displayName = sanitizePlayerDisplayName(options?.displayName);
-    const index = this.clients.length - 1;
-    const angle = index * 2.5132741228718345;
-    const r = 140;
-    const spawnX = Math.cos(angle) * r;
-    const spawnZ = Math.sin(angle) * r;
+    const others: { x: number; z: number }[] = [];
+    for (const q of this.state.playerList) {
+      others.push({ x: q.x, z: q.z });
+    }
+    const angleForFallback =
+      this.state.playerList.length * 2.5132741228718345 + client.sessionId.length * 0.37;
+    const spawnPick =
+      tryPickRespawnPosition(
+        AREA_OF_OPERATIONS_HALF_EXTENT,
+        DEFAULT_MAP_ISLANDS,
+        others,
+        MIN_RESPAWN_SEPARATION,
+        Math.random,
+      ) ??
+      pickRimSpawnDeterministic(
+        AREA_OF_OPERATIONS_HALF_EXTENT,
+        DEFAULT_MAP_ISLANDS,
+        others,
+        MIN_RESPAWN_SEPARATION,
+        angleForFallback,
+      );
+    const spawnX = spawnPick.x;
+    const spawnZ = spawnPick.z;
 
     const ship = createShipState(spawnX, spawnZ);
+    ship.headingRad = spawnPick.headingRad;
     const aimX = spawnX;
     const aimZ = spawnZ + 80;
     const simRow: SimEntry = {
@@ -516,17 +565,17 @@ export class BattleRoom extends Room<BattleState> {
     ) {
       const killer = this.findPlayer(killerId);
       if (killer) {
-        killer.score += SCORE_PER_KILL;
         killer.kills += 1;
         this.grantXpForKill(killer);
       }
     }
 
     const newLevel = Math.max(1, p.level - 1);
+    const nextClass = shipClassIdForProgressionLevel(newLevel);
     p.level = newLevel;
     p.xp = progressionMinXpForLevel(newLevel);
-    p.shipClass = shipClassIdForProgressionLevel(newLevel);
-    const baseHpDead = shipClassBaseMaxHp(p.shipClass);
+    // `shipClass` bleibt der zerstörte Rumpf (Wrack-GLB), bis `performRespawn` — nicht sofort degradiert.
+    const baseHpDead = shipClassBaseMaxHp(nextClass);
     p.maxHp = progressionMaxHpForLevel(newLevel, baseHpDead);
     p.hp = 0;
     p.lifeState = PlayerLifeState.AwaitingRespawn;
@@ -610,20 +659,37 @@ export class BattleRoom extends Room<BattleState> {
     this.clearAllMissilesAndTorpedoes();
     this.matchEndBroadcastSent = false;
     this.matchEndsAtMs = now + MATCH_DURATION_MS;
+    this.lastPassiveXpAtMs = now;
     this.state.matchPhase = MATCH_PHASE_RUNNING;
     const remMs = this.matchEndsAtMs - now;
     this.state.matchRemainingSec = Math.max(0, Math.ceil(remMs / 1000));
 
-    let idx = 0;
+    const placed: { x: number; z: number }[] = [];
     for (const p of this.state.playerList) {
       const row = this.sim.get(p.id);
       if (!row) continue;
 
-      const angle = idx * 2.5132741228718345;
-      const r = 140;
-      const spawnX = Math.cos(angle) * r;
-      const spawnZ = Math.sin(angle) * r;
-      const headingRad = Math.atan2(-spawnX, -spawnZ);
+      const angleSeed =
+        placed.length * 2.5132741228718345 + p.id.length * 0.37;
+      const spawnPick =
+        tryPickRespawnPosition(
+          AREA_OF_OPERATIONS_HALF_EXTENT,
+          DEFAULT_MAP_ISLANDS,
+          placed,
+          MIN_RESPAWN_SEPARATION,
+          Math.random,
+        ) ??
+        pickRimSpawnDeterministic(
+          AREA_OF_OPERATIONS_HALF_EXTENT,
+          DEFAULT_MAP_ISLANDS,
+          placed,
+          MIN_RESPAWN_SEPARATION,
+          angleSeed,
+        );
+      const spawnX = spawnPick.x;
+      const spawnZ = spawnPick.z;
+      const headingRad = spawnPick.headingRad;
+      placed.push({ x: spawnX, z: spawnZ });
 
       row.ship.x = spawnX;
       row.ship.z = spawnZ;
@@ -674,7 +740,6 @@ export class BattleRoom extends Room<BattleState> {
       p.radarActive = true;
 
       assertPlayerLifeInvariant(p.lifeState, p.hp, p.maxHp);
-      idx++;
     }
 
     this.broadcast("matchRestarted", {} as Record<string, never>);
@@ -694,22 +759,22 @@ export class BattleRoom extends Room<BattleState> {
       others.push({ x: q.x, z: q.z });
     }
 
-    let spawn = tryPickRespawnPosition(
-      AREA_OF_OPERATIONS_HALF_EXTENT,
-      DEFAULT_MAP_ISLANDS,
-      others,
-      MIN_RESPAWN_SEPARATION,
-      Math.random,
-    );
-
-    if (!spawn) {
-      const idx = playerIndexInList(this.state.playerList, sessionId);
-      const angle = idx * 2.5132741228718345 + sessionId.length * 0.37;
-      const r = 140;
-      const x = Math.cos(angle) * r;
-      const z = Math.sin(angle) * r;
-      spawn = { x, z, headingRad: Math.atan2(-x, -z) };
-    }
+    const spawn =
+      tryPickRespawnPosition(
+        AREA_OF_OPERATIONS_HALF_EXTENT,
+        DEFAULT_MAP_ISLANDS,
+        others,
+        MIN_RESPAWN_SEPARATION,
+        Math.random,
+      ) ??
+      pickRimSpawnDeterministic(
+        AREA_OF_OPERATIONS_HALF_EXTENT,
+        DEFAULT_MAP_ISLANDS,
+        others,
+        MIN_RESPAWN_SEPARATION,
+        playerIndexInList(this.state.playerList, sessionId) * 2.5132741228718345 +
+          sessionId.length * 0.37,
+      );
 
     row.ship.x = spawn.x;
     row.ship.z = spawn.z;
@@ -723,6 +788,7 @@ export class BattleRoom extends Room<BattleState> {
     row.respawnAtMs = null;
     row.oobSinceMs = null;
     row.primaryReadyAtMs = 0;
+    p.shipClass = shipClassIdForProgressionLevel(p.level);
     this.resetAswmMagazineFromClass(row, p.shipClass);
     row.torpedoReadyAtMs = 0;
     row.adSamNextAtMs = 0;
@@ -1173,11 +1239,45 @@ export class BattleRoom extends Room<BattleState> {
 
           const hardkillActive = now < defRow.adHardkillCommitUntilMs;
           const defenderHull = getAuthoritativeShipHullProfile(tgt.shipClass);
+          const adClassArc = getShipClassProfile(tgt.shipClass).artilleryArcHalfAngleRad;
           const samAllowed =
-            defRow.radarActive && hullProvidesAirDefenseSamLayer(defenderHull);
+            defRow.radarActive &&
+            hullProvidesAirDefenseSamLayer(defenderHull) &&
+            missileBearingInHardkillLayerMountSector(
+              defenderHull,
+              adClassArc,
+              "sam",
+              tgt.x,
+              tgt.z,
+              tgt.headingRad,
+              m.x,
+              m.z,
+            );
           const pdAllowed =
-            m.targetId === adDefenderId && hullProvidesAirDefensePdLayer(defenderHull);
-          const ciwsAllowed = hullProvidesAirDefenseCiwsLayer(defenderHull);
+            m.targetId === adDefenderId &&
+            hullProvidesAirDefensePdLayer(defenderHull) &&
+            missileBearingInHardkillLayerMountSector(
+              defenderHull,
+              adClassArc,
+              "pd",
+              tgt.x,
+              tgt.z,
+              tgt.headingRad,
+              m.x,
+              m.z,
+            );
+          const ciwsAllowed =
+            hullProvidesAirDefenseCiwsLayer(defenderHull) &&
+            missileBearingInHardkillLayerMountSector(
+              defenderHull,
+              adClassArc,
+              "ciws",
+              tgt.x,
+              tgt.z,
+              tgt.headingRad,
+              m.x,
+              m.z,
+            );
           const adInput = {
             distSq,
             nowMs: now,
@@ -1486,6 +1586,7 @@ export class BattleRoom extends Room<BattleState> {
     const half = AREA_OF_OPERATIONS_HALF_EXTENT;
 
     this.updateMatchTimer(now);
+    this.applyPassiveXpTick(now);
     const combatActive = this.isMatchCombatActive();
     if (combatActive) {
       this.resolveShellImpacts(now);

@@ -1,6 +1,7 @@
 import * as THREE from "three";
 import {
   ARTILLERY_RANGE,
+  flattenMountFireSectorUnions,
   type MountFireSector,
   type RotatingMountWeaponGuideConfig,
   type ShipHullVisualProfile,
@@ -43,6 +44,12 @@ function addMountSectorGeometry(
   sector: MountFireSector,
   arcR: number,
 ): void {
+  if (sector.kind === "union") {
+    for (const s of flattenMountFireSectorUnions(sector)) {
+      addMountSectorGeometry(group, mat, s, arcR);
+    }
+    return;
+  }
   /** Randstrahlen exakt bis zum Bogen — gleiche Länge wie die Bogen-Endpunkte. */
   const rayLen = arcR;
   if (sector.kind === "symmetric") {

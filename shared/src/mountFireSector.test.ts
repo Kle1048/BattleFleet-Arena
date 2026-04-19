@@ -60,4 +60,28 @@ import type { MountFireSector } from "./shipVisualLayout";
   assert.ok(Math.abs(c) <= ARTILLERY_ARC_HALF_ANGLE_RAD + 1e-3);
 }
 
+{
+  /** Zwei seitliche „Flügel“ mit Totzone um Bug (0). */
+  const union: MountFireSector = {
+    kind: "union",
+    sectors: [
+      {
+        kind: "asymmetric",
+        minYawRadFromBow: Math.PI / 4,
+        maxYawRadFromBow: (3 * Math.PI) / 4,
+      },
+      {
+        kind: "asymmetric",
+        minYawRadFromBow: (-3 * Math.PI) / 4,
+        maxYawRadFromBow: -Math.PI / 4,
+      },
+    ],
+  };
+  assert.equal(isYawWithinMountFireSector(0, union), false);
+  assert.equal(isYawWithinMountFireSector(Math.PI / 2, union), true);
+  assert.equal(isYawWithinMountFireSector(-Math.PI / 2, union), true);
+  const cMid = clampYawToMountSector(0.01, union);
+  assert.ok(Math.abs(cMid - Math.PI / 4) < 0.05 || Math.abs(cMid + Math.PI / 4) < 0.05);
+}
+
 console.log("mountFireSector tests ok");

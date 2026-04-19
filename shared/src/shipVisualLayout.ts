@@ -51,6 +51,8 @@ export type MountVisualKind =
  * - **asymmetric:** Min/Max als **signed Yaw** um die Hochachse von der Bug-Richtung aus: 0 = Bug,
  *   positiv z. B. nach Steuerbord (+X), negativ nach Backbord — **einheitlich** mit eurer Server-/Client-
  *   Winkeldefinition halten (ggf. einmal gegen `forwardXZ` / `isInForwardArc` abgleichen).
+ * - **union:** Vereinigung mehrerer Teilsektoren (z. B. Backbord- und Steuerbord-Bogen mit Totzone Bug/Heck).
+ *   Verschachtelte `union`-Einträge werden beim Abfragen flach gemacht.
  */
 export type MountFireSector =
   | {
@@ -67,6 +69,11 @@ export type MountFireSector =
       kind: "asymmetric";
       minYawRadFromBow: number;
       maxYawRadFromBow: number;
+    }
+  | {
+      kind: "union";
+      /** Mindestens ein Eintrag; Teilsektoren sind `symmetric`, `asymmetric` oder wieder `union`. */
+      sectors: readonly MountFireSector[];
     };
 
 /**
@@ -214,6 +221,11 @@ export type ShipHullVisualProfile = {
      * gleiche Semantik wie `ShipDebugTuning.shipPivotLocalZ` — überschreibt den globalen Debug-Wert für dieses Profil.
      */
     shipPivotLocalZ?: number;
+    /**
+     * Optional: Zusatz zum Heck der Hitbox für die Wake (Schiffslokal +Z Bug); gleiche Semantik wie
+     * `ShipDebugTuning.wakeSpawnLocalZ`.
+     */
+    wakeSpawnLocalZ?: number;
   };
 };
 

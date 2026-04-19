@@ -9,10 +9,13 @@ import {
   applyHardkillCooldownAfterRoll,
   computeSamPdInterceptTravelMs,
   isHardkillLayerInRange,
+  missileBearingInHardkillLayerMountSector,
   pickHardkillEngagementLayer,
   rollHardkillHit,
   trySoftkillBreakLock,
 } from "./airDefense";
+import { SHIP_CLASS_DESTROYER, SHIP_CLASS_FAC, getShipClassProfile } from "./shipClass";
+import { SHIP_HULL_PROFILE_BY_CLASS } from "./shipProfiles";
 
 {
   const layer = pickHardkillEngagementLayer({
@@ -182,6 +185,32 @@ import {
   const mid = computeSamPdInterceptTravelMs(240);
   assert.ok(mid >= AD_SAM_PD_INTERCEPT_TRAVEL_MS_MIN && mid <= AD_SAM_PD_INTERCEPT_TRAVEL_MS_MAX);
   assert.equal(computeSamPdInterceptTravelMs(1e9), AD_SAM_PD_INTERCEPT_TRAVEL_MS_MAX);
+}
+
+{
+  const fac = SHIP_HULL_PROFILE_BY_CLASS[SHIP_CLASS_FAC];
+  const arc = getShipClassProfile(SHIP_CLASS_FAC).artilleryArcHalfAngleRad;
+  const h0 = 0;
+  // Bug = +Z: PDMS am Heck deckt Achtersektor; voraus ( +Z ) liegt außerhalb.
+  assert.equal(
+    missileBearingInHardkillLayerMountSector(fac, arc, "pd", 0, 0, h0, 0, 80),
+    false,
+  );
+  assert.equal(
+    missileBearingInHardkillLayerMountSector(fac, arc, "pd", 0, 0, h0, 0, -120),
+    true,
+  );
+  const dd = SHIP_HULL_PROFILE_BY_CLASS[SHIP_CLASS_DESTROYER];
+  const arcDd = getShipClassProfile(SHIP_CLASS_DESTROYER).artilleryArcHalfAngleRad;
+  /** Zerstörer: SAM heckwärts (`sam_aft`); Bug (+Z) außerhalb, Achterdeck im Sektor. */
+  assert.equal(
+    missileBearingInHardkillLayerMountSector(dd, arcDd, "sam", 0, 0, h0, 0, 400),
+    false,
+  );
+  assert.equal(
+    missileBearingInHardkillLayerMountSector(dd, arcDd, "sam", 0, 0, h0, 0, -400),
+    true,
+  );
 }
 
 console.log("airDefense tests ok");

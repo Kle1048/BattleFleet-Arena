@@ -7,7 +7,16 @@
  * - **SAM / PD**: nach Flugzeit (`computeSamPdInterceptTravelMs`) Trefferwurf am ASuM-Standort — Treffer: beide weg;
  *   Fehlschuss: nur Abfang „verbraucht“ (Cooldown), ASuM fliegt weiter.
  * - **CIWS**: Trefferwurf im nächsten Tick (nahezu sofort).
+ *
+ * **Sektor:** Beim ersten Schuss (`pickHardkillEngagementLayer` / `airDefenseFire`) muss die ASuM-Richtung
+ * mindestens einen passenden Mount-Sektor (`visual_sam` / `visual_pdms` / `visual_ciws`) treffen — nicht beim Trefferwurf.
  */
+
+import { aimDirectionYawFromBowRad, isYawWithinMountFireSector } from "./artillery";
+import {
+  resolveEffectiveMountFireSector,
+  type ShipHullVisualProfile,
+} from "./shipVisualLayout";
 
 /** Äußerer SAM-Ring (m). */
 export const AD_SAM_RANGE = 400;
@@ -60,6 +69,46 @@ export function computeSamPdInterceptTravelMs(distM: number): number {
 export const AD_HARDKILL_COMMIT_DURATION_MS = 15_000;
 
 export type AirDefenseHardkillLayer = "sam" | "pd" | "ciws";
+
+const HARDKILL_LAYER_VISUAL: Record<AirDefenseHardkillLayer, string> = {
+  sam: "visual_sam",
+  pd: "visual_pdms",
+  ciws: "visual_ciws",
+};
+
+/**
+ * Liegt die Anflugrichtung zur ASuM (Yaw vom Bug) im Feuersektor mindestens eines Mounts dieser Schicht?
+ * Nur für die Schussentscheidung — nicht für den späteren Trefferwurf.
+ */
+export function missileBearingInHardkillLayerMountSector(
+  hull: ShipHullVisualProfile | undefined,
+  classArcHalfAngleRad: number,
+  layer: AirDefenseHardkillLayer,
+  defenderX: number,
+  defenderZ: number,
+  defenderHeadingRad: number,
+  missileX: number,
+  missileZ: number,
+): boolean {
+  if (!hull?.mountSlots?.length) return false;
+  const loadout = hull.defaultLoadout ?? {};
+  const want = HARDKILL_LAYER_VISUAL[layer];
+  const yaw = aimDirectionYawFromBowRad(
+    defenderX,
+    defenderZ,
+    defenderHeadingRad,
+    missileX,
+    missileZ,
+  );
+  if (yaw == null) return true;
+  for (const slot of hull.mountSlots) {
+    const vid = loadout[slot.id] ?? slot.defaultVisualId ?? "";
+    if (vid !== want) continue;
+    const sector = resolveEffectiveMountFireSector(slot, hull, classArcHalfAngleRad);
+    if (isYawWithinMountFireSector(yaw, sector)) return true;
+  }
+  return false;
+}
 
 export type HardkillAttemptInput = {
   distSq: number;

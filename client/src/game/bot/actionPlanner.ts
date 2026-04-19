@@ -1,7 +1,8 @@
 import {
   AREA_OF_OPERATIONS_HALF_EXTENT,
+  ARTILLERY_ARC_HALF_ANGLE_RAD,
+  aswmSteeringYawErrRad,
   DEFAULT_MAP_ISLANDS,
-  FEATURE_MINES_ENABLED,
   SHIP_ISLAND_COLLISION_RADIUS,
 } from "@battlefleet/shared";
 import type { ActionPlanningInput, BotInputCommand } from "./types";
@@ -67,7 +68,27 @@ export function planAction(input: ActionPlanningInput): BotInputCommand {
   const aimWorldZ = target?.z ?? self.z + Math.cos(self.headingRad) * 120;
   const yawToAim = Math.atan2(aimWorldX - self.x, aimWorldZ - self.z);
   const yawErr = wrapPi(yawToAim - self.headingRad);
-  const rudderTrack = clamp(yawErr / 0.55, -1, 1);
+  let rudderYawErr = yawErr;
+  if (
+    target &&
+    (intent === "ATTACK" ||
+      intent === "FINISH_TARGET" ||
+      intent === "CHASE" ||
+      intent === "HOLD_ARC")
+  ) {
+    rudderYawErr = aswmSteeringYawErrRad(self.shipClass, self.x, self.z, self.headingRad, target.x, target.z);
+  }
+  const rudderTrack = clamp(rudderYawErr / 0.55, -1, 1);
+  const yawToTargetForPrimary = target
+    ? Math.atan2(target.x - self.x, target.z - self.z)
+    : self.headingRad;
+  const relToTarget = target ? Math.abs(wrapPi(yawToTargetForPrimary - self.headingRad)) : 0;
+  const inPrimaryArc = !target || relToTarget <= ARTILLERY_ARC_HALF_ANGLE_RAD - 0.04;
+
+  /** Gleiche Bedingung wie HUD „Vampire incoming“ (`adHudIncomingAswm`); bei 0 wieder false. Server: Hardkill-Commit auf false→true. */
+  const adHudInc =
+    typeof self.adHudIncomingAswm === "number" ? self.adHudIncomingAswm : 0;
+  const airDefenseEngage = adHudInc > 0;
 
   if (intent === "EVADE_MISSILES") {
     const throttle = 1;
@@ -81,7 +102,7 @@ export function planAction(input: ActionPlanningInput): BotInputCommand {
       secondaryFire: false,
       torpedoFire: false,
       radarActive: true,
-      airDefenseEngage: false,
+      airDefenseEngage,
     };
   }
   if (intent === "RETREAT") {
@@ -96,7 +117,7 @@ export function planAction(input: ActionPlanningInput): BotInputCommand {
       secondaryFire: false,
       torpedoFire: false,
       radarActive: true,
-      airDefenseEngage: false,
+      airDefenseEngage,
     };
   }
   if (intent === "ATTACK" || intent === "FINISH_TARGET") {
@@ -107,14 +128,30 @@ export function planAction(input: ActionPlanningInput): BotInputCommand {
       rudderInput,
       aimWorldX,
       aimWorldZ,
-      primaryFire: Math.abs(yawErr) < 0.35,
+      primaryFire: inPrimaryArc,
       secondaryFire: context.targetInMissileArc && self.secondaryCooldownSec <= 0.05,
-      torpedoFire:
-        FEATURE_MINES_ENABLED &&
-        context.targetInGunArc &&
-        self.torpedoCooldownSec <= 0.05,
+      torpedoFire: false,
       radarActive: true,
-      airDefenseEngage: false,
+      airDefenseEngage,
+    };
+  }
+  if (intent === "SEEK_SEA_CONTROL") {
+    const aimCx = 0;
+    const aimCz = 0;
+    const yawToCenter = Math.atan2(aimCx - self.x, aimCz - self.z);
+    const yawErrCenter = wrapPi(yawToCenter - self.headingRad);
+    const rudderCenter = clamp(yawErrCenter / 0.55, -1, 1);
+    const throttle = 0.82;
+    return {
+      throttle,
+      rudderInput: applyIslandAvoidance(self, rudderCenter, throttle),
+      aimWorldX: aimCx,
+      aimWorldZ: aimCz,
+      primaryFire: false,
+      secondaryFire: false,
+      torpedoFire: false,
+      radarActive: true,
+      airDefenseEngage,
     };
   }
   if (intent === "HOLD_ARC") {
@@ -129,7 +166,7 @@ export function planAction(input: ActionPlanningInput): BotInputCommand {
       secondaryFire: false,
       torpedoFire: false,
       radarActive: true,
-      airDefenseEngage: false,
+      airDefenseEngage,
     };
   }
   if (intent === "CHASE") {
@@ -140,11 +177,11 @@ export function planAction(input: ActionPlanningInput): BotInputCommand {
       rudderInput,
       aimWorldX,
       aimWorldZ,
-      primaryFire: Math.abs(yawErr) < 0.3 && self.primaryCooldownSec <= 0.05,
+      primaryFire: inPrimaryArc && self.primaryCooldownSec <= 0.05,
       secondaryFire: false,
       torpedoFire: false,
       radarActive: true,
-      airDefenseEngage: false,
+      airDefenseEngage,
     };
   }
   const throttle = 0.4;
@@ -162,6 +199,6 @@ export function planAction(input: ActionPlanningInput): BotInputCommand {
     secondaryFire: false,
     torpedoFire: false,
     radarActive: true,
-    airDefenseEngage: false,
+    airDefenseEngage,
   };
 }

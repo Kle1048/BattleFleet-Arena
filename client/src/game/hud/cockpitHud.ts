@@ -5,11 +5,17 @@
 import { FEATURE_MINES_ENABLED, type ShipClassId } from "@battlefleet/shared";
 import { getAuthoritativeHullProfile } from "../runtime/shipProfileRuntime";
 import { RADAR_RANGE_WORLD, type RadarBlipNorm } from "./radarHudMath";
-import { cockpitRadarBlipsKey, cockpitRadarEsmKey, type CockpitEsmLine } from "./cockpitRadarKeys";
+import {
+  cockpitRadarBlipsKey,
+  cockpitRadarEsmKey,
+  cockpitRadarThreatKey,
+  type CockpitEsmLine,
+  type CockpitRadarThreatLine,
+} from "./cockpitRadarKeys";
 import { renderWeaponSchematic } from "./weaponSchematicMini";
 
-export type { CockpitEsmLine };
-export { cockpitRadarBlipsKey, cockpitRadarEsmKey };
+export type { CockpitEsmLine, CockpitRadarThreatLine };
+export { cockpitRadarBlipsKey, cockpitRadarEsmKey, cockpitRadarThreatKey };
 
 export type CockpitHudUpdate = {
   speed: number;
@@ -49,6 +55,8 @@ export type CockpitHudUpdate = {
   radarVisible: boolean;
   ownRadarActive: boolean;
   esmLines: CockpitEsmLine[];
+  /** Hostile ASuM — Peilung (gestrichelt / durchgezogen je nach Lock). */
+  radarThreatLines: CockpitRadarThreatLine[];
 };
 
 function degFromHeading(headingRad: number): number {
@@ -167,7 +175,7 @@ export function createCockpitHud(): { update: (u: CockpitHudUpdate) => void } {
             <span class="cockpit-match-time">—</span>
           </div>
           <div class="cockpit-row">
-            <span class="cockpit-label">Punkte</span>
+            <span class="cockpit-label">Score</span>
             <span class="cockpit-match-score"><span class="cockpit-score-val">0</span> <span class="cockpit-kills">(0)</span></span>
           </div>
         </div>
@@ -206,6 +214,7 @@ export function createCockpitHud(): { update: (u: CockpitHudUpdate) => void } {
               <line class="cockpit-radar-axis cockpit-radar-axis-45" x1="-33.941" y1="33.941" x2="33.941" y2="-33.941" />
               <polygon class="cockpit-radar-bow" points="0,-44 -5,-36 5,-36" />
               <g class="cockpit-radar-esm" clip-path="url(#cockpitRadarClip)"></g>
+              <g class="cockpit-radar-threats" clip-path="url(#cockpitRadarClip)"></g>
               <circle class="cockpit-radar-ownship" cx="0" cy="0" r="2.2" />
               <g class="cockpit-radar-blips" clip-path="url(#cockpitRadarClip)"></g>
             </svg>
@@ -292,7 +301,8 @@ export function createCockpitHud(): { update: (u: CockpitHudUpdate) => void } {
   const playerNameEl = wrap.querySelector(".cockpit-player-name") as HTMLElement;
   const shipClassEl = wrap.querySelector(".cockpit-ship-class") as HTMLElement;
   const speedVal = wrap.querySelector(".cockpit-speed-val") as HTMLElement;
-  const courseEl = wrap.querySelector(".cockpit-course") as HTMLElement;
+  /** Nicht nur `.cockpit-course` — das erste im DOM ist der minimale Kurs (gleiches Node wie `.cockpit-course-minimal`). */
+  const courseEl = wrap.querySelector(".cockpit-readouts--bridge .cockpit-course") as HTMLElement;
   const fillThrottle = wrap.querySelector(".cockpit-fill-throttle") as HTMLElement;
   const fillRudder = wrap.querySelector(".cockpit-fill-rudder") as HTMLElement;
   const fillHp = wrap.querySelector(".cockpit-fill-hp") as HTMLElement;
@@ -312,6 +322,7 @@ export function createCockpitHud(): { update: (u: CockpitHudUpdate) => void } {
   const ownRadarStatusEl = wrap.querySelector(".cockpit-own-radar-status") as HTMLElement;
   const radarBlipsG = wrap.querySelector(".cockpit-radar-blips") as SVGGElement;
   const radarEsmG = wrap.querySelector(".cockpit-radar-esm") as SVGGElement;
+  const radarThreatG = wrap.querySelector(".cockpit-radar-threats") as SVGGElement;
   const compassRose = wrap.querySelector(".cockpit-compass-rose") as SVGGElement;
   const compassCtr = wrap.querySelector(".cockpit-compass-ctr") as SVGGElement;
   const schematicHost = wrap.querySelector(".cockpit-schematic-host") as HTMLElement;
@@ -324,9 +335,28 @@ export function createCockpitHud(): { update: (u: CockpitHudUpdate) => void } {
 
   let lastRadarBlipsKey = "";
   let lastEsmKey = "";
+  let lastThreatKey = "";
   let lastSchematicKey = "";
 
-  function drawEsmLines(lines: { x1: number; y1: number; x2: number; y2: number }[]): void {
+  function drawThreatLines(lines: CockpitRadarThreatLine[]): void {
+    radarThreatG.replaceChildren();
+    for (const ln of lines) {
+      const el = document.createElementNS(svgNs, "line");
+      el.setAttribute("x1", String(ln.x1));
+      el.setAttribute("y1", String(ln.y1));
+      el.setAttribute("x2", String(ln.x2));
+      el.setAttribute("y2", String(ln.y2));
+      el.setAttribute("class", "cockpit-radar-threat-line");
+      if (ln.dashed) {
+        el.style.strokeDasharray = "4 3";
+      } else {
+        el.style.strokeDasharray = "";
+      }
+      radarThreatG.appendChild(el);
+    }
+  }
+
+  function drawEsmLines(lines: CockpitEsmLine[]): void {
     radarEsmG.replaceChildren();
     for (const ln of lines) {
       const el = document.createElementNS(svgNs, "line");
@@ -335,6 +365,7 @@ export function createCockpitHud(): { update: (u: CockpitHudUpdate) => void } {
       el.setAttribute("x2", String(ln.x2));
       el.setAttribute("y2", String(ln.y2));
       el.setAttribute("class", "cockpit-radar-esm-line");
+      if (ln.stroke) el.style.stroke = ln.stroke;
       radarEsmG.appendChild(el);
     }
   }
@@ -451,6 +482,7 @@ export function createCockpitHud(): { update: (u: CockpitHudUpdate) => void } {
       radarVisible,
       ownRadarActive,
       esmLines,
+      radarThreatLines,
     }: CockpitHudUpdate): void {
       const deg = degFromHeading(headingRad);
 
@@ -575,6 +607,11 @@ export function createCockpitHud(): { update: (u: CockpitHudUpdate) => void } {
           lastEsmKey = ek;
           drawEsmLines(esmLines);
         }
+        const tk = cockpitRadarThreatKey(radarThreatLines);
+        if (tk !== lastThreatKey) {
+          lastThreatKey = tk;
+          drawThreatLines(radarThreatLines);
+        }
         if (bk !== lastRadarBlipsKey) {
           lastRadarBlipsKey = bk;
           drawRadarBlips(radarBlips);
@@ -583,7 +620,9 @@ export function createCockpitHud(): { update: (u: CockpitHudUpdate) => void } {
         radarRoot.classList.add("cockpit-radar-hidden");
         lastRadarBlipsKey = "";
         lastEsmKey = "";
+        lastThreatKey = "";
         radarEsmG.replaceChildren();
+        radarThreatG.replaceChildren();
         radarBlipsG.replaceChildren();
       }
     },

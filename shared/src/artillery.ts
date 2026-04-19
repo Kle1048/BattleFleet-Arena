@@ -79,8 +79,32 @@ export function aimDirectionYawFromBowRad(
   return Math.atan2(cross, dot);
 }
 
+/** Primitive Sektoren ohne `union`-Hülle — für `isYawWithin` / Zeichnen nach Flachlegen. */
+export type PrimitiveMountFireSector = Extract<
+  MountFireSector,
+  { kind: "symmetric" } | { kind: "asymmetric" }
+>;
+
+/**
+ * Löst verschachtelte `union`-Knoten auf; leere Unions ergeben `[]`.
+ */
+export function flattenMountFireSectorUnions(sector: MountFireSector): PrimitiveMountFireSector[] {
+  if (sector.kind === "union") {
+    const out: PrimitiveMountFireSector[] = [];
+    for (const s of sector.sectors) {
+      out.push(...flattenMountFireSectorUnions(s));
+    }
+    return out;
+  }
+  return [sector];
+}
+
 export function isYawWithinMountFireSector(yaw: number, sector: MountFireSector): boolean {
   const y = wrapPi(yaw);
+  if (sector.kind === "union") {
+    const flat = flattenMountFireSectorUnions(sector);
+    return flat.length > 0 && flat.some((s) => isYawWithinMountFireSector(y, s));
+  }
   if (sector.kind === "symmetric") {
     const c = sector.centerYawRadFromBow ?? 0;
     return Math.abs(shortestAngleDelta(c, y)) <= sector.halfAngleRadFromBow + 1e-4;
@@ -99,6 +123,24 @@ function isYawInAsymmetricInterval(yaw: number, minY: number, maxY: number): boo
 /** Ziel-Richtung (Yaw vom Bug) in den Mount-Sektor klemmen — für Turm-Darstellung. */
 export function clampYawToMountSector(yaw: number, sector: MountFireSector): number {
   const y = wrapPi(yaw);
+  if (sector.kind === "union") {
+    const flat = flattenMountFireSectorUnions(sector);
+    if (flat.length === 0) return y;
+    for (const s of flat) {
+      if (isYawWithinMountFireSector(y, s)) return y;
+    }
+    let best = clampYawToMountSector(y, flat[0]!);
+    let bestD = Math.abs(shortestAngleDelta(y, best));
+    for (let i = 1; i < flat.length; i++) {
+      const c = clampYawToMountSector(y, flat[i]!);
+      const d = Math.abs(shortestAngleDelta(y, c));
+      if (d < bestD) {
+        bestD = d;
+        best = c;
+      }
+    }
+    return wrapPi(best);
+  }
   if (sector.kind === "symmetric") {
     const c = sector.centerYawRadFromBow ?? 0;
     const h = sector.halfAngleRadFromBow;

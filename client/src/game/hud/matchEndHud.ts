@@ -18,6 +18,7 @@ export type MatchEndScoreRow = {
   displayName: string;
   shipClass: string;
   level: number;
+  /** Runden-Score — primäres Siegkriterium. */
   score: number;
   kills: number;
 };
@@ -37,10 +38,10 @@ export function createMatchEndHud(onPlayAgain: () => void): MatchEndHud {
   root.innerHTML = `
     <div class="match-end-panel">
       <h2 class="match-end-title">Match beendet</h2>
-      <p class="match-end-sub">FFA — Punkte nur für Kills (letzter Treffer). „Weiter“: Raum verlassen und erneut verbinden.</p>
+      <p class="match-end-sub">FFA — Sieg: höchster Score (passiv + Kämpfe; Mitte ×5). Kills zählen. „Weiter“: Raum verlassen und erneut verbinden.</p>
       <table class="match-end-table" aria-label="Rangliste">
         <thead>
-          <tr><th>#</th><th>Spieler</th><th>Klasse</th><th>Level</th><th>Kills</th><th>Punkte</th></tr>
+          <tr><th>#</th><th>Spieler</th><th>Klasse</th><th>Rang</th><th>Kills</th><th>Score</th></tr>
         </thead>
         <tbody class="match-end-tbody"></tbody>
       </table>

@@ -191,3 +191,21 @@ npm run devlog:append
 
 > ⚓ feat: ship wake ribbons, mounts/sockets, editor & gameplay polish — BattleFleet Arena nimmt Fahrt auf für #Vibejam: KI-unterstütztes Naval-RTS. Wer baut noch mit am Jam? #gamedev #AIgames
 
+---
+
+## 2026-04-19 — `32a4d26`
+
+- **Autor:** Klemens1048
+- **Commit:** chore: spielbarer MVP-Prototyp — Feature-Bündel vor Optimierungsphase
+
+**Details:**
+
+- - Gameplay: Sea Control, ESM/AD-FX, Respawn/Wreck (Klasse bis Respawn), Match/Score
+- - Client: HUD/Radar, Schiff/Roll/Wake, Bots, Editor-Workbench; Hull-GLBs
+- - Shared: seaControl, esmDetection, aswmShipAim, Tests; Ship-Daten & Schema
+- Made-with: Cursor
+
+### Vorschlag Twitter / X (#Vibejam)
+
+> Shipped: chore: spielbarer MVP-Prototyp — Feature-Bündel vor Optimierungsphase 🚢 Wir hacken an einem AI-collab Wettkampfspiel — #Vibejam #indiedev
+

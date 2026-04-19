@@ -2,6 +2,50 @@
  * Reine 2D-Hilfen für ein Kielwasser-Band in der XZ-Ebene (Y nach oben).
  */
 
+/** Halbe Schiffsbreite in lokalem X (m) am FAC — `data/ships/fac.json` → `collisionHitbox.halfExtents.x`. */
+export const WAKE_RIBBON_REF_HALF_BEAM_X = 4;
+
+/** Am Heck abgestimmte halbe Bandbreite (m) bei Referenz-FAC. */
+export const WAKE_RIBBON_TUNED_BASE_HALF_WIDTH = 4.6;
+
+/**
+ * Halbe sichtbare Kielwasser-Breite aus der Gameplay-Hitbox (Quer-Halbachse X).
+ * Zerstörer/Kreuzer skalieren gegenüber FAC proportional zur Hitbox.
+ */
+export function wakeRibbonBaseHalfWidthFromHitboxHalfBeamX(hitboxHalfBeamX: number): number {
+  if (typeof hitboxHalfBeamX !== "number" || !Number.isFinite(hitboxHalfBeamX) || hitboxHalfBeamX <= 0) {
+    return WAKE_RIBBON_TUNED_BASE_HALF_WIDTH;
+  }
+  return WAKE_RIBBON_TUNED_BASE_HALF_WIDTH * (hitboxHalfBeamX / WAKE_RIBBON_REF_HALF_BEAM_X);
+}
+
+/** Minimale Hitbox-Z-Angaben für Heck (Kollisions-AABB, +Z = Bug). */
+export type WakeRibbonHitboxZ = {
+  center: { z: number };
+  halfExtents: { z: number };
+};
+
+/**
+ * Lokales Z der heckwärtsigen Fläche der Kollisions-AABB (`center.z - halfExtents.z`).
+ */
+export function wakeRibbonSternLocalZFromHitbox(hitbox: WakeRibbonHitboxZ | undefined): number | null {
+  if (!hitbox?.center || !hitbox.halfExtents) return null;
+  const cz = hitbox.center.z;
+  const hz = hitbox.halfExtents.z;
+  if (typeof cz !== "number" || typeof hz !== "number" || !Number.isFinite(cz) || !Number.isFinite(hz)) {
+    return null;
+  }
+  return cz - hz;
+}
+
+export function wakeRibbonSternLocalZOrFallback(
+  hitbox: WakeRibbonHitboxZ | undefined,
+  fallbackSternZ: number,
+): number {
+  const z = wakeRibbonSternLocalZFromHitbox(hitbox);
+  return z != null ? z : fallbackSternZ;
+}
+
 export function normalizeXZ(dx: number, dz: number): { x: number; z: number } {
   const len = Math.hypot(dx, dz);
   if (len < 1e-9) return { x: 0, z: 1 };

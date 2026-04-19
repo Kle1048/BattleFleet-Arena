@@ -1,11 +1,15 @@
 import * as THREE from "three";
-import { PlayerLifeState } from "@battlefleet/shared";
 import {
   DEFAULT_SHIP_WAKE_LOD_MAX_DIST_WORLD,
+  PlayerLifeState,
   isWithinHorizontalDistanceSq,
+  normalizeShipClassId,
   spineTangentXZ,
+  wakeRibbonBaseHalfWidthFromHitboxHalfBeamX,
+  wakeRibbonSternLocalZOrFallback,
   xzPerpendicularFromTangent,
 } from "@battlefleet/shared";
+import { getAuthoritativeHullProfile } from "../runtime/shipProfileRuntime";
 import { getShipDebugTuningForVisualClass } from "../runtime/shipDebugTuning";
 import { SHIP_STERN_Z } from "./createGameScene";
 import type { ShipVisual } from "./shipVisual";
@@ -16,8 +20,33 @@ const WAKE_SPAWN_LOCAL_Y = 0.03;
 const DEFAULT_MIN_SAMPLE_DIST = 2.15;
 const DEFAULT_MAX_SAMPLES = 96;
 const DEFAULT_MIN_SPEED = 1.2;
-const DEFAULT_BASE_HALF_WIDTH = 4.6;
 const DEFAULT_OPACITY = 0.46;
+
+/** Kielwasser-Breite aus Hitbox-Querschnitt (gleiche X-Halbachse wie Gameplay-OBB). */
+export function wakeRibbonBaseHalfWidthWorld(shipClass: string | undefined): number {
+  const hull = getAuthoritativeHullProfile(normalizeShipClassId(shipClass));
+  const hx = hull?.collisionHitbox?.halfExtents.x;
+  return wakeRibbonBaseHalfWidthFromHitboxHalfBeamX(typeof hx === "number" ? hx : NaN);
+}
+
+/** Heck der Hitbox in Schiffslokal (+Z Bug) plus Debug-Δ `wakeSpawnLocalZ`; Fallback `SHIP_STERN_Z`. */
+export function wakeRibbonSternAnchorLocalZ(
+  shipClass: string | undefined,
+  wakeSpawnLocalZDelta: number,
+): number {
+  const hull = getAuthoritativeHullProfile(normalizeShipClassId(shipClass));
+  const hb = hull?.collisionHitbox;
+  const base = wakeRibbonSternLocalZOrFallback(
+    hb
+      ? {
+          center: { z: hb.center.z },
+          halfExtents: { z: hb.halfExtents.z },
+        }
+      : undefined,
+    SHIP_STERN_Z,
+  );
+  return base + wakeSpawnLocalZDelta;
+}
 
 /** Re-Export für Aufrufer, die nur das Client-Modul importieren. */
 export { DEFAULT_SHIP_WAKE_LOD_MAX_DIST_WORLD };
@@ -115,8 +144,10 @@ type SingleWake = {
     vis: ShipVisual;
     speed: number;
     lifeState: string | undefined;
-    /** Offset in lokalem +Z zu `SHIP_STERN_Z` (negativ = weiter achtern). */
-    wakeSpawnLocalZ: number;
+    /** Lokales Z am Heck (Hitbox-Ende + Debug-Δ), gleiche Basis wie `wakeRibbonSternAnchorLocalZ`. */
+    sternAnchorLocalZ: number;
+    /** Halbe Bandbreite in Welt-XZ zur Tangente (aus Hitbox-Skalierung). */
+    baseHalfWidthWorld: number;
     /** false: außerhalb LOD — Spur leeren, kein Sampling. */
     lodVisible: boolean;
   }) => void;
@@ -155,7 +186,7 @@ function createSingleShipWakeRibbon(
     mesh.visible = false;
   }
 
-  function rebuildGeometry(): void {
+  function rebuildGeometry(baseHalfWidthWorld: number): void {
     const n = samples.length;
     if (n < 2) {
       hideRibbonKeepSamples();
@@ -173,7 +204,7 @@ function createSingleShipWakeRibbon(
       const p = xzPerpendicularFromTangent(t.x, t.z);
       const uAlong = i / (n - 1);
       const widthScale = 0.16 + 0.84 * Math.pow(uAlong, 0.52);
-      const half = DEFAULT_BASE_HALF_WIDTH * widthScale;
+      const half = baseHalfWidthWorld * widthScale;
       const { x: sx, z: sz } = sp;
       const pi = i * 2;
       pos[pi * 3 + 0] = sx + p.x * half;
@@ -205,7 +236,7 @@ function createSingleShipWakeRibbon(
 
   return {
     update(opts) {
-      const { vis, speed, lifeState, wakeSpawnLocalZ, lodVisible } = opts;
+      const { vis, speed, lifeState, sternAnchorLocalZ, baseHalfWidthWorld, lodVisible } = opts;
       if (!lodVisible) {
         clearTrail();
         return;
@@ -220,7 +251,7 @@ function createSingleShipWakeRibbon(
       }
 
       vis.group.updateMatrixWorld(true);
-      sternLocal.set(0, WAKE_SPAWN_LOCAL_Y, SHIP_STERN_Z + wakeSpawnLocalZ);
+      sternLocal.set(0, WAKE_SPAWN_LOCAL_Y, sternAnchorLocalZ);
       sternWorld.copy(sternLocal).applyMatrix4(vis.group.matrixWorld);
 
       const nx = sternWorld.x;
@@ -235,7 +266,7 @@ function createSingleShipWakeRibbon(
         }
       }
 
-      rebuildGeometry();
+      rebuildGeometry(baseHalfWidthWorld);
     },
     dispose() {
       clearTrail();
@@ -297,11 +328,13 @@ export function createShipWakeRibbonSystem(scene: THREE.Scene): ShipWakeRibbonSy
           ? isWithinHorizontalDistanceSq(anchor.x, anchor.z, p.x, p.z, maxD)
           : true;
 
+        const tuning = getShipDebugTuningForVisualClass(p.shipClass);
         ribbon.update({
           vis,
           speed: p.speed,
           lifeState: p.lifeState,
-          wakeSpawnLocalZ: getShipDebugTuningForVisualClass(p.shipClass).wakeSpawnLocalZ,
+          sternAnchorLocalZ: wakeRibbonSternAnchorLocalZ(p.shipClass, tuning.wakeSpawnLocalZ),
+          baseHalfWidthWorld: wakeRibbonBaseHalfWidthWorld(p.shipClass),
           lodVisible,
         });
       }

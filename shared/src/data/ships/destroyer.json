@@ -4,7 +4,7 @@
   "hullGltfId": "destroyer",
   "hullVisualScale": 0.012,
   "clientVisualTuningDefaults": {
-    "gltfHullYOffset": 0,
+    "gltfHullYOffset": -590,
     "spriteScale": 1
   },
   "collisionHitbox": {
@@ -19,28 +19,36 @@
   },
   "defaultRotatingMountFireSector": {
     "kind": "symmetric",
-    "halfAngleRadFromBow": 2.0943951023931953
+    "halfAngleRadFromBow": 3.141592653589793
   },
   "mountSlots": [
     {
       "id": "main_fwd",
       "compatibleKinds": ["artillery"],
-      "defaultVisualId": "visual_artillery"
+      "defaultVisualId": "visual_artillery",
+      "fireSector": {
+        "kind": "symmetric",
+        "halfAngleRadFromBow": 2.0943951023931953
+      }
     },
     {
       "id": "ciws_fwd",
       "compatibleKinds": ["ciws"],
-      "defaultVisualId": "visual_ciws"
+      "defaultVisualId": "visual_ciws",
+      "fireSector": {
+        "kind": "symmetric",
+        "halfAngleRadFromBow": 2.6179938779914944
+      }
     },
     {
-      "id": "sam_mid",
+      "id": "sam_aft",
       "compatibleKinds": ["sam_launcher"],
-      "defaultVisualId": "visual_sam"
-    },
-    {
-      "id": "ssm_port",
-      "compatibleKinds": ["generic"],
-      "defaultVisualId": "visual_ssm"
+      "defaultVisualId": "visual_sam",
+      "fireSector": {
+        "kind": "symmetric",
+        "halfAngleRadFromBow": 2.0943951023931953,
+        "centerYawRadFromBow": 3.141592653589793
+      }
     }
   ],
   "fixedSeaSkimmerLaunchers": [
@@ -70,7 +78,6 @@
   "defaultLoadout": {
     "main_fwd": "visual_artillery",
     "ciws_fwd": "visual_ciws",
-    "sam_mid": "visual_sam",
-    "ssm_port": "visual_ssm"
+    "sam_aft": "visual_sam"
   }
 }
