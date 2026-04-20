@@ -15,7 +15,7 @@ import {
   PlayerLifeState,
 } from "@battlefleet/shared";
 import { createGameScene } from "./game/scene/createGameScene";
-import { createInputHandlers } from "./game/input/keyboardMouse";
+import { createInputHandlers, type MobileAimEngagementRef } from "./game/input/keyboardMouse";
 import { createFireControlChannel } from "./game/input/fireControlChannel";
 import { createCockpitHud } from "./game/hud/cockpitHud";
 import { createMessageLog } from "./game/hud/messageLog";
@@ -34,6 +34,7 @@ import { createMissileFx } from "./game/effects/missileFx";
 import { createTorpedoFx } from "./game/effects/torpedoFx";
 import { gameAudio } from "./game/audio/gameAudio";
 import { pickShipLobbyChoice } from "./game/ui/classPicker";
+import { showMissionBriefingIfNeeded } from "./game/ui/missionBriefing";
 import { colyseusHttpBase, createColyseusClient, withTimeout } from "./game/runtime/sessionBootstrap";
 import { bindRendererResize, createGameRenderer } from "./game/runtime/rendererLifecycle";
 import { installGlobalRuntimeErrorHandlers } from "./game/runtime/runtimeErrors";
@@ -75,9 +76,16 @@ import {
   playerListOf,
   readMatchTimer,
   torpedoListOf,
+  wreckListOf,
 } from "./game/runtime/stateAdapter";
+import { syncWreckListVisuals, updateAllWreckVisualPoses } from "./game/runtime/shipWreckVisuals";
+import { disposeWreckCollisionDebug, syncWreckCollisionDebugMeshes } from "./game/runtime/wreckCollisionDebug";
 import { clearPersistedClientSettings } from "./game/runtime/clearPersistedClientSettings";
+import { installMobileBrowserChromeGuards } from "./game/runtime/mobileBrowserGuards";
 import { createShipWakeRibbonSystem } from "./game/scene/shipWakeRibbon";
+import { AIM_CROSSHAIR_SVG } from "./game/input/aimCrosshairSvg";
+import { createMobileMapAimReticle } from "./game/input/mobileMapAimReticle";
+import { t } from "./locale/t";
 
 const COLYSEUS_URL = colyseusHttpBase(
   import.meta.env.VITE_COLYSEUS_URL,
@@ -85,7 +93,15 @@ const COLYSEUS_URL = colyseusHttpBase(
 );
 
 const root = document.getElementById("app");
-if (!root) throw new Error("#app missing");
+if (!root) throw new Error(t("errors.appRootMissing"));
+
+document.documentElement.lang = "en";
+document.title = t("shell.documentTitle");
+const pageTitleEl = document.getElementById("title");
+if (pageTitleEl) pageTitleEl.textContent = t("shell.pageTitleBanner");
+/** `#hud` help lines: hidden in index.html; to restore, remove `display:none` on `#hud` and populate from `shell.helpHudLine1`…`6`. */
+
+installMobileBrowserChromeGuards();
 
 /**
  * Einmalig alle lokalen Client-Defaults wiederherstellen: Seite mit `?resetLocal=1` öffnen
@@ -104,9 +120,6 @@ if (typeof window !== "undefined") {
   }
 }
 
-/** Größeres Fadenkreuz: dunkle Kontur + helle Mitte, damit es auf Wasser/Himmel gut lesbar ist. */
-const AIM_CROSSHAIR_SVG = `<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 32 32"><g stroke-linecap="round"><line x1="16" y1="2" x2="16" y2="11" stroke="#050a12" stroke-width="5"/><line x1="16" y1="21" x2="16" y2="30" stroke="#050a12" stroke-width="5"/><line x1="2" y1="16" x2="11" y2="16" stroke="#050a12" stroke-width="5"/><line x1="21" y1="16" x2="30" y2="16" stroke="#050a12" stroke-width="5"/><circle cx="16" cy="16" r="4" fill="none" stroke="#050a12" stroke-width="5"/><line x1="16" y1="2" x2="16" y2="11" stroke="#f5f9ff" stroke-width="2.5"/><line x1="16" y1="21" x2="16" y2="30" stroke="#f5f9ff" stroke-width="2.5"/><line x1="2" y1="16" x2="11" y2="16" stroke="#f5f9ff" stroke-width="2.5"/><line x1="21" y1="16" x2="30" y2="16" stroke="#f5f9ff" stroke-width="2.5"/><circle cx="16" cy="16" r="4" fill="none" stroke="#f5f9ff" stroke-width="2"/></g></svg>`;
-
 const renderer = createGameRenderer(root);
 renderer.domElement.style.cursor = `url("data:image/svg+xml,${encodeURIComponent(AIM_CROSSHAIR_SVG)}") 16 16, crosshair`;
 const assetManager = createAssetManager();
@@ -117,6 +130,7 @@ loadPersistedFollowCameraTuning();
 let debugOverlayForFatal: ReturnType<typeof createDebugOverlay> | null = null;
 
 async function bootstrap(): Promise<void> {
+  const mobileMapAimReticle = createMobileMapAimReticle(renderer.domElement);
   const bundle = await createGameScene();
   const { scene, camera, water } = bundle;
   const debugShipSwitchRef: { send?: (id: ShipClassId) => void } = {};
@@ -136,12 +150,13 @@ async function bootstrap(): Promise<void> {
     return { x: renderToWorldX(out.x), z: out.z };
   }
 
-  const input = createInputHandlers(renderer.domElement, getGroundPoint);
-  const cockpit = createCockpitHud();
+  const mobileAimEngagement: MobileAimEngagementRef = { self: null };
+  const input = createInputHandlers(renderer.domElement, getGroundPoint, mobileAimEngagement);
+  const cockpit = createCockpitHud({ onRadarToggle: () => input.queueRadarToggle() });
   const bridgeEl = document.querySelector(".cockpit-bridge") as HTMLElement | null;
   const opzEl = document.querySelector(".cockpit-opz") as HTMLElement | null;
   if (!bridgeEl || !opzEl) {
-    throw new Error("Cockpit-HUD (.cockpit-bridge / .cockpit-opz) fehlt");
+    throw new Error(t("errors.cockpitHudMissing"));
   }
   const debugOverlay = createDebugOverlay({ parent: bridgeEl });
   debugOverlayForFatal = debugOverlay;
@@ -155,6 +170,7 @@ async function bootstrap(): Promise<void> {
   const botDebugPanel = createBotDebugPanel({
     onSetEnabled: setBotEnabled,
   });
+  document.getElementById("bottom-debug-dock")?.classList.add("bottom-debug-dock--hidden");
   const gameMessageHud = createGameMessageHud({
     onToast: (e) => commsLog.append({ text: e.text, kind: e.kind }),
   });
@@ -183,11 +199,12 @@ async function bootstrap(): Promise<void> {
     roomId: "…",
     playerCount: 0,
     pingMs: null,
-    diag: "In Konsole: „Warnungen“ aktivieren (Filter).",
-    warn: `Verbinde…\n${COLYSEUS_URL}`,
+    diag: t("bootstrap.initialDebugDiag"),
+    warn: t("bootstrap.initialDebugWarnConnecting", { url: COLYSEUS_URL }),
   });
 
   const client = createColyseusClient(COLYSEUS_URL);
+  await showMissionBriefingIfNeeded();
   const lobby = await pickShipLobbyChoice();
   gameAudio.unlockFromUserGesture();
   await gameAudio.preloadSounds();
@@ -212,14 +229,14 @@ async function bootstrap(): Promise<void> {
       BattleState,
     ),
     15_000,
-    `Keine Antwort vom Spiel-Server. Prüfe: Server läuft? Firewall? Adresse ${COLYSEUS_URL}`,
+    t("bootstrap.joinServerTimeout", { url: COLYSEUS_URL }),
   );
   const mySessionId = room.sessionId;
   debugShipSwitchRef.send = (id) => {
     room.send("debugSetShipClass", { shipClass: id });
   };
   commsLog.append({
-    text: `OPZ-Kanal offen — Raum ${room.roomId.slice(0, 8)}…`,
+    text: t("comms.roomChannelOpen", { roomId: room.roomId.slice(0, 8) }),
     kind: "info",
   });
 
@@ -245,6 +262,8 @@ async function bootstrap(): Promise<void> {
   window.addEventListener("keydown", onBotToggleKey);
   const frameRuntimeState = createFrameRuntimeState(1);
   const cameraCullState = createCameraCullRuntimeState();
+  let prevWreckIds = new Set<string>();
+  const lastWreckSmokeByWreckId = new Map<string, number>();
   let resolvePdmsMuzzleSeek: ((defenderId: string) => { x: number; y: number; z: number } | null) | undefined;
 
   registerNetworkHandlers({
@@ -297,15 +316,20 @@ async function bootstrap(): Promise<void> {
     },
     onMissileLockOn: () => gameAudio.missileLockOn(),
     onAswmMagazineReloaded: () =>
-      gameMessageHud.showToast("ASuM: Magazin nachgeladen", "info", 3500),
+      gameMessageHud.showToast(t("toast.aswmMagazineReloaded"), "info", 3500),
     onSoftkillResult: (success) => {
-      gameAudio.softkillChaff(0.32);
       const skMe = getPlayer(playerListOf(room), mySessionId);
       if (skMe && skMe.lifeState !== PlayerLifeState.AwaitingRespawn) {
-        fxSystem.spawnSoftkillChaffCloud(skMe.x, skMe.z, skMe.headingRad);
+        /** Pro Rauch-Puff einmal — Gain ~1/√8 gegenüber früher „einmal 0.32“, damit es nicht übersteuert. */
+        const chaffGainPerPuff = 0.32 / Math.sqrt(8);
+        fxSystem.spawnSoftkillChaffCloud(skMe.x, skMe.z, skMe.headingRad, undefined, (_puffIndex) => {
+          gameAudio.softkillChaff(chaffGainPerPuff);
+        });
+      } else {
+        gameAudio.softkillChaff(0.32);
       }
       gameMessageHud.showToast(
-        success ? "Softkill successful" : "Softkill failed",
+        success ? t("toast.softkillSuccess") : t("toast.softkillFailed"),
         success ? "info" : "danger",
         3800,
       );
@@ -361,7 +385,7 @@ async function bootstrap(): Promise<void> {
     mySessionId,
     joinedAt,
   });
-  const { visuals, remoteInterp } = visualRuntime;
+  const { visuals, remoteInterp, ensureShipVisual, removeShipVisual } = visualRuntime;
   const shipWakeRibbonSystem = createShipWakeRibbonSystem(scene);
   artilleryFx.setMuzzleSeekResolver((ownerId) => getPrimaryArtilleryMuzzleSeekCoords(visuals.get(ownerId)));
   resolvePdmsMuzzleSeek = (defenderId) => getPdmsMuzzleSeekCoords(visuals.get(defenderId));
@@ -374,6 +398,7 @@ async function bootstrap(): Promise<void> {
     onToast: (text, kind, durationMs) => gameMessageHud.showToast(text, kind, durationMs),
   });
   const runtimeShutdown = createRuntimeShutdown([
+    mobileMapAimReticle,
     visualRuntime,
     artilleryFx,
     missileFx,
@@ -398,6 +423,11 @@ async function bootstrap(): Promise<void> {
     commsLog,
     fireControl,
     shipWakeRibbonSystem,
+    {
+      dispose() {
+        disposeWreckCollisionDebug(scene);
+      },
+    },
   ]);
   runtimeShutdown.bindWindowUnload();
 
@@ -441,8 +471,49 @@ async function bootstrap(): Promise<void> {
     /** Nach ROOM_STATE können Callbacks fehlen — fehlende Meshes nachziehen. */
     visualRuntime.ensureVisualsForPlayers(playerList);
 
+    const wreckList = wreckListOf(room);
+    prevWreckIds = syncWreckListVisuals(
+      wreckList,
+      ensureShipVisual,
+      removeShipVisual,
+      prevWreckIds,
+    );
+    updateAllWreckVisualPoses(wreckList, visuals, Date.now());
+    syncWreckCollisionDebugMeshes(scene, wreckList);
+    if (wreckList) {
+      for (let i = 0; i < wreckList.length; i++) {
+        const w = wreckList.at(i);
+        if (!w) continue;
+        const last = lastWreckSmokeByWreckId.get(w.wreckId) ?? 0;
+        if (now - last >= 400) {
+          fxSystem.spawnShipDamageSmokeTick(w.anchorX, w.anchorZ, w.headingRad, "heavily_damaged");
+          lastWreckSmokeByWreckId.set(w.wreckId, now);
+        }
+      }
+      const aliveWrecks = new Set<string>();
+      for (let i = 0; i < wreckList.length; i++) {
+        const w = wreckList.at(i);
+        if (w) aliveWrecks.add(w.wreckId);
+      }
+      for (const id of lastWreckSmokeByWreckId.keys()) {
+        if (!aliveWrecks.has(id)) lastWreckSmokeByWreckId.delete(id);
+      }
+    }
+
     const { phase: matchPhase, remainingSec: matchRemainingSecRaw } = readMatchTimer(room);
     const matchEnded = matchPhase === MATCH_PHASE_ENDED;
+
+    const meForAim = getPlayer(playerList, mySessionId);
+    if (meForAim && meForAim.lifeState !== PlayerLifeState.AwaitingRespawn) {
+      mobileAimEngagement.self = {
+        x: meForAim.x,
+        z: meForAim.z,
+        headingRad: meForAim.headingRad,
+        shipClass: typeof meForAim.shipClass === "string" ? meForAim.shipClass : "fac",
+      };
+    } else {
+      mobileAimEngagement.self = null;
+    }
 
     let humanInput = input.sample();
     humanInput = fireControl.applyToInput(humanInput, playerList, matchEnded);
@@ -532,7 +603,7 @@ async function bootstrap(): Promise<void> {
 
   requestAnimationFrame(frame);
 
-  (window as unknown as { __BFA: unknown }).__BFA = {
+  const scaConsoleApi = {
     colyseusUrl: COLYSEUS_URL,
     room,
     mySessionId,
@@ -545,7 +616,18 @@ async function bootstrap(): Promise<void> {
     get pingMs(): number | null {
       return pingMs;
     },
+    /** Dev-Debug (FPS-Toggle, Diagnose, Bot, Environment): `true` einblenden, `false` nur FPS/Frame/Ping. */
+    showDevHud: (show = true) => {
+      debugOverlay.setDevPanelsVisible(show);
+      document.getElementById("bottom-debug-dock")?.classList.toggle("bottom-debug-dock--hidden", !show);
+    },
+    get devHudVisible(): boolean {
+      return debugOverlay.getDevPanelsVisible();
+    },
   };
+  (window as unknown as { __SCA: typeof scaConsoleApi; __BFA?: typeof scaConsoleApi }).__SCA = scaConsoleApi;
+  /** @deprecated Prefer `window.__SCA`. */
+  (window as unknown as { __BFA?: typeof scaConsoleApi }).__BFA = scaConsoleApi;
 }
 
 bootstrap().catch((err) => {
@@ -553,16 +635,16 @@ bootstrap().catch((err) => {
   const detail = err instanceof Error ? err.message : String(err);
   debugOverlayForFatal?.update({
     fps: 0,
-    roomId: "FEHLER",
+    roomId: t("bootstrap.roomIdFatal"),
     playerCount: 0,
     pingMs: null,
     diag: undefined,
-    warn: `${detail}\n→ npm run dev -w server`,
+    warn: t("bootstrap.fatalServerHint", { detail }),
   });
   const banner = document.createElement("div");
   banner.style.cssText =
     "position:fixed;inset:0;display:flex;align-items:center;justify-content:center;background:#5ec8f5;color:#102030;font-family:system-ui;padding:24px;text-align:center;z-index:9999;";
-  banner.textContent = `Keine Verbindung (${COLYSEUS_URL}): ${detail} — Server: „npm run dev -w server“.`;
+  banner.textContent = t("bootstrap.connectionFailed", { url: COLYSEUS_URL, detail });
   document.body.appendChild(banner);
   try {
     assetManager.dispose();

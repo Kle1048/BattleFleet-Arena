@@ -1,6 +1,16 @@
 /** Pro Frame aus Tastatur + Maus; NDC wie WebGL (−1…1, Y oben positiv). Torpedo: **Q** + **Mittelklick**. */
-import { FEATURE_MINES_ENABLED } from "@battlefleet/shared";
-import { createMobileControls } from "./mobileControls";
+import {
+  ARTILLERY_MAX_RANGE,
+  canPrimaryArtilleryEngageAimAtWorldPoint,
+  FEATURE_MINES_ENABLED,
+} from "@battlefleet/shared";
+import { createMachineryTelegraphLevers } from "./machineryTelegraphLevers";
+import { createMobileControls, isMobileControlSurface } from "./mobileControls";
+import {
+  TELEGRAPH_RUDDER_STEPS,
+  TELEGRAPH_STOP_INDEX,
+  TELEGRAPH_THROTTLE_STEPS,
+} from "./telegraphSteps";
 
 export type InputSample = {
   throttle: number;
@@ -15,11 +25,55 @@ export type InputSample = {
   torpedoFire: boolean;
   /** Suchrad an/aus — **R** toggelt (ESM-Sichtbarkeit für Gegner). */
   radarActive: boolean;
+  /** Nur Mobile: ASuM von fester Backbord-/Steuerbord-Seite (Softkeys). */
+  aswmFireSide?: "port" | "starboard";
   /**
-   * Ein Frame lang true nach **E** — Hardkill-Luftverteidigung bestätigen (Server öffnet Engagement-Fenster).
+   * `false`: Server nutzt `throttle` / `rudderInput` (aktueller Stand).
+   * Reserviert: `true` + Order-Strings, sobald der Raum das versteht.
    */
-  airDefenseEngage: boolean;
+  useTelegraphWire?: boolean;
+  engineOrder?: string;
+  rudderOrder?: string;
 };
+
+/** Wird jeden Frame vor `sample()` gesetzt — Mobile-Zielmarke + Primärfeuer im gültigen Bogen. */
+export type MobileAimEngagementRef = {
+  self: null | {
+    x: number;
+    z: number;
+    headingRad: number;
+    shipClass: string;
+  };
+};
+
+const MOBILE_FALLBACK_AIM_DIST = Math.min(ARTILLERY_MAX_RANGE * 0.42, 280);
+
+function defaultBowAimWorld(self: { x: number; z: number; headingRad: number }): { x: number; z: number } {
+  const d = MOBILE_FALLBACK_AIM_DIST;
+  return {
+    x: self.x + Math.sin(self.headingRad) * d,
+    z: self.z + Math.cos(self.headingRad) * d,
+  };
+}
+
+function clamp(v: number, lo: number, hi: number): number {
+  return Math.max(lo, Math.min(hi, v));
+}
+
+/** Viewport-Pixel → NDC relativ zum **aktuellen** Canvas-Rect (Zielmarke fix am Bildschirm). */
+function clientToNdcOnCanvasClamped(
+  canvas: HTMLElement,
+  clientX: number,
+  clientY: number,
+): { ndcX: number; ndcY: number } | null {
+  const rect = canvas.getBoundingClientRect();
+  if (rect.width < 1e-6 || rect.height < 1e-6) return null;
+  const x = clamp(clientX, rect.left + 1e-6, rect.right - 1e-6);
+  const y = clamp(clientY, rect.top + 1e-6, rect.bottom - 1e-6);
+  const ndcX = ((x - rect.left) / rect.width) * 2 - 1;
+  const ndcY = -(((y - rect.top) / rect.height) * 2 - 1);
+  return { ndcX, ndcY };
+}
 
 /**
  * Tastatur global (auch außerhalb Canvas), Maus nur über dem Canvas.
@@ -28,14 +82,29 @@ export type InputSample = {
 export function createInputHandlers(
   canvas: HTMLElement,
   getGroundPoint: (ndcX: number, ndcY: number) => { x: number; z: number } | null,
+  mobileAimEngagement?: MobileAimEngagementRef,
 ): {
   sample: () => InputSample;
+  /** Suchrad umschalten (HUD-Knopf / Touch) — wirkt wie **R**. */
+  queueRadarToggle: () => void;
   dispose: () => void;
 } {
   const keys = new Set<string>();
-  const mobileControls = createMobileControls();
+  const mobileSurface = isMobileControlSurface();
+  const telegraph = createMachineryTelegraphLevers({ interactive: mobileSurface });
+  const mobileControls = createMobileControls(
+    mobileSurface ? { telegraphRoot: telegraph.root } : undefined,
+  );
+  if (!mobileSurface) {
+    document.body.appendChild(telegraph.root);
+  }
+
+  let throttleNotch = TELEGRAPH_STOP_INDEX;
+  let rudderNotch = TELEGRAPH_STOP_INDEX;
+
   let radarActive = true;
-  let pendingAirDefenseEngage = false;
+  /** HUD-/Touch-Knopf: Toggles werden im nächsten `sample()` verarbeitet (gleiche Quelle wie **R**). */
+  let pendingRadarToggles = 0;
 
   const onDown = (e: KeyboardEvent): void => {
     keys.add(e.code);
@@ -45,8 +114,19 @@ export function createInputHandlers(
     if (e.code === "KeyR" && !e.repeat) {
       radarActive = !radarActive;
     }
-    if (e.code === "KeyE" && !e.repeat) {
-      pendingAirDefenseEngage = true;
+    const tMax = TELEGRAPH_THROTTLE_STEPS.length - 1;
+    const rMax = TELEGRAPH_RUDDER_STEPS.length - 1;
+    if (e.code === "KeyW") {
+      throttleNotch = Math.min(tMax, throttleNotch + 1);
+    }
+    if (e.code === "KeyS") {
+      throttleNotch = Math.max(0, throttleNotch - 1);
+    }
+    if (e.code === "KeyA") {
+      rudderNotch = Math.max(0, rudderNotch - 1);
+    }
+    if (e.code === "KeyD") {
+      rudderNotch = Math.min(rMax, rudderNotch + 1);
     }
   };
   const onUp = (e: KeyboardEvent): void => {
@@ -57,6 +137,11 @@ export function createInputHandlers(
 
   let mouseNdcX = 0;
   let mouseNdcY = 0;
+  /**
+   * Mobile: feste Viewport-Position der Zielmarke — jedes Frame neu in den Boden geraycast,
+   * damit das Ziel mit Kamera/Schiff (nordstabilisierte Darstellung) mitwandert.
+   */
+  let pinViewport: { clientX: number; clientY: number } | null = null;
 
   const onMove = (e: PointerEvent): void => {
     const rect = canvas.getBoundingClientRect();
@@ -83,6 +168,14 @@ export function createInputHandlers(
     if (e.button === 2) {
       rmbHeld = true;
     }
+    if (mobileSurface && e.button === 0 && e.target === canvas) {
+      pinViewport = { clientX: e.clientX, clientY: e.clientY };
+      const ndc = clientToNdcOnCanvasClamped(canvas, e.clientX, e.clientY);
+      if (ndc) {
+        mouseNdcX = ndc.ndcX;
+        mouseNdcY = ndc.ndcY;
+      }
+    }
   };
   const onPointerUp = (e: PointerEvent): void => {
     if (e.button === 0) {
@@ -102,45 +195,98 @@ export function createInputHandlers(
 
   function sample(): InputSample {
     const mobile = mobileControls.sample();
-    let throttle = 0;
-    if (keys.has("KeyW")) throttle += 1;
-    if (keys.has("KeyS")) throttle -= 1;
-    throttle = Math.max(-1, Math.min(1, throttle));
-
-    let rudderInput = 0;
-    if (keys.has("KeyA")) rudderInput -= 1;
-    if (keys.has("KeyD")) rudderInput += 1;
-    rudderInput = Math.max(-1, Math.min(1, rudderInput));
-
-    if (mobile.active) {
-      if (Math.abs(mobile.throttle) > 0.01) throttle = mobile.throttle;
-      if (Math.abs(mobile.rudderInput) > 0.01) rudderInput = mobile.rudderInput;
-      if (mobile.radarTogglePressed) radarActive = !radarActive;
-      if (mobile.airDefensePressed) pendingAirDefenseEngage = true;
+    if (!mobile.active) {
+      pinViewport = null;
     }
 
-    const hit = getGroundPoint(mouseNdcX, mouseNdcY);
-    const primaryFire = lmbHeld || keys.has("Space") || mobile.primaryFire;
+    let throttle = TELEGRAPH_THROTTLE_STEPS[throttleNotch] ?? 0;
+    let rudderInput = TELEGRAPH_RUDDER_STEPS[rudderNotch] ?? 0;
+
+    if (mobile.active) {
+      const levers = telegraph.sampleMobileOutputs();
+      throttle = levers.throttle;
+      rudderInput = levers.rudderInput;
+    } else {
+      telegraph.setFeedback(throttle, rudderInput);
+    }
+    while (pendingRadarToggles > 0) {
+      pendingRadarToggles -= 1;
+      radarActive = !radarActive;
+    }
+
+    const self = mobileAimEngagement?.self ?? null;
+    const hitMove = getGroundPoint(mouseNdcX, mouseNdcY);
+    let aimWorldX = hitMove?.x ?? 0;
+    let aimWorldZ = hitMove?.z ?? 0;
+
+    /** Aus fixem Bildschirm-Strahl; null wenn Pin fehlt oder Boden nicht getroffen. */
+    let aimFromViewportPin: { x: number; z: number } | null = null;
+    if (mobile.active && pinViewport) {
+      const ndcPin = clientToNdcOnCanvasClamped(canvas, pinViewport.clientX, pinViewport.clientY);
+      if (ndcPin) {
+        const hitP = getGroundPoint(ndcPin.ndcX, ndcPin.ndcY);
+        if (hitP) {
+          aimFromViewportPin = hitP;
+          aimWorldX = hitP.x;
+          aimWorldZ = hitP.z;
+        }
+      }
+      if (!aimFromViewportPin && self) {
+        const bow = defaultBowAimWorld(self);
+        aimWorldX = bow.x;
+        aimWorldZ = bow.z;
+      }
+    } else if (mobile.active && self) {
+      const bow = defaultBowAimWorld(self);
+      aimWorldX = bow.x;
+      aimWorldZ = bow.z;
+    }
+
+    let primaryFire = lmbHeld || keys.has("Space") || mobile.primaryFire;
+    if (
+      mobile.active &&
+      mobile.primaryFire &&
+      aimFromViewportPin &&
+      self &&
+      !canPrimaryArtilleryEngageAimAtWorldPoint(
+        self.x,
+        self.z,
+        self.headingRad,
+        self.shipClass,
+        aimFromViewportPin.x,
+        aimFromViewportPin.z,
+      )
+    ) {
+      primaryFire = false;
+    }
     const secondaryFire = rmbHeld || mobile.secondaryFire;
     const torpedoFire =
       FEATURE_MINES_ENABLED && (mmbHeld || keys.has("KeyQ") || mobile.torpedoFire);
-    const airDefenseEngage = pendingAirDefenseEngage;
-    pendingAirDefenseEngage = false;
+    const aswmFireSide =
+      mobile.active && mobile.secondaryFire && mobile.aswmFireSide
+        ? mobile.aswmFireSide
+        : undefined;
     return {
       throttle,
       rudderInput,
-      aimWorldX: hit?.x ?? 0,
-      aimWorldZ: hit?.z ?? 0,
+      aimWorldX,
+      aimWorldZ,
       primaryFire,
       secondaryFire,
       torpedoFire,
       radarActive,
-      airDefenseEngage,
+      aswmFireSide,
+      useTelegraphWire: false,
     };
+  }
+
+  function queueRadarToggle(): void {
+    pendingRadarToggles += 1;
   }
 
   return {
     sample,
+    queueRadarToggle,
     dispose: () => {
       window.removeEventListener("keydown", onDown);
       window.removeEventListener("keyup", onUp);
@@ -149,6 +295,7 @@ export function createInputHandlers(
       canvas.removeEventListener("pointerup", onPointerUp);
       canvas.removeEventListener("pointercancel", onPointerUp);
       window.removeEventListener("pointerup", onPointerUp);
+      telegraph.dispose();
       mobileControls.dispose();
     },
   };

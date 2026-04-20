@@ -117,6 +117,31 @@ Hinweis: Beendet man die SSH-Session, endet oft auch dieser Prozess — für Dau
 
 ## 8. systemd-Dienst `battlefleet`
 
+### Neueste Version auf den Server (Kurzfassung)
+
+Voraussetzung: Repo liegt auf dem Server (z. B. `/opt/BattleFleet-Arena`), Dienst `battlefleet` ist eingerichtet.
+
+| Schritt | Aktion |
+|--------|--------|
+| 1 | Per SSH einloggen: `ssh root@<VPS-IPv4>` |
+| 2 | Ins Projekt: `cd /opt/BattleFleet-Arena` |
+| 3 | Code + Abhängigkeiten: `git pull` → `npm ci` → `npm run build -w server` |
+| 4 | Dienst neu starten: `systemctl restart battlefleet` → optional `systemctl status battlefleet --no-pager` |
+
+**Einzeiler auf dem Server** (nach SSH-Login):
+
+```bash
+cd /opt/BattleFleet-Arena && git pull && npm ci && npm run build -w server && systemctl restart battlefleet && systemctl status battlefleet --no-pager
+```
+
+**Einzeiler von Windows (PowerShell)** — IP und Pfad anpassen:
+
+```powershell
+ssh root@<VPS-IPv4> "cd /opt/BattleFleet-Arena && git pull && npm ci && npm run build -w server && systemctl restart battlefleet && systemctl status battlefleet --no-pager"
+```
+
+Ausführlichere Schritte und eine Variante mit PowerShell-Variablen (`$ServerIP`, `$RepoPath`): siehe **„Nach Code-Updates auf dem Server“** und **Abschnitt 8.4** unten.
+
 ### 8.1 `npm`-Pfad
 
 ```bash
@@ -168,7 +193,7 @@ journalctl -u battlefleet -n 80 --no-pager
 journalctl -u battlefleet -f
 ```
 
-**Nach Code-Updates auf dem Server:**
+**Nach Code-Updates auf dem Server** (gleiche Logik wie Kurzfassung, zeilenweise):
 
 ```bash
 cd /opt/BattleFleet-Arena

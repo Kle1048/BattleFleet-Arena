@@ -1,11 +1,37 @@
 <!DOCTYPE html>
-<html lang="de">
+<html lang="en">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>BattleFleet-Arena — Task 12: Klassen &amp; Audio</title>
+    <title>Sea Control: Arena</title>
     <style>
       * { box-sizing: border-box; margin: 0; padding: 0; }
+      /* Eingabefelder (Klassenwahl o. Ä.) trotz Spiel-UI weiter markierbar */
+      input, textarea, select, [contenteditable="true"] {
+        user-select: text;
+        -webkit-user-select: text;
+      }
+      /* Touch / grobe Zeiger: Doppelkipp-Zoom, Text-Markierung, Pull-to-Refresh abschwächen */
+      @media (hover: none), (pointer: coarse) {
+        html {
+          -webkit-text-size-adjust: 100%;
+          text-size-adjust: 100%;
+        }
+        html, body {
+          width: 100%;
+          height: 100%;
+          overflow: hidden;
+          touch-action: manipulation;
+          overscroll-behavior: none;
+          -webkit-tap-highlight-color: transparent;
+          -webkit-touch-callout: none;
+          user-select: none;
+          -webkit-user-select: none;
+        }
+        #app {
+          touch-action: none;
+        }
+      }
       html, body { width: 100%; height: 100%; overflow: hidden; background: #5ec8f5; }
       #app { width: 100%; height: 100%; }
       /**
@@ -18,7 +44,20 @@
         /* Flex-Gap innerhalb skalierter Brücke/OPZ: wirkt nach scale(0.8) wie 16px Rand */
         --cockpit-hud-inner-gap: calc(var(--cockpit-hud-edge) / var(--hud-ui-scale));
       }
+      /* Touch-Geräte: kompakteres HUD — mehr Spielfeld (Desktop unverändert 0.8). */
+      @media (hover: none) and (max-width: 767px) {
+        :root {
+          --hud-ui-scale: 0.5;
+        }
+      }
+      @media (hover: none) and (min-width: 768px) and (max-width: 1366px) {
+        :root {
+          --hud-ui-scale: 0.7;
+        }
+      }
+      /* Help lines under the canvas: hidden for now (copy back from `shell.helpHudLine*` in en.ts + main.ts when needed). */
       #hud {
+        display: none;
         position: fixed; left: 16px; bottom: 16px; color: #9fb8d4;
         font-family: system-ui, sans-serif; font-size: 11px;
         text-shadow: 0 1px 2px #000; pointer-events: none; line-height: 1.45;
@@ -118,39 +157,6 @@
       .cockpit-panel-title {
         font-weight: 700; letter-spacing: 0.12em; font-size: 10px;
         color: rgba(200, 230, 255, 0.88);
-      }
-      .cockpit-compass-wrap {
-        align-self: center;
-        width: 112px; height: 112px;
-        border-radius: 50%;
-        border: 2px solid rgba(100, 170, 230, 0.35);
-        box-shadow: 0 0 16px rgba(40, 120, 200, 0.15) inset, 0 4px 14px rgba(0,0,0,0.4);
-        background: radial-gradient(circle at 50% 50%, #0a1a30 0%, #040a14 100%);
-      }
-      .cockpit-compass-svg { display: block; width: 100%; height: 100%; }
-      .cockpit-compass-rim {
-        stroke: rgba(140, 200, 255, 0.45); stroke-width: 1.2;
-        filter: drop-shadow(0 0 4px rgba(100, 180, 255, 0.35));
-      }
-      .cockpit-compass-lubber {
-        fill: rgba(255, 220, 120, 0.55);
-        stroke: rgba(255, 240, 200, 0.85); stroke-width: 0.6;
-      }
-      .cockpit-compass-tick {
-        stroke: rgba(180, 220, 255, 0.55); stroke-width: 1.1;
-      }
-      .cockpit-compass-tick-sec {
-        stroke: rgba(140, 180, 220, 0.28); stroke-width: 0.7;
-      }
-      .cockpit-compass-cardinal {
-        fill: rgba(210, 235, 255, 0.92);
-        font-size: 11px; font-weight: 700;
-        font-family: ui-monospace, Consolas, monospace;
-      }
-      .cockpit-compass-ctr-diamond {
-        fill: rgba(255, 200, 120, 0.95);
-        stroke: rgba(255, 240, 200, 0.9); stroke-width: 0.5;
-        filter: drop-shadow(0 0 5px rgba(255, 200, 100, 0.85));
       }
       .cockpit-subhead {
         grid-column: 1/-1;
@@ -322,7 +328,7 @@
       }
       .cockpit-radar-head {
         display: flex; flex-wrap: wrap; align-items: center; justify-content: center;
-        gap: 8px 12px; width: 100%; max-width: 200px;
+        gap: 8px 12px; width: 100%; max-width: 240px;
       }
       .cockpit-radar-title {
         font-family: ui-monospace, "Cascadia Mono", Consolas, monospace;
@@ -335,14 +341,44 @@
         font-size: 8px; letter-spacing: 0.06em; color: #88ffaa;
         text-shadow: 0 0 4px rgba(0, 255, 120, 0.5);
       }
+      .cockpit-own-radar-toggle {
+        cursor: pointer;
+        touch-action: manipulation;
+        -webkit-tap-highlight-color: rgba(0, 255, 120, 0.25);
+        border: 1px solid rgba(0, 255, 120, 0.42);
+        border-radius: 6px;
+        padding: 6px 10px;
+        margin: 0;
+        min-height: 36px;
+        min-width: 88px;
+        box-sizing: border-box;
+        background: rgba(0, 48, 28, 0.55);
+        line-height: 1.2;
+        text-align: center;
+      }
+      .cockpit-own-radar-toggle:hover {
+        border-color: rgba(0, 255, 140, 0.65);
+        filter: brightness(1.06);
+      }
+      .cockpit-own-radar-toggle:active {
+        filter: brightness(0.92);
+      }
+      .cockpit-own-radar-toggle:focus-visible {
+        outline: 2px solid rgba(120, 220, 255, 0.85);
+        outline-offset: 2px;
+      }
       .cockpit-own-radar-status.cockpit-own-radar-off {
         color: #668866;
         text-shadow: none;
         opacity: 0.75;
       }
+      .cockpit-own-radar-toggle.cockpit-own-radar-off {
+        background: rgba(12, 22, 18, 0.65);
+        border-color: rgba(80, 110, 90, 0.45);
+      }
       .cockpit-radar-bezel {
         position: relative;
-        width: 112px; height: 112px;
+        width: 134px; height: 134px;
         border-radius: 50%;
         border: 2px solid #0a3d1a;
         box-shadow:
@@ -367,9 +403,26 @@
       .cockpit-radar-axis-45 {
         stroke: rgba(0, 255, 100, 0.16); stroke-width: 0.65;
       }
-      .cockpit-radar-bow {
-        fill: rgba(0, 255, 120, 0.35);
-        stroke: rgba(0, 255, 100, 0.65); stroke-width: 0.6;
+      .cockpit-radar-cardinal-n {
+        fill: rgba(0, 255, 120, 0.92);
+        font-size: 10px;
+        font-weight: 700;
+        font-family: ui-monospace, Consolas, monospace;
+        text-shadow: 0 0 6px rgba(0, 255, 100, 0.55);
+      }
+      .cockpit-radar-course {
+        fill: none;
+        stroke: rgba(255, 255, 255, 0.95);
+        stroke-width: 1.25;
+        stroke-linecap: round;
+        filter: drop-shadow(0 0 3px rgba(255, 255, 255, 0.35));
+      }
+      .cockpit-radar-mapcenter-diamond {
+        fill: none;
+        stroke: rgba(0, 255, 120, 0.95);
+        stroke-width: 1.1;
+        stroke-linejoin: round;
+        filter: drop-shadow(0 0 4px rgba(0, 255, 120, 0.65));
       }
       .cockpit-radar-ownship {
         fill: #00ff88;
@@ -415,7 +468,7 @@
       }
       .cockpit-radar-foot {
         display: flex; align-items: baseline; justify-content: center; gap: 10px;
-        flex-wrap: wrap; width: 100%; max-width: 200px;
+        flex-wrap: wrap; width: 100%; max-width: 240px;
       }
       .cockpit-radar-range {
         font-family: ui-monospace, "Cascadia Mono", Consolas, monospace;
@@ -507,6 +560,176 @@
         box-shadow: 0 4px 14px rgba(0, 0, 0, 0.35);
       }
       .class-picker-continue-btn:hover { filter: brightness(1.06); }
+
+      /* Mission Briefing (Einstieg) */
+      .mission-briefing-overlay {
+        position: fixed; inset: 0; z-index: 299;
+        display: flex; align-items: center; justify-content: center;
+        padding: 16px 12px;
+        background:
+          radial-gradient(ellipse 120% 80% at 50% 20%, rgba(30, 70, 120, 0.35), transparent 55%),
+          rgba(3, 10, 22, 0.94);
+        pointer-events: auto;
+        overflow-y: auto;
+      }
+      .mission-briefing-panel {
+        transform: scale(var(--hud-ui-scale));
+        transform-origin: center center;
+        width: 100%;
+        max-width: 560px;
+        max-height: min(92vh, 720px);
+        display: flex;
+        flex-direction: column;
+        padding: 0;
+        background:
+          linear-gradient(165deg, rgba(22, 48, 78, 0.97) 0%, rgba(8, 22, 42, 0.99) 100%);
+        border: 1px solid rgba(100, 170, 230, 0.45);
+        border-radius: 14px;
+        box-shadow:
+          0 0 0 1px rgba(0, 0, 0, 0.4) inset,
+          0 24px 64px rgba(0, 0, 0, 0.55);
+        font-family: "Segoe UI", system-ui, sans-serif;
+        color: #d0e6ff;
+        position: relative;
+      }
+      .mission-briefing-panel::before {
+        content: "";
+        position: absolute;
+        inset: 0;
+        border-radius: inherit;
+        pointer-events: none;
+        opacity: 0.06;
+        background: repeating-linear-gradient(
+          0deg,
+          transparent,
+          transparent 2px,
+          rgba(255, 255, 255, 0.04) 2px,
+          rgba(255, 255, 255, 0.04) 3px
+        );
+      }
+      .mission-briefing-header {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 8px 16px;
+        padding: 14px 20px 10px;
+        border-bottom: 1px solid rgba(80, 140, 200, 0.35);
+        font-family: ui-monospace, "Cascadia Mono", "Consolas", monospace;
+        font-size: 0.68rem;
+        letter-spacing: 0.06em;
+        text-transform: uppercase;
+        color: rgba(180, 220, 255, 0.85);
+      }
+      .mission-briefing-classified { color: #7fd8a0; }
+      .mission-briefing-op { opacity: 0.95; }
+      .mission-briefing-date { margin-left: auto; opacity: 0.75; }
+      .mission-briefing-title {
+        margin: 18px 24px 8px;
+        font-size: 1.45rem;
+        font-weight: 700;
+        color: #f2f8ff;
+        letter-spacing: 0.02em;
+      }
+      .mission-briefing-lead {
+        margin: 0 24px 14px;
+        font-size: 0.9rem;
+        line-height: 1.5;
+        opacity: 0.92;
+      }
+      .mission-briefing-scroll {
+        flex: 1;
+        min-height: 0;
+        overflow-y: auto;
+        padding: 4px 24px 8px;
+        margin: 0 4px 0 0;
+      }
+      .mission-briefing-section {
+        margin-bottom: 16px;
+      }
+      .mission-briefing-h3 {
+        margin: 0 0 8px;
+        font-size: 0.78rem;
+        text-transform: uppercase;
+        letter-spacing: 0.1em;
+        color: #8ec8ff;
+        font-weight: 700;
+      }
+      .mission-briefing-section p {
+        margin: 0;
+        font-size: 0.88rem;
+        line-height: 1.5;
+        opacity: 0.9;
+      }
+      .mission-briefing-list {
+        margin: 0;
+        padding-left: 1.15rem;
+        font-size: 0.88rem;
+        line-height: 1.55;
+        opacity: 0.92;
+      }
+      .mission-briefing-list--compact {
+        list-style: none;
+        padding-left: 0;
+      }
+      .mission-briefing-list--compact li {
+        display: flex;
+        align-items: baseline;
+        gap: 10px;
+        margin-bottom: 6px;
+      }
+      .mission-briefing-list--compact li::before {
+        content: "▸";
+        color: rgba(120, 190, 255, 0.55);
+        font-size: 0.75rem;
+      }
+      .mission-briefing-kbd {
+        display: inline-block;
+        min-width: 2.4em;
+        padding: 2px 7px;
+        border-radius: 5px;
+        border: 1px solid rgba(100, 170, 230, 0.45);
+        background: rgba(4, 18, 40, 0.9);
+        font-family: ui-monospace, "Cascadia Mono", monospace;
+        font-size: 0.78rem;
+        color: #e8f2ff;
+        text-align: center;
+      }
+      .mission-briefing-footer {
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+        padding: 16px 24px 20px;
+        border-top: 1px solid rgba(80, 140, 200, 0.3);
+        background: linear-gradient(180deg, transparent, rgba(0, 12, 28, 0.45));
+        border-radius: 0 0 13px 13px;
+      }
+      .mission-briefing-skip {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        font-size: 0.82rem;
+        cursor: pointer;
+        user-select: none;
+        opacity: 0.88;
+      }
+      .mission-briefing-skip-input {
+        width: 1rem;
+        height: 1rem;
+        accent-color: #6ab8f0;
+      }
+      .mission-briefing-continue-btn {
+        width: 100%;
+        padding: 12px 16px;
+        font-size: 1rem;
+        font-weight: 600;
+        color: #0a1828;
+        background: linear-gradient(180deg, #9fd8ff, #6ab8f0);
+        border: none;
+        border-radius: 8px;
+        cursor: pointer;
+        box-shadow: 0 4px 14px rgba(0, 0, 0, 0.35);
+      }
+      .mission-briefing-continue-btn:hover { filter: brightness(1.06); }
 
       .ship-editor-overlay {
         position: fixed; inset: 0; z-index: 400;
@@ -729,6 +952,28 @@
         display: none !important;
       }
 
+      /* Dev-Panels aus (__SCA.showDevHud): nur FPS/Frame/Ping (+ ggf. Warnung) */
+      #debug-overlay.debug-overlay--minimal .debug-overlay-toggle {
+        display: none !important;
+      }
+      #debug-overlay.debug-overlay--minimal .debug-overlay-full,
+      #debug-overlay.debug-overlay--minimal .debug-overlay-diag {
+        display: none !important;
+      }
+      #debug-overlay.debug-overlay--minimal .debug-overlay-compact-line {
+        display: block !important;
+      }
+      #debug-overlay.debug-overlay--minimal:not(.debug-overlay--warn-visible) .debug-overlay-warn {
+        display: none !important;
+      }
+      #debug-overlay.debug-overlay--minimal.debug-overlay--warn-visible .debug-overlay-warn {
+        display: block !important;
+      }
+
+      .bottom-debug-dock.bottom-debug-dock--hidden {
+        display: none !important;
+      }
+
       /* Bot + Environment Debug: gemeinsam unten mittig (siehe #bottom-debug-dock) */
       .bottom-debug-dock {
         position: fixed;
@@ -779,18 +1024,10 @@
     </style>
   </head>
   <body>
-    <div id="title">BattleFleet-Arena — Task 12: Klassenwahl &amp; Kampf</div>
+    <div id="title"></div>
     <div id="app"></div>
     <div id="bottom-debug-dock" class="bottom-debug-dock" aria-hidden="true"></div>
-    <div id="hud">
-      <div>W / S — Gas zurück / voraus</div>
-      <div>A / D — Ruder links / rechts</div>
-      <div>Mausbewegung — Zielrichtung (Feuerbogen zum Bug)</div>
-      <div>Leertaste oder linke Maustaste — Primär / Artillerie (halten, 0,5 s Cooldown)</div>
-      <div>Gegner-Schiff anklicken — Feuerleitkanal (Ziel halten; Feuer nur bei Eingabe wie gewohnt)</div>
-      <div>Wasser / Himmel klicken oder Esc — Feuerleitkanal aufheben</div>
-      <div>Rechte Maustaste — ASuM halten (Cooldown, max. 2 aktiv)</div>
-    </div>
+    <div id="hud" aria-hidden="true"></div>
     <script type="module" src="/src/main.ts"></script>
   </body>
 </html>

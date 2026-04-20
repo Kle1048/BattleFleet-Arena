@@ -1,5 +1,5 @@
 import type { ArraySchema } from "@colyseus/schema";
-import type { MissileState, PlayerState, TorpedoState } from "@battlefleet/shared";
+import type { MissileState, PlayerState, ShipWreckState, TorpedoState } from "@battlefleet/shared";
 import { MATCH_DURATION_SEC } from "@battlefleet/shared";
 
 export type NetPlayer = Pick<
@@ -27,6 +27,7 @@ export type NetPlayer = Pick<
   | "xp"
   | "shipClass"
   | "displayName"
+  | "deathAtMs"
   | "radarActive"
   | "aswmRemainingPort"
   | "aswmRemainingStarboard"
@@ -44,6 +45,7 @@ type WireBattleState = {
   playerList: ArraySchema<NetPlayer>;
   missileList?: ArraySchema<NetMissile>;
   torpedoList?: ArraySchema<NetTorpedo>;
+  wreckList?: ArraySchema<ShipWreckState>;
   matchPhase?: string;
   matchRemainingSec?: number;
 };
@@ -64,6 +66,11 @@ export function missileListOf(room: { state: unknown }): ArraySchema<NetMissile>
 export function torpedoListOf(room: { state: unknown }): ArraySchema<NetTorpedo> | null {
   const st = room.state as Partial<WireBattleState> | null | undefined;
   return st?.torpedoList ?? null;
+}
+
+export function wreckListOf(room: { state: unknown }): ArraySchema<ShipWreckState> | null {
+  const st = room.state as Partial<WireBattleState> | null | undefined;
+  return st?.wreckList ?? null;
 }
 
 export function readMatchTimer(room: { state: unknown }): { phase: string; remainingSec: number } {

@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import {
   hitboxWorldCenterXZ,
+  resolveShipAndWreckObbOverlaps,
   resolveShipShipCollisions,
   satOBB2DOverlapMTV,
 } from "./shipShipCollision";
@@ -53,5 +54,22 @@ resolveShipShipCollisions([
 ]);
 const distAfter = Math.hypot(b.x - a.x, b.z - a.z);
 assert.ok(distAfter > distBefore + 0.5, "Schiffe werden auseinandergeschoben");
+
+// Wrack: beide Massen gleich → Schiff und Anker verschieben sich, keine Überlappung mehr
+const ship = createShipState(2, 0);
+const wreck = { anchorX: 0, anchorZ: 0, headingRad: 0, shipClass: "fac" };
+const wreckList = { length: 1, at: (i: number) => (i === 0 ? wreck : undefined) };
+resolveShipAndWreckObbOverlaps(ship, box5, wreckList, () => box5);
+const stillOverlap = satOBB2DOverlapMTV(
+  hitboxWorldCenterXZ(ship.x, ship.z, ship.headingRad, box5),
+  5,
+  5,
+  ship.headingRad,
+  hitboxWorldCenterXZ(wreck.anchorX, wreck.anchorZ, wreck.headingRad, box5),
+  5,
+  5,
+  wreck.headingRad,
+);
+assert.equal(stillOverlap, null);
 
 console.log("shipShipCollision tests ok");

@@ -4,6 +4,13 @@ import type { ShipMovementState } from "./shipMovement";
 /** Wie `resolveShipIslandCollisions`: mehrere Durchläufe bei Kettenberührungen. */
 const SHIP_SHIP_RESOLVE_ITERATIONS = 6;
 
+/** Gleiche „Masse“ wie `hitboxFootprintAreaXZ` (Ram), ohne Zyklus zu `shipRamDamage`. */
+function obbFootprintMassXZ(hitbox: ShipCollisionHitbox): number {
+  const hx = Math.max(0, hitbox.halfExtents.x);
+  const hz = Math.max(0, hitbox.halfExtents.z);
+  return 2 * hx * (2 * hz);
+}
+
 export type ShipCollisionParticipant = {
   ship: ShipMovementState;
   hitbox: ShipCollisionHitbox | undefined;
@@ -134,6 +141,64 @@ export function resolveShipShipCollisions(participants: ShipCollisionParticipant
         B.ship.x += mtv.nx * half;
         B.ship.z += mtv.nz * half;
       }
+    }
+  }
+}
+
+const SHIP_WRECK_OBB_RESOLVE_ITERATIONS = SHIP_SHIP_RESOLVE_ITERATIONS;
+
+export type WreckAnchorForObb = {
+  anchorX: number;
+  anchorZ: number;
+  headingRad: number;
+  shipClass: string;
+};
+
+/**
+ * Schiff vs. Wrack: OBB-Überlappungsauflösung wie zwei Schiffe, aber das Wrack hat keine `ShipMovementState` —
+ * Verschiebung nur auf `anchorX`/`anchorZ`. Massenanteil = Fußfläche der Hitbox (wie Ram).
+ */
+export function resolveShipAndWreckObbOverlaps(
+  ship: ShipMovementState,
+  shipHitbox: ShipCollisionHitbox,
+  wreckList: { length: number; at: (i: number) => WreckAnchorForObb | undefined },
+  getWreckHitbox: (shipClass: string) => ShipCollisionHitbox | undefined,
+): void {
+  const hxA = Math.max(0, shipHitbox.halfExtents.x);
+  const hzA = Math.max(0, shipHitbox.halfExtents.z);
+  const mA = obbFootprintMassXZ(shipHitbox);
+
+  for (let iter = 0; iter < SHIP_WRECK_OBB_RESOLVE_ITERATIONS; iter++) {
+    for (let wi = 0; wi < wreckList.length; wi++) {
+      const w = wreckList.at(wi);
+      if (!w) continue;
+      const hbB = getWreckHitbox(w.shipClass);
+      if (!hbB) continue;
+      const hxB = Math.max(0, hbB.halfExtents.x);
+      const hzB = Math.max(0, hbB.halfExtents.z);
+      const mB = obbFootprintMassXZ(hbB);
+      const mSum = mA + mB;
+      if (mSum < 1e-12) continue;
+
+      const c1 = hitboxWorldCenterXZ(ship.x, ship.z, ship.headingRad, shipHitbox);
+      const c2 = hitboxWorldCenterXZ(w.anchorX, w.anchorZ, w.headingRad, hbB);
+      const mtv = satOBB2DOverlapMTV(
+        c1,
+        hxA,
+        hzA,
+        ship.headingRad,
+        c2,
+        hxB,
+        hzB,
+        w.headingRad,
+      );
+      if (!mtv) continue;
+      const shipShare = mB / mSum;
+      const wreckShare = mA / mSum;
+      ship.x -= mtv.nx * mtv.depth * shipShare;
+      ship.z -= mtv.nz * mtv.depth * shipShare;
+      w.anchorX += mtv.nx * mtv.depth * wreckShare;
+      w.anchorZ += mtv.nz * mtv.depth * wreckShare;
     }
   }
 }

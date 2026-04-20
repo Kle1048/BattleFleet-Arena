@@ -1,9 +1,9 @@
 /**
  * Layered air defense (server-authoritative helpers):
  * - **Softkill** (chaff/ECM): automatic, separate from hardkill; may break ASuM lock without destroying.
- * - **Hardkill**: SAM → PD → CIWS; nur mit passendem Rumpf-Loadout pro Schicht (siehe BattleRoom); Commit nötig.
+ * - **Hardkill**: SAM → PD → CIWS; nur mit passendem Rumpf-Loadout pro Schicht (siehe BattleRoom); vollautomatisch.
  *
- * Tick model: in range + ready + commit → `airDefenseFire` (Client: Abfang-FK startet).
+ * Tick model: in range + ready + Feuersektor → `airDefenseFire` (Client: Abfang-FK startet).
  * - **SAM / PD**: nach Flugzeit (`computeSamPdInterceptTravelMs`) Trefferwurf am ASuM-Standort — Treffer: beide weg;
  *   Fehlschuss: nur Abfang „verbraucht“ (Cooldown), ASuM fliegt weiter.
  * - **CIWS**: Trefferwurf im nächsten Tick (nahezu sofort).
@@ -65,7 +65,7 @@ export function computeSamPdInterceptTravelMs(distM: number): number {
   );
 }
 
-/** Dauer des Hardkill-Engagement-Fensters nach Taste „Commit“ (ms). */
+/** @deprecated Nicht mehr genutzt — Hardkill läuft ohne Tasten-Commit. */
 export const AD_HARDKILL_COMMIT_DURATION_MS = 15_000;
 
 export type AirDefenseHardkillLayer = "sam" | "pd" | "ciws";

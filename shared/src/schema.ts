@@ -60,9 +60,9 @@ export class PlayerState extends Schema {
   declare radarActive: boolean;
   /** Eingehende ASuM, die dieses Schiff als Luftverteidigungs-Ziel nutzen (~20 Hz). */
   declare adHudIncomingAswm: number;
-  /** True, wenn mindestens eine Bedrohung im AD-Umschlag und Hardkill grundsätzlich möglich. */
+  /** True, wenn mindestens eine eingehende ASuM gemeldet wird (HUD / Hinweise). */
   declare adHudCanCommitHardkill: boolean;
-  /** Restzeit (s) für aktives Hardkill-Engagement nach Taste E; 0 = kein Fenster. */
+  /** Legacy-Feld: Hardkill ist vollautomatisch; Wert bleibt 0. */
   declare adHardkillCommitRemainingSec: number;
   /**
    * True, wenn eine Bedrohung in SAM-Reichweite ist, aber das Suchrad aus ist — SAM schießt nur mit Radar.
@@ -72,6 +72,11 @@ export class PlayerState extends Schema {
   declare aswmRemainingPort: number;
   /** Verbleibende ASuM-Runden Steuerbord (HUD). */
   declare aswmRemainingStarboard: number;
+  /**
+   * Serverzeit (ms) beim Übergang zu `awaiting_respawn` — Wrack-Animation / Wrack-Sync.
+   * `0` wenn nicht tot.
+   */
+  declare deathAtMs: number;
 
   constructor() {
     super();
@@ -105,6 +110,7 @@ export class PlayerState extends Schema {
     this.adHudRadarAffectsSam = false;
     this.aswmRemainingPort = 0;
     this.aswmRemainingStarboard = 0;
+    this.deathAtMs = 0;
   }
 }
 
@@ -139,6 +145,7 @@ defineTypes(PlayerState, {
   adHudRadarAffectsSam: "boolean",
   aswmRemainingPort: "number",
   aswmRemainingStarboard: "number",
+  deathAtMs: "number",
 });
 
 /** Replizierte Lenkflugkörper (Task 7); Server autoritativ. */
@@ -197,10 +204,52 @@ defineTypes(TorpedoState, {
   headingRad: "number",
 });
 
+/** Statisches Wrack (Hitbox-OBB wie Schiff–Schiff); entsteht beim Respawn nach Zerstörung. */
+export class ShipWreckState extends Schema {
+  declare wreckId: string;
+  /** Schiffssimulationsanker (Seekarten-XZ), Bezug für `collisionHitbox` wie bei Spielern. */
+  declare anchorX: number;
+  declare anchorZ: number;
+  declare headingRad: number;
+  /** 0…3 — siehe `wreckVariantFromSessionId` / `WreckVariantId`. */
+  declare variant: number;
+  declare shipClass: string;
+  /** Start der Sink-Animation (übereinstimmend mit `PlayerState.deathAtMs`). */
+  declare deathAtMs: number;
+  declare createdAtMs: number;
+  declare expiresAtMs: number;
+
+  constructor() {
+    super();
+    this.wreckId = "";
+    this.anchorX = 0;
+    this.anchorZ = 0;
+    this.headingRad = 0;
+    this.variant = 0;
+    this.shipClass = "";
+    this.deathAtMs = 0;
+    this.createdAtMs = 0;
+    this.expiresAtMs = 0;
+  }
+}
+
+defineTypes(ShipWreckState, {
+  wreckId: "string",
+  anchorX: "number",
+  anchorZ: "number",
+  headingRad: "number",
+  variant: "number",
+  shipClass: "string",
+  deathAtMs: "number",
+  createdAtMs: "number",
+  expiresAtMs: "number",
+});
+
 export class BattleState extends Schema {
   declare playerList: ArraySchema<PlayerState>;
   declare missileList: ArraySchema<MissileState>;
   declare torpedoList: ArraySchema<TorpedoState>;
+  declare wreckList: ArraySchema<ShipWreckState>;
   /** Task 10 — `running` | `ended`. */
   declare matchPhase: string;
   /** Task 10 — verbleibende Sekunden (~20 Hz), 0 wenn beendet. */
@@ -211,6 +260,7 @@ export class BattleState extends Schema {
     this.playerList = new ArraySchema<PlayerState>();
     this.missileList = new ArraySchema<MissileState>();
     this.torpedoList = new ArraySchema<TorpedoState>();
+    this.wreckList = new ArraySchema<ShipWreckState>();
     this.matchPhase = MATCH_PHASE_RUNNING;
     this.matchRemainingSec = MATCH_DURATION_SEC;
   }
@@ -220,6 +270,7 @@ defineTypes(BattleState, {
   playerList: [PlayerState],
   missileList: [MissileState],
   torpedoList: [TorpedoState],
+  wreckList: [ShipWreckState],
   matchPhase: "string",
   matchRemainingSec: "number",
 });

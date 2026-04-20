@@ -85,11 +85,6 @@ export function planAction(input: ActionPlanningInput): BotInputCommand {
   const relToTarget = target ? Math.abs(wrapPi(yawToTargetForPrimary - self.headingRad)) : 0;
   const inPrimaryArc = !target || relToTarget <= ARTILLERY_ARC_HALF_ANGLE_RAD - 0.04;
 
-  /** Gleiche Bedingung wie HUD „Vampire incoming“ (`adHudIncomingAswm`); bei 0 wieder false. Server: Hardkill-Commit auf false→true. */
-  const adHudInc =
-    typeof self.adHudIncomingAswm === "number" ? self.adHudIncomingAswm : 0;
-  const airDefenseEngage = adHudInc > 0;
-
   if (intent === "EVADE_MISSILES") {
     const throttle = 1;
     const rudderInput = applyIslandAvoidance(self, yawErr >= 0 ? -1 : 1, throttle);
@@ -102,7 +97,6 @@ export function planAction(input: ActionPlanningInput): BotInputCommand {
       secondaryFire: false,
       torpedoFire: false,
       radarActive: true,
-      airDefenseEngage,
     };
   }
   if (intent === "RETREAT") {
@@ -117,7 +111,6 @@ export function planAction(input: ActionPlanningInput): BotInputCommand {
       secondaryFire: false,
       torpedoFire: false,
       radarActive: true,
-      airDefenseEngage,
     };
   }
   if (intent === "ATTACK" || intent === "FINISH_TARGET") {
@@ -132,7 +125,6 @@ export function planAction(input: ActionPlanningInput): BotInputCommand {
       secondaryFire: context.targetInMissileArc && self.secondaryCooldownSec <= 0.05,
       torpedoFire: false,
       radarActive: true,
-      airDefenseEngage,
     };
   }
   if (intent === "SEEK_SEA_CONTROL") {
@@ -151,7 +143,6 @@ export function planAction(input: ActionPlanningInput): BotInputCommand {
       secondaryFire: false,
       torpedoFire: false,
       radarActive: true,
-      airDefenseEngage,
     };
   }
   if (intent === "HOLD_ARC") {
@@ -166,7 +157,6 @@ export function planAction(input: ActionPlanningInput): BotInputCommand {
       secondaryFire: false,
       torpedoFire: false,
       radarActive: true,
-      airDefenseEngage,
     };
   }
   if (intent === "CHASE") {
@@ -181,7 +171,6 @@ export function planAction(input: ActionPlanningInput): BotInputCommand {
       secondaryFire: false,
       torpedoFire: false,
       radarActive: true,
-      airDefenseEngage,
     };
   }
   const throttle = 0.4;
@@ -199,6 +188,5 @@ export function planAction(input: ActionPlanningInput): BotInputCommand {
     secondaryFire: false,
     torpedoFire: false,
     radarActive: true,
-    airDefenseEngage,
   };
 }

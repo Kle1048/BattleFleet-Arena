@@ -12,6 +12,7 @@ import {
   ASWM_SEEKER_ARM_DELAY_MS,
   type AswmTargetCandidate,
   BattleState,
+  ShipWreckState,
   DEFAULT_MAP_ISLANDS,
   DESTROYER_LIKE_MVP,
   FEATURE_MINES_ENABLED,
@@ -36,7 +37,6 @@ import {
   MIN_RESPAWN_SEPARATION,
   participatesInWorldSimulation,
   pickAswmAcquisitionTarget,
-  AD_HARDKILL_COMMIT_DURATION_MS,
   AD_SAM_RANGE_SQ,
   AD_SOFTKILL_RANGE_SQ,
   AD_SOFTKILL_SAME_TARGET_REACQUIRE_BLOCK_MS,
@@ -48,15 +48,19 @@ import {
   trySoftkillBreakLock,
   computeSamPdInterceptTravelMs,
   resolveShipIslandCollisions,
+  resolveShipAndWreckObbOverlaps,
   resolveShipShipCollisions,
   type ShipCollisionParticipant,
   accumulateShipRamDamage,
+  accumulateWreckRamDamage,
   RESPAWN_DELAY_MS,
   SPAWN_PROTECTION_DURATION_MS,
   smoothRudder,
   ASWM_SHOT_INTERVAL_MS,
   pickFixedSeaSkimmerLauncherWithAmmo,
+  pickFixedSeaSkimmerLauncherWithAmmoForForcedSide,
   pickAswmSideForFallbackFire,
+  pickAswmSideForFallbackFireForced,
   spawnAswmFromFixedLauncher,
   spawnAswmFromFireDirection,
   spawnTorpedoFromFireDirection,
@@ -95,14 +99,19 @@ import {
   SHIP_CLASS_DESTROYER,
   SHIP_CLASS_FAC,
   shipClassIdForProgressionLevel,
+  wreckVariantFromSessionId,
+  WRECK_DURATION_MS,
+  circleIntersectsAnyWreckHitboxFootprintXZ,
   circleIntersectsShipHitboxFootprintXZ,
   minDistSqPointToShipHitboxFootprintXZ,
-  shipOverlapsAnyIsland,
+  shipOverlapsAnyIslandCircles,
+  shipOverlapsAnyWreck,
   twoShipsObbOverlap,
   shipLocalToWorldXZ,
   isInSeaControlZone,
   missileBearingInHardkillLayerMountSector,
   SEA_CONTROL_XP_MULTIPLIER,
+  type IslandCircle,
 } from "@battlefleet/shared";
 
 const TICK_HZ = 20;
@@ -117,14 +126,14 @@ export type InputPayload = {
   primaryFire?: boolean;
   /** True solange RMB gehalten — ASuM mit Cooldown / Limit aktiv. */
   secondaryFire?: boolean;
+  /** Optional: ASuM von fester Seite (Mobile) — überschreibt Aim-basierte Rail-Wahl. */
+  aswmFireSide?: "port" | "starboard";
   /** Torpedo (Task 8): Mausrad-Klick gehalten oder Taste Q. */
   torpedoFire?: boolean;
   /** Debug-Tuning: Minen-Ablage entlang Schiffs-Längsachse (lokales -Z = Heck). */
   mineSpawnLocalZ?: number;
   /** Suchrad an/aus — steuert ESM-Sichtbarkeit für Gegner (repliziert). */
   radarActive?: boolean;
-  /** Hardkill-Luftverteidigung bestätigen (Taste E, einmal pro Tastendruck). */
-  airDefenseEngage?: boolean;
 };
 
 type SimEntry = {
@@ -151,10 +160,6 @@ type SimEntry = {
   adCiwsNextAtMs: number;
   /** Softkill (ECM): letzter Versuch (Date.now()). */
   adSoftkillLastUsedAtMs: number;
-  /** Nach Taste E: Hardkill-Fenster (Date.now()). */
-  adHardkillCommitUntilMs: number;
-  /** Flankenerkennung für einmaligen `airDefenseEngage`-Puls. */
-  lastAirDefenseEngagePressed: boolean;
   /** Nach Tod: Zeitpunkt des Respawns; `null` wenn nicht wartend. */
   respawnAtMs: number | null;
   /** Nach Respawn: Ende der Schutzphase; `0` = keine Invulnerabilität. */
@@ -225,6 +230,8 @@ export class BattleRoom extends Room<BattleState> {
   private lastPassiveXpAtMs = 0;
   /** Pro Spieler: Insel-Overlap vor `resolveShipIslandCollisions` (Vor-Frame für Kanten-SFX). */
   private collisionIslandOverlapPrev = new Map<string, boolean>();
+  /** Pro Spieler: Wrack-OBB-Overlap (Vor-Frame für Kanten-SFX, gleicher „ship“-Kontakt wie Rumpf). */
+  private collisionWreckOverlapPrev = new Map<string, boolean>();
   /** OBB-überlappende Schiff-Paare (`idA|idB`), Vor-Frame für Kanten-SFX bei Schiff-Schiff. */
   private collisionShipPairPrev = new Set<string>();
 
@@ -264,17 +271,16 @@ export class BattleRoom extends Room<BattleState> {
         row.radarActive = payload.radarActive;
       }
 
-      const engage = payload.airDefenseEngage === true;
-      if (engage && !row.lastAirDefenseEngagePressed) {
-        row.adHardkillCommitUntilMs = Date.now() + AD_HARDKILL_COMMIT_DURATION_MS;
-      }
-      row.lastAirDefenseEngagePressed = engage;
-
       if (payload.primaryFire === true) {
         this.tryPrimaryFire(client, row);
       }
       if (payload.secondaryFire === true) {
-        this.trySecondaryFire(client, row);
+        const s = payload.aswmFireSide;
+        this.trySecondaryFire(
+          client,
+          row,
+          s === "port" || s === "starboard" ? s : undefined,
+        );
       }
       if (payload.torpedoFire === true) {
         this.tryTorpedoFire(client, row);
@@ -465,8 +471,6 @@ export class BattleRoom extends Room<BattleState> {
       adPdNextAtMs: 0,
       adCiwsNextAtMs: 0,
       adSoftkillLastUsedAtMs: 0,
-      adHardkillCommitUntilMs: 0,
-      lastAirDefenseEngagePressed: false,
       respawnAtMs: null,
       invulnerableUntilMs: 0,
       radarActive: true,
@@ -518,6 +522,7 @@ export class BattleRoom extends Room<BattleState> {
 
   onLeave(client: Client) {
     this.collisionIslandOverlapPrev.delete(client.sessionId);
+    this.collisionWreckOverlapPrev.delete(client.sessionId);
     this.sim.delete(client.sessionId);
     const list = this.state.playerList;
     for (let i = list.length - 1; i >= 0; i--) {
@@ -594,9 +599,8 @@ export class BattleRoom extends Room<BattleState> {
     row.adPdNextAtMs = 0;
     row.adCiwsNextAtMs = 0;
     row.adSoftkillLastUsedAtMs = 0;
-    row.adHardkillCommitUntilMs = 0;
-    row.lastAirDefenseEngagePressed = false;
     this.pendingShells = this.pendingShells.filter((s) => s.ownerSessionId !== sessionId);
+    p.deathAtMs = now;
     assertPlayerLifeInvariant(p.lifeState, p.hp, p.maxHp);
   }
 
@@ -644,6 +648,7 @@ export class BattleRoom extends Room<BattleState> {
     this.state.matchRemainingSec = 0;
     this.pendingShells = [];
     this.clearAllMissilesAndTorpedoes();
+    this.clearWreckList();
     this.broadcast("matchEnded", {} as Record<string, never>);
     console.log("[BattleRoom] match ended roomId=%s", this.roomId);
   }
@@ -657,6 +662,9 @@ export class BattleRoom extends Room<BattleState> {
 
     this.pendingShells = [];
     this.clearAllMissilesAndTorpedoes();
+    this.clearWreckList();
+    this.collisionIslandOverlapPrev.clear();
+    this.collisionWreckOverlapPrev.clear();
     this.matchEndBroadcastSent = false;
     this.matchEndsAtMs = now + MATCH_DURATION_MS;
     this.lastPassiveXpAtMs = now;
@@ -709,8 +717,6 @@ export class BattleRoom extends Room<BattleState> {
       row.adPdNextAtMs = 0;
       row.adCiwsNextAtMs = 0;
       row.adSoftkillLastUsedAtMs = 0;
-      row.adHardkillCommitUntilMs = 0;
-      row.lastAirDefenseEngagePressed = false;
       row.respawnAtMs = null;
       row.invulnerableUntilMs = now + SPAWN_PROTECTION_DURATION_MS;
       row.radarActive = true;
@@ -738,6 +744,7 @@ export class BattleRoom extends Room<BattleState> {
       p.score = 0;
       p.kills = 0;
       p.radarActive = true;
+      p.deathAtMs = 0;
 
       assertPlayerLifeInvariant(p.lifeState, p.hp, p.maxHp);
     }
@@ -751,6 +758,22 @@ export class BattleRoom extends Room<BattleState> {
     const p = this.findPlayer(sessionId);
     if (!row || !p || p.lifeState !== PlayerLifeState.AwaitingRespawn) return;
     if (row.respawnAtMs == null || now < row.respawnAtMs) return;
+
+    const deadShipClass = p.shipClass;
+    const deadHeading = row.ship.headingRad;
+    const anchorX = row.ship.x;
+    const anchorZ = row.ship.z;
+    const w = new ShipWreckState();
+    w.wreckId = `w-${sessionId}-${now}`;
+    w.anchorX = anchorX;
+    w.anchorZ = anchorZ;
+    w.headingRad = deadHeading;
+    w.variant = wreckVariantFromSessionId(sessionId);
+    w.shipClass = deadShipClass;
+    w.deathAtMs = p.deathAtMs > 0 ? p.deathAtMs : now;
+    w.createdAtMs = now;
+    w.expiresAtMs = now + WRECK_DURATION_MS;
+    this.state.wreckList.push(w);
 
     const others: { x: number; z: number }[] = [];
     for (const q of this.state.playerList) {
@@ -795,8 +818,6 @@ export class BattleRoom extends Room<BattleState> {
     row.adPdNextAtMs = 0;
     row.adCiwsNextAtMs = 0;
     row.adSoftkillLastUsedAtMs = 0;
-    row.adHardkillCommitUntilMs = 0;
-    row.lastAirDefenseEngagePressed = false;
     row.invulnerableUntilMs = now + SPAWN_PROTECTION_DURATION_MS;
     row.radarActive = true;
 
@@ -814,6 +835,7 @@ export class BattleRoom extends Room<BattleState> {
     p.respawnCountdownSec = 0;
     p.spawnProtectionSec = SPAWN_PROTECTION_DURATION_MS / 1000;
     p.radarActive = true;
+    p.deathAtMs = 0;
 
     assertPlayerLifeInvariant(p.lifeState, p.hp, p.maxHp);
   }
@@ -909,7 +931,11 @@ export class BattleRoom extends Room<BattleState> {
     row.primaryReadyAtMs = now + progressionPrimaryCooldownMs(p.level);
   }
 
-  private trySecondaryFire(client: Client, row: SimEntry): void {
+  private trySecondaryFire(
+    client: Client,
+    row: SimEntry,
+    explicitSide?: "port" | "starboard",
+  ): void {
     if (!this.isMatchCombatActive()) return;
     const p = this.findPlayer(client.sessionId);
     if (!p || !canUsePrimaryWeapon(p.lifeState)) return;
@@ -930,29 +956,44 @@ export class BattleRoom extends Room<BattleState> {
     let pose: { x: number; z: number; headingRad: number } | null = null;
 
     if (launchers?.length) {
-      const launcher = pickFixedSeaSkimmerLauncherWithAmmo(
-        launchers,
-        row.aimX,
-        row.aimZ,
-        row.ship.x,
-        row.ship.z,
-        row.ship.headingRad,
-        row.aswmRemainingPort,
-        row.aswmRemainingStarboard,
-      );
+      const launcher =
+        explicitSide !== undefined
+          ? pickFixedSeaSkimmerLauncherWithAmmoForForcedSide(
+              launchers,
+              row.aswmRemainingPort,
+              row.aswmRemainingStarboard,
+              explicitSide,
+            )
+          : pickFixedSeaSkimmerLauncherWithAmmo(
+              launchers,
+              row.aimX,
+              row.aimZ,
+              row.ship.x,
+              row.ship.z,
+              row.ship.headingRad,
+              row.aswmRemainingPort,
+              row.aswmRemainingStarboard,
+            );
       if (!launcher) return;
       this.consumeOneAswmRound(row, launcher);
       pose = spawnAswmFromFixedLauncher(row.ship.x, row.ship.z, row.ship.headingRad, launcher);
     } else {
-      const side = pickAswmSideForFallbackFire(
-        row.aimX,
-        row.aimZ,
-        row.ship.x,
-        row.ship.z,
-        row.ship.headingRad,
-        row.aswmRemainingPort,
-        row.aswmRemainingStarboard,
-      );
+      const side =
+        explicitSide !== undefined
+          ? pickAswmSideForFallbackFireForced(
+              row.aswmRemainingPort,
+              row.aswmRemainingStarboard,
+              explicitSide,
+            )
+          : pickAswmSideForFallbackFire(
+              row.aimX,
+              row.aimZ,
+              row.ship.x,
+              row.ship.z,
+              row.ship.headingRad,
+              row.aswmRemainingPort,
+              row.aswmRemainingStarboard,
+            );
       if (!side) return;
       if (side === "port") row.aswmRemainingPort--;
       else row.aswmRemainingStarboard--;
@@ -1114,14 +1155,12 @@ export class BattleRoom extends Room<BattleState> {
       const row = this.sim.get(p.id);
       p.adHudIncomingAswm = incoming.get(p.id) ?? 0;
       p.adHudCanCommitHardkill = p.adHudIncomingAswm > 0;
-      p.adHardkillCommitRemainingSec = row
-        ? Math.max(0, (row.adHardkillCommitUntilMs - now) / 1000)
-        : 0;
+      p.adHardkillCommitRemainingSec = 0;
       p.adHudRadarAffectsSam = radarHint.get(p.id) ?? false;
     }
   }
 
-  private stepMissiles(dt: number, now: number): void {
+  private stepMissiles(dt: number, now: number, islandCircles: IslandCircle[]): void {
     const half = AREA_OF_OPERATIONS_HALF_EXTENT;
     const list = this.state.missileList;
 
@@ -1194,7 +1233,15 @@ export class BattleRoom extends Room<BattleState> {
         continue;
       }
 
-      if (isInsideAnyIslandCircle(m.x, m.z, DEFAULT_MAP_ISLANDS, ASWM_ISLAND_COLLISION_RADIUS)) {
+      if (
+        isInsideAnyIslandCircle(m.x, m.z, islandCircles, ASWM_ISLAND_COLLISION_RADIUS) ||
+        circleIntersectsAnyWreckHitboxFootprintXZ(
+          m.x,
+          m.z,
+          ASWM_ISLAND_COLLISION_RADIUS,
+          this.state.wreckList,
+        )
+      ) {
         this.broadcast("aswmImpact", {
           missileId: m.missileId,
           x: m.x,
@@ -1237,7 +1284,6 @@ export class BattleRoom extends Room<BattleState> {
             }
           }
 
-          const hardkillActive = now < defRow.adHardkillCommitUntilMs;
           const defenderHull = getAuthoritativeShipHullProfile(tgt.shipClass);
           const adClassArc = getShipClassProfile(tgt.shipClass).artilleryArcHalfAngleRad;
           const samAllowed =
@@ -1296,9 +1342,7 @@ export class BattleRoom extends Room<BattleState> {
               this.adPendingRollByMissileId.delete(m.missileId);
             } else {
               airDefenseConsumed = true;
-              if (!hardkillActive) {
-                this.adPendingRollByMissileId.delete(m.missileId);
-              } else if (!isHardkillLayerInRange(pending.layer, distSq)) {
+              if (!isHardkillLayerInRange(pending.layer, distSq)) {
                 const cdMiss = applyHardkillCooldownAfterRoll(
                   pending.layer,
                   now,
@@ -1347,7 +1391,7 @@ export class BattleRoom extends Room<BattleState> {
             }
           }
 
-          if (!airDefenseConsumed && hardkillActive) {
+          if (!airDefenseConsumed) {
             const layer = pickHardkillEngagementLayer(adInput);
             if (layer != null) {
               const distCenterM = Math.hypot(m.x - tgt.x, m.z - tgt.z);
@@ -1413,7 +1457,7 @@ export class BattleRoom extends Room<BattleState> {
     }
   }
 
-  private stepTorpedoes(dt: number, now: number): void {
+  private stepTorpedoes(dt: number, now: number, islandCircles: IslandCircle[]): void {
     const list = this.state.torpedoList;
     if (!FEATURE_MINES_ENABLED) {
       for (let i = list.length - 1; i >= 0; i--) {
@@ -1451,7 +1495,15 @@ export class BattleRoom extends Room<BattleState> {
         continue;
       }
 
-      if (isInsideAnyIslandCircle(t.x, t.z, DEFAULT_MAP_ISLANDS, TORPEDO_ISLAND_COLLISION_RADIUS)) {
+      if (
+        isInsideAnyIslandCircle(t.x, t.z, islandCircles, TORPEDO_ISLAND_COLLISION_RADIUS) ||
+        circleIntersectsAnyWreckHitboxFootprintXZ(
+          t.x,
+          t.z,
+          TORPEDO_ISLAND_COLLISION_RADIUS,
+          this.state.wreckList,
+        )
+      ) {
         this.broadcast("torpedoImpact", {
           torpedoId: t.torpedoId,
           x: t.x,
@@ -1581,6 +1633,23 @@ export class BattleRoom extends Room<BattleState> {
     client?.send("collisionContact", { kind });
   }
 
+  private pruneExpiredWrecks(now: number): void {
+    const wl = this.state.wreckList;
+    for (let i = wl.length - 1; i >= 0; i--) {
+      const w = wl.at(i);
+      if (w && now >= w.expiresAtMs) {
+        wl.deleteAt(i);
+      }
+    }
+  }
+
+  private clearWreckList(): void {
+    const wl = this.state.wreckList;
+    while (wl.length > 0) {
+      wl.deleteAt(wl.length - 1);
+    }
+  }
+
   private physicsStep(dt: number): void {
     const now = Date.now();
     const half = AREA_OF_OPERATIONS_HALF_EXTENT;
@@ -1595,6 +1664,10 @@ export class BattleRoom extends Room<BattleState> {
     }
     this.processLifeTransitions(now);
     this.processAswmMagazineReload(now);
+    this.pruneExpiredWrecks(now);
+
+    const islandCircles = DEFAULT_MAP_ISLANDS;
+    const wreckList = this.state.wreckList;
 
     for (const [sessionId, row] of this.sim) {
       const p = this.findPlayer(sessionId);
@@ -1608,24 +1681,44 @@ export class BattleRoom extends Room<BattleState> {
           dt,
         );
         stepMovement(row.ship, this.movementCfgForPlayer(p), dt);
-        const islandNow = shipOverlapsAnyIsland({
-          x: row.ship.x,
-          z: row.ship.z,
-          headingRad: row.ship.headingRad,
-          shipClass: p.shipClass,
-        });
+        const islandNow = shipOverlapsAnyIslandCircles(
+          {
+            x: row.ship.x,
+            z: row.ship.z,
+            headingRad: row.ship.headingRad,
+            shipClass: p.shipClass,
+          },
+          islandCircles,
+        );
         const islandPrev = this.collisionIslandOverlapPrev.get(sessionId) ?? false;
         if (islandNow && !islandPrev) {
           this.sendCollisionContact(sessionId, "island");
         }
         this.collisionIslandOverlapPrev.set(sessionId, islandNow);
+
+        const wreckNow = shipOverlapsAnyWreck(
+          {
+            x: row.ship.x,
+            z: row.ship.z,
+            headingRad: row.ship.headingRad,
+            shipClass: p.shipClass,
+          },
+          wreckList,
+        );
+        const wreckPrev = this.collisionWreckOverlapPrev.get(sessionId) ?? false;
+        if (wreckNow && !wreckPrev) {
+          this.sendCollisionContact(sessionId, "ship");
+        }
+        this.collisionWreckOverlapPrev.set(sessionId, wreckNow);
+
         resolveShipIslandCollisions(
           row.ship,
-          DEFAULT_MAP_ISLANDS,
+          islandCircles,
           getAuthoritativeShipHullProfile(p.shipClass)?.collisionHitbox,
         );
       } else {
         this.collisionIslandOverlapPrev.delete(sessionId);
+        this.collisionWreckOverlapPrev.delete(sessionId);
       }
     }
 
@@ -1641,7 +1734,20 @@ export class BattleRoom extends Room<BattleState> {
     }
     if (combatActive) {
       const ram = accumulateShipRamDamage(shipShipParticipants, dt);
-      for (const [sessionId, raw] of ram.rawDamageBySessionId) {
+      const wreckRam = accumulateWreckRamDamage(
+        shipShipParticipants,
+        wreckList,
+        (sc) => getAuthoritativeShipHullProfile(sc)?.collisionHitbox,
+        dt,
+      );
+      const combinedRaw = new Map<string, number>();
+      for (const [id, r] of ram.rawDamageBySessionId) {
+        combinedRaw.set(id, r);
+      }
+      for (const [id, r] of wreckRam) {
+        combinedRaw.set(id, (combinedRaw.get(id) ?? 0) + r);
+      }
+      for (const [sessionId, raw] of combinedRaw) {
         const p = this.findPlayer(sessionId);
         if (!p || !canTakeArtillerySplashDamage(p.lifeState)) continue;
         const wasNotDead = p.lifeState !== PlayerLifeState.AwaitingRespawn;
@@ -1712,6 +1818,17 @@ export class BattleRoom extends Room<BattleState> {
 
     resolveShipShipCollisions(shipShipParticipants);
 
+    if (wreckList.length > 0) {
+      const getWreckHb = (sc: string) => getAuthoritativeShipHullProfile(sc)?.collisionHitbox;
+      for (const [sessionId, row] of this.sim) {
+        const p = this.findPlayer(sessionId);
+        if (!p || !participatesInWorldSimulation(p.lifeState)) continue;
+        const hb = getAuthoritativeShipHullProfile(p.shipClass)?.collisionHitbox;
+        if (!hb) continue;
+        resolveShipAndWreckObbOverlaps(row.ship, hb, wreckList, getWreckHb);
+      }
+    }
+
     for (const [sessionId, row] of this.sim) {
       const p = this.findPlayer(sessionId);
       if (!p) continue;
@@ -1767,8 +1884,8 @@ export class BattleRoom extends Room<BattleState> {
     }
 
     if (combatActive) {
-      this.stepMissiles(dt, now);
-      this.stepTorpedoes(dt, now);
+      this.stepMissiles(dt, now, islandCircles);
+      this.stepTorpedoes(dt, now, islandCircles);
     }
     this.syncAirDefenseHud(now);
   }

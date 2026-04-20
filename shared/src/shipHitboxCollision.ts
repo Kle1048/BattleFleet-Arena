@@ -66,6 +66,7 @@ export function minDistSqPointToShipHitboxFootprintXZ(
 /**
  * Kreis um (`cx`,`cz`) mit Radius `r` schneidet die Hitbox-Fußfläche (in XZ).
  */
+
 /**
  * Welt-XZ-Mittelpunkt der Hitbox-Fußfläche und Umkreisradius (alle Ecken der AABB liegen auf oder innerhalb).
  * `shipX`/`shipZ` müssen zum gleichen Bezugspunkt gehören wie die Hitbox-Daten (z. B. Modell-Ursprung unter `ShipVisual.group`, nicht zwingend Simulations-Drehpunkt).

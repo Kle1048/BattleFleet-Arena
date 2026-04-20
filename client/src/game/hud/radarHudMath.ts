@@ -1,5 +1,6 @@
 /**
- * Plan-Position relativ zum eigenen Bug: rechts = Steuerbord, vorne = Bug (SVG: y nach unten → -forward).
+ * Radar: **Nordgebunden** (+Welt-Z = Nord oben, +X = Ost rechts; SVG-y nach unten → `ny` negiert).
+ * Legacy: `radarBlipNormalized` = schiffsgebunden (Bug oben) — nur noch für Tests/Referenz.
  */
 
 /** Anzeige-Radius in Welt-Einheiten (Server XZ) — aktives Suchrad / Blips. */
@@ -12,6 +13,46 @@ export const RADAR_RANGE_WORLD = 600;
 export const RADAR_ESM_RANGE_WORLD = RADAR_RANGE_WORLD * 2;
 
 export type RadarBlipNorm = { nx: number; ny: number };
+
+/**
+ * Nord-up: Zielposition relativ zum eigenen Schiff in Weltkoordinaten.
+ * `ny` negativ = Nord (+Z) zeigt auf dem Display nach oben.
+ */
+export function radarBlipNormalizedNorthUp(
+  myX: number,
+  myZ: number,
+  otherX: number,
+  otherZ: number,
+  range: number = RADAR_RANGE_WORLD,
+): RadarBlipNorm | null {
+  const dx = otherX - myX;
+  const dz = otherZ - myZ;
+  const dist = Math.hypot(dx, dz);
+  if (dist > range) return null;
+  return { nx: dx / range, ny: -dz / range };
+}
+
+/**
+ * Kartenmitte (0,0) auf dem Nord-Radar: innerhalb `range` wie Blip; sonst **am Rand**
+ * in Richtung (0,0) (gleiche Skalierung wie Blips: `rimScale` ≈ Anzeigeradius).
+ */
+export function radarMapCenterMarkerOffsetNorthUp(
+  myX: number,
+  myZ: number,
+  rimScale: number,
+  range: number = RADAR_RANGE_WORLD,
+): { mx: number; my: number } | null {
+  const dx = -myX;
+  const dz = -myZ;
+  const dist = Math.hypot(dx, dz);
+  if (dist < 1e-8) return null;
+  if (dist <= range) {
+    return { mx: (dx / range) * rimScale, my: (-dz / range) * rimScale };
+  }
+  const ux = dx / dist;
+  const uy = -dz / dist;
+  return { mx: ux * rimScale, my: uy * rimScale };
+}
 
 /** Normiert auf [-1, 1] im Kreis; ny zeigt nach „oben“ auf dem Display wenn vorwärts = Bug. */
 export function radarBlipNormalized(

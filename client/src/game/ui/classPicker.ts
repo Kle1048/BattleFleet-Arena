@@ -3,6 +3,7 @@
  */
 
 import { PLAYER_DISPLAY_NAME_MAX_LEN, SHIP_CLASS_FAC, type ShipClassId } from "@battlefleet/shared";
+import { t } from "../../locale/t";
 
 export type ShipLobbyChoice = {
   shipClass: ShipClassId;
@@ -16,17 +17,17 @@ export function pickShipLobbyChoice(): Promise<ShipLobbyChoice> {
     root.className = "class-picker-overlay";
     root.setAttribute("role", "dialog");
     root.setAttribute("aria-modal", "true");
-    root.setAttribute("aria-label", "Spielername");
+    root.setAttribute("aria-label", t("classPicker.ariaDialog"));
     root.innerHTML = `
       <div class="class-picker-panel">
-        <h2 class="class-picker-title">BattleFleet Arena</h2>
-        <p class="class-picker-hint">Optional: Spielername eingeben und starten. Alle starten als FAC (Schnellboot).</p>
+        <h2 class="class-picker-title">${t("product.fullName")}</h2>
+        <p class="class-picker-hint">${t("classPicker.hint")}</p>
         <label class="class-picker-name-label">
-          <span class="class-picker-name-caption">Spielername</span>
+          <span class="class-picker-name-caption">${t("classPicker.nameCaption")}</span>
           <input type="text" class="class-picker-name-input" maxlength="${PLAYER_DISPLAY_NAME_MAX_LEN}"
-            autocomplete="nickname" spellcheck="false" placeholder="z. B. Kommandant" />
+            autocomplete="nickname" spellcheck="false" placeholder="${t("classPicker.namePlaceholder")}" />
         </label>
-        <button type="button" class="class-picker-continue-btn">Weiter</button>
+        <button type="button" class="class-picker-continue-btn">${t("classPicker.continue")}</button>
       </div>
     `;
     const nameInput = root.querySelector(".class-picker-name-input") as HTMLInputElement;

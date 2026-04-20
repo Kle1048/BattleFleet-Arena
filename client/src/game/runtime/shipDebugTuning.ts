@@ -24,9 +24,9 @@ export const DEFAULT_SHIP_DEBUG_TUNING: Readonly<ShipDebugTuning> = {
   mineSpawnLocalZ: -22,
   wakeSpawnLocalZ: -1.5,
   gltfHullYOffset: -470,
-  showWeaponArc: true,
+  showWeaponArc: false,
   showRangeRings: false,
-  showMountAimLines: true,
+  showMountAimLines: false,
 };
 
 let currentShipDebugTuning: ShipDebugTuning = {

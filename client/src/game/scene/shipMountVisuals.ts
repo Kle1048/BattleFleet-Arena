@@ -66,7 +66,7 @@ const MOUNT_VISUAL_EXTRA_SCALE: Partial<Record<string, number>> = {
   visual_pdms: 100,
 };
 
-/** SAM / CIWS / PDMS — Train folgt bei Layered Defence dem Flugkörper, nicht dem Aim-Punkt. */
+/** SAM / CIWS / PDMS — Train folgt bei eingehender ASuM dem Flugkörper, nicht dem Aim-Punkt. */
 function isAirDefenseMountVisualId(visualId: string): boolean {
   return (
     visualId === "visual_ciws" ||

@@ -209,3 +209,20 @@ npm run devlog:append
 
 > Shipped: chore: spielbarer MVP-Prototyp — Feature-Bündel vor Optimierungsphase 🚢 Wir hacken an einem AI-collab Wettkampfspiel — #Vibejam #indiedev
 
+---
+
+## 2026-04-20 — feat: mobiles Steuer- und Kampf-UX (siehe Git-Log)
+
+- **Autor:** Klemens1048
+- **Commit:** feat: mobiles Steuer- und Kampf-UX, Wrecks, Locale und Server-Erweiterungen
+
+**Details:**
+
+- Client: Maschinen-Telegraf mit diskreten Stufen, mobile Softkeys ohne nipplejs, fixe Zielmarke und Primärfeuer entlang Viewport-Pin (Ray pro Frame), Mobile-Browser-Guards, gemeinsames Fadenkreuz-SVG, Locale (en), Mission Briefing, Frame-/HUD-Runtime, Wreck-Visuals und -Debug, Docs und Sounds.
+- Shared/Server: Wrecks, Ram- und Schiff-Schiff-Kollision, Schema- und ASuM-Anpassungen, BattleRoom-Erweiterungen; Abhängigkeiten bereinigt.
+- Made-with: Cursor
+
+### Vorschlag Twitter / X (#Vibejam)
+
+> Shipped: feat: mobiles Steuer- und Kampf-UX, Wrecks, Locale und Server-Erweiterungen 🚢 Wir hacken an einem AI-collab Wettkampfspiel — #Vibejam #indiedev
+

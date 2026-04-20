@@ -256,11 +256,11 @@ function applyGltfHullMaterialsLifeState(
         mat.color.setHex(VisualColorTokens.shipHullWreck);
         mat.metalness = 0.04;
         mat.roughness = 0.92;
-        mat.transparent = true;
-        mat.opacity = 0.4;
+        mat.transparent = false;
+        mat.opacity = 1;
         mat.emissive.setHex(VisualColorTokens.shipHullWreckEmissive);
         mat.emissiveIntensity = 0.45;
-        mat.depthWrite = false;
+        mat.depthWrite = true;
       } else if (shielded) {
         mat.color.setHex(
           isLocal ? VisualColorTokens.shipHullShieldedLocal : VisualColorTokens.shipHullShieldedRemote,
@@ -304,9 +304,9 @@ function applyGltfHullMaterialsLifeState(
     if (mat instanceof THREE.MeshBasicMaterial) {
       if (wreck) {
         mat.color.setHex(0x6e7884);
-        mat.opacity = 0.45;
-        mat.transparent = true;
-        mat.depthWrite = false;
+        mat.opacity = 1;
+        mat.transparent = false;
+        mat.depthWrite = true;
       } else if (shielded) {
         mat.color.setHex(0xdef8ff);
         mat.opacity = 0.95;
@@ -360,16 +360,16 @@ export function setShipVisualLifeState(
     hullMat.color.setHex(VisualColorTokens.shipHullWreck);
     hullMat.metalness = 0.04;
     hullMat.roughness = 0.92;
-    hullMat.transparent = true;
-    hullMat.opacity = 0.4;
+    hullMat.transparent = false;
+    hullMat.opacity = 1;
     hullMat.emissive.setHex(VisualColorTokens.shipHullWreckEmissive);
     hullMat.emissiveIntensity = 0.45;
-    hullMat.depthWrite = false;
+    hullMat.depthWrite = true;
     if (spriteMat) {
       spriteMat.color.setHex(0x6e7884);
-      spriteMat.opacity = 0.45;
-      spriteMat.transparent = true;
-      spriteMat.depthWrite = false;
+      spriteMat.opacity = 1;
+      spriteMat.transparent = false;
+      spriteMat.depthWrite = true;
     }
 
     forEachAimDebugLineMaterial(vis, (aimMat) => {
@@ -652,7 +652,7 @@ const _trainDirWorld = new THREE.Vector3();
 const _trainAnchorQuat = new THREE.Quaternion();
 const _trainDirAnchor = new THREE.Vector3();
 
-/** Optionen für LW-Mounts: bei aktivem Layered Defence (E) Zielrichtung = ASuM, mit Sektor-Klemme. */
+/** Optionen für LW-Mounts: bei eingehender ASuM Zielrichtung = Flugkörper, mit Sektor-Klemme. */
 export type ArtilleryTrainAimOptions = {
   layeredDefenseActive: boolean;
   missileSim: { x: number; z: number } | null;
@@ -730,7 +730,7 @@ function setTrainRotationTowardSimAim(
 }
 
 /**
- * Geschütz: Mount→Aim. Flugabwehr (SAM/CIWS/PDMS): bei Layered Defence + ASuM zum Flugkörper (Sektor-Klemme);
+ * Geschütz: Mount→Aim. Flugabwehr (SAM/CIWS/PDMS): bei eingehender ASuM zum Flugkörper (Sektor-Klemme);
  * sonst **Nullstellung** = Richtung Feuersektor-Mitte / Bug-Null (`fac.json` u. a.), nicht `rotation.y = 0`.
  */
 export function updateArtilleryTrainRotationsFromAim(

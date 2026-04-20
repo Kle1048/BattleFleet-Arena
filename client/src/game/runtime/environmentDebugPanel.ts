@@ -30,7 +30,9 @@ import {
 import { clearPersistedClientSettings } from "./clearPersistedClientSettings";
 import {
   isShipHitboxDebugVisible,
+  isWreckCollisionDebugVisible,
   setShipHitboxDebugVisible,
+  setWreckCollisionDebugVisible,
 } from "./shipProfileRuntime";
 import { appendToBottomDebugDock } from "./bottomDebugDock";
 
@@ -467,6 +469,22 @@ export function createEnvironmentDebugPanel(
   hitboxWrap.appendChild(hitboxToggle);
   panelShip.appendChild(hitboxWrap);
 
+  const wreckColLabel = document.createElement("label");
+  wreckColLabel.textContent = "Wrack-Kollision (Hitbox)";
+  wreckColLabel.title =
+    "Drahtmodell = dieselbe Hitbox-OBB wie Server (Sim-Punkt + Peilung). localStorage.";
+  panelShip.appendChild(wreckColLabel);
+  const wreckColWrap = document.createElement("div");
+  wreckColWrap.style.cssText = "display:flex;align-items:center;justify-content:flex-end;gap:6px;";
+  const wreckColToggle = document.createElement("input");
+  wreckColToggle.type = "checkbox";
+  wreckColToggle.checked = isWreckCollisionDebugVisible();
+  wreckColToggle.addEventListener("change", () => {
+    setWreckCollisionDebugVisible(wreckColToggle.checked);
+  });
+  wreckColWrap.appendChild(wreckColToggle);
+  panelShip.appendChild(wreckColWrap);
+
   addSectionTitle(panelShip, "Match: Schiff wechseln (Debug)", true);
   const shipDbgHint = document.createElement("div");
   shipDbgHint.style.cssText =
@@ -740,6 +758,8 @@ export function createEnvironmentDebugPanel(
     mountAimToggle.checked = nextShip.showMountAimLines;
     setShipHitboxDebugVisible(false);
     hitboxToggle.checked = false;
+    setWreckCollisionDebugVisible(false);
+    wreckColToggle.checked = false;
     for (const r of shipSliderRefs) {
       const v = nextShip[r.key];
       r.input.value = String(v);

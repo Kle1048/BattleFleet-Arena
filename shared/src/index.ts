@@ -27,3 +27,4 @@ export * from "./shipRamDamage";
 export * from "./collisionContactQueries";
 export * from "./wakeRibbonMath";
 export * from "./wakeLod";
+export * from "./wrecks";

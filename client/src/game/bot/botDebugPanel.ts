@@ -1,5 +1,6 @@
 import type { BotInputCommand, BotIntent, BotLogEntry, TacticalContext } from "./types";
 import { appendToBottomDebugDock } from "../runtime/bottomDebugDock";
+import { t } from "../../locale/t";
 
 export type BotDebugState = {
   enabled: boolean;
@@ -34,7 +35,7 @@ export function createBotDebugPanel(options: BotDebugPanelOptions = {}): {
     "background:#123f2b;color:#d8ffeb;border:1px solid rgba(120,220,180,0.48);" +
     "border-radius:7px;padding:6px 10px;cursor:pointer;font:600 12px system-ui,sans-serif;" +
     "touch-action:manipulation;";
-  botToggle.setAttribute("aria-label", "Bot aktivieren oder deaktivieren");
+  botToggle.setAttribute("aria-label", t("botDebug.toggleAria"));
   const collapseToggle = document.createElement("button");
   collapseToggle.type = "button";
   collapseToggle.style.cssText =
@@ -58,7 +59,7 @@ export function createBotDebugPanel(options: BotDebugPanelOptions = {}): {
     collapseToggle.textContent = expanded ? "Hide" : "Show";
   };
   const applyBotToggleState = (): void => {
-    botToggle.textContent = botEnabled ? "Bot: ON" : "Bot: OFF";
+    botToggle.textContent = botEnabled ? t("botDebug.botOn") : t("botDebug.botOff");
     botToggle.style.background = botEnabled ? "#14643f" : "#4b2121";
     botToggle.style.borderColor = botEnabled ? "rgba(120,220,180,0.58)" : "rgba(255,145,145,0.52)";
     botToggle.style.color = botEnabled ? "#d8ffeb" : "#ffe0e0";
@@ -77,24 +78,23 @@ export function createBotDebugPanel(options: BotDebugPanelOptions = {}): {
   let lastRenderedEnabled: boolean | null = null;
 
   const fmt = (n: number) => n.toFixed(2);
-  const yn = (b: boolean) => (b ? "ja" : "nein");
   return {
     render(state): void {
+      const dash = t("hud.emDash");
+      const yn = (b: boolean) => (b ? t("common.yes") : t("common.no"));
       botEnabled = state.enabled;
       applyBotToggleState();
       if (!state.enabled) {
-        title.textContent = "Bot INAKTIV (Taste B / Button)";
+        title.textContent = t("botDebug.titleDisabled");
         if (lastRenderedEnabled !== false) {
-          content.innerHTML =
-            '<div style="opacity:0.88;">Bot ist aus — <b>B</b> oder Button zum Aktivieren.</div>';
+          content.innerHTML = t("botDebug.inactiveHelpHtml");
           lastRenderedEnabled = false;
         }
         return;
       }
       lastRenderedEnabled = true;
       const c = state.context;
-      const status = state.enabled ? "AKTIV" : "INAKTIV";
-      title.textContent = `Bot ${status} (Taste B / Button)`;
+      title.textContent = t("botDebug.titleActive");
       const inputLines = state.lastInputs
         .slice(-5)
         .map((q) => `T ${fmt(q.throttle)} R ${fmt(q.rudderInput)} F ${q.primaryFire ? 1 : 0}`)
@@ -111,18 +111,25 @@ export function createBotDebugPanel(options: BotDebugPanelOptions = {}): {
         })
         .join("<br/>");
       content.innerHTML = `
-        <div>Intent: ${state.intent ?? "—"}</div>
-        <div>Ziel: ${state.targetId ?? "—"}</div>
-        <div>danger: ${c ? fmt(c.dangerScore) : "—"} | aggr: ${c ? fmt(c.aggressionScore) : "—"} | surv: ${c ? fmt(c.survivalScore) : "—"}</div>
-        <div>Gun Arc: ${c ? yn(c.targetInGunArc) : "—"} | Missile Arc: ${c ? yn(c.targetInMissileArc) : "—"}</div>
-        <div>Incoming Missiles: ${c ? c.incomingMissileCount : 0}</div>
+        <div>${t("botDebug.labelIntent")}: ${state.intent ?? dash}</div>
+        <div>${t("botDebug.labelTarget")}: ${state.targetId ?? dash}</div>
+        <div>${t("botDebug.tacticalScores", {
+          danger: c ? fmt(c.dangerScore) : dash,
+          aggr: c ? fmt(c.aggressionScore) : dash,
+          surv: c ? fmt(c.survivalScore) : dash,
+        })}</div>
+        <div>${t("botDebug.arcLine", {
+          gun: c ? yn(c.targetInGunArc) : dash,
+          missile: c ? yn(c.targetInMissileArc) : dash,
+        })}</div>
+        <div>${t("botDebug.incomingMissiles", { count: c ? c.incomingMissileCount : 0 })}</div>
         <hr style="border:none;border-top:1px solid rgba(160,210,255,0.2);margin:6px 0;" />
-        <div style="font-weight:600;">Letzte Inputs</div>
-        <div>${inputLines || "—"}</div>
-        <div style="font-weight:600;margin-top:6px;">Intent-Wechsel</div>
-        <div>${intentLines || "—"}</div>
-        <div style="font-weight:600;margin-top:6px;">Decision-Log</div>
-        <div style="max-height:120px;overflow:auto;">${logLines || "—"}</div>
+        <div style="font-weight:600;">${t("botDebug.headingLastInputs")}</div>
+        <div>${inputLines || dash}</div>
+        <div style="font-weight:600;margin-top:6px;">${t("botDebug.headingIntentChanges")}</div>
+        <div>${intentLines || dash}</div>
+        <div style="font-weight:600;margin-top:6px;">${t("botDebug.headingDecisionLog")}</div>
+        <div style="max-height:120px;overflow:auto;">${logLines || dash}</div>
       `;
     },
     dispose(): void {

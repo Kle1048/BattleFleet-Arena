@@ -38,6 +38,9 @@ export type VisualRuntime<TPlayer extends PlayerLike> = {
   visuals: Map<string, ShipVisual>;
   remoteInterp: Map<string, InterpolationBuffer>;
   ensureVisualsForPlayers: (list: ArraySchema<TPlayer>) => void;
+  /** z. B. `wreck:<id>` — gleicher Renderer wie Spieler-Schiffe. */
+  ensureShipVisual: (sessionKey: string, shipClassId?: ShipClassId) => void;
+  removeShipVisual: (sessionKey: string) => boolean;
   getStateSyncCount: () => number;
   dispose: () => void;
 };
@@ -95,6 +98,10 @@ export function createVisualRuntime<TPlayer extends PlayerLike>(
   return {
     visuals,
     remoteInterp,
+    ensureShipVisual: (sessionKey, shipClassId) => {
+      shipRenderer.ensureShip(sessionKey, shipClassId);
+    },
+    removeShipVisual: (sessionKey) => shipRenderer.removeShip(sessionKey),
     ensureVisualsForPlayers(list) {
       const n = list.length;
       let dirty = n !== lastEnsurePlayerCount;

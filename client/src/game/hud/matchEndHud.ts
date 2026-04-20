@@ -3,6 +3,7 @@
  */
 
 import { progressionNavalRankEn } from "@battlefleet/shared";
+import { t } from "../../locale/t";
 
 function escapeHtml(s: string): string {
   return s
@@ -33,19 +34,19 @@ export function createMatchEndHud(onPlayAgain: () => void): MatchEndHud {
   root.className = "match-end-overlay";
   root.setAttribute("role", "dialog");
   root.setAttribute("aria-modal", "true");
-  root.setAttribute("aria-label", "Match beendet");
+  root.setAttribute("aria-label", t("matchEnd.ariaDialog"));
   root.hidden = true;
   root.innerHTML = `
     <div class="match-end-panel">
-      <h2 class="match-end-title">Match beendet</h2>
-      <p class="match-end-sub">FFA — Sieg: höchster Score (passiv + Kämpfe; Mitte ×5). Kills zählen. „Weiter“: Raum verlassen und erneut verbinden.</p>
-      <table class="match-end-table" aria-label="Rangliste">
+      <h2 class="match-end-title">${t("matchEnd.title")}</h2>
+      <p class="match-end-sub">${t("matchEnd.subtitle")}</p>
+      <table class="match-end-table" aria-label="${t("matchEnd.tableAria")}">
         <thead>
-          <tr><th>#</th><th>Spieler</th><th>Klasse</th><th>Rang</th><th>Kills</th><th>Score</th></tr>
+          <tr><th>${t("matchEnd.colPlace")}</th><th>${t("matchEnd.colPlayer")}</th><th>${t("matchEnd.colClass")}</th><th>${t("matchEnd.colRank")}</th><th>${t("matchEnd.colKills")}</th><th>${t("matchEnd.colScore")}</th></tr>
         </thead>
         <tbody class="match-end-tbody"></tbody>
       </table>
-      <button type="button" class="match-end-replay">Weiter</button>
+      <button type="button" class="match-end-replay">${t("matchEnd.continue")}</button>
     </div>
   `;
 

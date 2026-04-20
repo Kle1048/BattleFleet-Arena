@@ -4,7 +4,12 @@
 
 import { FEATURE_MINES_ENABLED, type ShipClassId } from "@battlefleet/shared";
 import { getAuthoritativeHullProfile } from "../runtime/shipProfileRuntime";
-import { RADAR_RANGE_WORLD, type RadarBlipNorm } from "./radarHudMath";
+import { t } from "../../locale/t";
+import {
+  RADAR_RANGE_WORLD,
+  radarMapCenterMarkerOffsetNorthUp,
+  type RadarBlipNorm,
+} from "./radarHudMath";
 import {
   cockpitRadarBlipsKey,
   cockpitRadarEsmKey,
@@ -23,7 +28,7 @@ export type CockpitHudUpdate = {
   throttle: number;
   rudder: number;
   headingRad: number;
-  /** Welt XZ — Kompass: Peilung Kartenmitte (0,0). */
+  /** Welt XZ — Kartenmitte-Marker auf dem Nord-Radar. */
   worldX: number;
   worldZ: number;
   /** Hauptgeschütz-Richtung relativ Bug (Train). */
@@ -89,93 +94,71 @@ function writeHudCompact(key: string, compact: boolean): void {
   }
 }
 
-export function createCockpitHud(): { update: (u: CockpitHudUpdate) => void } {
-  const radarRangeLabel = `${RADAR_RANGE_WORLD}m`;
+export function createCockpitHud(opts?: {
+  /** Suchrad wie **R** umschalten (Touch / Maus am HUD-Knopf). */
+  onRadarToggle?: () => void;
+}): { update: (u: CockpitHudUpdate) => void } {
+  const radarRangeLabel = t("hud.radarRangeMeters", { m: RADAR_RANGE_WORLD });
   const wrap = document.createElement("div");
   wrap.className = "cockpit-hud-root";
-  wrap.setAttribute("aria-label", "Brücke und OPZ");
+  wrap.setAttribute("aria-label", t("hud.ariaRoot"));
   wrap.innerHTML = `
-    <div class="cockpit-bridge" aria-label="Brücke">
+    <div class="cockpit-bridge" aria-label="${t("hud.ariaBridge")}">
       <div class="cockpit-panel cockpit-panel--bridge">
         <div class="cockpit-panel-head cockpit-panel-head--bridge">
-          <span class="cockpit-panel-title">BRIDGE</span>
-          <button type="button" class="cockpit-panel-toggle" aria-expanded="true" title="Nur Kurs anzeigen" aria-label="Brücke reduzieren oder erweitern">−</button>
+          <span class="cockpit-panel-title">${t("hud.panelBridge")}</span>
+          <button type="button" class="cockpit-panel-toggle" aria-expanded="true" title="${t("hud.bridgeToggleCollapseTitle")}" aria-label="${t("hud.bridgeToggleCollapseAria")}">−</button>
         </div>
         <div class="cockpit-bridge-minimal" hidden>
           <div class="cockpit-row cockpit-row-minimal">
-            <span class="cockpit-label">Kurs</span>
+            <span class="cockpit-label">${t("hud.labelCourse")}</span>
             <span class="cockpit-course cockpit-course-minimal">000°</span>
           </div>
         </div>
         <div class="cockpit-bridge-body">
-        <div class="cockpit-compass-wrap" aria-hidden="true">
-          <svg class="cockpit-compass-svg" viewBox="-52 -52 104 104">
-            <defs>
-              <radialGradient id="cockpitCompassFace" cx="50%" cy="50%" r="50%">
-                <stop offset="0%" stop-color="rgba(30,55,90,0.5)" />
-                <stop offset="100%" stop-color="rgba(6,14,28,0.92)" />
-              </radialGradient>
-            </defs>
-            <circle cx="0" cy="0" r="49" fill="url(#cockpitCompassFace)" />
-            <circle class="cockpit-compass-rim" cx="0" cy="0" r="46" fill="none" />
-            <polygon class="cockpit-compass-lubber" points="0,-48 -5,-38 5,-38" />
-            <g class="cockpit-compass-rose">
-              <line class="cockpit-compass-tick" x1="0" y1="-44" x2="0" y2="-36" />
-              <text class="cockpit-compass-cardinal" x="0" y="-36" text-anchor="middle">N</text>
-              <line class="cockpit-compass-tick-sec" x1="31" y1="31" x2="26" y2="26" />
-              <line class="cockpit-compass-tick" x1="44" y1="0" x2="36" y2="0" />
-              <line class="cockpit-compass-tick" x1="0" y1="44" x2="0" y2="36" />
-              <line class="cockpit-compass-tick-sec" x1="-31" y1="31" x2="-26" y2="26" />
-              <line class="cockpit-compass-tick" x1="-44" y1="0" x2="-36" y2="0" />
-              <g class="cockpit-compass-ctr" style="opacity:0" title="Kartenmitte">
-                <polygon class="cockpit-compass-ctr-diamond" points="0,-7 5,0 0,7 -5,0" />
-              </g>
-            </g>
-          </svg>
-        </div>
         <div class="cockpit-readouts cockpit-readouts--bridge">
           <div class="cockpit-row">
-            <span class="cockpit-label">Name</span>
+            <span class="cockpit-label">${t("hud.labelName")}</span>
             <span class="cockpit-player-name">—</span>
           </div>
           <div class="cockpit-row">
-            <span class="cockpit-label">Klasse</span>
+            <span class="cockpit-label">${t("hud.labelClass")}</span>
             <span class="cockpit-ship-class">—</span>
           </div>
           <div class="cockpit-row">
-            <span class="cockpit-label">Fahrt</span>
-            <span class="cockpit-speed"><span class="cockpit-speed-val">0</span><span class="cockpit-speed-unit"> kn</span></span>
+            <span class="cockpit-label">${t("hud.labelSpeed")}</span>
+            <span class="cockpit-speed"><span class="cockpit-speed-val">0</span><span class="cockpit-speed-unit">${t("hud.speedUnitKn")}</span></span>
           </div>
           <div class="cockpit-row">
-            <span class="cockpit-label">Kurs</span>
+            <span class="cockpit-label">${t("hud.labelCourseFull")}</span>
             <span class="cockpit-course">000°</span>
           </div>
           <div class="cockpit-row cockpit-row-bar">
-            <span class="cockpit-label">Gas</span>
+            <span class="cockpit-label">${t("hud.labelThrottle")}</span>
             <div class="cockpit-track"><div class="cockpit-track-mid"></div><div class="cockpit-fill cockpit-fill-throttle"></div></div>
           </div>
           <div class="cockpit-row cockpit-row-bar">
-            <span class="cockpit-label">Ruder</span>
+            <span class="cockpit-label">${t("hud.labelRudder")}</span>
             <div class="cockpit-track"><div class="cockpit-track-mid"></div><div class="cockpit-fill cockpit-fill-rudder"></div></div>
           </div>
           <div class="cockpit-row cockpit-row-rank">
-            <span class="cockpit-label">Rank</span>
+            <span class="cockpit-label">${t("hud.labelRank")}</span>
             <span class="cockpit-rank-en">—</span>
           </div>
           <div class="cockpit-row">
-            <span class="cockpit-label">XP</span>
+            <span class="cockpit-label">${t("hud.labelXp")}</span>
             <span class="cockpit-xp">—</span>
           </div>
           <div class="cockpit-row cockpit-row-life hidden">
-            <span class="cockpit-label">Status</span>
+            <span class="cockpit-label">${t("hud.labelStatus")}</span>
             <span class="cockpit-life-status">—</span>
           </div>
           <div class="cockpit-row">
-            <span class="cockpit-label">Match</span>
+            <span class="cockpit-label">${t("hud.labelMatch")}</span>
             <span class="cockpit-match-time">—</span>
           </div>
           <div class="cockpit-row">
-            <span class="cockpit-label">Score</span>
+            <span class="cockpit-label">${t("hud.labelScore")}</span>
             <span class="cockpit-match-score"><span class="cockpit-score-val">0</span> <span class="cockpit-kills">(0)</span></span>
           </div>
         </div>
@@ -183,16 +166,22 @@ export function createCockpitHud(): { update: (u: CockpitHudUpdate) => void } {
       </div>
     </div>
 
-    <div class="cockpit-opz" aria-label="Operationszentrale">
+    <div class="cockpit-opz" aria-label="${t("hud.ariaOpz")}">
       <div class="cockpit-panel cockpit-panel--opz">
         <div class="cockpit-panel-head cockpit-panel-head--opz">
-          <span class="cockpit-panel-title">OPZ</span>
-          <button type="button" class="cockpit-panel-toggle" aria-expanded="true" title="Nur HP anzeigen" aria-label="OPZ reduzieren oder erweitern">−</button>
+          <span class="cockpit-panel-title">${t("hud.panelOpz")}</span>
+          <button type="button" class="cockpit-panel-toggle" aria-expanded="true" title="${t("hud.opzToggleCollapseTitle")}" aria-label="${t("hud.opzToggleCollapseAria")}">−</button>
         </div>
-        <div class="cockpit-radar" aria-hidden="true">
+        <div class="cockpit-radar">
           <div class="cockpit-radar-head">
-            <span class="cockpit-radar-title">TACTICAL</span>
-            <span class="cockpit-own-radar-status" title="R = Suchrad an/aus">RADAR ON</span>
+            <span class="cockpit-radar-title">${t("hud.radarTitle")}</span>
+            <button
+              type="button"
+              class="cockpit-own-radar-status cockpit-own-radar-toggle"
+              title="${t("hud.radarToggleTitle")}"
+              aria-label="${t("hud.radarToggleAria")}"
+              aria-pressed="true"
+            >${t("hud.radarOn")}</button>
           </div>
           <div class="cockpit-radar-bezel">
             <svg class="cockpit-radar-svg" viewBox="-52 -52 104 104">
@@ -212,9 +201,13 @@ export function createCockpitHud(): { update: (u: CockpitHudUpdate) => void } {
               <line class="cockpit-radar-axis" x1="-48" y1="0" x2="48" y2="0" />
               <line class="cockpit-radar-axis cockpit-radar-axis-45" x1="-33.941" y1="-33.941" x2="33.941" y2="33.941" />
               <line class="cockpit-radar-axis cockpit-radar-axis-45" x1="-33.941" y1="33.941" x2="33.941" y2="-33.941" />
-              <polygon class="cockpit-radar-bow" points="0,-44 -5,-36 5,-36" />
+              <text class="cockpit-radar-cardinal-n" x="0" y="-39" text-anchor="middle">${t("hud.radarNorth")}</text>
+              <line class="cockpit-radar-course" x1="0" y1="0" x2="0" y2="-42" />
               <g class="cockpit-radar-esm" clip-path="url(#cockpitRadarClip)"></g>
               <g class="cockpit-radar-threats" clip-path="url(#cockpitRadarClip)"></g>
+              <g class="cockpit-radar-mapcenter-wrap" clip-path="url(#cockpitRadarClip)" style="opacity:0" title="${t("hud.radarMapCenterTitle")}">
+                <polygon class="cockpit-radar-mapcenter-diamond" points="0,-6 4,0 0,6 -4,0" />
+              </g>
               <circle class="cockpit-radar-ownship" cx="0" cy="0" r="2.2" />
               <g class="cockpit-radar-blips" clip-path="url(#cockpitRadarClip)"></g>
             </svg>
@@ -222,40 +215,40 @@ export function createCockpitHud(): { update: (u: CockpitHudUpdate) => void } {
           </div>
           <div class="cockpit-radar-foot">
             <span class="cockpit-radar-range">${radarRangeLabel}</span>
-            <span class="cockpit-radar-esm-hint">ESM</span>
+            <span class="cockpit-radar-esm-hint">${t("hud.radarEsmHint")}</span>
           </div>
         </div>
         <div class="cockpit-row cockpit-row-bar cockpit-hp-opz">
-          <span class="cockpit-label">HP</span>
+          <span class="cockpit-label">${t("hud.labelHp")}</span>
           <div class="cockpit-track cockpit-track-hp"><div class="cockpit-fill cockpit-fill-hp"></div></div>
         </div>
         <div class="cockpit-weapons-block">
-          <div class="cockpit-subhead">Waffen</div>
+          <div class="cockpit-subhead">${t("hud.subheadWeapons")}</div>
           <div class="cockpit-row">
-            <span class="cockpit-label">Feuer</span>
+            <span class="cockpit-label">${t("hud.labelPrimary")}</span>
             <span class="cockpit-primary-cd">—</span>
           </div>
           <div class="cockpit-row">
-            <span class="cockpit-label">ASuM</span>
+            <span class="cockpit-label">${t("hud.labelAswm")}</span>
             <span class="cockpit-secondary-cd">—</span>
           </div>
           <div class="cockpit-aswm-mag">
-            <div class="cockpit-aswm-col cockpit-aswm-col--port" aria-label="ASuM Backbord">
-              <span class="cockpit-aswm-col-label">BB</span>
+            <div class="cockpit-aswm-col cockpit-aswm-col--port" aria-label="${t("hud.ariaAswmPort")}">
+              <span class="cockpit-aswm-col-label">${t("hud.aswmPortShort")}</span>
               <div class="cockpit-aswm-dots cockpit-aswm-dots-port"></div>
             </div>
-            <div class="cockpit-aswm-col cockpit-aswm-col--starboard" aria-label="ASuM Steuerbord">
-              <span class="cockpit-aswm-col-label">STB</span>
+            <div class="cockpit-aswm-col cockpit-aswm-col--starboard" aria-label="${t("hud.ariaAswmStarboard")}">
+              <span class="cockpit-aswm-col-label">${t("hud.aswmStarboardShort")}</span>
               <div class="cockpit-aswm-dots cockpit-aswm-dots-starboard"></div>
             </div>
           </div>
           <div class="cockpit-row cockpit-row-mines">
-            <span class="cockpit-label">Minen</span>
+            <span class="cockpit-label">${t("hud.labelMines")}</span>
             <span class="cockpit-torpedo-cd">—</span>
           </div>
         </div>
         <div class="cockpit-schematic-wrap">
-          <div class="cockpit-subhead">Topologie</div>
+          <div class="cockpit-subhead">${t("hud.subheadTopology")}</div>
           <div class="cockpit-schematic-host"></div>
         </div>
       </div>
@@ -274,7 +267,11 @@ export function createCockpitHud(): { update: (u: CockpitHudUpdate) => void } {
     bridgePanel.classList.toggle("cockpit-panel--compact", compact);
     bridgeToggle.setAttribute("aria-expanded", compact ? "false" : "true");
     bridgeToggle.textContent = compact ? "+" : "−";
-    bridgeToggle.title = compact ? "Brücke voll anzeigen" : "Nur Kurs anzeigen";
+    bridgeToggle.title = compact ? t("hud.bridgeToggleExpandTitle") : t("hud.bridgeToggleCollapseTitle");
+    bridgeToggle.setAttribute(
+      "aria-label",
+      compact ? t("hud.bridgeToggleExpandAria") : t("hud.bridgeToggleCollapseAria"),
+    );
     bridgeMinimal.hidden = !compact;
     bridgeBody.hidden = compact;
     writeHudCompact(BRIDGE_COMPACT_KEY, compact);
@@ -284,7 +281,11 @@ export function createCockpitHud(): { update: (u: CockpitHudUpdate) => void } {
     opzPanel.classList.toggle("cockpit-panel--compact", compact);
     opzToggle.setAttribute("aria-expanded", compact ? "false" : "true");
     opzToggle.textContent = compact ? "+" : "−";
-    opzToggle.title = compact ? "OPZ voll anzeigen" : "Nur HP anzeigen";
+    opzToggle.title = compact ? t("hud.opzToggleExpandTitle") : t("hud.opzToggleCollapseTitle");
+    opzToggle.setAttribute(
+      "aria-label",
+      compact ? t("hud.opzToggleExpandAria") : t("hud.opzToggleCollapseAria"),
+    );
     writeHudCompact(OPZ_COMPACT_KEY, compact);
   };
 
@@ -319,17 +320,25 @@ export function createCockpitHud(): { update: (u: CockpitHudUpdate) => void } {
   const rankEl = wrap.querySelector(".cockpit-rank-en") as HTMLElement;
   const xpEl = wrap.querySelector(".cockpit-xp") as HTMLElement;
   const radarRoot = wrap.querySelector(".cockpit-radar") as HTMLElement;
-  const ownRadarStatusEl = wrap.querySelector(".cockpit-own-radar-status") as HTMLElement;
+  const ownRadarStatusEl = wrap.querySelector(".cockpit-own-radar-status") as HTMLButtonElement;
   const radarBlipsG = wrap.querySelector(".cockpit-radar-blips") as SVGGElement;
   const radarEsmG = wrap.querySelector(".cockpit-radar-esm") as SVGGElement;
   const radarThreatG = wrap.querySelector(".cockpit-radar-threats") as SVGGElement;
-  const compassRose = wrap.querySelector(".cockpit-compass-rose") as SVGGElement;
-  const compassCtr = wrap.querySelector(".cockpit-compass-ctr") as SVGGElement;
+  const radarCourseLine = wrap.querySelector(".cockpit-radar-course") as SVGLineElement;
+  const radarMapCenterWrap = wrap.querySelector(".cockpit-radar-mapcenter-wrap") as SVGGElement;
   const schematicHost = wrap.querySelector(".cockpit-schematic-host") as HTMLElement;
   const aswmDotsPort = wrap.querySelector(".cockpit-aswm-dots-port") as HTMLElement;
   const aswmDotsStarboard = wrap.querySelector(".cockpit-aswm-dots-starboard") as HTMLElement;
 
   document.body.appendChild(wrap);
+
+  if (opts?.onRadarToggle) {
+    const toggle = opts.onRadarToggle;
+    ownRadarStatusEl.addEventListener("click", (e) => {
+      e.stopPropagation();
+      toggle();
+    });
+  }
 
   const svgNs = "http://www.w3.org/2000/svg";
 
@@ -497,19 +506,23 @@ export function createCockpitHud(): { update: (u: CockpitHudUpdate) => void } {
       courseEl.textContent = courseStr;
       courseMinimalEl.textContent = courseStr;
 
-      const hDeg = (headingRad * 180) / Math.PI;
-      compassRose.setAttribute("transform", `rotate(${-hDeg})`);
+      const courseRim = 42;
+      const crx = Math.sin(headingRad) * courseRim;
+      const cry = -Math.cos(headingRad) * courseRim;
+      radarCourseLine.setAttribute("x2", String(crx));
+      radarCourseLine.setAttribute("y2", String(cry));
 
       const distToCtr = Math.hypot(worldX, worldZ);
       if (distToCtr > 12) {
-        const cb = Math.atan2(-worldX, -worldZ);
-        const rMark = 30;
-        const mx = Math.sin(cb) * rMark;
-        const my = -Math.cos(cb) * rMark;
-        compassCtr.setAttribute("transform", `translate(${mx},${my})`);
-        compassCtr.style.opacity = "1";
+        const off = radarMapCenterMarkerOffsetNorthUp(worldX, worldZ, RADAR_BLIP_SCALE, RADAR_RANGE_WORLD);
+        if (off) {
+          radarMapCenterWrap.setAttribute("transform", `translate(${off.mx},${off.my})`);
+          radarMapCenterWrap.style.opacity = "1";
+        } else {
+          radarMapCenterWrap.style.opacity = "0";
+        }
       } else {
-        compassCtr.style.opacity = "0";
+        radarMapCenterWrap.style.opacity = "0";
       }
 
       fillThrottle.style.background =
@@ -539,7 +552,7 @@ export function createCockpitHud(): { update: (u: CockpitHudUpdate) => void } {
         primaryCdEl.textContent = `${primaryCooldownSec.toFixed(1)} s`;
         primaryCdEl.style.opacity = "0.9";
       } else {
-        primaryCdEl.textContent = "bereit";
+        primaryCdEl.textContent = t("hud.weaponReady");
         primaryCdEl.style.opacity = "0.55";
       }
 
@@ -547,7 +560,7 @@ export function createCockpitHud(): { update: (u: CockpitHudUpdate) => void } {
         secondaryCdEl.textContent = `${secondaryCooldownSec.toFixed(1)} s`;
         secondaryCdEl.style.opacity = "0.9";
       } else {
-        secondaryCdEl.textContent = "bereit";
+        secondaryCdEl.textContent = t("hud.weaponReady");
         secondaryCdEl.style.opacity = "0.55";
       }
 
@@ -557,11 +570,11 @@ export function createCockpitHud(): { update: (u: CockpitHudUpdate) => void } {
           torpedoCdEl.style.opacity = "0.9";
           torpedoCdEl.style.color = "";
         } else if (mineCount >= mineMaxCount) {
-          torpedoCdEl.textContent = "MAX";
+          torpedoCdEl.textContent = t("hud.minesMax");
           torpedoCdEl.style.opacity = "1";
           torpedoCdEl.style.color = "#ff6b6b";
         } else {
-          torpedoCdEl.textContent = "bereit";
+          torpedoCdEl.textContent = t("hud.weaponReady");
           torpedoCdEl.style.opacity = "0.55";
           torpedoCdEl.style.color = "";
         }
@@ -569,15 +582,19 @@ export function createCockpitHud(): { update: (u: CockpitHudUpdate) => void } {
 
       if (respawnCountdownSec > 0.05) {
         lifeRow.classList.remove("hidden");
-        lifeStatusEl.textContent = `Respawn in ${respawnCountdownSec.toFixed(1)} s`;
+        lifeStatusEl.textContent = t("hud.statusRespawnIn", {
+          seconds: respawnCountdownSec.toFixed(1),
+        });
         lifeStatusEl.style.opacity = "0.95";
       } else if (spawnProtectionSec > 0.05) {
         lifeRow.classList.remove("hidden");
-        lifeStatusEl.textContent = `Spawn-Schutz ${spawnProtectionSec.toFixed(1)} s`;
+        lifeStatusEl.textContent = t("hud.statusSpawnProtection", {
+          seconds: spawnProtectionSec.toFixed(1),
+        });
         lifeStatusEl.style.opacity = "0.95";
       } else {
         lifeRow.classList.add("hidden");
-        lifeStatusEl.textContent = "—";
+        lifeStatusEl.textContent = t("hud.emDash");
       }
 
       matchTimeEl.textContent = formatMatchTime(matchRemainingSec);
@@ -586,8 +603,9 @@ export function createCockpitHud(): { update: (u: CockpitHudUpdate) => void } {
       rankEl.textContent = rankLabelEn;
       xpEl.textContent = xpLine;
 
-      ownRadarStatusEl.textContent = ownRadarActive ? "RADAR ON" : "RADAR OFF";
+      ownRadarStatusEl.textContent = ownRadarActive ? t("hud.radarOn") : t("hud.radarOff");
       ownRadarStatusEl.classList.toggle("cockpit-own-radar-off", !ownRadarActive);
+      ownRadarStatusEl.setAttribute("aria-pressed", ownRadarActive ? "true" : "false");
 
       fillAswmMagRow(aswmDotsPort, aswmMagPortCap, aswmRemainingPort);
       fillAswmMagRow(aswmDotsStarboard, aswmMagStarboardCap, aswmRemainingStarboard);

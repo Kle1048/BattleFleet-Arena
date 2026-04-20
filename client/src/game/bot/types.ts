@@ -18,7 +18,6 @@ export type BotInputCommand = {
   secondaryFire: boolean;
   torpedoFire: boolean;
   radarActive: boolean;
-  airDefenseEngage: boolean;
 };
 
 export type BotVisiblePlayer = {

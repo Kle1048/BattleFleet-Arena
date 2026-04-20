@@ -16,10 +16,14 @@ import {
   esmDetectionRangeMul,
   esmEmitterStrokeCss,
   resolveAirDefenseDefenderIdForMissile,
+  wreckVariantFromSessionId,
   type AirDefenseMissileSnapshot,
   type AirDefensePlayerSnapshot,
   type ShipClassId,
 } from "@battlefleet/shared";
+import { t } from "../../locale/t";
+import type { InputSample } from "../input/keyboardMouse";
+import { computeWreckVisualPose } from "../scene/shipWreckAnimation";
 import {
   applyShipVisualRuntimeTuning,
   setShipVisualLifeState,
@@ -54,7 +58,7 @@ import type { CockpitRadarThreatLine } from "../hud/cockpitRadarKeys";
 import {
   RADAR_ESM_RANGE_WORLD,
   esmLineTowardBlip,
-  radarBlipNormalized,
+  radarBlipNormalizedNorthUp,
   type RadarBlipNorm,
 } from "../hud/radarHudMath";
 
@@ -82,9 +86,10 @@ type NetPlayerLike = {
   xp: number;
   shipClass: string;
   displayName: string;
+  /** Serverzeit (ms) bei Tod; nur in `awaiting_respawn` gesetzt. */
+  deathAtMs?: number;
   radarActive?: boolean;
   adHudIncomingAswm?: number;
-  adHardkillCommitRemainingSec?: number;
   aswmRemainingPort: number;
   aswmRemainingStarboard: number;
 };
@@ -99,18 +104,6 @@ type MissileLike = {
 };
 type TorpedoLike = { torpedoId: number; x: number; z: number; headingRad: number };
 type OwnedTorpedoLike = TorpedoLike & { ownerId: string };
-
-type InputSample = {
-  throttle: number;
-  rudderInput: number;
-  aimWorldX: number;
-  aimWorldZ: number;
-  primaryFire: boolean;
-  secondaryFire: boolean;
-  torpedoFire: boolean;
-  radarActive: boolean;
-  airDefenseEngage: boolean;
-};
 
 type CockpitLike = {
   update: (model: {
@@ -188,6 +181,9 @@ type RuntimeState = {
   lastAdHudIncomingAswm: number;
   /** Live-Debug für Aim-Linien/Sektorprüfung (lokaler Spieler). */
   aimLineSectorDebug: string;
+  /** Dedupe für `input`-Nachrichten (Telegraf / Ziel — nicht jedes Frame). */
+  lastInputDedupKey: string | null;
+  lastInputDedupAtMs: number;
 };
 
 export function createFrameRuntimeState(initialHudLevel = 1): RuntimeState {
@@ -198,7 +194,31 @@ export function createFrameRuntimeState(initialHudLevel = 1): RuntimeState {
     lastDamageSmokeAtBySessionId: new Map<string, number>(),
     lastAdHudIncomingAswm: 0,
     aimLineSectorDebug: "",
+    lastInputDedupKey: null,
+    lastInputDedupAtMs: 0,
   };
+}
+
+const INPUT_HEARTBEAT_MS = 1200;
+const INPUT_AIM_QUANT = 4;
+
+function quantInput(n: number): number {
+  return Math.round(n * INPUT_AIM_QUANT) / INPUT_AIM_QUANT;
+}
+
+function buildInputDedupKey(input: InputSample, mineSpawnLocalZ: number): string {
+  const telegraph = input.useTelegraphWire !== false;
+  const aim = `${quantInput(input.aimWorldX)},${quantInput(input.aimWorldZ)}`;
+  const mineZ = quantInput(mineSpawnLocalZ);
+  const f = `${input.primaryFire ? 1 : 0}${input.secondaryFire ? 1 : 0}${
+    FEATURE_MINES_ENABLED && input.torpedoFire ? 1 : 0
+  }`;
+  if (telegraph) {
+    return `T|${input.engineOrder}|${input.rudderOrder}|${aim}|${input.radarActive ? 1 : 0}|${mineZ}|${f}`;
+  }
+  return `A|${quantInput(input.throttle)}|${quantInput(input.rudderInput)}|${aim}|${
+    input.radarActive ? 1 : 0
+  }|${mineZ}|${f}`;
 }
 
 export function runFrameRuntimeStep<
@@ -210,8 +230,10 @@ export function runFrameRuntimeStep<
   dtMs: number;
   camera: THREE.PerspectiveCamera;
   roomSendInput: (payload: {
-    throttle: number;
-    rudderInput: number;
+    throttle?: number;
+    rudderInput?: number;
+    engineOrder?: string;
+    rudderOrder?: string;
     aimX: number;
     aimZ: number;
     primaryFire: boolean;
@@ -219,7 +241,7 @@ export function runFrameRuntimeStep<
     torpedoFire: boolean;
     mineSpawnLocalZ: number;
     radarActive: boolean;
-    airDefenseEngage?: boolean;
+    aswmFireSide?: "port" | "starboard";
   }) => void;
   mySessionId: string;
   cfgMaxSpeed: number;
@@ -278,9 +300,9 @@ export function runFrameRuntimeStep<
       p.lifeState === PlayerLifeState.AwaitingRespawn
     ) {
       if (p.id === mySessionId) {
-        gameMessageHud.showToast("Zerstört — Warte auf Respawn …", "danger", 5500);
+        gameMessageHud.showToast(t("toast.destroyedWaitingRespawn"), "danger", 5500);
       } else {
-        gameMessageHud.showToast(`${toDisplayLabel(p)} zerstört`, "info", 5000);
+        gameMessageHud.showToast(t("toast.playerDestroyed", { name: toDisplayLabel(p) }), "info", 5000);
       }
       onShipDestroyed?.(p);
     }
@@ -325,22 +347,33 @@ export function runFrameRuntimeStep<
     const inc = typeof me.adHudIncomingAswm === "number" ? me.adHudIncomingAswm : 0;
     const prev = state.lastAdHudIncomingAswm;
     if (!matchEnded && prev === 0 && inc > 0) {
-      gameMessageHud.showToast("Vampire incoming — Press E for Layered Defence", "info", 5500);
+      gameMessageHud.showToast(t("toast.vampireIncomingAd"), "info", 5500);
     }
     state.lastAdHudIncomingAswm = inc;
   }
 
   const tuningGen = getShipDebugTuningGeneration();
+  const wallNowMs = Date.now();
   for (const [sessionId, vis] of visuals) {
     const p = playersById.get(sessionId);
     if (!p) continue;
+    if (sessionId.startsWith("wreck:")) continue;
     if (vis.debugTuningGenApplied !== tuningGen) {
       applyShipVisualRuntimeTuning(vis);
       vis.debugTuningGenApplied = tuningGen;
     }
     const tuning = getShipDebugTuningForVisualClass(p.shipClass);
 
-    const wreckSinkY = p.lifeState === PlayerLifeState.AwaitingRespawn ? -4.2 : 0;
+    const isDeadVis = p.lifeState === PlayerLifeState.AwaitingRespawn;
+    const deathMs = typeof p.deathAtMs === "number" && p.deathAtMs > 0 ? p.deathAtMs : 0;
+    const deathPose =
+      isDeadVis && deathMs > 0
+        ? computeWreckVisualPose(
+            Math.max(0, wallNowMs - deathMs),
+            wreckVariantFromSessionId(sessionId) as 0 | 1 | 2 | 3,
+          )
+        : null;
+    const wreckSinkY = isDeadVis ? (deathPose ? deathPose.sinkY : -4.2) : 0;
 
     let shipLineSimX = p.x;
     let shipLineSimZ = p.z;
@@ -379,17 +412,20 @@ export function runFrameRuntimeStep<
       shipLineHeadingRad = r.headingRad;
     }
 
-    vis.group.rotation.x = 0;
-    const rollTarget =
-      p.lifeState === PlayerLifeState.AwaitingRespawn
-        ? 0
-        : visualRollRadFromRudderAndSpeed(rudderForRoll, p.speed);
-    vis.group.rotation.z = stepVisualRollSmoothed(sessionId, rollTarget, dtMs / 1000);
+    if (deathPose) {
+      vis.group.rotation.order = "YXZ";
+      vis.group.rotation.x = deathPose.pitchX;
+      vis.group.rotation.z = deathPose.rollZ;
+    } else {
+      vis.group.rotation.x = 0;
+      const rollTarget = visualRollRadFromRudderAndSpeed(rudderForRoll, p.speed);
+      vis.group.rotation.z = stepVisualRollSmoothed(sessionId, rollTarget, dtMs / 1000);
+    }
 
-    /** LW-Mounts zur Rakete: solange Server „incoming“ meldet — unabhängig vom E-Hardkill-Fenster. */
+    /** LW-Mounts zur Rakete: solange Server „incoming“ meldet. */
     const layered = typeof p.adHudIncomingAswm === "number" && p.adHudIncomingAswm > 0;
     let aimOpts: ArtilleryTrainAimOptions | undefined;
-    if (vis.rotatingMountTrains.some((t) => t.isAirDefense)) {
+    if (!isDeadVis && vis.rotatingMountTrains.some((t) => t.isAirDefense)) {
       let missileSim: { x: number; z: number } | null = null;
       if (layered && missileList && missileList.length > 0) {
         const missileSnaps: AirDefenseMissileSnapshot[] = [];
@@ -413,7 +449,9 @@ export function runFrameRuntimeStep<
         shipHeadingRad: shipLineHeadingRad,
       };
     }
-    updateArtilleryTrainRotationsFromAim(vis, aimLineSimX, aimLineSimZ, aimOpts);
+    if (!isDeadVis) {
+      updateArtilleryTrainRotationsFromAim(vis, aimLineSimX, aimLineSimZ, aimOpts);
+    }
 
     setShipVisualLifeState(vis, p.lifeState, sessionId === mySessionId);
 
@@ -457,18 +495,42 @@ export function runFrameRuntimeStep<
 
       if (me.lifeState !== PlayerLifeState.AwaitingRespawn && !matchEnded) {
         const tuningNow = getShipDebugTuningForVisualClass(me.shipClass);
-        roomSendInput({
-          throttle: inputSample.throttle,
-          rudderInput: inputSample.rudderInput,
-          aimX: inputSample.aimWorldX,
-          aimZ: inputSample.aimWorldZ,
-          primaryFire: inputSample.primaryFire,
-          secondaryFire: inputSample.secondaryFire,
-          torpedoFire: FEATURE_MINES_ENABLED && inputSample.torpedoFire,
-          mineSpawnLocalZ: tuningNow.mineSpawnLocalZ,
-          radarActive: inputSample.radarActive,
-          airDefenseEngage: inputSample.airDefenseEngage,
-        });
+        const firing =
+          inputSample.primaryFire ||
+          inputSample.secondaryFire ||
+          (FEATURE_MINES_ENABLED && inputSample.torpedoFire);
+        const dedupKey = buildInputDedupKey(inputSample, tuningNow.mineSpawnLocalZ);
+        const mustSend =
+          firing ||
+          dedupKey !== state.lastInputDedupKey ||
+          now - state.lastInputDedupAtMs >= INPUT_HEARTBEAT_MS;
+        if (mustSend) {
+          const base = {
+            aimX: inputSample.aimWorldX,
+            aimZ: inputSample.aimWorldZ,
+            primaryFire: inputSample.primaryFire,
+            secondaryFire: inputSample.secondaryFire,
+            torpedoFire: FEATURE_MINES_ENABLED && inputSample.torpedoFire,
+            mineSpawnLocalZ: tuningNow.mineSpawnLocalZ,
+            radarActive: inputSample.radarActive,
+            ...(inputSample.aswmFireSide ? { aswmFireSide: inputSample.aswmFireSide } : {}),
+          };
+          if (inputSample.useTelegraphWire !== false) {
+            roomSendInput({
+              ...base,
+              engineOrder: inputSample.engineOrder,
+              rudderOrder: inputSample.rudderOrder,
+            });
+          } else {
+            roomSendInput({
+              ...base,
+              throttle: inputSample.throttle,
+              rudderInput: inputSample.rudderInput,
+            });
+          }
+          state.lastInputDedupKey = dedupKey;
+          state.lastInputDedupAtMs = now;
+        }
       }
 
       const progLevel = Math.min(
@@ -477,7 +539,10 @@ export function runFrameRuntimeStep<
       );
       const progXp = typeof me.xp === "number" ? me.xp : 0;
       const xpSeg = progressionXpToNextLevel(progLevel, progXp);
-      const xpLine = progLevel >= PROGRESSION_MAX_LEVEL ? "MAX" : `${xpSeg.intoLevel} / ${xpSeg.need}`;
+      const xpLine =
+        progLevel >= PROGRESSION_MAX_LEVEL
+          ? t("hud.xpMax")
+          : t("hud.xpProgress", { current: xpSeg.intoLevel, need: xpSeg.need });
       /** Während Respawn-Warte: Server behält Wrack-Rumpf in `shipClass`; HUD zeigt Zielklasse nach Degradierung. */
       const cockpitClassId = normalizeShipClassId(
         me.lifeState === PlayerLifeState.AwaitingRespawn
@@ -501,7 +566,7 @@ export function runFrameRuntimeStep<
 
       if (progLevel > state.lastHudLevel) {
         const rankEn = progressionNavalRankEn(progLevel);
-        gameMessageHud.showToast(`Level ${progLevel}: ${rankEn}`, "info", 3600);
+        gameMessageHud.showToast(t("toast.levelRank", { level: progLevel, rank: rankEn }), "info", 3600);
         gameAudio.levelUp();
       }
       state.lastHudLevel = progLevel;
@@ -516,19 +581,12 @@ export function runFrameRuntimeStep<
         for (const other of playerList) {
           if (other.id === mySessionId) continue;
           if (other.lifeState === PlayerLifeState.AwaitingRespawn) continue;
-          const b = radarBlipNormalized(p.x, p.z, p.headingRad, other.x, other.z);
+          const b = radarBlipNormalizedNorthUp(p.x, p.z, other.x, other.z);
           if (b && ownRadarActive) radarBlips.push(b);
           const emitterOn = other.radarActive !== false;
           if (emitterOn) {
             const esmRangeWorld = RADAR_ESM_RANGE_WORLD * esmDetectionRangeMul(other.shipClass);
-            const bEsm = radarBlipNormalized(
-              p.x,
-              p.z,
-              p.headingRad,
-              other.x,
-              other.z,
-              esmRangeWorld,
-            );
+            const bEsm = radarBlipNormalizedNorthUp(p.x, p.z, other.x, other.z, esmRangeWorld);
             if (bEsm) {
               const line = esmLineTowardBlip(bEsm);
               esmLines.push({ ...line, stroke: esmEmitterStrokeCss(other.shipClass) });
@@ -549,14 +607,7 @@ export function runFrameRuntimeStep<
             if (resolveAirDefenseDefenderIdForMissile(snap, adPlayerSnapshots) !== mySessionId) {
               continue;
             }
-            const bM = radarBlipNormalized(
-              p.x,
-              p.z,
-              p.headingRad,
-              m.x,
-              m.z,
-              RADAR_ESM_RANGE_WORLD,
-            );
+            const bM = radarBlipNormalizedNorthUp(p.x, p.z, m.x, m.z, RADAR_ESM_RANGE_WORLD);
             if (!bM) continue;
             const line = esmLineTowardBlip(bM);
             const lockedOnMe = m.targetId === mySessionId;

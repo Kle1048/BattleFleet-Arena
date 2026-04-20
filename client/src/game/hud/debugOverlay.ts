@@ -3,6 +3,8 @@
  * Kompakt: nur FPS + Ping (Toggle, persistiert in localStorage).
  */
 
+import { t } from "../../locale/t";
+
 const DEBUG_OVERLAY_COMPACT_KEY = "bfa.hud.debugOverlayCompact";
 
 function readDebugCompact(): boolean {
@@ -26,6 +28,8 @@ export type DebugOverlayInfo = {
   roomId: string;
   playerCount: number;
   pingMs: number | null;
+  /** Letzte Frame-Zeit ms — in der Minimalliste neben FPS. */
+  frameMs?: number | null;
   /** Graue Zeile (z. B. Diagnose ohne Konsole). */
   diag?: string;
   /** Sichtbare Warnung (z. B. Timeout, leerer State, Colyseus-Fehler). */
@@ -37,6 +41,9 @@ export function createDebugOverlay(options?: {
   parent?: HTMLElement;
 }): {
   update: (info: DebugOverlayInfo) => void;
+  /** `false` = nur FPS/Frame/Ping (+ optional Warnung); `true` = volles Debug inkl. Toggle. */
+  setDevPanelsVisible: (visible: boolean) => void;
+  getDevPanelsVisible: () => boolean;
 } {
   const el = document.createElement("div");
   el.id = "debug-overlay";
@@ -52,7 +59,7 @@ export function createDebugOverlay(options?: {
   const toggle = document.createElement("button");
   toggle.type = "button";
   toggle.className = "debug-overlay-toggle";
-  toggle.setAttribute("aria-label", "Debug-Overlay reduzieren oder erweitern");
+  toggle.setAttribute("aria-label", t("debugOverlay.toggleAria"));
 
   head.appendChild(compactLine);
   head.appendChild(toggle);
@@ -79,36 +86,75 @@ export function createDebugOverlay(options?: {
     el.classList.toggle("debug-overlay--compact", compact);
     toggle.setAttribute("aria-expanded", (!compact).toString());
     toggle.textContent = compact ? "+" : "−";
-    toggle.title = compact ? "Debug voll anzeigen" : "Nur FPS und Ping";
+    toggle.title = compact ? t("debugOverlay.expandTitle") : t("debugOverlay.compactTitle");
     writeDebugCompact(compact);
   };
 
   applyCompact(readDebugCompact());
 
+  let devPanelsVisible = false;
+
+  const setDevPanelsVisible = (visible: boolean): void => {
+    devPanelsVisible = visible;
+    el.classList.toggle("debug-overlay--minimal", !visible);
+    if (visible) {
+      applyCompact(readDebugCompact());
+    } else {
+      el.classList.add("debug-overlay--compact");
+    }
+  };
+
   toggle.addEventListener("click", () => {
+    if (!devPanelsVisible) return;
     applyCompact(!el.classList.contains("debug-overlay--compact"));
   });
 
+  setDevPanelsVisible(false);
+
   return {
-    update({ fps, roomId, playerCount, pingMs, diag: diagText, warn: warnText }): void {
+    update({
+      fps,
+      roomId,
+      playerCount,
+      pingMs,
+      frameMs,
+      diag: diagText,
+      warn: warnText,
+    }): void {
+      const minimal = el.classList.contains("debug-overlay--minimal");
       const ping = pingMs == null ? "—" : `${Math.round(pingMs)} ms`;
       const fpsStr = fps.toFixed(0);
-      compactLine.textContent = `FPS ${fpsStr} · Ping ${ping}`;
-      metrics.innerHTML = `FPS ${fpsStr}<br/>Raum ${roomId}<br/>Spieler ${playerCount}<br/>Ping ${ping}`;
+      const framePart =
+        frameMs != null && Number.isFinite(frameMs)
+          ? t("debugOverlay.frameTimeSegment", { ms: frameMs.toFixed(1) })
+          : "";
+      compactLine.textContent = t("debugOverlay.compactLine", { fps: fpsStr, framePart, ping });
+      metrics.innerHTML = [
+        t("debugOverlay.metricFps", { fps: fpsStr }),
+        t("debugOverlay.metricRoom", { roomId }),
+        t("debugOverlay.metricPlayers", { count: playerCount }),
+        t("debugOverlay.metricPing", { ping }),
+      ].join("<br/>");
+      el.classList.toggle(
+        "debug-overlay--warn-visible",
+        warnText != null && warnText.length > 0,
+      );
       if (diagText != null && diagText.length > 0) {
-        diag.style.display = "block";
         diag.textContent = diagText;
+        diag.style.display = minimal ? "none" : "block";
       } else {
         diag.style.display = "none";
         diag.textContent = "";
       }
       if (warnText != null && warnText.length > 0) {
-        warn.style.display = "block";
         warn.textContent = warnText;
+        warn.style.display = "block";
       } else {
         warn.style.display = "none";
         warn.textContent = "";
       }
     },
+    setDevPanelsVisible,
+    getDevPanelsVisible: () => devPanelsVisible,
   };
 }

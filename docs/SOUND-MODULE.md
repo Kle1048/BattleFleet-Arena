@@ -39,6 +39,7 @@ Assets liegen unter **`client/public/assets/sounds/`** (Vite kopiert sie nach `d
 | **ASuM Lock-on** | Server sendet **`missileLockOn`** (leerer Payload) nur an den **Abschuss-Client**, wenn die eigene Lenkflugkörper-Simulation von **keinem** auf **ein** Ziel wechselt; Callback `onMissileLockOn` → `gameAudio.missileLockOn()` |
 | **Waffentreffer (Hit)** | **`weaponHit`** / `onWeaponHitAt` → `gameAudio.weaponHit(gain)`: Server meldet `kind === "hit"` bei `artyImpact`, `aswmImpact`, `torpedoImpact` (Artillerie nur wenn Splash nicht weggecullt). Kleinere akustische Figur als Schiffs-Explosion. |
 | **Explosion (Schiff zerstört)** | **`explosion`** / `gameAudio.explosion(gain)`: nur **Schiffszerstörung** (`onShipDestroyed`), nicht für normale Treffer. |
+| **Softkill / Düppel (Chaff)** | **`softkillChaff`** / `gameAudio.softkillChaff(gain)`: lokaler **ECM-/Düppel-Versuch** (Softkill), wenn der Server `softkillResult` meldet. Mit sichtbarem Schiff: **ein Ton pro Rauch-Puff** (Callback an `spawnSoftkillChaffCloud`), Gain pro Puff gedämpft (`0.32/√8`); ohne gültige Pose: einmal `0.32` wie früher. |
 | **„Treffer in der Nähe“** | **`hitNear`**: Artillerie-Splash **in der Nähe** des lokalen Spielers (Radius-Check), nicht gleichbedeutend mit `weaponHit`. |
 
 Kollisionssounds kommen **nicht** mehr aus clientseitiger Geometrie, sondern aus der **Server-Simulation** (Kontaktbeginn).
@@ -52,6 +53,7 @@ Die Eigenschaft in `SoundFiles` legt den **Dateinamen** fest (Ordner `public/ass
 - `air_defense_sam_fire.wav`, `air_defense_sam_intercept.wav`, `air_defense_ciws_fire.wav`, `air_defense_ciws_intercept.wav`
 - `weapon_hit.wav` (direkter Waffentreffer)
 - `explosion.wav` (Schiffszerstörung)
+- `softkill_chaff.wav` (ECM / Düppel-Cloud, Softkill-Versuch)
 
 Neue Sounds erfordern einen neuen Eintrag in **`SoundFiles`**, **`SoundUrls`**, **`ALL_SOUND_IDS`** sowie einen Eintrag in **`playSoundId`** (Synth-Fallback) und ggf. eine Methode auf `gameAudio`.
 
@@ -60,7 +62,7 @@ Neue Sounds erfordern einen neuen Eintrag in **`SoundFiles`**, **`SoundUrls`**, 
 - `unlockFromUserGesture()` / `preloadSounds()` — einmal beim Join
 - `hasSoundFile(id)` — optional, ob WAV geladen wurde
 - `playSoundId(id, gain?)` — generisch
-- Benannte Methoden: `primaryFire`, `missileFire`, `missileLockOn`, `torpedoFire`, `hitNear`, `levelUp`, `warning`, `shipShipCollision`, `shipIslandCollision`, `airDefenseSamFire`, `airDefenseSamIntercept`, `airDefenseCiwsFire`, `airDefenseCiwsIntercept`, `weaponHit(gain?)`, `explosion(gain?)`
+- Benannte Methoden: `primaryFire`, `missileFire`, `missileLockOn`, `torpedoFire`, `hitNear`, `levelUp`, `warning`, `shipShipCollision`, `shipIslandCollision`, `airDefenseSamFire`, `airDefenseSamIntercept`, `airDefenseCiwsFire`, `airDefenseCiwsIntercept`, `weaponHit(gain?)`, `explosion(gain?)`, `softkillChaff(gain?)`
 
 ## Technische Hinweise
 
@@ -91,3 +93,4 @@ Kein Gesang, keine Musik, keine Sprache — nur kurze Effekte.
 | `air_defense_ciws_intercept.wav` | CIWS-Treffer | `Small close-range anti-air impact sparks and ricochet, CIWS hitting incoming target, metallic hits and tiny explosion, 0.6 seconds, realistic` |
 | `weapon_hit.wav` | Direkter Waffentreffer auf Schiff | `Naval shell or missile impact on steel ship hull, sharp clang and secondary boom, medium explosion on metal, 0.8 seconds, realistic, not huge` |
 | `explosion.wav` | Schiff zerstört | `Massive naval warship explosion, huge fireball and debris, deep bass rumble, catastrophic ship sinking detonation, 2–3 seconds, cinematic realistic, no human screams` |
+| `softkill_chaff.wav` | Düppel / ECM (Softkill) | `Naval ship chaff and flare countermeasures burst, several repeated small detonations similar to a fireworks battery.` |

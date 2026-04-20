@@ -12,6 +12,7 @@ import { resolveShipHullGltfUrl } from "./hullGltfUrls";
 
 const STORAGE_PATCH = "battlefleet_ship_profile_patch_v1";
 const STORAGE_HITBOX = "battlefleet_show_ship_hitbox";
+const STORAGE_WRECK_COLLISION = "battlefleet_show_wreck_collision";
 
 export type HullProfilePatchMap = Partial<Record<ShipClassId, Partial<ShipHullVisualProfile>>>;
 
@@ -140,6 +141,21 @@ export function setShipHitboxDebugVisible(visible: boolean): void {
   if (typeof localStorage === "undefined") return;
   try {
     localStorage.setItem(STORAGE_HITBOX, visible ? "1" : "0");
+  } catch {
+    /* Quota / private mode */
+  }
+}
+
+/** Wrack-Hitbox-Drahtmodell (gleiche OBB wie Schiff–Schiff). */
+export function isWreckCollisionDebugVisible(): boolean {
+  if (typeof localStorage === "undefined") return false;
+  return localStorage.getItem(STORAGE_WRECK_COLLISION) === "1";
+}
+
+export function setWreckCollisionDebugVisible(visible: boolean): void {
+  if (typeof localStorage === "undefined") return;
+  try {
+    localStorage.setItem(STORAGE_WRECK_COLLISION, visible ? "1" : "0");
   } catch {
     /* Quota / private mode */
   }

@@ -3,10 +3,7 @@
  * **Priorität:** OOB → Spawn-Schutz → Toasts.
  */
 
-const OOB_TITLE =
-  "Du verlässt das Einsatzgebiet — kehre um.";
-
-const SPAWN_SHIELD_TITLE = "Spawn-Schutz aktiv";
+import { t } from "../../locale/t";
 
 export type GameMessageToastHookPayload = {
   text: string;
@@ -83,8 +80,10 @@ export function createGameMessageHud(options?: GameMessageHudOptions): GameMessa
         wrap.style.display = "flex";
         titleEl.style.color = "#ff8a8a";
         subEl.style.color = "#ffffff";
-        titleEl.textContent = OOB_TITLE;
-        subEl.textContent = `${Math.max(1, Math.ceil(oobCountdownSec))} s`;
+        titleEl.textContent = t("messageHud.oobTitle");
+        subEl.textContent = t("messageHud.oobCountdownSeconds", {
+          seconds: Math.max(1, Math.ceil(oobCountdownSec)),
+        });
         subEl.style.display = "block";
         return;
       }
@@ -93,8 +92,10 @@ export function createGameMessageHud(options?: GameMessageHudOptions): GameMessa
         wrap.style.display = "flex";
         titleEl.style.color = "#8cf0e0";
         subEl.style.color = "#d6fffa";
-        titleEl.textContent = SPAWN_SHIELD_TITLE;
-        subEl.textContent = `${spawnProtectionSec.toFixed(1)} s`;
+        titleEl.textContent = t("messageHud.spawnShieldTitle");
+        subEl.textContent = t("messageHud.spawnShieldSeconds", {
+          seconds: spawnProtectionSec.toFixed(1),
+        });
         subEl.style.display = "block";
         return;
       }

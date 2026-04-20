@@ -75,20 +75,4 @@ function base(intent: ActionPlanningInput["intent"]): ActionPlanningInput {
   if (cmd.primaryFire) throw new Error("Expected evade command without primary fire");
 }
 
-{
-  const cmd = planAction({
-    ...base("ATTACK"),
-    snapshot: {
-      ...base("ATTACK").snapshot,
-      self: { ...base("ATTACK").snapshot.self, adHudIncomingAswm: 2 },
-    },
-  });
-  if (!cmd.airDefenseEngage) throw new Error("Expected airDefenseEngage when adHud incoming");
-}
-
-{
-  const cmd = planAction(base("ATTACK"));
-  if (cmd.airDefenseEngage) throw new Error("Expected no airDefenseEngage without adHud incoming");
-}
-
 console.log("bot action planner tests ok");

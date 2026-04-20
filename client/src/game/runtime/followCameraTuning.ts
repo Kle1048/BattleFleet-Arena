@@ -18,9 +18,9 @@ export type FollowCameraTuning = {
 };
 
 export const DEFAULT_FOLLOW_CAMERA_TUNING: Readonly<FollowCameraTuning> = {
-  pitchDeg: 35,
-  northUp: false,
-  heightAbovePivot: 200,
+  pitchDeg: 70,
+  northUp: true,
+  heightAbovePivot: 900,
   headUpYawLagSec: 0.2,
 };
 

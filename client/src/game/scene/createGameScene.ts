@@ -153,9 +153,9 @@ export const FOLLOW_CAM_FOV = 52;
 export const FOLLOW_CAM_LOOK_Y = 1.2;
 
 /** Vertikaler Abstand Augpunkt → Blickpunkt entlang +Y (Referenz ≈ Default `heightAbovePivot`). */
-export const FOLLOW_CAM_TOP_DOWN_HEIGHT = 200;
+export const FOLLOW_CAM_TOP_DOWN_HEIGHT = 900;
 /** Standard-Kippwinkel (gleich Default in `followCameraTuning`). */
-export const FOLLOW_CAM_PITCH_DEG = 35;
+export const FOLLOW_CAM_PITCH_DEG = 70;
 
 /**
  * Perspektive: sichtbare Bodenfläche ≠ achsenparalleles Rechteck — Culling-Rechteck vergrößern.

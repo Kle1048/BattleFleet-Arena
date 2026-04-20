@@ -130,8 +130,15 @@ export function createFxSystem(scene: THREE.Scene): {
   /**
    * Softkill / Düppel: große Rauchwolken Backbord & Steuerbord achtern, ~`altitudeM` über Wasser;
    * halten sich ~1 s am Ort, dann weiches Ausfaden (`alphaLerpPow`).
+   * Optional `onPuff`: wird einmal pro Rauch-Puff aufgerufen (gleicher Zeitpunkt wie das Partikel), z. B. für SFX.
    */
-  spawnSoftkillChaffCloud: (worldX: number, worldZ: number, headingRad: number, altitudeM?: number) => void;
+  spawnSoftkillChaffCloud: (
+    worldX: number,
+    worldZ: number,
+    headingRad: number,
+    altitudeM?: number,
+    onPuff?: (puffIndex: number) => void,
+  ) => void;
   getStats: () => { activeParticles: number; pooledParticles: number };
 } {
   const texSoft = makeRadialTexture([
@@ -846,6 +853,7 @@ export function createFxSystem(scene: THREE.Scene): {
     worldZ: number,
     headingRad: number,
     altitudeM = SOFTKILL_CHAFF_DEFAULT_ALT_M,
+    onPuff?: (puffIndex: number) => void,
   ): void {
     if (!Number.isFinite(worldX) || !Number.isFinite(worldZ) || !Number.isFinite(headingRad)) return;
     const h = altitudeM;
@@ -868,6 +876,7 @@ export function createFxSystem(scene: THREE.Scene): {
 
     function puffAt(wx: number, wy: number, wz: number, delayMs: number, spreadIdx: number): void {
       scheduleFx(t0 + delayMs, () => {
+        onPuff?.(spreadIdx);
         const px = worldToRenderX(wx);
         const jitterY = randRange(-1.2, 1.6);
         const drift = 0.15 + spreadIdx * 0.06;

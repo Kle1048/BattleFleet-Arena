@@ -2,6 +2,8 @@
  * Comms-Room: scrollbares Meldelog (Toasts + manuelle Systemzeilen).
  */
 
+import { t } from "../../locale/t";
+
 export type CommsLogEntry = {
   text: string;
   kind?: "info" | "danger";
@@ -21,21 +23,21 @@ export function createMessageLog(options?: {
 } {
   const root = document.createElement("div");
   root.className = "message-log-panel";
-  root.setAttribute("aria-label", "Comms-Room");
+  root.setAttribute("aria-label", t("messageLog.panelTitle"));
 
   const head = document.createElement("div");
   head.className = "message-log-head message-log-head-row";
 
   const headTitle = document.createElement("span");
   headTitle.className = "message-log-title";
-  headTitle.textContent = "Comms-Room";
+  headTitle.textContent = t("messageLog.panelTitle");
 
   const clearBtn = document.createElement("button");
   clearBtn.type = "button";
   clearBtn.className = "message-log-clear";
-  clearBtn.textContent = "Leeren";
-  clearBtn.title = "Meldungen löschen";
-  clearBtn.setAttribute("aria-label", "Meldungen löschen");
+  clearBtn.textContent = t("messageLog.clear");
+  clearBtn.title = t("messageLog.clearTitle");
+  clearBtn.setAttribute("aria-label", t("messageLog.clearTitle"));
 
   head.appendChild(headTitle);
   head.appendChild(clearBtn);

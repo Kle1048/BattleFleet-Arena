@@ -1,4 +1,4 @@
-import { DEFAULT_MAP_ISLANDS } from "./islands";
+import { DEFAULT_MAP_ISLANDS, type IslandCircle } from "./islands";
 import { circleIntersectsShipHitboxFootprintXZ } from "./shipHitboxCollision";
 import { getAuthoritativeShipHullProfile } from "./shipProfiles";
 import { hitboxWorldCenterXZ, satOBB2DOverlapMTV } from "./shipShipCollision";
@@ -11,10 +11,13 @@ export type ShipCollisionPose = {
   shipClass: string;
 };
 
-export function shipOverlapsAnyIsland(pose: ShipCollisionPose): boolean {
+export function shipOverlapsAnyIslandCircles(
+  pose: ShipCollisionPose,
+  islands: readonly IslandCircle[],
+): boolean {
   const hb = getAuthoritativeShipHullProfile(pose.shipClass)?.collisionHitbox;
   if (!hb) return false;
-  for (const is of DEFAULT_MAP_ISLANDS) {
+  for (const is of islands) {
     if (
       circleIntersectsShipHitboxFootprintXZ(
         is.x,
@@ -23,6 +26,69 @@ export function shipOverlapsAnyIsland(pose: ShipCollisionPose): boolean {
         pose.x,
         pose.z,
         pose.headingRad,
+        hb,
+      )
+    ) {
+      return true;
+    }
+  }
+  return false;
+}
+
+export function shipOverlapsAnyIsland(pose: ShipCollisionPose): boolean {
+  return shipOverlapsAnyIslandCircles(pose, DEFAULT_MAP_ISLANDS);
+}
+
+/** Mindestens Wrack-Hitbox (OBB wie Schiff–Schiff); `anchor*` = Simulationspunkt wie bei Spielern. */
+export type WreckHitboxPoseInput = {
+  anchorX: number;
+  anchorZ: number;
+  headingRad: number;
+  shipClass: string;
+};
+
+export function shipOverlapsAnyWreck(
+  pose: ShipCollisionPose,
+  wrecks: { length: number; at: (i: number) => WreckHitboxPoseInput | undefined } | null | undefined,
+): boolean {
+  if (!wrecks || wrecks.length === 0) return false;
+  for (let i = 0; i < wrecks.length; i++) {
+    const w = wrecks.at(i);
+    if (!w) continue;
+    if (
+      twoShipsObbOverlap(pose, {
+        x: w.anchorX,
+        z: w.anchorZ,
+        headingRad: w.headingRad,
+        shipClass: w.shipClass,
+      })
+    ) {
+      return true;
+    }
+  }
+  return false;
+}
+
+/** Kreis (z. B. Flugkörper-Radius) schneidet eine Wrack-Hitbox-Fußfläche. */
+export function circleIntersectsAnyWreckHitboxFootprintXZ(
+  px: number,
+  pz: number,
+  circleRadius: number,
+  wrecks: { length: number; at: (i: number) => WreckHitboxPoseInput | undefined } | null | undefined,
+): boolean {
+  if (!wrecks || wrecks.length === 0) return false;
+  for (let i = 0; i < wrecks.length; i++) {
+    const w = wrecks.at(i);
+    if (!w) continue;
+    const hb = getAuthoritativeShipHullProfile(w.shipClass)?.collisionHitbox;
+    if (
+      circleIntersectsShipHitboxFootprintXZ(
+        px,
+        pz,
+        circleRadius,
+        w.anchorX,
+        w.anchorZ,
+        w.headingRad,
         hb,
       )
     ) {

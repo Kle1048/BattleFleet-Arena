@@ -1,9 +1,12 @@
+import { t } from "../../locale/t";
+
 type DebugOverlayLike = {
   update: (model: {
     fps: number;
     roomId: string;
     playerCount: number;
     pingMs: number | null;
+    frameMs?: number | null;
     diag?: string;
     warn?: string;
   }) => void;
@@ -82,11 +85,11 @@ export function createHudRuntime(options: CreateHudRuntimeOptions): {
     }) {
       let warn = colyseusWarn;
       if (!warn && now - joinedAt > 4_000 && stateSyncCount === 0) {
-        warn = "Kein ROOM_STATE (Sync 0): WebSocket-ACK? Server-Terminal prüfen. Konsole: Filter „Warnungen“.";
+        warn = t("debugHud.warnNoRoomStateSync");
       } else if (!warn && playerCount === 0 && now - joinedAt > 2_500 && stateSyncCount > 0) {
-        warn = "Sync ok, playerList leer: Server-Log onJoin? Oder zweiten Tab testen.";
+        warn = t("debugHud.warnPlayerListEmpty");
       } else if (!warn && playerCount === 0 && now - joinedAt > 2_500) {
-        warn = "Spieler 0: Sync wartet oder fehlt — siehe graue Diagnose, Server-Terminal.";
+        warn = t("debugHud.warnZeroPlayersWaiting");
       }
       const jsonKeys =
         roomState && typeof roomState === "object"
@@ -111,7 +114,8 @@ export function createHudRuntime(options: CreateHudRuntimeOptions): {
         roomId: roomId ? roomId.slice(0, 8) : "—",
         playerCount,
         pingMs,
-        diag: `STATE ${stateSyncCount} | keys: ${jsonKeys}${frameLine}${perfLine}${extraDiag}\nKonsole → __BFA`,
+        frameMs: frameTimeMs,
+        diag: `STATE ${stateSyncCount} | keys: ${jsonKeys}${frameLine}${perfLine}${extraDiag}\n${t("debugHud.consoleHint")}`,
         warn: warn || undefined,
       });
     },

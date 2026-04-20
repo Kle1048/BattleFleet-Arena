@@ -121,3 +121,68 @@ export function accumulateShipRamDamage(
 
   return { rawDamageBySessionId, killerByVictimSessionId };
 }
+
+/**
+ * Ram-Schaden gegen **stehende** Wracks (Geschwindigkeit Wrack = 0): gleiche Pool-Formel wie Schiff–Schiff,
+ * Schaden auf das Spieler-Schiff = `pool × m_wrack / (m_spieler + m_wrack)`.
+ * Kein Kill-Attribut — Wrack hat keine `sessionId`.
+ */
+export function accumulateWreckRamDamage(
+  participants: ShipCollisionParticipant[],
+  wreckList: { length: number; at: (i: number) => { anchorX: number; anchorZ: number; headingRad: number; shipClass: string } | undefined },
+  getWreckHitbox: (shipClass: string) => ShipCollisionHitbox | undefined,
+  dt: number,
+): Map<string, number> {
+  const rawDamageBySessionId = new Map<string, number>();
+  if (wreckList.length === 0) return rawDamageBySessionId;
+
+  for (const part of participants) {
+    const id = part.sessionId;
+    if (!id) continue;
+    const hbA = part.hitbox;
+    if (!hbA) continue;
+
+    const hxA = Math.max(0, hbA.halfExtents.x);
+    const hzA = Math.max(0, hbA.halfExtents.z);
+    const mA = hitboxFootprintAreaXZ(hbA);
+
+    for (let wi = 0; wi < wreckList.length; wi++) {
+      const w = wreckList.at(wi);
+      if (!w) continue;
+      const hbB = getWreckHitbox(w.shipClass);
+      if (!hbB) continue;
+
+      const hxB = Math.max(0, hbB.halfExtents.x);
+      const hzB = Math.max(0, hbB.halfExtents.z);
+      const c1 = hitboxWorldCenterXZ(part.ship.x, part.ship.z, part.ship.headingRad, hbA);
+      const c2 = hitboxWorldCenterXZ(w.anchorX, w.anchorZ, w.headingRad, hbB);
+      const mtv = satOBB2DOverlapMTV(
+        c1,
+        hxA,
+        hzA,
+        part.ship.headingRad,
+        c2,
+        hxB,
+        hzB,
+        w.headingRad,
+      );
+      if (!mtv) continue;
+
+      const vA = shipVelocityXZ(part.ship);
+      const vRel = Math.hypot(vA.vx, vA.vz);
+      const effective = vRel - SHIP_RAM_MIN_REL_SPEED;
+      if (effective <= 0) continue;
+
+      const mB = hitboxFootprintAreaXZ(hbB);
+      const mSum = mA + mB;
+      if (mSum < 1e-12) continue;
+
+      const pool = effective * dt;
+      const dmgPlayer = (pool * mB) / mSum;
+      if (dmgPlayer <= 0) continue;
+      rawDamageBySessionId.set(id, (rawDamageBySessionId.get(id) ?? 0) + dmgPlayer);
+    }
+  }
+
+  return rawDamageBySessionId;
+}

@@ -225,6 +225,58 @@ export function pickFixedSeaSkimmerLauncherWithAmmo(
   return null;
 }
 
+/**
+ * Wie `pickFixedSeaSkimmerLauncherWithAmmo`, aber Seite **fest** vorgegeben (Mobile Softkeys).
+ * Bei leerer gewünschter Seite: andere Seite, sonst `null`.
+ */
+export function pickFixedSeaSkimmerLauncherWithAmmoForForcedSide(
+  launchers: readonly FixedSeaSkimmerLauncherSpec[] | undefined,
+  ammoPort: number,
+  ammoStarboard: number,
+  forced: "port" | "starboard",
+): FixedSeaSkimmerLauncherSpec | null {
+  if (!launchers?.length) return null;
+  const totalAmmo = ammoPort + ammoStarboard;
+  if (totalAmmo <= 0) return null;
+
+  const paired = launchers.filter((L) => L.side === "port" || L.side === "starboard");
+  if (paired.length >= 2) {
+    const other: "port" | "starboard" = forced === "port" ? "starboard" : "port";
+    const forcedAmmo = forced === "port" ? ammoPort : ammoStarboard;
+    const otherAmmo = forced === "port" ? ammoStarboard : ammoPort;
+    if (forcedAmmo > 0) {
+      const hit = launchers.find((L) => L.side === forced);
+      if (hit) return hit;
+    }
+    if (otherAmmo > 0) {
+      const hit = launchers.find((L) => L.side === other);
+      if (hit) return hit;
+    }
+    return null;
+  }
+
+  for (const L of launchers) {
+    if (L.side === "centerline") return L;
+    if (L.side === "port" && ammoPort > 0) return L;
+    if (L.side === "starboard" && ammoStarboard > 0) return L;
+  }
+  return null;
+}
+
+/** Ohne feste Rails: feste Seite (Softkey); Fallback auf andere Munition. */
+export function pickAswmSideForFallbackFireForced(
+  ammoPort: number,
+  ammoStarboard: number,
+  forced: "port" | "starboard",
+): "port" | "starboard" | null {
+  if (ammoPort + ammoStarboard <= 0) return null;
+  const forcedAmmo = forced === "port" ? ammoPort : ammoStarboard;
+  const otherAmmo = forced === "port" ? ammoStarboard : ammoPort;
+  if (forcedAmmo > 0) return forced;
+  if (otherAmmo > 0) return forced === "port" ? "starboard" : "port";
+  return null;
+}
+
 /** Ohne feste Rails: Seite nach Aim (wie Port/Steuerbord-Rails); nur bei Restmunition. */
 export function pickAswmSideForFallbackFire(
   aimX: number,
