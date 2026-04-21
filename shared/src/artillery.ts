@@ -1,4 +1,9 @@
-import type { IslandCircle } from "./islands";
+import type { IslandPolygon } from "./islandPolygonGeometry";
+import {
+  minDistSqPointToPolygonBoundary,
+  pointInAnyIslandPolygon,
+  segmentIntersectsConvexPolygon,
+} from "./islandPolygonGeometry";
 import type { MountFireSector } from "./shipVisualLayout";
 
 /** Task 5 — vereinfachte Artillerie (Plan A: geplanter Einschlag, kein echtes Ballistik-Mesh auf dem Server). */
@@ -229,17 +234,19 @@ export function rotateXZ(vx: number, vz: number, deltaRad: number): { x: number;
   return { x: vx * c - vz * s, z: vx * s + vz * c };
 }
 
-export function pointInAnyIsland(
-  x: number,
-  z: number,
-  islands: readonly IslandCircle[],
-): boolean {
+export function pointInAnyIsland(x: number, z: number, islands: readonly IslandPolygon[]): boolean {
+  return pointInAnyIslandPolygon(x, z, islands);
+}
+
+function minDistToAnyIslandPolygonBoundary(x: number, z: number, islands: readonly IslandPolygon[]): number {
+  let best = Infinity;
   for (const is of islands) {
-    const dx = x - is.x;
-    const dz = z - is.z;
-    if (dx * dx + dz * dz <= is.radius * is.radius) return true;
+    const inside = pointInAnyIslandPolygon(x, z, [is]);
+    const dSq = minDistSqPointToPolygonBoundary(x, z, is.verts);
+    const d = inside ? 0 : Math.sqrt(dSq);
+    best = Math.min(best, d);
   }
-  return false;
+  return best;
 }
 
 /** VFX-Klasse für Client: offenes Wasser, Schiffstreffer, Insel/Ufer. */
@@ -255,16 +262,12 @@ export function classifyArtilleryImpactVisual(
   landX: number,
   landZ: number,
   damagedAnyEnemy: boolean,
-  islands: readonly IslandCircle[],
+  islands: readonly IslandPolygon[],
 ): ArtilleryImpactVisualKind {
   if (damagedAnyEnemy) return "hit";
   if (pointInAnyIsland(landX, landZ, islands)) return "island";
-  for (const is of islands) {
-    const d = Math.hypot(landX - is.x, landZ - is.z);
-    if (d > is.radius && d <= is.radius + ARTILLERY_ISLAND_SHORE_SPLASH_BEYOND) {
-      return "island";
-    }
-  }
+  const d = minDistToAnyIslandPolygonBoundary(landX, landZ, islands);
+  if (d > 0 && d <= ARTILLERY_ISLAND_SHORE_SPLASH_BEYOND) return "island";
   return "water";
 }
 
@@ -302,10 +305,10 @@ export function lineOfSightBlockedByIslands(
   shipZ: number,
   landX: number,
   landZ: number,
-  islands: readonly IslandCircle[],
+  islands: readonly IslandPolygon[],
 ): boolean {
   for (const is of islands) {
-    if (segmentHitsIslandCircle(shipX, shipZ, landX, landZ, is.x, is.z, is.radius)) {
+    if (segmentIntersectsConvexPolygon(shipX, shipZ, landX, landZ, is.verts)) {
       return true;
     }
   }

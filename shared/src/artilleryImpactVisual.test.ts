@@ -1,14 +1,14 @@
 import assert from "node:assert/strict";
 import { classifyArtilleryImpactVisual } from "./artillery";
-import { DEFAULT_MAP_ISLANDS } from "./islands";
+import { DEFAULT_MAP_ISLANDS, DEFAULT_MAP_ISLAND_POLYGONS } from "./islands";
 
 {
-  const k = classifyArtilleryImpactVisual(0, 0, true, DEFAULT_MAP_ISLANDS);
+  const k = classifyArtilleryImpactVisual(0, 0, true, DEFAULT_MAP_ISLAND_POLYGONS);
   assert.equal(k, "hit");
 }
 
 {
-  const k = classifyArtilleryImpactVisual(0, 0, false, DEFAULT_MAP_ISLANDS);
+  const k = classifyArtilleryImpactVisual(0, 0, false, DEFAULT_MAP_ISLAND_POLYGONS);
   assert.equal(k, "water");
 }
 
@@ -17,7 +17,7 @@ import { DEFAULT_MAP_ISLANDS } from "./islands";
   const i3 = DEFAULT_MAP_ISLANDS[2]!;
   const x = i3.x;
   const z = i3.z + i3.radius + 30;
-  const k = classifyArtilleryImpactVisual(x, z, false, DEFAULT_MAP_ISLANDS);
+  const k = classifyArtilleryImpactVisual(x, z, false, DEFAULT_MAP_ISLAND_POLYGONS);
   assert.equal(k, "island");
 }
 

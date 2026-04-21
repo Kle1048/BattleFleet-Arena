@@ -1,5 +1,6 @@
 import { pointInAnyIsland } from "./artillery";
-import type { IslandCircle } from "./islands";
+import type { IslandPolygon } from "./islandPolygonGeometry";
+import { minDistSqPointToPolygonBoundary, pointInConvexPolygon } from "./islandPolygonGeometry";
 import { SHIP_ISLAND_COLLISION_RADIUS } from "./islands";
 import { isInsideOperationalArea } from "./mapBounds";
 import { isInSeaControlZone } from "./seaControl";
@@ -12,12 +13,13 @@ export const RESPAWN_AO_EDGE_INSET = 95;
 function pointAwayFromIslands(
   x: number,
   z: number,
-  islands: readonly IslandCircle[],
+  islands: readonly IslandPolygon[],
   margin: number,
 ): boolean {
   for (const is of islands) {
-    const d = Math.hypot(x - is.x, z - is.z);
-    if (d <= is.radius + margin) return false;
+    if (pointInConvexPolygon(x, z, is.verts)) return false;
+    const d = Math.sqrt(minDistSqPointToPolygonBoundary(x, z, is.verts));
+    if (d <= margin) return false;
   }
   return true;
 }
@@ -26,7 +28,7 @@ function validateRimCandidate(
   x: number,
   z: number,
   halfExtent: number,
-  islands: readonly IslandCircle[],
+  islands: readonly IslandPolygon[],
   others: ReadonlyArray<{ x: number; z: number }>,
   minSepSq: number,
   islandMargin: number,
@@ -50,7 +52,7 @@ function validateRimCandidate(
  */
 export function tryPickRespawnPosition(
   halfExtent: number,
-  islands: readonly IslandCircle[],
+  islands: readonly IslandPolygon[],
   others: ReadonlyArray<{ x: number; z: number }>,
   minSeparation: number,
   rng: () => number,
@@ -85,7 +87,7 @@ const RIM_FALLBACK_R_STEPS = [0, 40, 80, 120, 160];
  */
 export function pickRimSpawnDeterministic(
   halfExtent: number,
-  islands: readonly IslandCircle[],
+  islands: readonly IslandPolygon[],
   others: ReadonlyArray<{ x: number; z: number }>,
   minSeparation: number,
   angleSeed: number,

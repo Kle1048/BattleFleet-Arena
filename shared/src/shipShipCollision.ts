@@ -37,7 +37,7 @@ export function hitboxWorldCenterXZ(
   };
 }
 
-function obbHalfProjectionRadiusXZ(
+export function obbHalfProjectionRadiusXZ(
   halfHx: number,
   halfHz: number,
   headingRad: number,

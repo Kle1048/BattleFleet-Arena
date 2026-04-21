@@ -39,13 +39,20 @@ function ensureStyles(): void {
   box-sizing: border-box;
 }
 .bfa-tele *, .bfa-tele *::before, .bfa-tele *::after { box-sizing: border-box; }
-.bfa-tele-inner {
+.bfa-tele-l-root {
   display: flex;
   flex-direction: column;
   align-items: flex-start;
-  gap: 10px;
-  padding: 10px 12px 12px;
-  border-radius: 12px;
+  flex-wrap: nowrap;
+  gap: 8px;
+}
+.bfa-tele-panel {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 6px;
+  padding: 8px 10px 10px;
+  border-radius: 10px;
   background: var(--bfa-tele-brass);
   border: 2px solid var(--bfa-tele-rim);
   box-shadow:
@@ -53,22 +60,18 @@ function ensureStyles(): void {
     0 4px 18px rgba(0,0,0,0.55),
     0 0 24px var(--bfa-tele-glow);
 }
-.bfa-tele-plate {
-  align-self: stretch;
-  text-align: center;
-  font-size: 9px;
-  letter-spacing: 0.35em;
-  color: rgba(255, 230, 180, 0.75);
-  text-shadow: 0 1px 0 rgba(0,0,0,0.8);
-  border-bottom: 1px solid rgba(0,0,0,0.35);
-  padding-bottom: 6px;
-  margin-bottom: 2px;
+.bfa-tele-panel--engine {
+  align-self: flex-start;
+}
+.bfa-tele-panel--rudder {
+  min-width: 0;
+  align-self: flex-start;
 }
 .bfa-tele-throttle-col {
   display: flex;
   flex-direction: row;
   align-items: stretch;
-  gap: 8px;
+  gap: 6px;
 }
 .bfa-tele-ticks-v {
   display: flex;
@@ -79,8 +82,8 @@ function ensureStyles(): void {
   letter-spacing: 0.04em;
   color: rgba(200, 210, 190, 0.55);
   line-height: 1.05;
-  width: 2.75rem;
-  min-height: 132px;
+  width: 2.35rem;
+  min-height: 118px;
   text-align: right;
 }
 .bfa-tele-ticks-v span {
@@ -88,9 +91,9 @@ function ensureStyles(): void {
 }
 .bfa-tele-track-v {
   position: relative;
-  width: 40px;
-  height: 132px;
-  border-radius: 8px;
+  width: 32px;
+  height: 118px;
+  border-radius: 7px;
   background: var(--bfa-tele-face);
   border: 1px solid rgba(0,0,0,0.5);
   box-shadow: 0 0 0 1px rgba(255,220,160,0.08) inset, 0 4px 12px rgba(0,0,0,0.4) inset;
@@ -110,10 +113,10 @@ function ensureStyles(): void {
 .bfa-tele-knob-v {
   position: absolute;
   left: 50%;
-  width: 28px;
-  height: 18px;
-  margin-left: -14px;
-  margin-top: -9px;
+  width: 24px;
+  height: 16px;
+  margin-left: -12px;
+  margin-top: -8px;
   top: 50%;
   border-radius: 4px;
   background: linear-gradient(180deg, #c49852 0%, #7a5a28 45%, #4a3618 100%);
@@ -136,10 +139,10 @@ function ensureStyles(): void {
   flex-direction: row;
   justify-content: space-between;
   font-size: 6px;
-  letter-spacing: 0.03em;
+  letter-spacing: 0.02em;
   color: rgba(200, 210, 190, 0.55);
   padding: 0 1px;
-  width: 132px;
+  width: 154px;
   max-width: 100%;
 }
 .bfa-tele-ticks-h span {
@@ -149,10 +152,10 @@ function ensureStyles(): void {
 }
 .bfa-tele-track-h {
   position: relative;
-  height: 40px;
-  width: 132px;
+  height: 34px;
+  width: 154px;
   max-width: 100%;
-  border-radius: 8px;
+  border-radius: 7px;
   background: var(--bfa-tele-face);
   border: 1px solid rgba(0,0,0,0.5);
   box-shadow: 0 0 0 1px rgba(255,220,160,0.08) inset, 0 4px 12px rgba(0,0,0,0.4) inset;
@@ -172,10 +175,10 @@ function ensureStyles(): void {
 .bfa-tele-knob-h {
   position: absolute;
   top: 50%;
-  width: 18px;
-  height: 28px;
-  margin-top: -14px;
-  margin-left: -9px;
+  width: 16px;
+  height: 24px;
+  margin-top: -12px;
+  margin-left: -8px;
   left: 50%;
   border-radius: 4px;
   background: linear-gradient(90deg, #c49852 0%, #7a5a28 50%, #4a3618 100%);
@@ -222,22 +225,21 @@ export function createMachineryTelegraphLevers(options: {
   ensureStyles();
 
   const root = document.createElement("div");
-  root.className = `bfa-tele ${options.interactive ? "bfa-tele--interactive" : "bfa-tele--readonly"}`;
+  root.className =
+    `bfa-tele bfa-tele-l-root ${options.interactive ? "bfa-tele--interactive" : "bfa-tele--readonly"}`;
   root.setAttribute("role", "group");
   root.setAttribute("aria-label", t("telegraphLevers.ariaGroup"));
   root.style.cssText =
-    "position:fixed;left:12px;bottom:12px;z-index:" +
+    "position:fixed;left:10px;bottom:10px;z-index:" +
     (options.interactive ? "5" : "26") +
     ";pointer-events:" +
     (options.interactive ? "auto" : "none") +
     ";user-select:none;-webkit-user-select:none;touch-action:none;";
 
-  const inner = document.createElement("div");
-  inner.className = "bfa-tele-inner";
-
-  const plate = document.createElement("div");
-  plate.className = "bfa-tele-plate";
-  plate.textContent = t("telegraphLevers.plateTitle");
+  const panelEngine = document.createElement("div");
+  panelEngine.className = "bfa-tele-panel bfa-tele-panel--engine";
+  panelEngine.setAttribute("role", "group");
+  panelEngine.setAttribute("aria-label", t("telegraphLevers.ariaThrottle"));
 
   const throttleCol = document.createElement("div");
   throttleCol.className = "bfa-tele-throttle-col";
@@ -261,6 +263,12 @@ export function createMachineryTelegraphLevers(options: {
   trackV.append(grooveV, knobV);
 
   throttleCol.append(ticksV, trackV);
+  panelEngine.append(throttleCol);
+
+  const panelRudder = document.createElement("div");
+  panelRudder.className = "bfa-tele-panel bfa-tele-panel--rudder";
+  panelRudder.setAttribute("role", "group");
+  panelRudder.setAttribute("aria-label", t("telegraphLevers.ariaRudder"));
 
   const rudderBlock = document.createElement("div");
   rudderBlock.className = "bfa-tele-rudder-block";
@@ -284,9 +292,9 @@ export function createMachineryTelegraphLevers(options: {
   trackH.append(grooveH, knobH);
 
   rudderBlock.append(ticksH, trackH);
+  panelRudder.append(rudderBlock);
 
-  inner.append(plate, throttleCol, rudderBlock);
-  root.appendChild(inner);
+  root.append(panelEngine, panelRudder);
 
   let throttle: number = TELEGRAPH_THROTTLE_STEPS[TELEGRAPH_STOP_INDEX]!;
   let rudderInput: number = TELEGRAPH_RUDDER_STEPS[TELEGRAPH_STOP_INDEX]!;

@@ -379,10 +379,6 @@ export const en = {
     labelSpeed: "SOG",
     /** cockpitHud.ts — readout row (heading). */
     labelCourseFull: "CRS",
-    /** cockpitHud.ts — throttle bar row. */
-    labelThrottle: "Throttle",
-    /** cockpitHud.ts — rudder bar row. */
-    labelRudder: "Rudder",
     /** cockpitHud.ts — progression rank row. */
     labelRank: "Rank",
     /** cockpitHud.ts — XP row. */
@@ -453,8 +449,6 @@ export const en = {
   telegraphLevers: {
     /** Group `aria-label`. */
     ariaGroup: "Engine order and rudder repeaters",
-    /** Brass nameplate above levers. */
-    plateTitle: "ENG ORD",
     /** Vertical track `aria-label`. */
     ariaThrottle: "Ordered speed — full astern to full ahead",
     /** Horizontal track `aria-label`. */

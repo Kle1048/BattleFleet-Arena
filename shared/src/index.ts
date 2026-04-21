@@ -1,6 +1,7 @@
 export * from "./shipMovement";
 export * from "./schema";
 export * from "./mapBounds";
+export * from "./convexHull2d";
 export * from "./islands";
 export * from "./artillery";
 export * from "./primaryArtilleryEngagement";

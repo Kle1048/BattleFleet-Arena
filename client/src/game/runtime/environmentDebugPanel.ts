@@ -436,6 +436,25 @@ export function createEnvironmentDebugPanel(
   ringsWrap.appendChild(ringsToggle);
   panelShip.appendChild(ringsWrap);
 
+  const islandPolyLabel = document.createElement("label");
+  islandPolyLabel.textContent = "Island collision (polygons)";
+  islandPolyLabel.title =
+    "Outline of server/shared convex island footprints (DEFAULT_MAP_ISLAND_POLYGONS); matches physics.";
+  panelShip.appendChild(islandPolyLabel);
+  const islandPolyWrap = document.createElement("div");
+  islandPolyWrap.style.cssText = "display:flex;align-items:center;justify-content:flex-end;gap:6px;";
+  const islandPolyToggle = document.createElement("input");
+  islandPolyToggle.type = "checkbox";
+  islandPolyToggle.checked = currentShip.showIslandCollisionPolygons;
+  islandPolyToggle.addEventListener("change", () => {
+    currentShip.showIslandCollisionPolygons = islandPolyToggle.checked;
+    applyShipDebugTuning({ showIslandCollisionPolygons: islandPolyToggle.checked });
+    bundle.islandCollisionPolygonGroup.visible = islandPolyToggle.checked;
+    savePersistedShipTuning(currentShip);
+  });
+  islandPolyWrap.appendChild(islandPolyToggle);
+  panelShip.appendChild(islandPolyWrap);
+
   const mountAimLabel = document.createElement("label");
   mountAimLabel.textContent = "Mount-Ziellinien";
   mountAimLabel.title =
@@ -755,6 +774,8 @@ export function createEnvironmentDebugPanel(
     savePersistedShipTuning(currentShip);
     arcToggle.checked = nextShip.showWeaponArc;
     ringsToggle.checked = nextShip.showRangeRings;
+    islandPolyToggle.checked = nextShip.showIslandCollisionPolygons;
+    bundle.islandCollisionPolygonGroup.visible = nextShip.showIslandCollisionPolygons;
     mountAimToggle.checked = nextShip.showMountAimLines;
     setShipHitboxDebugVisible(false);
     hitboxToggle.checked = false;
@@ -837,6 +858,9 @@ export function createEnvironmentDebugPanel(
   applyExpandedState();
 
   appendToBottomDebugDock(root);
+
+  bundle.islandCollisionPolygonGroup.visible = getShipDebugTuning().showIslandCollisionPolygons;
+  islandPolyToggle.checked = getShipDebugTuning().showIslandCollisionPolygons;
 
   return {
     dispose() {

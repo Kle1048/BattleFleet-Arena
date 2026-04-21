@@ -1,4 +1,8 @@
-import { DEFAULT_MAP_ISLANDS, type IslandCircle } from "./islands";
+import {
+  DEFAULT_MAP_ISLAND_POLYGONS,
+  type IslandPolygon,
+  shipHitboxOverlapsAnyIslandPolygon,
+} from "./islandPolygonGeometry";
 import { circleIntersectsShipHitboxFootprintXZ } from "./shipHitboxCollision";
 import { getAuthoritativeShipHullProfile } from "./shipProfiles";
 import { hitboxWorldCenterXZ, satOBB2DOverlapMTV } from "./shipShipCollision";
@@ -11,32 +15,25 @@ export type ShipCollisionPose = {
   shipClass: string;
 };
 
-export function shipOverlapsAnyIslandCircles(
+export function shipOverlapsAnyIslandPolygons(
   pose: ShipCollisionPose,
-  islands: readonly IslandCircle[],
+  islands: readonly IslandPolygon[],
 ): boolean {
   const hb = getAuthoritativeShipHullProfile(pose.shipClass)?.collisionHitbox;
   if (!hb) return false;
-  for (const is of islands) {
-    if (
-      circleIntersectsShipHitboxFootprintXZ(
-        is.x,
-        is.z,
-        is.radius,
-        pose.x,
-        pose.z,
-        pose.headingRad,
-        hb,
-      )
-    ) {
-      return true;
-    }
-  }
-  return false;
+  return shipHitboxOverlapsAnyIslandPolygon(pose.x, pose.z, pose.headingRad, hb, islands);
 }
 
 export function shipOverlapsAnyIsland(pose: ShipCollisionPose): boolean {
-  return shipOverlapsAnyIslandCircles(pose, DEFAULT_MAP_ISLANDS);
+  return shipOverlapsAnyIslandPolygons(pose, DEFAULT_MAP_ISLAND_POLYGONS);
+}
+
+/** @deprecated Use `shipOverlapsAnyIslandPolygons`. */
+export function shipOverlapsAnyIslandCircles(
+  pose: ShipCollisionPose,
+  _islands: readonly { x: number; z: number; radius: number }[],
+): boolean {
+  return shipOverlapsAnyIslandPolygons(pose, DEFAULT_MAP_ISLAND_POLYGONS);
 }
 
 /** Mindestens Wrack-Hitbox (OBB wie Schiff–Schiff); `anchor*` = Simulationspunkt wie bei Spielern. */

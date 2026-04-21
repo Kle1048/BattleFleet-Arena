@@ -15,6 +15,8 @@ export type ShipDebugTuning = {
   showRangeRings: boolean;
   /** Debug-Linien von Geschütz-Mounts zum Zielpunkt (Maus / Aim). */
   showMountAimLines: boolean;
+  /** Welt: Insel-Kollisions-Polygone (shared, konvex) als Umriss. */
+  showIslandCollisionPolygons: boolean;
 };
 
 export const DEFAULT_SHIP_DEBUG_TUNING: Readonly<ShipDebugTuning> = {
@@ -27,6 +29,7 @@ export const DEFAULT_SHIP_DEBUG_TUNING: Readonly<ShipDebugTuning> = {
   showWeaponArc: false,
   showRangeRings: false,
   showMountAimLines: false,
+  showIslandCollisionPolygons: false,
 };
 
 let currentShipDebugTuning: ShipDebugTuning = {
@@ -123,6 +126,10 @@ export function applyShipDebugTuning(patch: Partial<ShipDebugTuning>): Readonly<
       typeof patch.showMountAimLines === "boolean"
         ? patch.showMountAimLines
         : currentShipDebugTuning.showMountAimLines,
+    showIslandCollisionPolygons:
+      typeof patch.showIslandCollisionPolygons === "boolean"
+        ? patch.showIslandCollisionPolygons
+        : currentShipDebugTuning.showIslandCollisionPolygons,
   };
   currentShipDebugTuning = next;
   shipDebugTuningGeneration += 1;

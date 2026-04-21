@@ -2,7 +2,8 @@ import {
   AREA_OF_OPERATIONS_HALF_EXTENT,
   ARTILLERY_ARC_HALF_ANGLE_RAD,
   aswmSteeringYawErrRad,
-  DEFAULT_MAP_ISLANDS,
+  DEFAULT_MAP_ISLAND_POLYGONS,
+  minDistSqPointToPolygonBoundary,
   SHIP_ISLAND_COLLISION_RADIUS,
 } from "@battlefleet/shared";
 import type { ActionPlanningInput, BotInputCommand } from "./types";
@@ -31,19 +32,34 @@ function applyIslandAvoidance(
   let avoidRudder = 0;
   let bestThreat = 0;
 
-  for (const island of DEFAULT_MAP_ISLANDS) {
-    const dx = island.x - self.x;
-    const dz = island.z - self.z;
+  for (const island of DEFAULT_MAP_ISLAND_POLYGONS) {
+    const verts = island.verts;
+    let cx = 0;
+    let cz = 0;
+    for (const v of verts) {
+      cx += v.x;
+      cz += v.z;
+    }
+    cx /= verts.length;
+    cz /= verts.length;
+    const dx = cx - self.x;
+    const dz = cz - self.z;
     const along = dx * fx + dz * fz;
     if (along <= 0 || along > lookAhead) continue;
 
     const lateral = dx * rx + dz * rz;
-    const corridor = island.radius + SHIP_ISLAND_COLLISION_RADIUS + 22;
-    const lateralAbs = Math.abs(lateral);
-    if (lateralAbs > corridor) continue;
+    const distSelf = Math.sqrt(minDistSqPointToPolygonBoundary(self.x, self.z, verts));
+    const alongProbe = Math.min(along, lookAhead * 0.85);
+    const lx = self.x + fx * alongProbe;
+    const lz = self.z + fz * alongProbe;
+    const distLook = Math.sqrt(minDistSqPointToPolygonBoundary(lx, lz, verts));
+    const clearance = Math.min(distSelf, distLook);
+    const corridor = SHIP_ISLAND_COLLISION_RADIUS + 28;
+    if (clearance > corridor) continue;
 
+    const lateralAbs = Math.abs(lateral);
     const nearFactor = 1 - along / lookAhead;
-    const centerFactor = 1 - lateralAbs / corridor;
+    const centerFactor = 1 - clearance / corridor;
     const threat = clamp(nearFactor * 0.6 + centerFactor * 0.8, 0, 1);
     if (threat <= bestThreat) continue;
     bestThreat = threat;

@@ -23,6 +23,7 @@ export default defineConfig({
       input: {
         main: path.resolve(root, "index.html"),
         editor: path.resolve(root, "editor.html"),
+        islandPolygonEditor: path.resolve(root, "island-polygon-editor.html"),
       },
     },
   },

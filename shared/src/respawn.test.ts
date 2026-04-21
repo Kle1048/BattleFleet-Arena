@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { AREA_OF_OPERATIONS_HALF_EXTENT } from "./mapBounds";
-import { DEFAULT_MAP_ISLANDS } from "./islands";
+import { DEFAULT_MAP_ISLAND_POLYGONS } from "./islands";
 import { MIN_RESPAWN_SEPARATION } from "./playerLife";
 import {
   RESPAWN_AO_EDGE_INSET,
@@ -26,7 +26,7 @@ for (let i = 0; i < 400; i++) {
   };
   const p = tryPickRespawnPosition(
     AREA_OF_OPERATIONS_HALF_EXTENT,
-    DEFAULT_MAP_ISLANDS,
+    DEFAULT_MAP_ISLAND_POLYGONS,
     [],
     MIN_RESPAWN_SEPARATION,
     rng,
@@ -37,7 +37,7 @@ for (let i = 0; i < 400; i++) {
 for (let s = 0; s < 80; s++) {
   const p = pickRimSpawnDeterministic(
     AREA_OF_OPERATIONS_HALF_EXTENT,
-    DEFAULT_MAP_ISLANDS,
+    DEFAULT_MAP_ISLAND_POLYGONS,
     [],
     MIN_RESPAWN_SEPARATION,
     s * 0.913,
@@ -51,7 +51,7 @@ const crowded: { x: number; z: number }[] = [
 ];
 const away = pickRimSpawnDeterministic(
   AREA_OF_OPERATIONS_HALF_EXTENT,
-  DEFAULT_MAP_ISLANDS,
+  DEFAULT_MAP_ISLAND_POLYGONS,
   crowded,
   MIN_RESPAWN_SEPARATION,
   1.7,

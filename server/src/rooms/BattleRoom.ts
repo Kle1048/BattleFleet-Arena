@@ -13,7 +13,7 @@ import {
   type AswmTargetCandidate,
   BattleState,
   ShipWreckState,
-  DEFAULT_MAP_ISLANDS,
+  DEFAULT_MAP_ISLAND_POLYGONS,
   DESTROYER_LIKE_MVP,
   FEATURE_MINES_ENABLED,
   MissileState,
@@ -32,7 +32,8 @@ import {
   canUsePrimaryWeapon,
   classifyArtilleryImpactVisual,
   createShipState,
-  isInsideAnyIslandCircle,
+  ISLAND_SCRAPE_BASE_HP,
+  isCircleOverlappingAnyIslandPolygon,
   isInsideOperationalArea,
   MIN_RESPAWN_SEPARATION,
   participatesInWorldSimulation,
@@ -104,14 +105,13 @@ import {
   circleIntersectsAnyWreckHitboxFootprintXZ,
   circleIntersectsShipHitboxFootprintXZ,
   minDistSqPointToShipHitboxFootprintXZ,
-  shipOverlapsAnyIslandCircles,
+  shipOverlapsAnyIslandPolygons,
   shipOverlapsAnyWreck,
   twoShipsObbOverlap,
   shipLocalToWorldXZ,
   isInSeaControlZone,
   missileBearingInHardkillLayerMountSector,
   SEA_CONTROL_XP_MULTIPLIER,
-  type IslandCircle,
 } from "@battlefleet/shared";
 
 const TICK_HZ = 20;
@@ -435,14 +435,14 @@ export class BattleRoom extends Room<BattleState> {
     const spawnPick =
       tryPickRespawnPosition(
         AREA_OF_OPERATIONS_HALF_EXTENT,
-        DEFAULT_MAP_ISLANDS,
+        DEFAULT_MAP_ISLAND_POLYGONS,
         others,
         MIN_RESPAWN_SEPARATION,
         Math.random,
       ) ??
       pickRimSpawnDeterministic(
         AREA_OF_OPERATIONS_HALF_EXTENT,
-        DEFAULT_MAP_ISLANDS,
+        DEFAULT_MAP_ISLAND_POLYGONS,
         others,
         MIN_RESPAWN_SEPARATION,
         angleForFallback,
@@ -682,14 +682,14 @@ export class BattleRoom extends Room<BattleState> {
       const spawnPick =
         tryPickRespawnPosition(
           AREA_OF_OPERATIONS_HALF_EXTENT,
-          DEFAULT_MAP_ISLANDS,
+          DEFAULT_MAP_ISLAND_POLYGONS,
           placed,
           MIN_RESPAWN_SEPARATION,
           Math.random,
         ) ??
         pickRimSpawnDeterministic(
           AREA_OF_OPERATIONS_HALF_EXTENT,
-          DEFAULT_MAP_ISLANDS,
+          DEFAULT_MAP_ISLAND_POLYGONS,
           placed,
           MIN_RESPAWN_SEPARATION,
           angleSeed,
@@ -785,14 +785,14 @@ export class BattleRoom extends Room<BattleState> {
     const spawn =
       tryPickRespawnPosition(
         AREA_OF_OPERATIONS_HALF_EXTENT,
-        DEFAULT_MAP_ISLANDS,
+        DEFAULT_MAP_ISLAND_POLYGONS,
         others,
         MIN_RESPAWN_SEPARATION,
         Math.random,
       ) ??
       pickRimSpawnDeterministic(
         AREA_OF_OPERATIONS_HALF_EXTENT,
-        DEFAULT_MAP_ISLANDS,
+        DEFAULT_MAP_ISLAND_POLYGONS,
         others,
         MIN_RESPAWN_SEPARATION,
         playerIndexInList(this.state.playerList, sessionId) * 2.5132741228718345 +
@@ -1160,7 +1160,7 @@ export class BattleRoom extends Room<BattleState> {
     }
   }
 
-  private stepMissiles(dt: number, now: number, islandCircles: IslandCircle[]): void {
+  private stepMissiles(dt: number, now: number): void {
     const half = AREA_OF_OPERATIONS_HALF_EXTENT;
     const list = this.state.missileList;
 
@@ -1234,7 +1234,12 @@ export class BattleRoom extends Room<BattleState> {
       }
 
       if (
-        isInsideAnyIslandCircle(m.x, m.z, islandCircles, ASWM_ISLAND_COLLISION_RADIUS) ||
+        isCircleOverlappingAnyIslandPolygon(
+          m.x,
+          m.z,
+          ASWM_ISLAND_COLLISION_RADIUS,
+          DEFAULT_MAP_ISLAND_POLYGONS,
+        ) ||
         circleIntersectsAnyWreckHitboxFootprintXZ(
           m.x,
           m.z,
@@ -1457,7 +1462,7 @@ export class BattleRoom extends Room<BattleState> {
     }
   }
 
-  private stepTorpedoes(dt: number, now: number, islandCircles: IslandCircle[]): void {
+  private stepTorpedoes(dt: number, now: number): void {
     const list = this.state.torpedoList;
     if (!FEATURE_MINES_ENABLED) {
       for (let i = list.length - 1; i >= 0; i--) {
@@ -1496,7 +1501,12 @@ export class BattleRoom extends Room<BattleState> {
       }
 
       if (
-        isInsideAnyIslandCircle(t.x, t.z, islandCircles, TORPEDO_ISLAND_COLLISION_RADIUS) ||
+        isCircleOverlappingAnyIslandPolygon(
+          t.x,
+          t.z,
+          TORPEDO_ISLAND_COLLISION_RADIUS,
+          DEFAULT_MAP_ISLAND_POLYGONS,
+        ) ||
         circleIntersectsAnyWreckHitboxFootprintXZ(
           t.x,
           t.z,
@@ -1614,7 +1624,7 @@ export class BattleRoom extends Room<BattleState> {
         sh.landX,
         sh.landZ,
         damagedAnyEnemy,
-        DEFAULT_MAP_ISLANDS,
+        DEFAULT_MAP_ISLAND_POLYGONS,
       );
       this.broadcast("artyImpact", {
         shellId: sh.shellId,
@@ -1666,7 +1676,7 @@ export class BattleRoom extends Room<BattleState> {
     this.processAswmMagazineReload(now);
     this.pruneExpiredWrecks(now);
 
-    const islandCircles = DEFAULT_MAP_ISLANDS;
+    const islandPolys = DEFAULT_MAP_ISLAND_POLYGONS;
     const wreckList = this.state.wreckList;
 
     for (const [sessionId, row] of this.sim) {
@@ -1681,18 +1691,34 @@ export class BattleRoom extends Room<BattleState> {
           dt,
         );
         stepMovement(row.ship, this.movementCfgForPlayer(p), dt);
-        const islandNow = shipOverlapsAnyIslandCircles(
+        const islandNow = shipOverlapsAnyIslandPolygons(
           {
             x: row.ship.x,
             z: row.ship.z,
             headingRad: row.ship.headingRad,
             shipClass: p.shipClass,
           },
-          islandCircles,
+          islandPolys,
         );
         const islandPrev = this.collisionIslandOverlapPrev.get(sessionId) ?? false;
         if (islandNow && !islandPrev) {
           this.sendCollisionContact(sessionId, "island");
+          if (combatActive && canTakeArtillerySplashDamage(p.lifeState)) {
+            const wasNotDead = p.lifeState !== PlayerLifeState.AwaitingRespawn;
+            const sc = getShipClassProfile(p.shipClass);
+            const scrape = Math.round(
+              ISLAND_SCRAPE_BASE_HP *
+                sc.hullScale *
+                progressionIncomingDamageFactor(p.level) *
+                sc.incomingDamageTakenMul,
+            );
+            if (scrape > 0) {
+              p.hp = Math.max(0, p.hp - scrape);
+              if (p.hp <= 0 && wasNotDead) {
+                this.enterAwaitingRespawn(sessionId, now);
+              }
+            }
+          }
         }
         this.collisionIslandOverlapPrev.set(sessionId, islandNow);
 
@@ -1713,7 +1739,7 @@ export class BattleRoom extends Room<BattleState> {
 
         resolveShipIslandCollisions(
           row.ship,
-          islandCircles,
+          [],
           getAuthoritativeShipHullProfile(p.shipClass)?.collisionHitbox,
         );
       } else {
@@ -1884,8 +1910,8 @@ export class BattleRoom extends Room<BattleState> {
     }
 
     if (combatActive) {
-      this.stepMissiles(dt, now, islandCircles);
-      this.stepTorpedoes(dt, now, islandCircles);
+      this.stepMissiles(dt, now);
+      this.stepTorpedoes(dt, now);
     }
     this.syncAirDefenseHud(now);
   }

@@ -1,18 +1,14 @@
 #!/usr/bin/env node
 /**
- * Hängt einen Eintrag an docs/DEV-LOG.md an (Commit-Metadaten + Twitter/X-Vorschlag für #Vibejam).
- * Aufruf: post-commit-Hook oder: npm run devlog:append
+ * Appends an entry to docs/DEV-LOG.md (commit metadata + Twitter/X-style line for #Vibejam).
+ * Invoked from post-commit hook or: npm run devlog:append
  */
-import { appendFileSync, readFileSync, writeFileSync, existsSync } from "fs";
+import { appendFileSync, readFileSync, existsSync } from "fs";
 import { join } from "path";
 import { execSync } from "child_process";
 
 function git(fmt) {
   return execSync(`git log -1 --format=${fmt}`, { encoding: "utf-8" }).trim();
-}
-
-function shortHash() {
-  return execSync("git rev-parse --short HEAD", { encoding: "utf-8" }).trim();
 }
 
 function fullHash() {
@@ -24,17 +20,17 @@ function isMergeCommit() {
   return parents.length > 1;
 }
 
-/** Rotierende Kurz-Vorschläge (≤ ~260 Zeichen), angepasst an Commit-Betreff. */
+/** Rotating short suggestions (≤ ~260 chars), English only. */
 function twitterSuggestion(subject) {
   const s = subject.replace(/\s+/g, " ").trim().slice(0, 120);
   const h = parseInt(fullHash().slice(0, 8), 16);
   const variants = [
     () =>
-      `⚓ ${s}${subject.length > 120 ? "…" : ""} — BattleFleet Arena nimmt Fahrt auf für #Vibejam: KI-unterstütztes Naval-RTS. Wer baut noch mit am Jam? #gamedev #AIgames`,
+      `⚓ ${s}${subject.length > 120 ? "…" : ""} — BattleFleet Arena, naval RTS for #Vibejam. Who else is shipping? #gamedev #AIgames`,
     () =>
-      `Shipped: ${s}${subject.length > 120 ? "…" : ""} 🚢 Wir hacken an einem AI-collab Wettkampfspiel — #Vibejam #indiedev`,
+      `Shipped: ${s}${subject.length > 120 ? "…" : ""} 🚢 AI-assisted competitive game — #Vibejam #indiedev`,
     () =>
-      `Update: ${s}${subject.length > 120 ? "…" : ""} | Naval Arena WIP · #Vibejam · wenn Code & KI zusammenlaufen ⚔️🎮`,
+      `Update: ${s}${subject.length > 120 ? "…" : ""} | Naval arena WIP · #Vibejam · code + play ⚔️🎮`,
   ];
   const text = variants[h % variants.length]();
   return text.length > 280 ? `${text.slice(0, 276)}…` : text;
@@ -60,7 +56,6 @@ function main() {
     process.exit(0);
   }
 
-  const hash = shortHash();
   const subject = git("%s");
   const body = git("%b");
   const date = git("%ci");
@@ -79,12 +74,12 @@ function main() {
 
   const block = `---
 
-## ${day} — \`${hash}\`
+## ${day}
 
-- **Autor:** ${author}
+- **Author:** ${author}
 - **Commit:** ${subject}
 ${bodyBlock}
-### Vorschlag Twitter / X (#Vibejam)
+### Suggested post (Twitter / X, #Vibejam)
 
 > ${tw}
 
@@ -93,7 +88,7 @@ ${bodyBlock}
   let prev = readFileSync(logPath, "utf-8");
   if (!prev.endsWith("\n")) prev += "\n";
   appendFileSync(logPath, block, "utf-8");
-  console.log(`[dev-log] appended entry ${hash} → docs/DEV-LOG.md`);
+  console.log("[dev-log] appended entry → docs/DEV-LOG.md");
 }
 
 main();

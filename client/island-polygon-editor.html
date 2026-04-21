@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html lang="de">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>BattleFleet — Insel-Polygon-Editor</title>
+    <link rel="stylesheet" href="/src/editor/editorShell.css" />
+    <style>
+      .ipe-shell {
+        display: flex;
+        flex-direction: column;
+        height: 100vh;
+        font: 13px system-ui, sans-serif;
+        color: #e8f4ff;
+        background: #0f1a24;
+      }
+      .ipe-bar {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 10px 16px;
+        padding: 8px 12px;
+        background: #152a3a;
+        border-bottom: 1px solid rgba(120, 180, 220, 0.35);
+      }
+      .ipe-bar label {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+      }
+      .ipe-bar select {
+        min-width: 220px;
+        padding: 4px 8px;
+      }
+      .ipe-bar button {
+        padding: 6px 12px;
+        cursor: pointer;
+        border-radius: 4px;
+        border: 1px solid rgba(160, 200, 240, 0.5);
+        background: #1e4a6e;
+        color: #e8f4ff;
+      }
+      .ipe-bar button:hover {
+        background: #265a88;
+      }
+      .ipe-bar a {
+        color: #8dd4ff;
+        margin-left: auto;
+      }
+      .ipe-body {
+        flex: 1;
+        display: grid;
+        grid-template-columns: 1fr minmax(280px, 38vw);
+        min-height: 0;
+      }
+      #app {
+        min-height: 0;
+      }
+      .ipe-aside {
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+        padding: 10px;
+        background: #122230;
+        border-left: 1px solid rgba(120, 180, 220, 0.25);
+      }
+      .ipe-aside textarea {
+        flex: 1;
+        min-height: 200px;
+        font: 11px/1.35 ui-monospace, monospace;
+        padding: 8px;
+        background: #0a1218;
+        color: #c8e8ff;
+        border: 1px solid #2a4a60;
+        border-radius: 4px;
+        resize: vertical;
+      }
+      #ipe-status {
+        margin: 0;
+        font-size: 11px;
+        color: #9cc;
+        line-height: 1.4;
+      }
+      .ipe-hint {
+        font-size: 10px;
+        color: #7aa;
+        line-height: 1.35;
+      }
+      .ipe-export-row {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+      }
+      .ipe-export-row button {
+        padding: 6px 10px;
+        cursor: pointer;
+        border-radius: 4px;
+        border: 1px solid rgba(160, 200, 240, 0.45);
+        background: #1a3d5c;
+        color: #e8f4ff;
+        font: 12px system-ui, sans-serif;
+      }
+      .ipe-export-row button:hover {
+        background: #245070;
+      }
+      .ipe-export-row button:disabled {
+        opacity: 0.45;
+        cursor: not-allowed;
+      }
+    </style>
+  </head>
+  <body class="ipe-shell">
+    <header class="ipe-bar">
+      <strong>Insel-Polygon-Editor</strong>
+      <label>
+        Karten-Insel
+        <select id="ipe-island" aria-label="Karten-Insel"></select>
+      </label>
+      <label>
+        GLB-Typ
+        <select id="ipe-glb" aria-label="GLB-Typ"></select>
+      </label>
+      <button type="button" id="ipe-btn-rebuild">Szene neu aufbauen</button>
+      <button type="button" id="ipe-btn-hull">Konvexe Hülle (XZ) + JSON</button>
+      <a href="editor.html">Schiffs-Workbench</a>
+      <a href="index.html">Zum Spiel</a>
+    </header>
+    <div class="ipe-body">
+      <div id="app" aria-label="3D-Ansicht"></div>
+      <aside class="ipe-aside">
+        <p id="ipe-status">Lade GLBs …</p>
+        <p class="ipe-hint">
+          Die Hülle projiziert alle Mesh-Vertices der skalierten GLB-Gruppe auf XZ (Welt), wie nach
+          <code>fitIslandToGameplayRadius</code> im Spiel. Hohe Geometrie (Bäume, Türme) verbreitert die Hülle in
+          XZ — bei Bedarf Eckpunkte im JSON manuell straffen. Ziel im Repo:
+          <code>shared/src/data/mapIslandPolygonOverrides.json</code> — Array <code>islands</code> mit
+          <code>id</code> (i1…i5) und <code>verts</code> mergen; leeres Array = nur prozedurale Polygone. Der Browser
+          schreibt nicht direkt ins Projekt: Download oder Zwischenablage, dann Datei im Editor ersetzen/mergen.
+        </p>
+        <div class="ipe-export-row">
+          <button type="button" id="ipe-btn-copy" disabled>Zwischenablage</button>
+          <button type="button" id="ipe-btn-download" disabled>JSON herunterladen</button>
+        </div>
+        <textarea id="ipe-json" readonly spellcheck="false" aria-label="Export JSON"></textarea>
+      </aside>
+    </div>
+    <script type="module" src="/src/editor/islandPolygonEditorMain.ts"></script>
+  </body>
+</html>

@@ -1,8 +1,11 @@
 import assert from "node:assert/strict";
 import {
+  buildIslandPolygonsFromCircleSpecs,
   DEFAULT_MAP_ISLANDS,
+  isCircleOverlappingAnyIslandPolygon,
   isInsideAnyIslandCircle,
   resolveShipIslandCollisions,
+  resolveShipIslandPolygonCollisions,
   SHIP_ISLAND_COLLISION_RADIUS,
 } from "./islands";
 import {
@@ -34,12 +37,13 @@ function distIslandCenterToHitboxFootprint(
 }
 
 {
-  const islands = [{ id: "t", x: 0, z: 0, radius: 100 }];
-  assert.equal(isInsideAnyIslandCircle(0, 0, islands, 0), true);
-  assert.equal(isInsideAnyIslandCircle(150, 0, islands, 0), false);
-  assert.equal(isInsideAnyIslandCircle(101, 0, islands, 0), false);
-  assert.equal(isInsideAnyIslandCircle(99, 0, islands, 0), true);
-  assert.equal(isInsideAnyIslandCircle(108, 0, islands, 10), true);
+  const specs = [{ id: "t", x: 0, z: 0, radius: 100 }];
+  const polys = buildIslandPolygonsFromCircleSpecs(specs);
+  assert.equal(isCircleOverlappingAnyIslandPolygon(0, 0, 0, polys), true);
+  assert.equal(isCircleOverlappingAnyIslandPolygon(150, 0, 0, polys), false);
+  assert.equal(isCircleOverlappingAnyIslandPolygon(135, 0, 0, polys), false);
+  assert.equal(isCircleOverlappingAnyIslandPolygon(99, 0, 0, polys), true);
+  assert.equal(isCircleOverlappingAnyIslandPolygon(108, 0, 10, polys), true);
 }
 
 {
@@ -51,9 +55,9 @@ function distIslandCenterToHitboxFootprint(
     "center of island i1",
   );
   assert.equal(
-    isInsideAnyIslandCircle(i1.x + i1.radius + 30, i1.z, DEFAULT_MAP_ISLANDS, 14),
+    isInsideAnyIslandCircle(i1.x + i1.radius * 2.2 + 40, i1.z, DEFAULT_MAP_ISLANDS, 14),
     false,
-    "well outside i1",
+    "well outside i1 (Polygon-Ufer + Splash-Radius)",
   );
 }
 
@@ -62,19 +66,21 @@ function distIslandCenterToHitboxFootprint(
     center: { x: 0, y: 0, z: 0 },
     halfExtents: { x: 5, y: 0, z: 5 },
   };
-  const island = { id: "t", x: 8, z: 0, radius: 10 };
+  const islandSpec = { id: "t", x: 8, z: 0, radius: 10 };
+  const polys = buildIslandPolygonsFromCircleSpecs([islandSpec]);
   const ship = createShipState(0, 0);
-  resolveShipIslandCollisions(ship, [island], box);
-  const d = distIslandCenterToHitboxFootprint(ship, box, island.x, island.z);
-  assert.ok(d >= island.radius - 0.05, "Hitbox: nach Auflösung liegt OBB nicht mehr im Inselkreis");
+  resolveShipIslandPolygonCollisions(ship, polys, box);
+  const d = distIslandCenterToHitboxFootprint(ship, box, islandSpec.x, islandSpec.z);
+  assert.ok(d >= islandSpec.radius - 0.05, "Hitbox: nach Auflösung liegt OBB nicht mehr im Inselkreis");
 }
 
 {
   const ship = createShipState(0, 0);
-  const island = { id: "t", x: 5, z: 0, radius: 10 };
-  resolveShipIslandCollisions(ship, [island], undefined, SHIP_ISLAND_COLLISION_RADIUS);
-  const dist = Math.hypot(ship.x - island.x, ship.z - island.z);
-  assert.ok(dist >= island.radius + SHIP_ISLAND_COLLISION_RADIUS - 0.05, "Legacy: Kreis um Bug");
+  const islandSpec = { id: "t", x: 5, z: 0, radius: 10 };
+  const polys = buildIslandPolygonsFromCircleSpecs([islandSpec]);
+  resolveShipIslandPolygonCollisions(ship, polys, undefined, SHIP_ISLAND_COLLISION_RADIUS);
+  const dist = Math.hypot(ship.x - islandSpec.x, ship.z - islandSpec.z);
+  assert.ok(dist >= islandSpec.radius + SHIP_ISLAND_COLLISION_RADIUS - 0.05, "Legacy: Kreis um Bug");
 }
 
 console.log("islands tests ok");

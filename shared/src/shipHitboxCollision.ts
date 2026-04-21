@@ -64,6 +64,30 @@ export function minDistSqPointToShipHitboxFootprintXZ(
 }
 
 /**
+ * Nächster Punkt auf der Hitbox-Fußfläche (AABB in Schiff lokal XZ) zu einem Weltpunkt.
+ */
+export function closestPointOnHitboxFootprintWorld(
+  shipX: number,
+  shipZ: number,
+  headingRad: number,
+  hitbox: ShipCollisionHitbox,
+  worldX: number,
+  worldZ: number,
+): { px: number; pz: number } {
+  const ox = worldX - shipX;
+  const oz = worldZ - shipZ;
+  const { lx, lz } = worldDeltaToShipLocalXZ(ox, oz, headingRad);
+  const cx = hitbox.center.x;
+  const cz = hitbox.center.z;
+  const hx = Math.max(0, hitbox.halfExtents.x);
+  const hz = Math.max(0, hitbox.halfExtents.z);
+  const qx = clamp(lx, cx - hx, cx + hx);
+  const qz = clamp(lz, cz - hz, cz + hz);
+  const { ox: wx, oz: wz } = shipLocalDeltaToWorldXZ(qx, qz, headingRad);
+  return { px: shipX + wx, pz: shipZ + wz };
+}
+
+/**
  * Kreis um (`cx`,`cz`) mit Radius `r` schneidet die Hitbox-Fußfläche (in XZ).
  */
 

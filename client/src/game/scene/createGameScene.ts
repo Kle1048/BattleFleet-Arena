@@ -4,6 +4,7 @@ import { Sky } from "three/examples/jsm/objects/Sky.js";
 import {
   AREA_OF_OPERATIONS_HALF_EXTENT,
   DEFAULT_MAP_ISLANDS,
+  DEFAULT_MAP_ISLAND_POLYGONS,
   SEA_CONTROL_ZONE_HALF_EXTENT,
 } from "@battlefleet/shared";
 import { VisualColorTokens } from "../runtime/materialLibrary";
@@ -57,6 +58,8 @@ export type GameSceneBundle = {
   sky: Sky;
   ambient: THREE.AmbientLight;
   sun: THREE.DirectionalLight;
+  /** Server-/shared-Kollisions-Polygone (XZ), Sichtbarkeit per Ship-Debug. */
+  islandCollisionPolygonGroup: THREE.Group;
   getEnvironmentTuning: () => EnvironmentTuning;
   applyEnvironmentTuning: (patch: Partial<EnvironmentTuning>) => void;
 };
@@ -330,6 +333,10 @@ export async function createGameScene(): Promise<GameSceneBundle> {
     islandIdx += 1;
   }
 
+  const islandCollisionPolygonGroup = createIslandCollisionPolygonOverlay();
+  islandCollisionPolygonGroup.visible = false;
+  scene.add(islandCollisionPolygonGroup);
+
   const ambient = new THREE.AmbientLight(0xffffff, 0.5);
   const sun = new THREE.DirectionalLight(0xffffff, 1);
   sun.castShadow = true;
@@ -356,9 +363,35 @@ export async function createGameScene(): Promise<GameSceneBundle> {
     sky,
     ambient,
     sun,
+    islandCollisionPolygonGroup,
     getEnvironmentTuning,
     applyEnvironmentTuning,
   };
+}
+
+/** `DEFAULT_MAP_ISLAND_POLYGONS` in Render-XZ (wie AO-Rand / Insel-GLBs). */
+function createIslandCollisionPolygonOverlay(): THREE.Group {
+  const group = new THREE.Group();
+  group.name = "island_collision_polygons";
+  const y = 0.26;
+  const mat = new THREE.LineBasicMaterial({
+    color: 0x33ddff,
+    depthWrite: false,
+    depthTest: false,
+    transparent: true,
+    opacity: 0.9,
+  });
+  for (const poly of DEFAULT_MAP_ISLAND_POLYGONS) {
+    const pts = poly.verts.map((v) => new THREE.Vector3(worldToRenderX(v.x), y, v.z));
+    if (pts.length < 3) continue;
+    const geom = new THREE.BufferGeometry().setFromPoints(pts);
+    const line = new THREE.LineLoop(geom, mat);
+    line.renderOrder = OVERLAY_RENDER_ORDER;
+    assignToOverlayLayer(line);
+    line.name = `island_collision_${poly.id}`;
+    group.add(line);
+  }
+  return group;
 }
 
 function createIslandMesh(radius: number): THREE.Group {

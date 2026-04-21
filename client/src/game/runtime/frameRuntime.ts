@@ -109,8 +109,6 @@ type CockpitLike = {
   update: (model: {
     speed: number;
     maxSpeed: number;
-    throttle: number;
-    rudder: number;
     headingRad: number;
     worldX: number;
     worldZ: number;
@@ -207,7 +205,8 @@ function quantInput(n: number): number {
 }
 
 function buildInputDedupKey(input: InputSample, mineSpawnLocalZ: number): string {
-  const telegraph = input.useTelegraphWire !== false;
+  /** Nur explizit `true` = Maschinentelegraf; `false`/`undefined` (z. B. Bot) = analog throttle/rudder. */
+  const telegraph = input.useTelegraphWire === true;
   const aim = `${quantInput(input.aimWorldX)},${quantInput(input.aimWorldZ)}`;
   const mineZ = quantInput(mineSpawnLocalZ);
   const f = `${input.primaryFire ? 1 : 0}${input.secondaryFire ? 1 : 0}${
@@ -515,7 +514,7 @@ export function runFrameRuntimeStep<
             radarActive: inputSample.radarActive,
             ...(inputSample.aswmFireSide ? { aswmFireSide: inputSample.aswmFireSide } : {}),
           };
-          if (inputSample.useTelegraphWire !== false) {
+          if (inputSample.useTelegraphWire === true) {
             roomSendInput({
               ...base,
               engineOrder: inputSample.engineOrder,
@@ -637,8 +636,6 @@ export function runFrameRuntimeStep<
       cockpit.update({
         speed: speedKn,
         maxSpeed: maxSpeedKn,
-        throttle: inputSample.throttle,
-        rudder: p.rudder,
         headingRad: p.headingRad,
         worldX: p.x,
         worldZ: p.z,

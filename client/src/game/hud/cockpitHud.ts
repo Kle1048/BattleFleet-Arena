@@ -25,8 +25,6 @@ export { cockpitRadarBlipsKey, cockpitRadarEsmKey, cockpitRadarThreatKey };
 export type CockpitHudUpdate = {
   speed: number;
   maxSpeed: number;
-  throttle: number;
-  rudder: number;
   headingRad: number;
   /** Welt XZ — Kartenmitte-Marker auf dem Nord-Radar. */
   worldX: number;
@@ -64,15 +62,6 @@ export type CockpitHudUpdate = {
   radarThreatLines: CockpitRadarThreatLine[];
 };
 
-function degFromHeading(headingRad: number): number {
-  const d = (headingRad * 180) / Math.PI;
-  return ((d % 360) + 360) % 360;
-}
-
-function formatCourse(d: number): string {
-  return `${Math.round(d).toString().padStart(3, "0")}°`;
-}
-
 const RADAR_BLIP_SCALE = 46;
 
 const BRIDGE_COMPACT_KEY = "bfa.hud.bridgeCompact";
@@ -109,12 +98,6 @@ export function createCockpitHud(opts?: {
           <span class="cockpit-panel-title">${t("hud.panelBridge")}</span>
           <button type="button" class="cockpit-panel-toggle" aria-expanded="true" title="${t("hud.bridgeToggleCollapseTitle")}" aria-label="${t("hud.bridgeToggleCollapseAria")}">−</button>
         </div>
-        <div class="cockpit-bridge-minimal" hidden>
-          <div class="cockpit-row cockpit-row-minimal">
-            <span class="cockpit-label">${t("hud.labelCourse")}</span>
-            <span class="cockpit-course cockpit-course-minimal">000°</span>
-          </div>
-        </div>
         <div class="cockpit-bridge-body">
         <div class="cockpit-readouts cockpit-readouts--bridge">
           <div class="cockpit-row">
@@ -124,22 +107,6 @@ export function createCockpitHud(opts?: {
           <div class="cockpit-row">
             <span class="cockpit-label">${t("hud.labelClass")}</span>
             <span class="cockpit-ship-class">—</span>
-          </div>
-          <div class="cockpit-row">
-            <span class="cockpit-label">${t("hud.labelSpeed")}</span>
-            <span class="cockpit-speed"><span class="cockpit-speed-val">0</span><span class="cockpit-speed-unit">${t("hud.speedUnitKn")}</span></span>
-          </div>
-          <div class="cockpit-row">
-            <span class="cockpit-label">${t("hud.labelCourseFull")}</span>
-            <span class="cockpit-course">000°</span>
-          </div>
-          <div class="cockpit-row cockpit-row-bar">
-            <span class="cockpit-label">${t("hud.labelThrottle")}</span>
-            <div class="cockpit-track"><div class="cockpit-track-mid"></div><div class="cockpit-fill cockpit-fill-throttle"></div></div>
-          </div>
-          <div class="cockpit-row cockpit-row-bar">
-            <span class="cockpit-label">${t("hud.labelRudder")}</span>
-            <div class="cockpit-track"><div class="cockpit-track-mid"></div><div class="cockpit-fill cockpit-fill-rudder"></div></div>
           </div>
           <div class="cockpit-row cockpit-row-rank">
             <span class="cockpit-label">${t("hud.labelRank")}</span>
@@ -259,9 +226,7 @@ export function createCockpitHud(opts?: {
   const opzPanel = wrap.querySelector(".cockpit-panel--opz") as HTMLElement;
   const bridgeToggle = wrap.querySelector(".cockpit-panel--bridge .cockpit-panel-toggle") as HTMLButtonElement;
   const opzToggle = wrap.querySelector(".cockpit-panel--opz .cockpit-panel-toggle") as HTMLButtonElement;
-  const bridgeMinimal = wrap.querySelector(".cockpit-bridge-minimal") as HTMLElement;
   const bridgeBody = wrap.querySelector(".cockpit-bridge-body") as HTMLElement;
-  const courseMinimalEl = wrap.querySelector(".cockpit-course-minimal") as HTMLElement;
 
   const applyBridgeCompact = (compact: boolean): void => {
     bridgePanel.classList.toggle("cockpit-panel--compact", compact);
@@ -272,7 +237,6 @@ export function createCockpitHud(opts?: {
       "aria-label",
       compact ? t("hud.bridgeToggleExpandAria") : t("hud.bridgeToggleCollapseAria"),
     );
-    bridgeMinimal.hidden = !compact;
     bridgeBody.hidden = compact;
     writeHudCompact(BRIDGE_COMPACT_KEY, compact);
   };
@@ -301,11 +265,6 @@ export function createCockpitHud(opts?: {
 
   const playerNameEl = wrap.querySelector(".cockpit-player-name") as HTMLElement;
   const shipClassEl = wrap.querySelector(".cockpit-ship-class") as HTMLElement;
-  const speedVal = wrap.querySelector(".cockpit-speed-val") as HTMLElement;
-  /** Nicht nur `.cockpit-course` — das erste im DOM ist der minimale Kurs (gleiches Node wie `.cockpit-course-minimal`). */
-  const courseEl = wrap.querySelector(".cockpit-readouts--bridge .cockpit-course") as HTMLElement;
-  const fillThrottle = wrap.querySelector(".cockpit-fill-throttle") as HTMLElement;
-  const fillRudder = wrap.querySelector(".cockpit-fill-rudder") as HTMLElement;
   const fillHp = wrap.querySelector(".cockpit-fill-hp") as HTMLElement;
   const primaryCdEl = wrap.querySelector(".cockpit-primary-cd") as HTMLElement;
   const secondaryCdEl = wrap.querySelector(".cockpit-secondary-cd") as HTMLElement;
@@ -400,18 +359,6 @@ export function createCockpitHud(opts?: {
     return `${m}:${r.toString().padStart(2, "0")}`;
   }
 
-  function setCenterBar(el: HTMLElement, value: number): void {
-    const v = Math.max(-1, Math.min(1, value));
-    const half = Math.abs(v) * 50;
-    if (v >= 0) {
-      el.style.left = "50%";
-      el.style.width = `${half}%`;
-    } else {
-      el.style.left = `${50 - half}%`;
-      el.style.width = `${half}%`;
-    }
-  }
-
   /**
    * Zeilen für ASuM-Raster: ≤2 Slots eine Zeile, sonst zwei Zeilen (z. B. 4→2+2, 8→4+4).
    * Reihenfolge links→rechts, oben→unten.
@@ -460,8 +407,6 @@ export function createCockpitHud(opts?: {
     update({
       speed,
       maxSpeed,
-      throttle,
-      rudder,
       headingRad,
       worldX,
       worldZ,
@@ -493,18 +438,8 @@ export function createCockpitHud(opts?: {
       esmLines,
       radarThreatLines,
     }: CockpitHudUpdate): void {
-      const deg = degFromHeading(headingRad);
-
       playerNameEl.textContent = playerDisplayName;
       shipClassEl.textContent = shipClassLabel;
-
-      const spd = Math.round(speed);
-      speedVal.textContent = `${spd}`;
-      speedVal.style.opacity = Math.abs(speed) < 0.4 ? "0.55" : "1";
-
-      const courseStr = formatCourse(deg);
-      courseEl.textContent = courseStr;
-      courseMinimalEl.textContent = courseStr;
 
       const courseRim = 42;
       const crx = Math.sin(headingRad) * courseRim;
@@ -524,18 +459,6 @@ export function createCockpitHud(opts?: {
       } else {
         radarMapCenterWrap.style.opacity = "0";
       }
-
-      fillThrottle.style.background =
-        throttle >= 0
-          ? "linear-gradient(90deg, rgba(60,180,255,0.2), rgba(110,220,255,0.95))"
-          : "linear-gradient(90deg, rgba(255,170,80,0.95), rgba(255,120,60,0.25))";
-      setCenterBar(fillThrottle, throttle);
-
-      fillRudder.style.background =
-        rudder >= 0
-          ? "linear-gradient(90deg, rgba(100,220,160,0.25), rgba(120,255,190,0.95))"
-          : "linear-gradient(90deg, rgba(255,120,160,0.95), rgba(255,160,180,0.25))";
-      setCenterBar(fillRudder, rudder);
 
       const speedRatio = maxSpeed > 0 ? Math.min(1, Math.abs(speed) / maxSpeed) : 0;
       wrap.style.setProperty("--speed-glow", String(0.15 + speedRatio * 0.55));

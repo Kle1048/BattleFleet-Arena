@@ -1,6 +1,6 @@
-# BattleFleet Arena — Entwickler-Log
+﻿# BattleFleet Arena â€” Entwickler-Log
 
-Automatische Kurz-Dokumentation pro **Git-Commit** (Metadaten + Vorschlag für einen Post zu **Vibejam** / KI-generierte bzw. KI-unterstützte Spiele).
+Automatische Kurz-Dokumentation pro **Git-Commit** (Metadaten + Vorschlag fÃ¼r einen Post zu **Vibejam** / KI-generierte bzw. KI-unterstÃ¼tzte Spiele).
 
 ## Einmalig: Hook aktivieren
 
@@ -10,7 +10,7 @@ Im Repository-Root:
 git config core.hooksPath scripts/git-hooks
 ```
 
-Danach wird bei jedem Commit (außer **Merge-Commits**) unten ein neuer Block angehängt. Manuell nachziehen:
+Danach wird bei jedem Commit (auÃŸer **Merge-Commits**) unten ein neuer Block angehÃ¤ngt. Manuell nachziehen:
 
 ```bash
 npm run devlog:append
@@ -18,9 +18,9 @@ npm run devlog:append
 
 ---
 
-<!-- Neue Einträge erscheinen unter dieser Linie -->
+<!-- Neue EintrÃ¤ge erscheinen unter dieser Linie -->
 
-## 2026-04-11 — `ab3fab3`
+## 2026-04-11 â€” `ab3fab3`
 
 - **Autor:** Klemens1048
 - **Commit:** feat(audio): Spiel-SFX mit WAV-Assets und Server-Anbindung
@@ -34,11 +34,11 @@ npm run devlog:append
 
 ### Vorschlag Twitter / X (#Vibejam)
 
-> ⚓ feat(audio): Spiel-SFX mit WAV-Assets und Server-Anbindung — BattleFleet Arena nimmt Fahrt auf für #Vibejam: KI-unterstütztes Naval-RTS. Wer baut noch mit am Jam? #gamedev #AIgames
+> âš“ feat(audio): Spiel-SFX mit WAV-Assets und Server-Anbindung â€” BattleFleet Arena nimmt Fahrt auf fÃ¼r #Vibejam: KI-unterstÃ¼tztes Naval-RTS. Wer baut noch mit am Jam? #gamedev #AIgames
 
 ---
 
-## 2026-04-12 — Gameplay: ASuM-Magazine, Progression, Schiffsklassen; Visuals: Umwelt & Wasser
+## 2026-04-12 â€” Gameplay: ASuM-Magazine, Progression, Schiffsklassen; Visuals: Umwelt & Wasser
 
 - **Autor:** Klemens1048
 - **Commit:** Gameplay: ASuM-Magazine, Progression, Schiffsklassen; Visuals: Umwelt & Wasser
@@ -46,20 +46,20 @@ npm run devlog:append
 **Details:**
 
 - - ASuM: Magazin port/starboard, Schussabstand 1s, Magic Reload pro Rumpf (20/30/40s), Toast aswmMagazineReloaded
-- - Progression: Tod nur -1 Level; Offiziersränge EN im HUD/Scoreboard/Toast; Level 5→Zerstörer, 7→Kreuzer (shipClassIdForProgressionLevel)
+- - Progression: Tod nur -1 Level; OffiziersrÃ¤nge EN im HUD/Scoreboard/Toast; Level 5â†’ZerstÃ¶rer, 7â†’Kreuzer (shipClassIdForProgressionLevel)
 - - Lobby: nur Name, Server-FAC; Klassenwahl entfernt; shared shipMovement-Import fix
-- - Schiffe: gleiches FAC-GLB für DD/CG mit hullVisualScale; Rumpf-Profile & Tests
+- - Schiffe: gleiches FAC-GLB fÃ¼r DD/CG mit hullVisualScale; Rumpf-Profile & Tests
 - - Client: Environment (Sonne, Lighting, Foam), Reflection-Layers, Wake-Tuning, Wasser-Debug-Panel ersetzt
 - - docs: Architektur, Visuals-Plan, Ship-Model, Dev-Log; scripts append-dev-log, post-commit hook
 - Made-with: Cursor
 
 ### Vorschlag Twitter / X (#Vibejam)
 
-> Shipped: Gameplay: ASuM-Magazine, Progression, Schiffsklassen; Visuals: Umwelt & Wasser 🚢 Wir hacken an einem AI-collab Wettkampfspiel — #Vibejam #indiedev
+> Shipped: Gameplay: ASuM-Magazine, Progression, Schiffsklassen; Visuals: Umwelt & Wasser ðŸš¢ Wir hacken an einem AI-collab Wettkampfspiel â€” #Vibejam #indiedev
 
 ---
 
-## 2026-04-12 — Snapshot: 3D hull GLBs, class visuals, tuning & perf (bad FPS)
+## 2026-04-12 â€” Snapshot: 3D hull GLBs, class visuals, tuning & perf (bad FPS)
 
 - **Autor:** Klemens1048
 - **Commit:** Snapshot: 3D hull GLBs, class visuals, tuning & perf (bad FPS)
@@ -71,34 +71,34 @@ npm run devlog:append
 
 ### Vorschlag Twitter / X (#Vibejam)
 
-> ⚓ Snapshot: 3D hull GLBs, class visuals, tuning & perf (bad FPS) — BattleFleet Arena nimmt Fahrt auf für #Vibejam: KI-unterstütztes Naval-RTS. Wer baut noch mit am Jam? #gamedev #AIgames
+> âš“ Snapshot: 3D hull GLBs, class visuals, tuning & perf (bad FPS) â€” BattleFleet Arena nimmt Fahrt auf fÃ¼r #Vibejam: KI-unterstÃ¼tztes Naval-RTS. Wer baut noch mit am Jam? #gamedev #AIgames
 
 ---
 
-## 2026-04-12 — `589a951`
+## 2026-04-12 â€” `589a951`
 
 - **Autor:** Klemens1048
-- **Commit:** Client: Performance, Insel-GLBs, Karte, Kamera, ESM & visuelle Stabilität
+- **Commit:** Client: Performance, Insel-GLBs, Karte, Kamera, ESM & visuelle StabilitÃ¤t
 
 **Details:**
 
-- - Frame-Runtime: Spieler-Map, kein Pose-Alloc bei Raketen/Minen, wiederverwendete Sets, Tuning-Cache für Schiffsvisuals
+- - Frame-Runtime: Spieler-Map, kein Pose-Alloc bei Raketen/Minen, wiederverwendete Sets, Tuning-Cache fÃ¼r Schiffsvisuals
 - - Wakes nur lokaler Spieler; HUD-Radar-Diffs; Bot-Debug billiger wenn aus
-- - Wasser/Schatten/Kamera-Shake gegen Flimmern; PCF-Soft, höhere Shadow-Map
+- - Wasser/Schatten/Kamera-Shake gegen Flimmern; PCF-Soft, hÃ¶here Shadow-Map
 - - Inseln: drei GLB-Modelle (Map-Details), Shallow-Zwillings-Rotation
 - - Einsatzgebiet & Inseln ~2x (AREA_OF_OPERATIONS_HALF_EXTENT 1800)
-- - Follow-Cam-Defaults: 35°, 200 m, Head-up, 0,2 s Gier-Verzögerung
-- - ESM-Reichweite 2× Suchrad; RADAR_ESM_RANGE_WORLD
+- - Follow-Cam-Defaults: 35Â°, 200 m, Head-up, 0,2 s Gier-VerzÃ¶gerung
+- - ESM-Reichweite 2Ã— Suchrad; RADAR_ESM_RANGE_WORLD
 - - Tests: cockpitRadarKeys, radarHudMath ESM
 - Made-with: Cursor
 
 ### Vorschlag Twitter / X (#Vibejam)
 
-> Shipped: Client: Performance, Insel-GLBs, Karte, Kamera, ESM & visuelle Stabilität 🚢 Wir hacken an einem AI-collab Wettkampfspiel — #Vibejam #indiedev
+> Shipped: Client: Performance, Insel-GLBs, Karte, Kamera, ESM & visuelle StabilitÃ¤t ðŸš¢ Wir hacken an einem AI-collab Wettkampfspiel â€” #Vibejam #indiedev
 
 ---
 
-## 2026-04-12 — `f4428f2`
+## 2026-04-12 â€” `f4428f2`
 
 - **Autor:** Klemens1048
 - **Commit:** feat(client,hud,shared): ASuM HUD, Colyseus BattleState, air defense, ship layout fixes
@@ -113,11 +113,11 @@ npm run devlog:append
 
 ### Vorschlag Twitter / X (#Vibejam)
 
-> Shipped: feat(client,hud,shared): ASuM HUD, Colyseus BattleState, air defense, ship layout fixes 🚢 Wir hacken an einem AI-collab Wettkampfspiel — #Vibejam #indiedev
+> Shipped: feat(client,hud,shared): ASuM HUD, Colyseus BattleState, air defense, ship layout fixes ðŸš¢ Wir hacken an einem AI-collab Wettkampfspiel â€” #Vibejam #indiedev
 
 ---
 
-## 2026-04-12 — `7d84f9a`
+## 2026-04-12 â€” `7d84f9a`
 
 - **Autor:** Klemens1048
 - **Commit:** feat(client): ship workbench entry (editor.html) + Vite multi-page
@@ -131,11 +131,11 @@ npm run devlog:append
 
 ### Vorschlag Twitter / X (#Vibejam)
 
-> Shipped: feat(client): ship workbench entry (editor.html) + Vite multi-page 🚢 Wir hacken an einem AI-collab Wettkampfspiel — #Vibejam #indiedev
+> Shipped: feat(client): ship workbench entry (editor.html) + Vite multi-page ðŸš¢ Wir hacken an einem AI-collab Wettkampfspiel â€” #Vibejam #indiedev
 
 ---
 
-## 2026-04-13 — `2343f3c`
+## 2026-04-13 â€” `2343f3c`
 
 - **Autor:** Klemens1048
 - **Commit:** feat(client,shared,server): workbench ship markers, air-defense targeting, profile JSON
@@ -149,11 +149,11 @@ npm run devlog:append
 
 ### Vorschlag Twitter / X (#Vibejam)
 
-> Update: feat(client,shared,server): workbench ship markers, air-defense targeting, profile JSON | Naval Arena WIP · #Vibejam · wenn Code & KI zusammenlaufen ⚔️🎮
+> Update: feat(client,shared,server): workbench ship markers, air-defense targeting, profile JSON | Naval Arena WIP Â· #Vibejam Â· wenn Code & KI zusammenlaufen âš”ï¸ðŸŽ®
 
 ---
 
-## 2026-04-14 — `a8dfbd3`
+## 2026-04-14 â€” `a8dfbd3`
 
 - **Autor:** Klemens1048
 - **Commit:** client: Mobile-HUD, kollabierbare Panels und Comms-Log
@@ -161,7 +161,7 @@ npm run devlog:append
 **Details:**
 
 - - NippleJS-Joystick plus Touch-Button-Grid; Merge mit Tastatur/Maus-Input.
-- - Brücke/OPZ/Debug-Overlay per Toggle verkleinerbar (Kurs bzw. HP bzw. FPS/Ping); Zustand in localStorage.
+- - BrÃ¼cke/OPZ/Debug-Overlay per Toggle verkleinerbar (Kurs bzw. HP bzw. FPS/Ping); Zustand in localStorage.
 - - Comms-Room: transparentes Panel, Scroll-Log, Toast-Spiegelung, Leeren; Verbindungszeile nach Join.
 - - Bot-Debug per Button; Environment- und Bot-Panel im gemeinsamen bottom-debug-dock.
 - - nipplejs-Dependency; messageLog ersetzt Placeholder.
@@ -169,11 +169,11 @@ npm run devlog:append
 
 ### Vorschlag Twitter / X (#Vibejam)
 
-> Shipped: client: Mobile-HUD, kollabierbare Panels und Comms-Log 🚢 Wir hacken an einem AI-collab Wettkampfspiel — #Vibejam #indiedev
+> Shipped: client: Mobile-HUD, kollabierbare Panels und Comms-Log ðŸš¢ Wir hacken an einem AI-collab Wettkampfspiel â€” #Vibejam #indiedev
 
 ---
 
-## 2026-04-18 — `48afbc6`
+## 2026-04-18 â€” `48afbc6`
 
 - **Autor:** Klemens1048
 - **Commit:** feat: ship wake ribbons, mounts/sockets, editor & gameplay polish
@@ -189,14 +189,14 @@ npm run devlog:append
 
 ### Vorschlag Twitter / X (#Vibejam)
 
-> ⚓ feat: ship wake ribbons, mounts/sockets, editor & gameplay polish — BattleFleet Arena nimmt Fahrt auf für #Vibejam: KI-unterstütztes Naval-RTS. Wer baut noch mit am Jam? #gamedev #AIgames
+> âš“ feat: ship wake ribbons, mounts/sockets, editor & gameplay polish â€” BattleFleet Arena nimmt Fahrt auf fÃ¼r #Vibejam: KI-unterstÃ¼tztes Naval-RTS. Wer baut noch mit am Jam? #gamedev #AIgames
 
 ---
 
-## 2026-04-19 — `32a4d26`
+## 2026-04-19 â€” `32a4d26`
 
 - **Autor:** Klemens1048
-- **Commit:** chore: spielbarer MVP-Prototyp — Feature-Bündel vor Optimierungsphase
+- **Commit:** chore: spielbarer MVP-Prototyp â€” Feature-BÃ¼ndel vor Optimierungsphase
 
 **Details:**
 
@@ -207,22 +207,44 @@ npm run devlog:append
 
 ### Vorschlag Twitter / X (#Vibejam)
 
-> Shipped: chore: spielbarer MVP-Prototyp — Feature-Bündel vor Optimierungsphase 🚢 Wir hacken an einem AI-collab Wettkampfspiel — #Vibejam #indiedev
+> Shipped: chore: spielbarer MVP-Prototyp â€” Feature-BÃ¼ndel vor Optimierungsphase ðŸš¢ Wir hacken an einem AI-collab Wettkampfspiel â€” #Vibejam #indiedev
 
 ---
 
-## 2026-04-20 — feat: mobiles Steuer- und Kampf-UX (siehe Git-Log)
+## 2026-04-20
 
-- **Autor:** Klemens1048
+- **Author:** Klemens1048
 - **Commit:** feat: mobiles Steuer- und Kampf-UX, Wrecks, Locale und Server-Erweiterungen
 
 **Details:**
 
-- Client: Maschinen-Telegraf mit diskreten Stufen, mobile Softkeys ohne nipplejs, fixe Zielmarke und Primärfeuer entlang Viewport-Pin (Ray pro Frame), Mobile-Browser-Guards, gemeinsames Fadenkreuz-SVG, Locale (en), Mission Briefing, Frame-/HUD-Runtime, Wreck-Visuals und -Debug, Docs und Sounds.
-- Shared/Server: Wrecks, Ram- und Schiff-Schiff-Kollision, Schema- und ASuM-Anpassungen, BattleRoom-Erweiterungen; Abhängigkeiten bereinigt.
+- Client: machinery telegraph with discrete steps, mobile softkeys (no nipplejs), fixed-screen aim reticle and primary fire along viewport ray each frame, mobile browser guards, shared crosshair SVG, English locale module, mission briefing, frame/HUD runtime, wreck visuals and debug, docs and sounds.
+- Shared/Server: wrecks, ram and shipâ€“ship collision, schema and ASuM updates, BattleRoom extensions; dependency cleanup.
 - Made-with: Cursor
 
-### Vorschlag Twitter / X (#Vibejam)
+### Suggested post (Twitter / X, #Vibejam)
 
-> Shipped: feat: mobiles Steuer- und Kampf-UX, Wrecks, Locale und Server-Erweiterungen 🚢 Wir hacken an einem AI-collab Wettkampfspiel — #Vibejam #indiedev
+> Shipped: feat: mobiles Steuer- und Kampf-UX, Wrecks, Locale und Server-Erweiterungen ðŸš¢ AI-assisted competitive game â€” #Vibejam #indiedev
 
+---
+
+## 2026-04-21
+
+- **Author:** Klemens1048
+- **Commit:** Island polygon collision, editor, and HUD/input fixes
+
+**Details:**
+
+- - Drive island collision from shared convex polygons with optional JSON overrides (mapIslandPolygonOverrides) merged in islandPolygonGeometry.
+- - Add mapIslands layout source, islandPolygonEditor Vite page, GLB convex footprint helper, and convexHull2d for mesh hull export.
+- - BattleRoom: polygon overlaps, circle-vs-polygon for missiles/torpedoes, island scrape damage on first overlap edge.
+- - Client: island collision debug toggle, bot avoidance on polygons, frameRuntime bot fix (telegraph wire only when useTelegraphWire === true).
+- - Cockpit bridge drops speed/course readouts (course remains on radar); remove temporary SOG strip from telegraph.
+- - Update artillery, respawn, collision queries, and tests for polygon APIs.
+- Made-with: Cursor
+
+### Suggested post (Twitter / X, #Vibejam)
+
+> Shipped: Island polygon collision, editor, and HUD/input fixes ðŸš¢ AI-assisted competitive game â€” #Vibejam #indiedev
+
+---
