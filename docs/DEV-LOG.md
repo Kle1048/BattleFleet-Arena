@@ -278,3 +278,18 @@ npm run devlog:append
 
 > Shipped: feat: server bots + shared bot module, client/runtime updates 🚢 AI-assisted competitive game — #Vibejam #indiedev
 
+---
+
+## 2026-04-22
+
+- **Author:** Klemens1048
+- **Commit:** feat: server bots + shared bot module, client/runtime updates
+
+**Details:**
+
+- Made-with: Cursor
+
+### Suggested post (Twitter / X, #Vibejam)
+
+> ⚓ feat: server bots + shared bot module, client/runtime updates — BattleFleet Arena, naval RTS for #Vibejam. Who else is shipping? #gamedev #AIgames
+
