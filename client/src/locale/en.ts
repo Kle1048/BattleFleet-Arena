@@ -317,6 +317,10 @@ export const en = {
     btnSsmPort: "Port SSM",
     /** mobileControls.ts — starboard SSM hold button. */
     btnSsmStarboard: "Stbd SSM",
+    /** mobileControls.ts — tap: next fire-control target (same as key F). */
+    btnNextFireControl: "NEXT TGT",
+    /** mobileControls.ts — `aria-label` for next fire-control target button. */
+    ariaNextFireControl: "Cycle next fire-control target (key F)",
   },
 
   /** hudRuntime.ts — dev-only lines on the debug overlay. */
@@ -401,6 +405,8 @@ export const en = {
     labelHp: "HP",
     /** cockpitHud.ts — weapons subhead. */
     subheadWeapons: "Weapons",
+    /** cockpitHud.ts — single ASuM load row label. */
+    labelAswmLoad: "Anti Ship Missiles Load:",
     /** cockpitHud.ts — primary weapon cooldown row. */
     labelPrimary: "Main",
     /** cockpitHud.ts — ASuM row label. */

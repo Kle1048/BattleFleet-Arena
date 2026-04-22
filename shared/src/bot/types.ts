@@ -42,6 +42,8 @@ export type BotVisibleTorpedo = { torpedoId: number; ownerId: string; x: number;
 
 export type PerceptionSnapshot = {
   timestamp: number;
+  /** Halbe AO-Kante (m) — gleiche Quelle wie `BattleState.operationalAreaHalfExtent`. */
+  operationalHalfExtent: number;
   self: BotVisiblePlayer;
   enemies: BotVisiblePlayer[];
   missiles: BotVisibleMissile[];

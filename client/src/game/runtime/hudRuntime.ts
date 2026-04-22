@@ -68,6 +68,8 @@ export function createHudRuntime(options: CreateHudRuntimeOptions): {
   }) => void;
 } {
   const { debugOverlay, matchEndHud, mySessionId, joinedAt } = options;
+  /** Verhindert ~60×/s `show()` während `MATCH_PHASE_ENDED` (DOM-Neuaufbau / „flackert“). */
+  let matchEndScoreboardShown = false;
 
   return {
     updateDebugOverlay({
@@ -122,6 +124,7 @@ export function createHudRuntime(options: CreateHudRuntimeOptions): {
 
     updateMatchEndHud({ matchEnded, players }) {
       if (matchEnded) {
+        if (matchEndScoreboardShown) return;
         const rows: {
           sessionId: string;
           displayName: string;
@@ -147,8 +150,12 @@ export function createHudRuntime(options: CreateHudRuntimeOptions): {
             a.sessionId.localeCompare(b.sessionId),
         );
         matchEndHud.show(rows, mySessionId);
+        matchEndScoreboardShown = true;
       } else {
-        matchEndHud.hide();
+        if (matchEndScoreboardShown) {
+          matchEndHud.hide();
+          matchEndScoreboardShown = false;
+        }
       }
     },
   };

@@ -1,9 +1,9 @@
+import { ARTILLERY_ARC_HALF_ANGLE_RAD } from "../artillery";
 import {
-  ARTILLERY_ARC_HALF_ANGLE_RAD,
   BOT_ASWM_MAX_BORE_YAW_ERR_RAD,
-  isInSeaControlZone,
   minFixedSeaSkimmerLauncherYawErrorRad,
-} from "@battlefleet/shared";
+} from "../aswmShipAim";
+import { isInSeaControlZone } from "../seaControl";
 import type { BotMemory, PerceptionSnapshot, TacticalContext } from "./types";
 
 function wrapPi(a: number): number {

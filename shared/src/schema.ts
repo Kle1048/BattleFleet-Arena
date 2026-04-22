@@ -1,5 +1,6 @@
 import { ArraySchema, Schema, defineTypes } from "@colyseus/schema";
 import { ARTILLERY_PLAYER_MAX_HP } from "./artillery";
+import { operationalHalfExtentFromParticipantCount } from "./mapBounds";
 import { MATCH_DURATION_SEC, MATCH_PHASE_RUNNING } from "./match";
 import { PlayerLifeState } from "./playerLife";
 import { SHIP_CLASS_FAC } from "./shipClass";
@@ -254,6 +255,11 @@ export class BattleState extends Schema {
   declare matchPhase: string;
   /** Task 10 — verbleibende Sekunden (~20 Hz), 0 wenn beendet. */
   declare matchRemainingSec: number;
+  /**
+   * Halbe Kantenlänge des Einsatzgebiets (m), autoritativ; skaliert mit `playerList.length`
+   * (Menschen + Server-Bots). Client: roter AO-Rand, gleiche Logik wie Server-OOB.
+   */
+  declare operationalAreaHalfExtent: number;
 
   constructor() {
     super();
@@ -263,6 +269,7 @@ export class BattleState extends Schema {
     this.wreckList = new ArraySchema<ShipWreckState>();
     this.matchPhase = MATCH_PHASE_RUNNING;
     this.matchRemainingSec = MATCH_DURATION_SEC;
+    this.operationalAreaHalfExtent = operationalHalfExtentFromParticipantCount(0);
   }
 }
 
@@ -273,4 +280,5 @@ defineTypes(BattleState, {
   wreckList: [ShipWreckState],
   matchPhase: "string",
   matchRemainingSec: "number",
+  operationalAreaHalfExtent: "number",
 });

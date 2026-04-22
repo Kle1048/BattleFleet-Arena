@@ -6,6 +6,7 @@ function base(intent: ActionPlanningInput["intent"]): ActionPlanningInput {
     intent,
     snapshot: {
       timestamp: 1000,
+      operationalHalfExtent: 3500,
       self: {
         id: "me",
         x: 0,

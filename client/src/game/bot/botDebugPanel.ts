@@ -1,4 +1,4 @@
-import type { BotInputCommand, BotIntent, BotLogEntry, TacticalContext } from "./types";
+import type { BotInputCommand, BotIntent, BotLogEntry, TacticalContext } from "@battlefleet/shared";
 import { appendToBottomDebugDock } from "../runtime/bottomDebugDock";
 import { t } from "../../locale/t";
 

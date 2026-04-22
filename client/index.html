@@ -113,6 +113,12 @@
           0 0 calc(18px + var(--speed-glow) * 22px) rgba(80, 170, 255, var(--speed-glow));
         font-family: "Segoe UI", system-ui, sans-serif;
       }
+      .cockpit-panel--bridge {
+        background: rgba(6, 14, 28, 0.22);
+        border: 1px solid rgba(120, 190, 255, 0.28);
+        box-shadow: none;
+        backdrop-filter: blur(3px);
+      }
       .cockpit-panel-head {
         display: flex; align-items: center; gap: 8px;
         padding-bottom: 4px;
@@ -142,8 +148,7 @@
         filter: brightness(1.12);
       }
       .cockpit-panel--opz.cockpit-panel--compact .cockpit-radar,
-      .cockpit-panel--opz.cockpit-panel--compact .cockpit-weapons-block,
-      .cockpit-panel--opz.cockpit-panel--compact .cockpit-schematic-wrap {
+      .cockpit-panel--opz.cockpit-panel--compact .cockpit-weapons-block {
         display: none !important;
       }
       .cockpit-panel-title {
@@ -172,6 +177,14 @@
         gap: 10px 12px;
         width: 100%;
         align-items: start;
+      }
+      .cockpit-aswm-load-cd {
+        font-variant-numeric: tabular-nums;
+        font-weight: 600;
+        color: #ffb8e8;
+        font-size: 13px;
+        opacity: 0;
+        transition: opacity 120ms ease;
       }
       .cockpit-aswm-col {
         display: flex;
@@ -289,8 +302,6 @@
         border-radius: 3px;
       }
       .cockpit-track-hp .cockpit-fill-hp { min-width: 3px; }
-      .cockpit-primary-cd { font-variant-numeric: tabular-nums; font-weight: 600; color: #ffc9a0; font-size: 13px; }
-      .cockpit-secondary-cd { font-variant-numeric: tabular-nums; font-weight: 600; color: #ffb8e8; font-size: 13px; }
       .cockpit-life-status { font-variant-numeric: tabular-nums; font-weight: 600; color: #9ecbff; font-size: 13px; text-align: right; }
       .cockpit-row-life.hidden { display: none; }
       .cockpit-rank-en {

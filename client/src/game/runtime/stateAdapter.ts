@@ -1,6 +1,6 @@
 import type { ArraySchema } from "@colyseus/schema";
 import type { MissileState, PlayerState, ShipWreckState, TorpedoState } from "@battlefleet/shared";
-import { MATCH_DURATION_SEC } from "@battlefleet/shared";
+import { MATCH_DURATION_SEC, operationalHalfExtentFromParticipantCount } from "@battlefleet/shared";
 
 export type NetPlayer = Pick<
   PlayerState,
@@ -48,6 +48,7 @@ type WireBattleState = {
   wreckList?: ArraySchema<ShipWreckState>;
   matchPhase?: string;
   matchRemainingSec?: number;
+  operationalAreaHalfExtent?: number;
 };
 
 export function playerListOf(room: { state: unknown }): ArraySchema<NetPlayer> {
@@ -79,6 +80,17 @@ export function readMatchTimer(room: { state: unknown }): { phase: string; remai
   const raw = st?.matchRemainingSec;
   const remainingSec = typeof raw === "number" && Number.isFinite(raw) ? raw : MATCH_DURATION_SEC;
   return { phase, remainingSec };
+}
+
+/** Halbe AO-Kante (m): repliziert, sonst aus `playerList.length` geschätzt. */
+export function readOperationalAreaHalfExtent(room: { state: unknown }): number {
+  const st = room.state as Partial<WireBattleState> | null | undefined;
+  const raw = st?.operationalAreaHalfExtent;
+  if (typeof raw === "number" && Number.isFinite(raw) && raw > 0) {
+    return raw;
+  }
+  const n = st?.playerList?.length ?? 0;
+  return operationalHalfExtentFromParticipantCount(n);
 }
 
 export function getPlayer(

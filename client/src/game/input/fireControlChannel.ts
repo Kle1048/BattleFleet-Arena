@@ -18,6 +18,10 @@ type PlayerRow = {
   lifeState: string;
 };
 
+const TARGET_ACQUIRE_MAX_DIST_M = 600;
+/** Größer als Erfassung — verhindert Flattern an der Reichweitengrenze. */
+const TARGET_LOST_DIST_M = 800;
+
 function findShipSessionFromIntersect(hit: THREE.Intersection): string | null {
   let o: THREE.Object3D | null = hit.object;
   while (o) {
@@ -42,6 +46,8 @@ export function createFireControlChannel(options: {
     players: Iterable<PlayerRow>,
     matchEnded: boolean,
   ) => InputSample;
+  /** Wie **F**: nächstes gegnerisches Ziel im Feuerleitkanal (≤ 600 m), zyklisch. */
+  cycleNextTarget: () => void;
   dispose: () => void;
 } {
   const { scene, camera, canvas, mySessionId, playerLabel, onToast } = options;
@@ -122,8 +128,48 @@ export function createFireControlChannel(options: {
     onToast(`Feuerleitkanal: ${playerLabel(target)}`, "info", 2800);
   };
 
+  const sqDist = (ax: number, az: number, bx: number, bz: number): number => {
+    const dx = ax - bx;
+    const dz = az - bz;
+    return dx * dx + dz * dz;
+  };
+
+  const selectNextTargetWithinRange = (me: PlayerRow): void => {
+    const maxSq = TARGET_ACQUIRE_MAX_DIST_M * TARGET_ACQUIRE_MAX_DIST_M;
+    const candidates = latestPlayers
+      .filter(
+        (p) =>
+          p.id !== mySessionId &&
+          p.lifeState !== PlayerLifeState.AwaitingRespawn &&
+          sqDist(me.x, me.z, p.x, p.z) <= maxSq,
+      )
+      .sort((a, b) => {
+        const da = sqDist(me.x, me.z, a.x, a.z);
+        const db = sqDist(me.x, me.z, b.x, b.z);
+        if (da !== db) return da - db;
+        return a.id.localeCompare(b.id);
+      });
+    if (candidates.length === 0) {
+      onToast(`Feuerleitkanal: Kein Ziel <= ${TARGET_ACQUIRE_MAX_DIST_M} m`, "danger", 2600);
+      return;
+    }
+    if (!designatedTargetId) {
+      setDesignation(candidates[0]!);
+      return;
+    }
+    const idx = candidates.findIndex((p) => p.id === designatedTargetId);
+    const next = candidates[(idx + 1 + candidates.length) % candidates.length]!;
+    setDesignation(next);
+  };
+
   /** Zuletzt aus dem Spieltick — für Raycast-Klicks zwischen Frames. */
   let latestPlayers: PlayerRow[] = [];
+
+  const cycleNextTarget = (): void => {
+    const me = latestPlayers.find((p) => p.id === mySessionId);
+    if (!me || me.lifeState === PlayerLifeState.AwaitingRespawn) return;
+    selectNextTargetWithinRange(me);
+  };
 
   const onPointerDown = (e: PointerEvent): void => {
     if (e.button !== 0) return;
@@ -148,6 +194,10 @@ export function createFireControlChannel(options: {
   };
 
   const onKeyDown = (e: KeyboardEvent): void => {
+    if (e.code === "KeyF" && !e.repeat) {
+      cycleNextTarget();
+      return;
+    }
     if (e.code !== "Escape") return;
     if (designatedTargetId) {
       designatedTargetId = null;
@@ -187,6 +237,10 @@ export function createFireControlChannel(options: {
         clearDesignation("lost");
         return sample;
       }
+      if (sqDist(me.x, me.z, target.x, target.z) > TARGET_LOST_DIST_M * TARGET_LOST_DIST_M) {
+        clearDesignation("lost");
+        return sample;
+      }
 
       updateFireControlRing(me, target);
       setRingVisible(true);
@@ -197,6 +251,7 @@ export function createFireControlChannel(options: {
         aimWorldZ: target.z,
       };
     },
+    cycleNextTarget,
     dispose() {
       canvas.removeEventListener("pointerdown", onPointerDown);
       window.removeEventListener("keydown", onKeyDown);

@@ -9,9 +9,16 @@ export type MobileControlSample = {
   torpedoFire: boolean;
 };
 
+/** Ref-Objekt: `main` setzt `onNextFireControlTarget` nach `createFireControlChannel`. */
+export type MobileHudActions = {
+  onNextFireControlTarget?: () => void;
+};
+
 export type CreateMobileControlsOptions = {
   /** Maschinen-Telegraf (Gas/Ruder) — im Overlay über dem linken Dead-Zone-Layer. */
   telegraphRoot?: HTMLElement;
+  /** Softkey „nächstes Ziel“ — gleiche Logik wie Taste **F**. */
+  hudActions?: MobileHudActions;
 };
 
 function shouldEnableMobileControls(): boolean {
@@ -74,6 +81,16 @@ function bindHoldButton(
   btn.addEventListener("lostpointercapture", () => setState(false));
 }
 
+function bindTapButton(btn: HTMLButtonElement, onTap: () => void): void {
+  btn.addEventListener("pointerdown", (e) => {
+    e.preventDefault();
+  });
+  btn.addEventListener("click", (e) => {
+    e.preventDefault();
+    onTap();
+  });
+}
+
 export function createMobileControls(options?: CreateMobileControlsOptions): {
   sample: () => MobileControlSample;
   dispose: () => void;
@@ -125,6 +142,14 @@ export function createMobileControls(options?: CreateMobileControlsOptions): {
   btnPrimary.style.fontSize = "15px";
   btnPrimary.style.fontWeight = "800";
 
+  const btnNextFc = createActionButton(t("mobile.btnNextFireControl"));
+  btnNextFc.setAttribute("aria-label", t("mobile.ariaNextFireControl"));
+  btnNextFc.style.minHeight = "46px";
+  btnNextFc.style.fontSize = "11px";
+  bindTapButton(btnNextFc, () => {
+    options?.hudActions?.onNextFireControlTarget?.();
+  });
+
   const ssmRow = document.createElement("div");
   ssmRow.style.cssText = "display:grid;grid-template-columns:1fr 1fr;gap:8px;width:100%;";
 
@@ -137,7 +162,7 @@ export function createMobileControls(options?: CreateMobileControlsOptions): {
   btnStb.style.color = "#c8ffd8";
 
   ssmRow.append(btnPort, btnStb);
-  actionGrid.append(ssmRow, btnPrimary);
+  actionGrid.append(btnNextFc, ssmRow, btnPrimary);
   root.appendChild(actionGrid);
 
   document.body.appendChild(root);

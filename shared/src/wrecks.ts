@@ -5,8 +5,8 @@
 /** Wrack bleibt als Hindernis (Server + repliziert für Client-Animation). */
 export const WRECK_DURATION_MS = 60_000;
 
-/** Dauer der sichtbaren Sink-/Kipp-Animation (asymptotisch auslaufend). */
-export const WRECK_ANIM_TOTAL_MS = 42_000;
+/** Dauer der sichtbaren Sink-/Kipp-Animation (asymptotisch auslaufend; kleiner = schnelleres Absinken). */
+export const WRECK_ANIM_TOTAL_MS = 20_000;
 
 /**
  * 0 = Heck zuerst unter (Bug zuletzt oben), 1 = Backbord unten, 2 = Steuerbord unten,

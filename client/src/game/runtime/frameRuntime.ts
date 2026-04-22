@@ -372,7 +372,7 @@ export function runFrameRuntimeStep<
             wreckVariantFromSessionId(sessionId) as 0 | 1 | 2 | 3,
           )
         : null;
-    const wreckSinkY = isDeadVis ? (deathPose ? deathPose.sinkY : -4.2) : 0;
+    const wreckSinkY = isDeadVis ? (deathPose ? deathPose.sinkY : -6.5) : 0;
 
     let shipLineSimX = p.x;
     let shipLineSimZ = p.z;

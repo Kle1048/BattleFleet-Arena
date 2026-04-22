@@ -2,8 +2,7 @@
  * HUD: **Brücke** (links, Navigation) und **OPZ** (rechts, Radar + Waffen + HP).
  */
 
-import { FEATURE_MINES_ENABLED, type ShipClassId } from "@battlefleet/shared";
-import { getAuthoritativeHullProfile } from "../runtime/shipProfileRuntime";
+import type { ShipClassId } from "@battlefleet/shared";
 import { t } from "../../locale/t";
 import {
   RADAR_RANGE_WORLD,
@@ -17,7 +16,6 @@ import {
   type CockpitEsmLine,
   type CockpitRadarThreatLine,
 } from "./cockpitRadarKeys";
-import { renderWeaponSchematic } from "./weaponSchematicMini";
 
 export type { CockpitEsmLine, CockpitRadarThreatLine };
 export { cockpitRadarBlipsKey, cockpitRadarEsmKey, cockpitRadarThreatKey };
@@ -190,14 +188,9 @@ export function createCockpitHud(opts?: {
           <div class="cockpit-track cockpit-track-hp"><div class="cockpit-fill cockpit-fill-hp"></div></div>
         </div>
         <div class="cockpit-weapons-block">
-          <div class="cockpit-subhead">${t("hud.subheadWeapons")}</div>
           <div class="cockpit-row">
-            <span class="cockpit-label">${t("hud.labelPrimary")}</span>
-            <span class="cockpit-primary-cd">—</span>
-          </div>
-          <div class="cockpit-row">
-            <span class="cockpit-label">${t("hud.labelAswm")}</span>
-            <span class="cockpit-secondary-cd">—</span>
+            <span class="cockpit-label">${t("hud.labelAswmLoad")}</span>
+            <span class="cockpit-aswm-load-cd"></span>
           </div>
           <div class="cockpit-aswm-mag">
             <div class="cockpit-aswm-col cockpit-aswm-col--port" aria-label="${t("hud.ariaAswmPort")}">
@@ -209,14 +202,6 @@ export function createCockpitHud(opts?: {
               <div class="cockpit-aswm-dots cockpit-aswm-dots-starboard"></div>
             </div>
           </div>
-          <div class="cockpit-row cockpit-row-mines">
-            <span class="cockpit-label">${t("hud.labelMines")}</span>
-            <span class="cockpit-torpedo-cd">—</span>
-          </div>
-        </div>
-        <div class="cockpit-schematic-wrap">
-          <div class="cockpit-subhead">${t("hud.subheadTopology")}</div>
-          <div class="cockpit-schematic-host"></div>
         </div>
       </div>
     </div>
@@ -266,11 +251,7 @@ export function createCockpitHud(opts?: {
   const playerNameEl = wrap.querySelector(".cockpit-player-name") as HTMLElement;
   const shipClassEl = wrap.querySelector(".cockpit-ship-class") as HTMLElement;
   const fillHp = wrap.querySelector(".cockpit-fill-hp") as HTMLElement;
-  const primaryCdEl = wrap.querySelector(".cockpit-primary-cd") as HTMLElement;
-  const secondaryCdEl = wrap.querySelector(".cockpit-secondary-cd") as HTMLElement;
-  const torpedoCdEl = wrap.querySelector(".cockpit-torpedo-cd") as HTMLElement;
-  const minesRow = wrap.querySelector(".cockpit-row-mines") as HTMLElement;
-  minesRow.hidden = !FEATURE_MINES_ENABLED;
+  const aswmLoadCdEl = wrap.querySelector(".cockpit-aswm-load-cd") as HTMLElement;
   const lifeRow = wrap.querySelector(".cockpit-row-life") as HTMLElement;
   const lifeStatusEl = wrap.querySelector(".cockpit-life-status") as HTMLElement;
   const matchTimeEl = wrap.querySelector(".cockpit-match-time") as HTMLElement;
@@ -285,7 +266,6 @@ export function createCockpitHud(opts?: {
   const radarThreatG = wrap.querySelector(".cockpit-radar-threats") as SVGGElement;
   const radarCourseLine = wrap.querySelector(".cockpit-radar-course") as SVGLineElement;
   const radarMapCenterWrap = wrap.querySelector(".cockpit-radar-mapcenter-wrap") as SVGGElement;
-  const schematicHost = wrap.querySelector(".cockpit-schematic-host") as HTMLElement;
   const aswmDotsPort = wrap.querySelector(".cockpit-aswm-dots-port") as HTMLElement;
   const aswmDotsStarboard = wrap.querySelector(".cockpit-aswm-dots-starboard") as HTMLElement;
 
@@ -304,7 +284,6 @@ export function createCockpitHud(opts?: {
   let lastRadarBlipsKey = "";
   let lastEsmKey = "";
   let lastThreatKey = "";
-  let lastSchematicKey = "";
 
   function drawThreatLines(lines: CockpitRadarThreatLine[]): void {
     radarThreatG.replaceChildren();
@@ -410,18 +389,16 @@ export function createCockpitHud(opts?: {
       headingRad,
       worldX,
       worldZ,
-      mainMountTrainRad,
       aswmMagPortCap,
       aswmMagStarboardCap,
       aswmRemainingPort,
       aswmRemainingStarboard,
       hp,
       maxHp,
-      primaryCooldownSec,
       secondaryCooldownSec,
-      torpedoCooldownSec,
-      mineCount,
-      mineMaxCount,
+      torpedoCooldownSec: _torpedoCooldownSec,
+      mineCount: _mineCount,
+      mineMaxCount: _mineMaxCount,
       respawnCountdownSec,
       spawnProtectionSec,
       matchRemainingSec,
@@ -431,7 +408,6 @@ export function createCockpitHud(opts?: {
       xpLine,
       shipClassLabel,
       playerDisplayName,
-      shipClassId,
       radarBlips,
       radarVisible,
       ownRadarActive,
@@ -471,38 +447,6 @@ export function createCockpitHud(opts?: {
           ? "linear-gradient(90deg, rgba(80,200,120,0.4), rgba(120,255,160,0.95))"
           : "linear-gradient(90deg, rgba(255,200,80,0.5), rgba(255,90,90,0.95))";
 
-      if (primaryCooldownSec > 0.05) {
-        primaryCdEl.textContent = `${primaryCooldownSec.toFixed(1)} s`;
-        primaryCdEl.style.opacity = "0.9";
-      } else {
-        primaryCdEl.textContent = t("hud.weaponReady");
-        primaryCdEl.style.opacity = "0.55";
-      }
-
-      if (secondaryCooldownSec > 0.05) {
-        secondaryCdEl.textContent = `${secondaryCooldownSec.toFixed(1)} s`;
-        secondaryCdEl.style.opacity = "0.9";
-      } else {
-        secondaryCdEl.textContent = t("hud.weaponReady");
-        secondaryCdEl.style.opacity = "0.55";
-      }
-
-      if (FEATURE_MINES_ENABLED) {
-        if (torpedoCooldownSec > 0.05) {
-          torpedoCdEl.textContent = `${torpedoCooldownSec.toFixed(1)} s`;
-          torpedoCdEl.style.opacity = "0.9";
-          torpedoCdEl.style.color = "";
-        } else if (mineCount >= mineMaxCount) {
-          torpedoCdEl.textContent = t("hud.minesMax");
-          torpedoCdEl.style.opacity = "1";
-          torpedoCdEl.style.color = "#ff6b6b";
-        } else {
-          torpedoCdEl.textContent = t("hud.weaponReady");
-          torpedoCdEl.style.opacity = "0.55";
-          torpedoCdEl.style.color = "";
-        }
-      }
-
       if (respawnCountdownSec > 0.05) {
         lifeRow.classList.remove("hidden");
         lifeStatusEl.textContent = t("hud.statusRespawnIn", {
@@ -532,12 +476,13 @@ export function createCockpitHud(opts?: {
 
       fillAswmMagRow(aswmDotsPort, aswmMagPortCap, aswmRemainingPort);
       fillAswmMagRow(aswmDotsStarboard, aswmMagStarboardCap, aswmRemainingStarboard);
-
-      const prof = getAuthoritativeHullProfile(shipClassId);
-      const sk = `${shipClassId}:${mainMountTrainRad.toFixed(3)}`;
-      if (sk !== lastSchematicKey) {
-        lastSchematicKey = sk;
-        renderWeaponSchematic(schematicHost, prof, mainMountTrainRad);
+      const aswmRemainingTotal = aswmRemainingPort + aswmRemainingStarboard;
+      if (aswmRemainingTotal <= 0 && secondaryCooldownSec > 0.05) {
+        aswmLoadCdEl.textContent = `${secondaryCooldownSec.toFixed(1)} s`;
+        aswmLoadCdEl.style.opacity = "0.95";
+      } else {
+        aswmLoadCdEl.textContent = "";
+        aswmLoadCdEl.style.opacity = "0";
       }
 
       if (radarVisible) {

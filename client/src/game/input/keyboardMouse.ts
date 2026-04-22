@@ -5,7 +5,11 @@ import {
   FEATURE_MINES_ENABLED,
 } from "@battlefleet/shared";
 import { createMachineryTelegraphLevers } from "./machineryTelegraphLevers";
-import { createMobileControls, isMobileControlSurface } from "./mobileControls";
+import {
+  createMobileControls,
+  isMobileControlSurface,
+  type MobileHudActions,
+} from "./mobileControls";
 import {
   TELEGRAPH_RUDDER_STEPS,
   TELEGRAPH_STOP_INDEX,
@@ -83,6 +87,7 @@ export function createInputHandlers(
   canvas: HTMLElement,
   getGroundPoint: (ndcX: number, ndcY: number) => { x: number; z: number } | null,
   mobileAimEngagement?: MobileAimEngagementRef,
+  mobileHudActions?: MobileHudActions,
 ): {
   sample: () => InputSample;
   /** Suchrad umschalten (HUD-Knopf / Touch) — wirkt wie **R**. */
@@ -93,7 +98,7 @@ export function createInputHandlers(
   const mobileSurface = isMobileControlSurface();
   const telegraph = createMachineryTelegraphLevers({ interactive: mobileSurface });
   const mobileControls = createMobileControls(
-    mobileSurface ? { telegraphRoot: telegraph.root } : undefined,
+    mobileSurface ? { telegraphRoot: telegraph.root, hudActions: mobileHudActions } : undefined,
   );
   if (!mobileSurface) {
     document.body.appendChild(telegraph.root);

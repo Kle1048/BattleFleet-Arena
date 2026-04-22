@@ -2,9 +2,10 @@ import * as THREE from "three";
 import { Water } from "three/examples/jsm/objects/Water.js";
 import { Sky } from "three/examples/jsm/objects/Sky.js";
 import {
-  AREA_OF_OPERATIONS_HALF_EXTENT,
   DEFAULT_MAP_ISLANDS,
   DEFAULT_MAP_ISLAND_POLYGONS,
+  MAP_WORLD_HALF_EXTENT,
+  OPERATIONAL_AREA_HALF_EXTENT_MIN,
   SEA_CONTROL_ZONE_HALF_EXTENT,
 } from "@battlefleet/shared";
 import { VisualColorTokens } from "../runtime/materialLibrary";
@@ -62,6 +63,8 @@ export type GameSceneBundle = {
   islandCollisionPolygonGroup: THREE.Group;
   getEnvironmentTuning: () => EnvironmentTuning;
   applyEnvironmentTuning: (patch: Partial<EnvironmentTuning>) => void;
+  /** Rote AO-Linie — `half` = `room.state.operationalAreaHalfExtent` (Server). */
+  setOperationalAreaHalfExtent: (halfExtent: number) => void;
 };
 
 async function loadWaterNormals(): Promise<THREE.Texture> {
@@ -139,11 +142,9 @@ function applyEnvironmentState(
   if (wm.uniforms.size) wm.uniforms.size.value = tuning.waterSize;
 }
 
-/**
- * Halbe Kartenbreite/-tiefe (Wasser + Gitter). An Operational-Area gekoppelt (Debug kompakt).
- */
+/** Halbe Kartenbreite/-tiefe (Wasser-Plane) — fest **10 000 × 10 000 m**, unabhängig von AO. */
 function waterMapHalfExtent(): number {
-  return Math.round(AREA_OF_OPERATIONS_HALF_EXTENT * 2.8);
+  return MAP_WORLD_HALF_EXTENT;
 }
 
 /** Referenz: halbe sichtbare „Karten“-Höhe in XZ (FX-Culling, Näherung). */
@@ -276,17 +277,20 @@ export async function createGameScene(): Promise<GameSceneBundle> {
 
   scene.add(water);
 
-  /** Grenze des Einsatzgebiets — deckungsgleich mit Server-`AREA_OF_OPERATIONS_HALF_EXTENT`. */
-  const opHalf = AREA_OF_OPERATIONS_HALF_EXTENT;
+  /** Grenze des Einsatzgebiets — folgt `room.state.operationalAreaHalfExtent` (Server). */
   const borderY = 0.18;
-  const borderPts = [
-    new THREE.Vector3(worldToRenderX(-opHalf), borderY, -opHalf),
-    new THREE.Vector3(worldToRenderX(opHalf), borderY, -opHalf),
-    new THREE.Vector3(worldToRenderX(opHalf), borderY, opHalf),
-    new THREE.Vector3(worldToRenderX(-opHalf), borderY, opHalf),
-    new THREE.Vector3(worldToRenderX(-opHalf), borderY, -opHalf),
-  ];
-  const borderGeom = new THREE.BufferGeometry().setFromPoints(borderPts);
+  const borderGeom = new THREE.BufferGeometry();
+  const applyOpsBorderHalf = (opHalf: number): void => {
+    const h = Math.max(1, opHalf);
+    borderGeom.setFromPoints([
+      new THREE.Vector3(worldToRenderX(-h), borderY, -h),
+      new THREE.Vector3(worldToRenderX(h), borderY, -h),
+      new THREE.Vector3(worldToRenderX(h), borderY, h),
+      new THREE.Vector3(worldToRenderX(-h), borderY, h),
+      new THREE.Vector3(worldToRenderX(-h), borderY, -h),
+    ]);
+  };
+  applyOpsBorderHalf(OPERATIONAL_AREA_HALF_EXTENT_MIN);
   const borderMat = new THREE.LineBasicMaterial({
     color: VisualColorTokens.opsBorder,
     depthWrite: false,
@@ -356,6 +360,11 @@ export async function createGameScene(): Promise<GameSceneBundle> {
     applyEnvironmentState(tuning, { scene, sky, ambient, sun, water });
   };
 
+  const setOperationalAreaHalfExtent = (halfExtent: number): void => {
+    if (!Number.isFinite(halfExtent) || halfExtent <= 0) return;
+    applyOpsBorderHalf(halfExtent);
+  };
+
   return {
     scene,
     camera,
@@ -366,6 +375,7 @@ export async function createGameScene(): Promise<GameSceneBundle> {
     islandCollisionPolygonGroup,
     getEnvironmentTuning,
     applyEnvironmentTuning,
+    setOperationalAreaHalfExtent,
   };
 }
 

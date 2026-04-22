@@ -1,7 +1,12 @@
 import { Room } from "@colyseus/core";
 import type { Client } from "@colyseus/core";
 import {
-  AREA_OF_OPERATIONS_HALF_EXTENT,
+  desiredServerBotCount as computeDesiredServerBotCount,
+  MAX_HUMAN_CLIENTS_IN_ROOM,
+  readMinTotalParticipantsFromEnv,
+} from "../serverBotPopulation.js";
+import {
+  operationalHalfExtentFromParticipantCount,
   ARTILLERY_DAMAGE,
   ARTILLERY_PLAYER_MAX_HP,
   ARTILLERY_SPLASH_RADIUS,
@@ -112,10 +117,18 @@ import {
   isInSeaControlZone,
   missileBearingInHardkillLayerMountSector,
   SEA_CONTROL_XP_MULTIPLIER,
+  createBotController,
+  type BotVisibleMissile,
+  type BotVisiblePlayer,
+  type BotVisibleTorpedo,
 } from "@battlefleet/shared";
 
 const TICK_HZ = 20;
 const HP_REGEN_PER_SEC_FACTOR = 0.01;
+/** Abstand zwischen Bot-Spawns, wenn Zielpopulation noch nicht erreicht ist. */
+const SERVER_BOT_SPAWN_STAGGER_MS = 450;
+/** Abstand beim Entfernen von Bots, wenn Menschen die Slots füllen (sanftes Ausdünnen). */
+const SERVER_BOT_REMOVE_STAGGER_MS = 1600;
 
 export type InputPayload = {
   throttle: number;
@@ -235,12 +248,31 @@ export class BattleRoom extends Room<BattleState> {
   /** OBB-überlappende Schiff-Paare (`idA|idB`), Vor-Frame für Kanten-SFX bei Schiff-Schiff. */
   private collisionShipPairPrev = new Set<string>();
 
+  /**
+   * Mindestzahl Teilnehmer (Menschen+Bots), sobald ≥1 Mensch im Raum ist; siehe `BFA_MIN_ROOM_PLAYERS`.
+   * Ohne Menschen werden keine Server-Bots nachgezogen.
+   */
+  private readonly minTotalParticipants = readMinTotalParticipantsFromEnv();
+  private nextServerBotSerial = 1;
+  private readonly serverBotIds = new Set<string>();
+  private readonly serverBotBrains = new Map<
+    string,
+    ReturnType<typeof createBotController>
+  >();
+  private lastServerBotSpawnAtMs = Date.now() - SERVER_BOT_SPAWN_STAGGER_MS;
+  private lastServerBotRemovalAtMs = Date.now();
+
   onCreate() {
     this.setState(new BattleState());
+    this.syncOperationalAreaHalfExtent();
     this.matchEndsAtMs = Date.now() + MATCH_DURATION_MS;
     this.matchEndBroadcastSent = false;
     this.setSeatReservationTime(60);
-    console.log("[BattleRoom] onCreate, roomId=%s", this.roomId);
+    console.log(
+      "[BattleRoom] onCreate, roomId=%s minTotalParticipants=%d (BFA_MIN_ROOM_PLAYERS)",
+      this.roomId,
+      this.minTotalParticipants,
+    );
 
     this.onMessage("ping", (client, payload: { clientTime?: number }) => {
       const t = Number(payload?.clientTime);
@@ -252,39 +284,7 @@ export class BattleRoom extends Room<BattleState> {
     });
 
     this.onMessage("input", (client, payload: InputPayload) => {
-      const row = this.sim.get(client.sessionId);
-      if (!row) return;
-      const ps = this.findPlayer(client.sessionId);
-      if (!ps || ps.lifeState === PlayerLifeState.AwaitingRespawn) return;
-
-      row.ship.throttle = clampUnit(Number(payload.throttle) || 0);
-      row.lastRudderInput = clampUnit(Number(payload.rudderInput) || 0);
-      const ax = payload.aimX;
-      const az = payload.aimZ;
-      if (typeof ax === "number" && Number.isFinite(ax)) row.aimX = ax;
-      if (typeof az === "number" && Number.isFinite(az)) row.aimZ = az;
-      const mineSpawnLocalZ = payload.mineSpawnLocalZ;
-      if (typeof mineSpawnLocalZ === "number" && Number.isFinite(mineSpawnLocalZ)) {
-        row.mineSpawnLocalZ = clampRange(mineSpawnLocalZ, -140, 20);
-      }
-      if (typeof payload.radarActive === "boolean") {
-        row.radarActive = payload.radarActive;
-      }
-
-      if (payload.primaryFire === true) {
-        this.tryPrimaryFire(client, row);
-      }
-      if (payload.secondaryFire === true) {
-        const s = payload.aswmFireSide;
-        this.trySecondaryFire(
-          client,
-          row,
-          s === "port" || s === "starboard" ? s : undefined,
-        );
-      }
-      if (payload.torpedoFire === true) {
-        this.tryTorpedoFire(client, row);
-      }
+      this.applyInputPayload(client.sessionId, payload);
     });
 
     this.onMessage("debugSetShipClass", (client, payload: { shipClass?: string }) => {
@@ -314,7 +314,22 @@ export class BattleRoom extends Room<BattleState> {
     }, 1000 / TICK_HZ);
 
     this.lastPassiveXpAtMs = Date.now();
-    this.maxClients = 16;
+    this.maxClients = MAX_HUMAN_CLIENTS_IN_ROOM;
+  }
+
+  private getOperationalHalfExtent(): number {
+    const raw = this.state.operationalAreaHalfExtent;
+    if (typeof raw === "number" && Number.isFinite(raw) && raw > 0) {
+      return raw;
+    }
+    return operationalHalfExtentFromParticipantCount(this.state.playerList.length);
+  }
+
+  private syncOperationalAreaHalfExtent(): void {
+    const next = operationalHalfExtentFromParticipantCount(this.state.playerList.length);
+    if (this.state.operationalAreaHalfExtent !== next) {
+      this.state.operationalAreaHalfExtent = next;
+    }
   }
 
   private findPlayer(sessionId: string): PlayerState | undefined {
@@ -322,6 +337,274 @@ export class BattleRoom extends Room<BattleState> {
       if (p.id === sessionId) return p;
     }
     return undefined;
+  }
+
+  private applyInputPayload(sessionId: string, payload: InputPayload): void {
+    const row = this.sim.get(sessionId);
+    if (!row) return;
+    const ps = this.findPlayer(sessionId);
+    if (!ps || ps.lifeState === PlayerLifeState.AwaitingRespawn) return;
+
+    row.ship.throttle = clampUnit(Number(payload.throttle) || 0);
+    row.lastRudderInput = clampUnit(Number(payload.rudderInput) || 0);
+    const ax = payload.aimX;
+    const az = payload.aimZ;
+    if (typeof ax === "number" && Number.isFinite(ax)) row.aimX = ax;
+    if (typeof az === "number" && Number.isFinite(az)) row.aimZ = az;
+    const mineSpawnLocalZ = payload.mineSpawnLocalZ;
+    if (typeof mineSpawnLocalZ === "number" && Number.isFinite(mineSpawnLocalZ)) {
+      row.mineSpawnLocalZ = clampRange(mineSpawnLocalZ, -140, 20);
+    }
+    if (typeof payload.radarActive === "boolean") {
+      row.radarActive = payload.radarActive;
+    }
+
+    if (payload.primaryFire === true) {
+      this.tryPrimaryFire(sessionId, row);
+    }
+    if (payload.secondaryFire === true) {
+      const s = payload.aswmFireSide;
+      this.trySecondaryFire(sessionId, row, s === "port" || s === "starboard" ? s : undefined);
+    }
+    if (payload.torpedoFire === true) {
+      this.tryTorpedoFire(sessionId, row);
+    }
+  }
+
+  private desiredServerBotCount(): number {
+    return computeDesiredServerBotCount(this.minTotalParticipants, this.clients.length);
+  }
+
+  private reconcileServerBots(now: number): void {
+    const target = this.desiredServerBotCount();
+    const current = this.serverBotIds.size;
+    if (current === target) return;
+    if (current < target) {
+      if (now - this.lastServerBotSpawnAtMs >= SERVER_BOT_SPAWN_STAGGER_MS) {
+        this.spawnServerBot();
+        this.lastServerBotSpawnAtMs = now;
+      }
+    } else if (now - this.lastServerBotRemovalAtMs >= SERVER_BOT_REMOVE_STAGGER_MS) {
+      const pick = this.serverBotIds.values().next().value as string | undefined;
+      if (pick) this.removeServerBot(pick);
+      this.lastServerBotRemovalAtMs = now;
+    }
+  }
+
+  private spawnServerBot(): void {
+    const n = this.nextServerBotSerial++;
+    const id = `bfa_bot_${n}_${Math.random().toString(36).slice(2, 8)}`;
+    this.joinNewParticipant(id, `Bot ${n}`);
+    this.serverBotIds.add(id);
+    const brain = createBotController();
+    brain.enable();
+    this.serverBotBrains.set(id, brain);
+  }
+
+  private removeServerBot(sessionId: string): void {
+    if (!this.serverBotIds.has(sessionId)) return;
+    this.serverBotIds.delete(sessionId);
+    const brain = this.serverBotBrains.get(sessionId);
+    if (brain) {
+      brain.disable();
+      this.serverBotBrains.delete(sessionId);
+    }
+    this.detachParticipant(sessionId);
+  }
+
+  private buildBotVisiblePlayerList(): BotVisiblePlayer[] {
+    const out: BotVisiblePlayer[] = [];
+    for (const p of this.state.playerList) {
+      out.push({
+        id: p.id,
+        x: p.x,
+        z: p.z,
+        headingRad: p.headingRad,
+        shipClass: p.shipClass,
+        hp: p.hp,
+        maxHp: p.maxHp,
+        lifeState: p.lifeState,
+        primaryCooldownSec: p.primaryCooldownSec,
+        secondaryCooldownSec: p.secondaryCooldownSec,
+        torpedoCooldownSec: p.torpedoCooldownSec,
+        adHudIncomingAswm: p.adHudIncomingAswm,
+      });
+    }
+    return out;
+  }
+
+  private buildBotMissileList(): BotVisibleMissile[] {
+    const out: BotVisibleMissile[] = [];
+    for (const m of this.state.missileList) {
+      out.push({
+        missileId: m.missileId,
+        ownerId: m.ownerId,
+        x: m.x,
+        z: m.z,
+      });
+    }
+    return out;
+  }
+
+  private buildBotTorpedoList(): BotVisibleTorpedo[] {
+    const out: BotVisibleTorpedo[] = [];
+    for (const t of this.state.torpedoList) {
+      out.push({
+        torpedoId: t.torpedoId,
+        ownerId: t.ownerId,
+        x: t.x,
+        z: t.z,
+      });
+    }
+    return out;
+  }
+
+  private tickServerBotBrains(now: number): void {
+    if (this.serverBotIds.size === 0) return;
+    const players = this.buildBotVisiblePlayerList();
+    const missiles = this.buildBotMissileList();
+    const torpedoes = this.buildBotTorpedoList();
+    const opHalf = this.getOperationalHalfExtent();
+    for (const id of this.serverBotIds) {
+      const brain = this.serverBotBrains.get(id);
+      if (!brain) continue;
+      const cmd = brain.update(now, players, id, missiles, torpedoes, opHalf);
+      if (!cmd) continue;
+      this.applyInputPayload(id, {
+        throttle: cmd.throttle,
+        rudderInput: cmd.rudderInput,
+        aimX: cmd.aimWorldX,
+        aimZ: cmd.aimWorldZ,
+        primaryFire: cmd.primaryFire,
+        secondaryFire: cmd.secondaryFire,
+        torpedoFire: cmd.torpedoFire,
+        radarActive: cmd.radarActive,
+      });
+    }
+  }
+
+  private joinNewParticipant(sessionId: string, displayName: string): void {
+    const shipClass = SHIP_CLASS_FAC;
+    const others: { x: number; z: number }[] = [];
+    for (const q of this.state.playerList) {
+      others.push({ x: q.x, z: q.z });
+    }
+    const angleForFallback =
+      this.state.playerList.length * 2.5132741228718345 + sessionId.length * 0.37;
+    const spawnHalf = operationalHalfExtentFromParticipantCount(this.state.playerList.length + 1);
+    const spawnPick =
+      tryPickRespawnPosition(
+        spawnHalf,
+        DEFAULT_MAP_ISLAND_POLYGONS,
+        others,
+        MIN_RESPAWN_SEPARATION,
+        Math.random,
+      ) ??
+      pickRimSpawnDeterministic(
+        spawnHalf,
+        DEFAULT_MAP_ISLAND_POLYGONS,
+        others,
+        MIN_RESPAWN_SEPARATION,
+        angleForFallback,
+      );
+    const spawnX = spawnPick.x;
+    const spawnZ = spawnPick.z;
+
+    const ship = createShipState(spawnX, spawnZ);
+    ship.headingRad = spawnPick.headingRad;
+    const aimX = spawnX;
+    const aimZ = spawnZ + 80;
+    const simRow: SimEntry = {
+      ship,
+      lastRudderInput: 0,
+      aimX,
+      aimZ,
+      mineSpawnLocalZ: -22,
+      oobSinceMs: null,
+      primaryReadyAtMs: 0,
+      aswmRemainingPort: 0,
+      aswmRemainingStarboard: 0,
+      aswmNextShotAtMs: 0,
+      aswmReloadUntilMs: 0,
+      torpedoReadyAtMs: 0,
+      adSamNextAtMs: 0,
+      adPdNextAtMs: 0,
+      adCiwsNextAtMs: 0,
+      adSoftkillLastUsedAtMs: 0,
+      respawnAtMs: null,
+      invulnerableUntilMs: 0,
+      radarActive: true,
+    };
+    this.resetAswmMagazineFromClass(simRow, shipClass);
+    this.sim.set(sessionId, simRow);
+
+    const ps = new PlayerState();
+    ps.id = sessionId;
+    ps.x = ship.x;
+    ps.z = ship.z;
+    ps.headingRad = ship.headingRad;
+    ps.speed = ship.speed;
+    ps.rudder = ship.rudder;
+    ps.aimX = aimX;
+    ps.aimZ = aimZ;
+    ps.oobCountdownSec = 0;
+    ps.shipClass = shipClass;
+    ps.displayName = displayName;
+    ps.level = 1;
+    ps.xp = 0;
+    const baseHp = shipClassBaseMaxHp(shipClass);
+    ps.maxHp = progressionMaxHpForLevel(1, baseHp);
+    ps.hp = ps.maxHp;
+    ps.primaryCooldownSec = 0;
+    ps.lifeState = PlayerLifeState.Alive;
+    ps.respawnCountdownSec = 0;
+    ps.spawnProtectionSec = 0;
+    ps.secondaryCooldownSec = 0;
+    ps.torpedoCooldownSec = 0;
+    ps.score = 0;
+    ps.kills = 0;
+    ps.radarActive = true;
+    ps.adHudIncomingAswm = 0;
+    ps.adHudCanCommitHardkill = false;
+    ps.adHardkillCommitRemainingSec = 0;
+    ps.adHudRadarAffectsSam = false;
+    ps.aswmRemainingPort = simRow.aswmRemainingPort;
+    ps.aswmRemainingStarboard = simRow.aswmRemainingStarboard;
+    this.state.playerList.push(ps);
+    assertPlayerLifeInvariant(ps.lifeState, ps.hp, ps.maxHp);
+    this.syncOperationalAreaHalfExtent();
+  }
+
+  private detachParticipant(sessionId: string): void {
+    this.collisionIslandOverlapPrev.delete(sessionId);
+    this.collisionWreckOverlapPrev.delete(sessionId);
+    this.sim.delete(sessionId);
+    const list = this.state.playerList;
+    for (let i = list.length - 1; i >= 0; i--) {
+      const p = list.at(i);
+      if (p?.id === sessionId) {
+        list.deleteAt(i);
+        break;
+      }
+    }
+    this.pendingShells = this.pendingShells.filter((s) => s.ownerSessionId !== sessionId);
+    const ml = this.state.missileList;
+    for (let i = ml.length - 1; i >= 0; i--) {
+      const m = ml.at(i);
+      if (m?.ownerId === sessionId) {
+        this.missileSpawnedAt.delete(m.missileId);
+        ml.deleteAt(i);
+      }
+    }
+    const tl = this.state.torpedoList;
+    for (let i = tl.length - 1; i >= 0; i--) {
+      const t = tl.at(i);
+      if (t?.ownerId === sessionId) {
+        this.torpedoSpawnedAt.delete(t.torpedoId);
+        tl.deleteAt(i);
+      }
+    }
+    this.syncOperationalAreaHalfExtent();
   }
 
   private resetAswmMagazineFromClass(row: SimEntry, shipClass: string): void {
@@ -424,94 +707,8 @@ export class BattleRoom extends Room<BattleState> {
   }
 
   onJoin(client: Client, options?: { shipClass?: string; displayName?: string }) {
-    const shipClass = SHIP_CLASS_FAC;
     const displayName = sanitizePlayerDisplayName(options?.displayName);
-    const others: { x: number; z: number }[] = [];
-    for (const q of this.state.playerList) {
-      others.push({ x: q.x, z: q.z });
-    }
-    const angleForFallback =
-      this.state.playerList.length * 2.5132741228718345 + client.sessionId.length * 0.37;
-    const spawnPick =
-      tryPickRespawnPosition(
-        AREA_OF_OPERATIONS_HALF_EXTENT,
-        DEFAULT_MAP_ISLAND_POLYGONS,
-        others,
-        MIN_RESPAWN_SEPARATION,
-        Math.random,
-      ) ??
-      pickRimSpawnDeterministic(
-        AREA_OF_OPERATIONS_HALF_EXTENT,
-        DEFAULT_MAP_ISLAND_POLYGONS,
-        others,
-        MIN_RESPAWN_SEPARATION,
-        angleForFallback,
-      );
-    const spawnX = spawnPick.x;
-    const spawnZ = spawnPick.z;
-
-    const ship = createShipState(spawnX, spawnZ);
-    ship.headingRad = spawnPick.headingRad;
-    const aimX = spawnX;
-    const aimZ = spawnZ + 80;
-    const simRow: SimEntry = {
-      ship,
-      lastRudderInput: 0,
-      aimX,
-      aimZ,
-      mineSpawnLocalZ: -22,
-      oobSinceMs: null,
-      primaryReadyAtMs: 0,
-      aswmRemainingPort: 0,
-      aswmRemainingStarboard: 0,
-      aswmNextShotAtMs: 0,
-      aswmReloadUntilMs: 0,
-      torpedoReadyAtMs: 0,
-      adSamNextAtMs: 0,
-      adPdNextAtMs: 0,
-      adCiwsNextAtMs: 0,
-      adSoftkillLastUsedAtMs: 0,
-      respawnAtMs: null,
-      invulnerableUntilMs: 0,
-      radarActive: true,
-    };
-    this.resetAswmMagazineFromClass(simRow, shipClass);
-    this.sim.set(client.sessionId, simRow);
-
-    const ps = new PlayerState();
-    ps.id = client.sessionId;
-    ps.x = ship.x;
-    ps.z = ship.z;
-    ps.headingRad = ship.headingRad;
-    ps.speed = ship.speed;
-    ps.rudder = ship.rudder;
-    ps.aimX = aimX;
-    ps.aimZ = aimZ;
-    ps.oobCountdownSec = 0;
-    ps.shipClass = shipClass;
-    ps.displayName = displayName;
-    ps.level = 1;
-    ps.xp = 0;
-    const baseHp = shipClassBaseMaxHp(shipClass);
-    ps.maxHp = progressionMaxHpForLevel(1, baseHp);
-    ps.hp = ps.maxHp;
-    ps.primaryCooldownSec = 0;
-    ps.lifeState = PlayerLifeState.Alive;
-    ps.respawnCountdownSec = 0;
-    ps.spawnProtectionSec = 0;
-    ps.secondaryCooldownSec = 0;
-    ps.torpedoCooldownSec = 0;
-    ps.score = 0;
-    ps.kills = 0;
-    ps.radarActive = true;
-    ps.adHudIncomingAswm = 0;
-    ps.adHudCanCommitHardkill = false;
-    ps.adHardkillCommitRemainingSec = 0;
-    ps.adHudRadarAffectsSam = false;
-    ps.aswmRemainingPort = simRow.aswmRemainingPort;
-    ps.aswmRemainingStarboard = simRow.aswmRemainingStarboard;
-    this.state.playerList.push(ps);
-    assertPlayerLifeInvariant(ps.lifeState, ps.hp, ps.maxHp);
+    this.joinNewParticipant(client.sessionId, displayName);
     console.log(
       "[BattleRoom] onJoin sessionId=%s playerList.length=%d roomId=%s",
       client.sessionId,
@@ -521,36 +718,7 @@ export class BattleRoom extends Room<BattleState> {
   }
 
   onLeave(client: Client) {
-    this.collisionIslandOverlapPrev.delete(client.sessionId);
-    this.collisionWreckOverlapPrev.delete(client.sessionId);
-    this.sim.delete(client.sessionId);
-    const list = this.state.playerList;
-    for (let i = list.length - 1; i >= 0; i--) {
-      const p = list.at(i);
-      if (p?.id === client.sessionId) {
-        list.deleteAt(i);
-        break;
-      }
-    }
-    this.pendingShells = this.pendingShells.filter(
-      (s) => s.ownerSessionId !== client.sessionId,
-    );
-    const ml = this.state.missileList;
-    for (let i = ml.length - 1; i >= 0; i--) {
-      const m = ml.at(i);
-      if (m?.ownerId === client.sessionId) {
-        this.missileSpawnedAt.delete(m.missileId);
-        ml.deleteAt(i);
-      }
-    }
-    const tl = this.state.torpedoList;
-    for (let i = tl.length - 1; i >= 0; i--) {
-      const t = tl.at(i);
-      if (t?.ownerId === client.sessionId) {
-        this.torpedoSpawnedAt.delete(t.torpedoId);
-        tl.deleteAt(i);
-      }
-    }
+    this.detachParticipant(client.sessionId);
   }
 
   private enterAwaitingRespawn(
@@ -679,16 +847,17 @@ export class BattleRoom extends Room<BattleState> {
 
       const angleSeed =
         placed.length * 2.5132741228718345 + p.id.length * 0.37;
+      const spawnHalf = this.getOperationalHalfExtent();
       const spawnPick =
         tryPickRespawnPosition(
-          AREA_OF_OPERATIONS_HALF_EXTENT,
+          spawnHalf,
           DEFAULT_MAP_ISLAND_POLYGONS,
           placed,
           MIN_RESPAWN_SEPARATION,
           Math.random,
         ) ??
         pickRimSpawnDeterministic(
-          AREA_OF_OPERATIONS_HALF_EXTENT,
+          spawnHalf,
           DEFAULT_MAP_ISLAND_POLYGONS,
           placed,
           MIN_RESPAWN_SEPARATION,
@@ -749,6 +918,7 @@ export class BattleRoom extends Room<BattleState> {
       assertPlayerLifeInvariant(p.lifeState, p.hp, p.maxHp);
     }
 
+    this.syncOperationalAreaHalfExtent();
     this.broadcast("matchRestarted", {} as Record<string, never>);
     console.log("[BattleRoom] match restarted roomId=%s", this.roomId);
   }
@@ -782,16 +952,17 @@ export class BattleRoom extends Room<BattleState> {
       others.push({ x: q.x, z: q.z });
     }
 
+    const respawnHalf = this.getOperationalHalfExtent();
     const spawn =
       tryPickRespawnPosition(
-        AREA_OF_OPERATIONS_HALF_EXTENT,
+        respawnHalf,
         DEFAULT_MAP_ISLAND_POLYGONS,
         others,
         MIN_RESPAWN_SEPARATION,
         Math.random,
       ) ??
       pickRimSpawnDeterministic(
-        AREA_OF_OPERATIONS_HALF_EXTENT,
+        respawnHalf,
         DEFAULT_MAP_ISLAND_POLYGONS,
         others,
         MIN_RESPAWN_SEPARATION,
@@ -872,9 +1043,9 @@ export class BattleRoom extends Room<BattleState> {
     }
   }
 
-  private tryPrimaryFire(client: Client, row: SimEntry): void {
+  private tryPrimaryFire(ownerSessionId: string, row: SimEntry): void {
     if (!this.isMatchCombatActive()) return;
-    const p = this.findPlayer(client.sessionId);
+    const p = this.findPlayer(ownerSessionId);
     if (!p || !canUsePrimaryWeapon(p.lifeState)) return;
 
     const now = Date.now();
@@ -912,13 +1083,13 @@ export class BattleRoom extends Room<BattleState> {
         impactAtMs: now + salvo.flightMs,
         landX: salvo.landX,
         landZ: salvo.landZ,
-        ownerSessionId: client.sessionId,
+        ownerSessionId,
         shellId,
       });
 
       this.broadcast("artyFired", {
         shellId,
-        ownerId: client.sessionId,
+        ownerId: ownerSessionId,
         fromX: w.x,
         fromZ: w.z,
         toX: salvo.landX,
@@ -932,12 +1103,12 @@ export class BattleRoom extends Room<BattleState> {
   }
 
   private trySecondaryFire(
-    client: Client,
+    ownerSessionId: string,
     row: SimEntry,
     explicitSide?: "port" | "starboard",
   ): void {
     if (!this.isMatchCombatActive()) return;
-    const p = this.findPlayer(client.sessionId);
+    const p = this.findPlayer(ownerSessionId);
     if (!p || !canUsePrimaryWeapon(p.lifeState)) return;
 
     const now = Date.now();
@@ -947,7 +1118,7 @@ export class BattleRoom extends Room<BattleState> {
     const aswmCap = getShipClassProfile(p.shipClass).aswmMaxPerOwner;
     let owned = 0;
     for (const m of this.state.missileList) {
-      if (m.ownerId === client.sessionId) owned++;
+      if (m.ownerId === ownerSessionId) owned++;
     }
     if (owned >= aswmCap) return;
 
@@ -1017,20 +1188,20 @@ export class BattleRoom extends Room<BattleState> {
     const missileId = this.nextMissileId++;
     const ms = new MissileState();
     ms.missileId = missileId;
-    ms.ownerId = client.sessionId;
+    ms.ownerId = ownerSessionId;
     ms.targetId = "";
     ms.x = pose.x;
     ms.z = pose.z;
     ms.headingRad = pose.headingRad;
     this.state.missileList.push(ms);
     this.missileSpawnedAt.set(missileId, now);
-    this.broadcast("aswmFired", { missileId, ownerId: client.sessionId });
+    this.broadcast("aswmFired", { missileId, ownerId: ownerSessionId });
   }
 
-  private tryTorpedoFire(client: Client, row: SimEntry): void {
+  private tryTorpedoFire(ownerSessionId: string, row: SimEntry): void {
     if (!FEATURE_MINES_ENABLED) return;
     if (!this.isMatchCombatActive()) return;
-    const p = this.findPlayer(client.sessionId);
+    const p = this.findPlayer(ownerSessionId);
     if (!p || !canUsePrimaryWeapon(p.lifeState)) return;
 
     const now = Date.now();
@@ -1039,7 +1210,7 @@ export class BattleRoom extends Room<BattleState> {
     const torpCap = getShipClassProfile(p.shipClass).torpedoMaxPerOwner;
     let owned = 0;
     for (const t of this.state.torpedoList) {
-      if (t.ownerId === client.sessionId) owned++;
+      if (t.ownerId === ownerSessionId) owned++;
     }
     if (owned >= torpCap) return;
 
@@ -1054,7 +1225,7 @@ export class BattleRoom extends Room<BattleState> {
     const torpedoId = this.nextTorpedoId++;
     const ts = new TorpedoState();
     ts.torpedoId = torpedoId;
-    ts.ownerId = client.sessionId;
+    ts.ownerId = ownerSessionId;
     ts.x = pose.x;
     ts.z = pose.z;
     ts.headingRad = pose.headingRad;
@@ -1065,7 +1236,7 @@ export class BattleRoom extends Room<BattleState> {
       progressionTorpedoCooldownMs(p.level) * profT.torpedoCooldownFactor,
     );
     row.torpedoReadyAtMs = now + Math.max(1000, torpCd);
-    this.broadcast("torpedoFired", { torpedoId, ownerId: client.sessionId });
+    this.broadcast("torpedoFired", { torpedoId, ownerId: ownerSessionId });
   }
 
   private removeMissileAt(index: number, missileId: number): void {
@@ -1161,7 +1332,7 @@ export class BattleRoom extends Room<BattleState> {
   }
 
   private stepMissiles(dt: number, now: number): void {
-    const half = AREA_OF_OPERATIONS_HALF_EXTENT;
+    const half = this.getOperationalHalfExtent();
     const list = this.state.missileList;
 
     for (let i = list.length - 1; i >= 0; i--) {
@@ -1472,7 +1643,7 @@ export class BattleRoom extends Room<BattleState> {
       return;
     }
 
-    const half = AREA_OF_OPERATIONS_HALF_EXTENT;
+    const half = this.getOperationalHalfExtent();
 
     for (let i = list.length - 1; i >= 0; i--) {
       const t = list.at(i);
@@ -1662,9 +1833,11 @@ export class BattleRoom extends Room<BattleState> {
 
   private physicsStep(dt: number): void {
     const now = Date.now();
-    const half = AREA_OF_OPERATIONS_HALF_EXTENT;
+    const half = this.getOperationalHalfExtent();
 
     this.updateMatchTimer(now);
+    this.reconcileServerBots(now);
+    this.tickServerBotBrains(now);
     this.applyPassiveXpTick(now);
     const combatActive = this.isMatchCombatActive();
     if (combatActive) {

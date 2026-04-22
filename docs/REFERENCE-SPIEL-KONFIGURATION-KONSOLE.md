@@ -161,11 +161,12 @@ Aus `client/src/game/input/keyboardMouse.ts` und der Hilfe in `index.html` (`#hu
 | **MMB halten** oder **Q** | Torpedo/Minen (wenn Feature aktiv) |
 | **R** (Toggle) | Suchrad an/aus (`radarActive`) |
 | **B** | Bot an/aus (wenn nicht durch KI-Input übersteuert) |
+| **F** | Feuerleitkanal: nächstes gegnerisches Ziel wählen (zyklisch; Zielwahl bis ca. **600 m**) |
 | **Esc** | Feuerleitkanal-Ziel aufheben (Fire-Control) |
 
 **Cockpit-HUD:** Button **„RADAR ON/OFF“** entspricht **R** (Touch-freundlich).
 
-**Mobile** (`mobileControls.ts`): Joystick Gas/Ruder, **FEUER**, **Port SSM** / **Stb SSM** (mit Server-Flag `aswmFireSide`), Dead-Zones für Fehlziele. Kein Minen-Button auf Mobile (Tastatur/PC).
+**Mobile** (`mobileControls.ts`): Joystick Gas/Ruder, **NEXT TGT** (wie **F**), **FEUER**, **Port SSM** / **Stb SSM** (mit Server-Flag `aswmFireSide`), Dead-Zones für Fehlziele. Kein Minen-Button auf Mobile (Tastatur/PC).
 
 ---
 

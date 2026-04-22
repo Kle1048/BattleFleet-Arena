@@ -248,3 +248,33 @@ npm run devlog:append
 > Shipped: Island polygon collision, editor, and HUD/input fixes ðŸš¢ AI-assisted competitive game â€” #Vibejam #indiedev
 
 ---
+---
+
+## 2026-04-22
+
+- **Author:** Klemens1048
+- **Commit:** chore(vercel): set outputDirectory to client/dist and monorepo build
+
+**Details:**
+
+- Made-with: Cursor
+
+### Suggested post (Twitter / X, #Vibejam)
+
+> ⚓ chore(vercel): set outputDirectory to client/dist and monorepo build — BattleFleet Arena, naval RTS for #Vibejam. Who else is shipping? #gamedev #AIgames
+
+---
+
+## 2026-04-22
+
+- **Author:** Klemens1048
+- **Commit:** feat: server bots + shared bot module, client/runtime updates
+
+**Details:**
+
+- Made-with: Cursor
+
+### Suggested post (Twitter / X, #Vibejam)
+
+> Shipped: feat: server bots + shared bot module, client/runtime updates 🚢 AI-assisted competitive game — #Vibejam #indiedev
+

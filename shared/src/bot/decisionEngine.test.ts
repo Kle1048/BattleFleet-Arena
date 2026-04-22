@@ -7,6 +7,7 @@ function mkInput(overrides: Partial<DecisionInput>): DecisionInput {
   return {
     snapshot: {
       timestamp: 0,
+      operationalHalfExtent: 3500,
       self: {
         id: "me",
         x: 0,

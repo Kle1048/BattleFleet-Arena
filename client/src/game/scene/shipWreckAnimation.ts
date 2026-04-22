@@ -31,6 +31,7 @@ export function computeWreckVisualPose(elapsedMs: number, variant: WreckVariantI
   }
   const rollZ =
     variant === 1 ? t * (Math.PI / 2) * 0.9 : variant === 2 ? -t * (Math.PI / 2) * 0.9 : 0;
-  const sinkY = variant === 0 || variant === 3 ? -t * 12 : -t * 6.5;
+  /** Mehr Absenkung bei Bug/Heck-first; etwas weniger bei reiner Seitenlage (Roll dominiert). */
+  const sinkY = variant === 0 || variant === 3 ? -t * 19 : -t * 11;
   return { pitchX, rollZ, sinkY };
 }

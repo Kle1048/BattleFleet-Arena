@@ -1,4 +1,4 @@
-import { PlayerLifeState } from "@battlefleet/shared";
+import { PlayerLifeState } from "../playerLife";
 import type { BotPlayerList, BotVisibleMissile, BotVisibleTorpedo, PerceptionSnapshot } from "./types";
 
 export function observeWorld(
@@ -7,6 +7,7 @@ export function observeWorld(
   mySessionId: string,
   missileList: readonly BotVisibleMissile[],
   torpedoList: readonly BotVisibleTorpedo[],
+  operationalHalfExtent: number,
 ): PerceptionSnapshot | null {
   let self = null as PerceptionSnapshot["self"] | null;
   const enemies: PerceptionSnapshot["enemies"] = [];
@@ -21,6 +22,7 @@ export function observeWorld(
   if (!self) return null;
   return {
     timestamp: now,
+    operationalHalfExtent,
     self,
     enemies,
     missiles: missileList.filter((m) => m.ownerId !== mySessionId),

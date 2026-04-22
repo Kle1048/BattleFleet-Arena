@@ -29,3 +29,15 @@ export * from "./collisionContactQueries";
 export * from "./wakeRibbonMath";
 export * from "./wakeLod";
 export * from "./wrecks";
+
+/** Headless / client AI — `createBotController` + types for perception/planning. */
+export { createBotController } from "./bot/botController";
+export type {
+  BotInputCommand,
+  BotIntent,
+  BotLogEntry,
+  BotVisibleMissile,
+  BotVisiblePlayer,
+  BotVisibleTorpedo,
+  TacticalContext,
+} from "./bot/types";

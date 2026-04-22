@@ -1,11 +1,7 @@
-import {
-  AREA_OF_OPERATIONS_HALF_EXTENT,
-  ARTILLERY_ARC_HALF_ANGLE_RAD,
-  aswmSteeringYawErrRad,
-  DEFAULT_MAP_ISLAND_POLYGONS,
-  minDistSqPointToPolygonBoundary,
-  SHIP_ISLAND_COLLISION_RADIUS,
-} from "@battlefleet/shared";
+import { ARTILLERY_ARC_HALF_ANGLE_RAD } from "../artillery";
+import { aswmSteeringYawErrRad } from "../aswmShipAim";
+import { minDistSqPointToPolygonBoundary } from "../islandPolygonGeometry";
+import { DEFAULT_MAP_ISLAND_POLYGONS, SHIP_ISLAND_COLLISION_RADIUS } from "../islands";
 import type { ActionPlanningInput, BotInputCommand } from "./types";
 
 function clamp(v: number, lo: number, hi: number): number {
@@ -192,7 +188,7 @@ export function planAction(input: ActionPlanningInput): BotInputCommand {
   const throttle = 0.4;
   const rudderInput = applyIslandAvoidance(
     self,
-    Math.sin(snapshot.timestamp / AREA_OF_OPERATIONS_HALF_EXTENT),
+    Math.sin(snapshot.timestamp / Math.max(1, snapshot.operationalHalfExtent)),
     throttle,
   );
   return {

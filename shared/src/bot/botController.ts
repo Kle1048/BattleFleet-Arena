@@ -24,6 +24,7 @@ export function createBotController(): {
     mySessionId: string,
     missileList: readonly BotVisibleMissile[],
     torpedoList: readonly BotVisibleTorpedo[],
+    operationalHalfExtent: number,
   ) => BotInputCommand | null;
   getDebugState: () => {
     enabled: boolean;
@@ -58,9 +59,16 @@ export function createBotController(): {
     isEnabled(): boolean {
       return enabled;
     },
-    update(now, playerList, mySessionId, missileList, torpedoList): BotInputCommand | null {
+    update(now, playerList, mySessionId, missileList, torpedoList, operationalHalfExtent): BotInputCommand | null {
       if (!enabled) return null;
-      const snapshot = observeWorld(now, playerList, mySessionId, missileList, torpedoList);
+      const snapshot = observeWorld(
+        now,
+        playerList,
+        mySessionId,
+        missileList,
+        torpedoList,
+        operationalHalfExtent,
+      );
       if (!snapshot) return null;
       if (now - lastDecideAt >= 140 || !cachedIntent || !cachedContext) {
         const context = orient(snapshot, memory.get());

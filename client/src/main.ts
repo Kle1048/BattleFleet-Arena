@@ -15,12 +15,16 @@ import {
   PlayerLifeState,
 } from "@battlefleet/shared";
 import { createGameScene } from "./game/scene/createGameScene";
-import { createInputHandlers, type MobileAimEngagementRef } from "./game/input/keyboardMouse";
+import {
+  createInputHandlers,
+  type MobileAimEngagementRef,
+} from "./game/input/keyboardMouse";
+import type { MobileHudActions } from "./game/input/mobileControls";
 import { createFireControlChannel } from "./game/input/fireControlChannel";
 import { createCockpitHud } from "./game/hud/cockpitHud";
 import { createMessageLog } from "./game/hud/messageLog";
 import { createDebugOverlay } from "./game/hud/debugOverlay";
-import { createBotController } from "./game/bot/botController";
+import { createBotController } from "@battlefleet/shared";
 import { createBotDebugPanel } from "./game/bot/botDebugPanel";
 import { createMatchEndHud } from "./game/hud/matchEndHud";
 import {
@@ -75,6 +79,7 @@ import {
   missileListOf,
   playerListOf,
   readMatchTimer,
+  readOperationalAreaHalfExtent,
   torpedoListOf,
   wreckListOf,
 } from "./game/runtime/stateAdapter";
@@ -132,7 +137,7 @@ let debugOverlayForFatal: ReturnType<typeof createDebugOverlay> | null = null;
 async function bootstrap(): Promise<void> {
   const mobileMapAimReticle = createMobileMapAimReticle(renderer.domElement);
   const bundle = await createGameScene();
-  const { scene, camera, water } = bundle;
+  const { scene, camera, water, setOperationalAreaHalfExtent } = bundle;
   const debugShipSwitchRef: { send?: (id: ShipClassId) => void } = {};
   const environmentDebugPanel = createEnvironmentDebugPanel(bundle, {
     getDebugShipClassSender: () => debugShipSwitchRef.send,
@@ -151,7 +156,13 @@ async function bootstrap(): Promise<void> {
   }
 
   const mobileAimEngagement: MobileAimEngagementRef = { self: null };
-  const input = createInputHandlers(renderer.domElement, getGroundPoint, mobileAimEngagement);
+  const mobileHudActions: MobileHudActions = {};
+  const input = createInputHandlers(
+    renderer.domElement,
+    getGroundPoint,
+    mobileAimEngagement,
+    mobileHudActions,
+  );
   const cockpit = createCockpitHud({ onRadarToggle: () => input.queueRadarToggle() });
   const bridgeEl = document.querySelector(".cockpit-bridge") as HTMLElement | null;
   const opzEl = document.querySelector(".cockpit-opz") as HTMLElement | null;
@@ -248,6 +259,7 @@ async function bootstrap(): Promise<void> {
     });
   });
   const joinedAt = performance.now();
+  let lastSyncedOperationalHalf = -1;
   let pingMs: number | null = null;
   const botAutoEnabled =
     typeof window !== "undefined" &&
@@ -397,6 +409,9 @@ async function bootstrap(): Promise<void> {
     playerLabel: playerDisplayLabel,
     onToast: (text, kind, durationMs) => gameMessageHud.showToast(text, kind, durationMs),
   });
+  mobileHudActions.onNextFireControlTarget = () => {
+    fireControl.cycleNextTarget();
+  };
   const runtimeShutdown = createRuntimeShutdown([
     mobileMapAimReticle,
     visualRuntime,
@@ -440,6 +455,11 @@ async function bootstrap(): Promise<void> {
     frameTimeMs = Math.max(0, now - lastFrameNow);
     lastFrameNow = now;
     const playerList = playerListOf(room);
+    const operationalHalf = readOperationalAreaHalfExtent(room);
+    if (operationalHalf !== lastSyncedOperationalHalf) {
+      setOperationalAreaHalfExtent(operationalHalf);
+      lastSyncedOperationalHalf = operationalHalf;
+    }
     fpsFrames += 1;
     if (now - lastFpsTick >= 500) {
       const fps = fpsFrames / ((now - lastFpsTick) / 1000);
@@ -526,6 +546,7 @@ async function bootstrap(): Promise<void> {
       mySessionId,
       botEnabled && missileList ? [...missileList] : [],
       botEnabled && torpedoList ? [...torpedoList] : [],
+      operationalHalf,
     );
     const samp = botInput ?? humanInput;
 
