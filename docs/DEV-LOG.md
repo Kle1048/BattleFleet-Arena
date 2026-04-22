@@ -293,3 +293,18 @@ npm run devlog:append
 
 > ⚓ feat: server bots + shared bot module, client/runtime updates — BattleFleet Arena, naval RTS for #Vibejam. Who else is shipping? #gamedev #AIgames
 
+---
+
+## 2026-04-22
+
+- **Author:** Klemens1048
+- **Commit:** chore(docs): dev-log hook follow-up
+
+**Details:**
+
+- Made-with: Cursor
+
+### Suggested post (Twitter / X, #Vibejam)
+
+> ⚓ chore(docs): dev-log hook follow-up — BattleFleet Arena, naval RTS for #Vibejam. Who else is shipping? #gamedev #AIgames
+
