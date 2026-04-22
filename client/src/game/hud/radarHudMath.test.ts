@@ -5,6 +5,7 @@ import {
   esmLineTowardBlip,
   radarBlipNormalized,
   radarBlipNormalizedNorthUp,
+  radarBlipNormalizedNorthUpClampedToRim,
   radarMapCenterMarkerOffsetNorthUp,
 } from "./radarHudMath";
 
@@ -58,6 +59,29 @@ import {
   assert.ok(e);
   assert.ok(e!.nx > 0.45);
   assert.ok(Math.abs(e!.ny) < 0.02);
+}
+
+{
+  // Rim-Clamp: innerhalb Reichweite wie `radarBlipNormalizedNorthUp`
+  const inner = radarBlipNormalizedNorthUp(0, 0, 300, 0, RADAR_RANGE_WORLD);
+  const innerRim = radarBlipNormalizedNorthUpClampedToRim(0, 0, 300, 0, RADAR_RANGE_WORLD);
+  assert.ok(inner && innerRim);
+  assert.ok(Math.abs(inner!.nx - innerRim!.nx) < 1e-9);
+  assert.ok(Math.abs(inner!.ny - innerRim!.ny) < 1e-9);
+}
+
+{
+  // Rim-Clamp: weit außerhalb → Einheitsvektor (Länge 1) in Peilrichtung
+  const far = radarBlipNormalizedNorthUpClampedToRim(0, 0, 0, RADAR_RANGE_WORLD * 5, RADAR_RANGE_WORLD);
+  assert.ok(far);
+  const len = Math.hypot(far!.nx, far!.ny);
+  assert.ok(Math.abs(len - 1) < 1e-9);
+  assert.ok(far!.nx > -0.01 && far!.nx < 0.01);
+  assert.ok(far!.ny < -0.99);
+}
+
+{
+  assert.equal(radarBlipNormalizedNorthUpClampedToRim(10, 20, 10, 20, RADAR_RANGE_WORLD), null);
 }
 
 {

@@ -308,3 +308,23 @@ npm run devlog:append
 
 > ⚓ chore(docs): dev-log hook follow-up — BattleFleet Arena, naval RTS for #Vibejam. Who else is shipping? #gamedev #AIgames
 
+---
+
+## 2026-04-22
+
+- **Author:** Klemens1048
+- **Commit:** feat: Vibe Jam portal flow, radar markers, black-hole visuals
+
+**Details:**
+
+- - Add client portal rings, hub/return redirects, session ref capture, briefing skip for portal entry.
+- - Show portal positions on cockpit radar (rim clamp); portal marker styles and HUD wiring.
+- - Shared sanitizePortalReturnRef and hub URL; tests for sanitizer and radar keys.
+- - Black-hole style portal meshes; .env.example and Vite env types for production deploy.
+- - Cap server bot fill tests at MAX_SERVER_BOTS (5).
+- Made-with: Cursor
+
+### Suggested post (Twitter / X, #Vibejam)
+
+> Update: feat: Vibe Jam portal flow, radar markers, black-hole visuals | Naval arena WIP · #Vibejam · code + play ⚔️🎮
+

@@ -28,6 +28,7 @@ assert.equal(desiredServerBotCount(20, 0), 0);
 assert.equal(desiredServerBotCount(20, 1), MAX_SERVER_BOTS);
 assert.equal(desiredServerBotCount(16, 1), MAX_SERVER_BOTS);
 assert.equal(desiredServerBotCount(10, 1), MAX_SERVER_BOTS);
+assert.equal(desiredServerBotCount(11, 1), MAX_SERVER_BOTS);
 assert.equal(desiredServerBotCount(10, 10), 0);
 assert.equal(desiredServerBotCount(6, 1), 5);
 

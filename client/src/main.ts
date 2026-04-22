@@ -39,6 +39,13 @@ import { createTorpedoFx } from "./game/effects/torpedoFx";
 import { gameAudio } from "./game/audio/gameAudio";
 import { pickShipLobbyChoice } from "./game/ui/classPicker";
 import { showMissionBriefingIfNeeded } from "./game/ui/missionBriefing";
+import { addVibeJamPortalWorldRings } from "./game/portal/portalWorldVisuals";
+import {
+  captureVibeJamPortalSessionIfNeeded,
+  createVibeJamPortalProximityChecker,
+  isVibeJamPortalEntry,
+  resolveLobbyChoiceFromPortalParams,
+} from "./game/portal/vibeJamPortal";
 import { colyseusHttpBase, createColyseusClient, withTimeout } from "./game/runtime/sessionBootstrap";
 import { bindRendererResize, createGameRenderer } from "./game/runtime/rendererLifecycle";
 import { installGlobalRuntimeErrorHandlers } from "./game/runtime/runtimeErrors";
@@ -216,7 +223,11 @@ async function bootstrap(): Promise<void> {
 
   const client = createColyseusClient(COLYSEUS_URL);
   await showMissionBriefingIfNeeded();
-  const lobby = await pickShipLobbyChoice();
+  captureVibeJamPortalSessionIfNeeded();
+  const vibeJamPortalRings = addVibeJamPortalWorldRings(scene);
+  const lobby = isVibeJamPortalEntry()
+    ? resolveLobbyChoiceFromPortalParams()
+    : await pickShipLobbyChoice();
   gameAudio.unlockFromUserGesture();
   await gameAudio.preloadSounds();
   const hullUrls = uniqueHullGltfUrlsForAllClasses();
@@ -412,6 +423,8 @@ async function bootstrap(): Promise<void> {
   mobileHudActions.onNextFireControlTarget = () => {
     fireControl.cycleNextTarget();
   };
+  const portalProximity = createVibeJamPortalProximityChecker();
+
   const runtimeShutdown = createRuntimeShutdown([
     mobileMapAimReticle,
     visualRuntime,
@@ -443,6 +456,7 @@ async function bootstrap(): Promise<void> {
         disposeWreckCollisionDebug(scene);
       },
     },
+    { dispose: () => vibeJamPortalRings.dispose() },
   ]);
   runtimeShutdown.bindWindowUnload();
 
@@ -552,7 +566,7 @@ async function bootstrap(): Promise<void> {
 
     hudRuntime.updateMatchEndHud({ matchEnded, players: playerList });
 
-    runFrameRuntimeStep({
+    const { me: steppedMe } = runFrameRuntimeStep({
       now,
       dtMs: frameTimeMs,
       camera,
@@ -604,6 +618,19 @@ async function bootstrap(): Promise<void> {
         }
       },
     });
+
+    if (steppedMe) {
+      portalProximity.check(
+        {
+          x: steppedMe.x,
+          z: steppedMe.z,
+          speed: typeof steppedMe.speed === "number" ? steppedMe.speed : 0,
+          displayName: typeof steppedMe.displayName === "string" ? steppedMe.displayName : undefined,
+          lifeState: typeof steppedMe.lifeState === "string" ? steppedMe.lifeState : "",
+        },
+        matchEnded,
+      );
+    }
 
     const meLod = getPlayer(playerList, mySessionId);
     shipWakeRibbonSystem.updateFromPlayers({

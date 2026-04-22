@@ -12,13 +12,19 @@ import {
 import {
   cockpitRadarBlipsKey,
   cockpitRadarEsmKey,
+  cockpitRadarPortalMarkersKey,
   cockpitRadarThreatKey,
   type CockpitEsmLine,
   type CockpitRadarThreatLine,
 } from "./cockpitRadarKeys";
 
 export type { CockpitEsmLine, CockpitRadarThreatLine };
-export { cockpitRadarBlipsKey, cockpitRadarEsmKey, cockpitRadarThreatKey };
+export {
+  cockpitRadarBlipsKey,
+  cockpitRadarEsmKey,
+  cockpitRadarPortalMarkersKey,
+  cockpitRadarThreatKey,
+};
 
 export type CockpitHudUpdate = {
   speed: number;
@@ -53,6 +59,8 @@ export type CockpitHudUpdate = {
   playerDisplayName: string;
   shipClassId: ShipClassId;
   radarBlips: RadarBlipNorm[];
+  /** Vibe-Jam-Portale (fester Weltpunkt) — kleiner Kreis, ggf. am Rand wenn außerhalb Radar-Reichweite. */
+  radarPortalMarkers: RadarBlipNorm[];
   radarVisible: boolean;
   ownRadarActive: boolean;
   esmLines: CockpitEsmLine[];
@@ -175,6 +183,7 @@ export function createCockpitHud(opts?: {
               </g>
               <circle class="cockpit-radar-ownship" cx="0" cy="0" r="2.2" />
               <g class="cockpit-radar-blips" clip-path="url(#cockpitRadarClip)"></g>
+              <g class="cockpit-radar-portal-markers" clip-path="url(#cockpitRadarClip)"></g>
             </svg>
             <div class="cockpit-radar-scan"></div>
           </div>
@@ -262,6 +271,7 @@ export function createCockpitHud(opts?: {
   const radarRoot = wrap.querySelector(".cockpit-radar") as HTMLElement;
   const ownRadarStatusEl = wrap.querySelector(".cockpit-own-radar-status") as HTMLButtonElement;
   const radarBlipsG = wrap.querySelector(".cockpit-radar-blips") as SVGGElement;
+  const radarPortalMarkersG = wrap.querySelector(".cockpit-radar-portal-markers") as SVGGElement;
   const radarEsmG = wrap.querySelector(".cockpit-radar-esm") as SVGGElement;
   const radarThreatG = wrap.querySelector(".cockpit-radar-threats") as SVGGElement;
   const radarCourseLine = wrap.querySelector(".cockpit-radar-course") as SVGLineElement;
@@ -282,6 +292,7 @@ export function createCockpitHud(opts?: {
   const svgNs = "http://www.w3.org/2000/svg";
 
   let lastRadarBlipsKey = "";
+  let lastRadarPortalMarkersKey = "";
   let lastEsmKey = "";
   let lastThreatKey = "";
 
@@ -328,6 +339,20 @@ export function createCockpitHud(opts?: {
       dot.setAttribute("r", "3");
       dot.setAttribute("class", "cockpit-radar-blip");
       radarBlipsG.appendChild(dot);
+    }
+  }
+
+  function drawRadarPortalMarkers(markers: RadarBlipNorm[]): void {
+    radarPortalMarkersG.replaceChildren();
+    for (const b of markers) {
+      const r = b.nx * b.nx + b.ny * b.ny;
+      if (r > 1.02) continue;
+      const dot = document.createElementNS(svgNs, "circle");
+      dot.setAttribute("cx", String(b.nx * RADAR_BLIP_SCALE));
+      dot.setAttribute("cy", String(b.ny * RADAR_BLIP_SCALE));
+      dot.setAttribute("r", "2.35");
+      dot.setAttribute("class", "cockpit-radar-portal-marker");
+      radarPortalMarkersG.appendChild(dot);
     }
   }
 
@@ -409,6 +434,7 @@ export function createCockpitHud(opts?: {
       shipClassLabel,
       playerDisplayName,
       radarBlips,
+      radarPortalMarkers,
       radarVisible,
       ownRadarActive,
       esmLines,
@@ -502,14 +528,21 @@ export function createCockpitHud(opts?: {
           lastRadarBlipsKey = bk;
           drawRadarBlips(radarBlips);
         }
+        const pk = cockpitRadarPortalMarkersKey(radarPortalMarkers);
+        if (pk !== lastRadarPortalMarkersKey) {
+          lastRadarPortalMarkersKey = pk;
+          drawRadarPortalMarkers(radarPortalMarkers);
+        }
       } else {
         radarRoot.classList.add("cockpit-radar-hidden");
         lastRadarBlipsKey = "";
+        lastRadarPortalMarkersKey = "";
         lastEsmKey = "";
         lastThreatKey = "";
         radarEsmG.replaceChildren();
         radarThreatG.replaceChildren();
         radarBlipsG.replaceChildren();
+        radarPortalMarkersG.replaceChildren();
       }
     },
   };

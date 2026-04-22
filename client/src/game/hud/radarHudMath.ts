@@ -33,6 +33,29 @@ export function radarBlipNormalizedNorthUp(
 }
 
 /**
+ * Wie `radarBlipNormalizedNorthUp`, aber Ziele **außerhalb** `range` erscheinen **am Rand**
+ * in Peilrichtung (Einheitsvektor), damit z. B. feste Welt-Portale immer sichtbar sind.
+ */
+export function radarBlipNormalizedNorthUpClampedToRim(
+  myX: number,
+  myZ: number,
+  otherX: number,
+  otherZ: number,
+  range: number = RADAR_RANGE_WORLD,
+): RadarBlipNorm | null {
+  const dx = otherX - myX;
+  const dz = otherZ - myZ;
+  const dist = Math.hypot(dx, dz);
+  if (dist < 1e-6) return null;
+  if (dist <= range) {
+    return { nx: dx / range, ny: -dz / range };
+  }
+  const ux = dx / dist;
+  const uz = dz / dist;
+  return { nx: ux, ny: -uz };
+}
+
+/**
  * Kartenmitte (0,0) auf dem Nord-Radar: innerhalb `range` wie Blip; sonst **am Rand**
  * in Richtung (0,0) (gleiche Skalierung wie Blips: `rimScale` ≈ Anzeigeradius).
  */

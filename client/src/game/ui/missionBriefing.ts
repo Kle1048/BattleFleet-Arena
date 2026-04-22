@@ -2,6 +2,7 @@
  * Vor dem Lobby-Dialog: Mission-Briefing-Overlay (Beispiel). Optional per localStorage ausblendbar.
  */
 
+import { isVibeJamPortalEntry } from "../portal/vibeJamPortal";
 import { t } from "../../locale/t";
 
 const STORAGE_KEY = "battlefleet_missionBriefing_v1";
@@ -107,6 +108,7 @@ export function showMissionBriefing(): Promise<void> {
 
 /** Zeigt das Briefing nur, wenn der Spieler es nicht dauerhaft ausgeschaltet hat. */
 export async function showMissionBriefingIfNeeded(): Promise<void> {
+  if (isVibeJamPortalEntry()) return;
   if (!shouldShowMissionBriefing()) return;
   await showMissionBriefing();
 }

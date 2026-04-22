@@ -17,6 +17,11 @@ export function cockpitRadarBlipsKey(blips: readonly RadarBlipNorm[]): string {
   return blips.map((b) => `${b.nx.toFixed(3)}_${b.ny.toFixed(3)}`).join("|");
 }
 
+export function cockpitRadarPortalMarkersKey(markers: readonly RadarBlipNorm[]): string {
+  if (markers.length === 0) return "";
+  return markers.map((b) => `${b.nx.toFixed(3)}_${b.ny.toFixed(3)}`).join("|");
+}
+
 export function cockpitRadarEsmKey(lines: readonly CockpitEsmLine[]): string {
   if (lines.length === 0) return "";
   return lines
