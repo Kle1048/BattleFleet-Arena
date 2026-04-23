@@ -168,6 +168,8 @@ Aus `client/src/game/input/keyboardMouse.ts` und der Hilfe in `index.html` (`#hu
 
 **Mobile** (`mobileControls.ts`): Joystick Gas/Ruder, **NEXT TGT** (wie **F**), **FEUER**, **Port SSM** / **Stb SSM** (mit Server-Flag `aswmFireSide`), Dead-Zones für Fehlziele. Kein Minen-Button auf Mobile (Tastatur/PC).
 
+**Hybrid (Tablet / Surface + Tastatur):** Solange **W, S, A oder D** gehalten wird, gelten dieselben Telegraf-Stufen wie am PC, und die Touch-Schieber werden daran ausgerichtet. **Maus oder Stift** auf dem Canvas (`pointerType` `mouse` / `pen`) steuert die Zielpeilung wie am Desktop; reines Touch-Spiel ohne Maus nutzt weiter die feste Bug-Marke, wenn kein Ziel-Pin gesetzt ist. **Q**, **Leertaste**, **R**, **F** usw. wirken weiter global.
+
 ---
 
 ## 7. Gameplay- & Simulationsparameter (Auszug aus Shared)

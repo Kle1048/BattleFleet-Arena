@@ -14,6 +14,7 @@ import {
   TELEGRAPH_RUDDER_STEPS,
   TELEGRAPH_STOP_INDEX,
   TELEGRAPH_THROTTLE_STEPS,
+  valueToStepIndex,
 } from "./telegraphSteps";
 
 export type InputSample = {
@@ -147,8 +148,11 @@ export function createInputHandlers(
    * damit das Ziel mit Kamera/Schiff (nordstabilisierte Darstellung) mitwandert.
    */
   let pinViewport: { clientX: number; clientY: number } | null = null;
+  /** Letzter `pointerType` auf dem Canvas — für Maus-/Stift-Ziel trotz Mobile-Overlay. */
+  let lastCanvasPointerType: string | null = null;
 
   const onMove = (e: PointerEvent): void => {
+    lastCanvasPointerType = e.pointerType;
     const rect = canvas.getBoundingClientRect();
     const x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
     const y = -(((e.clientY - rect.top) / rect.height) * 2 - 1);
@@ -163,6 +167,9 @@ export function createInputHandlers(
   let rmbHeld = false;
   let mmbHeld = false;
   const onPointerDown = (e: PointerEvent): void => {
+    if (e.target === canvas) {
+      lastCanvasPointerType = e.pointerType;
+    }
     if (e.button === 0) {
       lmbHeld = true;
     }
@@ -207,10 +214,19 @@ export function createInputHandlers(
     let throttle = TELEGRAPH_THROTTLE_STEPS[throttleNotch] ?? 0;
     let rudderInput = TELEGRAPH_RUDDER_STEPS[rudderNotch] ?? 0;
 
+    const keyboardTelegraphKeysDown =
+      keys.has("KeyW") || keys.has("KeyS") || keys.has("KeyA") || keys.has("KeyD");
+
     if (mobile.active) {
-      const levers = telegraph.sampleMobileOutputs();
-      throttle = levers.throttle;
-      rudderInput = levers.rudderInput;
+      if (keyboardTelegraphKeysDown) {
+        telegraph.syncFromNotchIndices(throttleNotch, rudderNotch);
+      } else {
+        const levers = telegraph.sampleMobileOutputs();
+        throttle = levers.throttle;
+        rudderInput = levers.rudderInput;
+        throttleNotch = valueToStepIndex(throttle, TELEGRAPH_THROTTLE_STEPS);
+        rudderNotch = valueToStepIndex(rudderInput, TELEGRAPH_RUDDER_STEPS);
+      }
     } else {
       telegraph.setFeedback(throttle, rudderInput);
     }
@@ -241,7 +257,12 @@ export function createInputHandlers(
         aimWorldX = bow.x;
         aimWorldZ = bow.z;
       }
-    } else if (mobile.active && self) {
+    } else if (
+      mobile.active &&
+      self &&
+      lastCanvasPointerType !== "mouse" &&
+      lastCanvasPointerType !== "pen"
+    ) {
       const bow = defaultBowAimWorld(self);
       aimWorldX = bow.x;
       aimWorldZ = bow.z;

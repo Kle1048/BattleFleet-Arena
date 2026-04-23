@@ -3,7 +3,7 @@
  * Appends an entry to docs/DEV-LOG.md (commit metadata + Twitter/X-style line for #Vibejam).
  * Invoked from post-commit hook or: npm run devlog:append
  */
-import { appendFileSync, readFileSync, existsSync } from "fs";
+import { appendFileSync, readFileSync, writeFileSync, existsSync } from "fs";
 import { join } from "path";
 import { execSync } from "child_process";
 
@@ -13,6 +13,24 @@ function git(fmt) {
 
 function fullHash() {
   return execSync("git rev-parse HEAD", { encoding: "utf-8" }).trim();
+}
+
+/** Separator between DEV-LOG entries (see docs/DEV-LOG.md). */
+const ENTRY_SEP = "\n---\n\n## ";
+
+/**
+ * If the last entry has the same one-line subject as the current commit, replace it
+ * instead of appending (covers `git commit --amend`: post-commit runs again; `--no-verify`
+ * does not disable post-commit).
+ */
+function replaceLastEntryIfSameCommitSubject(prev, subject, newBlockWithMarker) {
+  const idx = prev.lastIndexOf(ENTRY_SEP);
+  if (idx === -1) return null;
+  const tail = prev.slice(idx + ENTRY_SEP.length);
+  const m = tail.match(/- \*\*Commit:\*\* (.+)/);
+  if (!m) return null;
+  if (m[1].trim() !== subject.trim()) return null;
+  return prev.slice(0, idx) + "\n" + newBlockWithMarker;
 }
 
 function isMergeCommit() {
@@ -72,6 +90,8 @@ function main() {
           .join("\n")}\n`
       : "";
 
+  const h = fullHash();
+  const marker = `\n<!-- devlog-rev:${h} -->\n`;
   const block = `---
 
 ## ${day}
@@ -82,11 +102,23 @@ ${bodyBlock}
 ### Suggested post (Twitter / X, #Vibejam)
 
 > ${tw}
-
-`;
+${marker}`;
 
   let prev = readFileSync(logPath, "utf-8");
   if (!prev.endsWith("\n")) prev += "\n";
+
+  if (prev.includes(`<!-- devlog-rev:${h} -->`)) {
+    console.log("[dev-log] entry already present for HEAD, skip");
+    process.exit(0);
+  }
+
+  const replaced = replaceLastEntryIfSameCommitSubject(prev, subject, block);
+  if (replaced !== null) {
+    writeFileSync(logPath, replaced.endsWith("\n") ? replaced : `${replaced}\n`, "utf-8");
+    console.log("[dev-log] replaced last entry (same commit subject, e.g. amend) → docs/DEV-LOG.md");
+    process.exit(0);
+  }
+
   appendFileSync(logPath, block, "utf-8");
   console.log("[dev-log] appended entry → docs/DEV-LOG.md");
 }

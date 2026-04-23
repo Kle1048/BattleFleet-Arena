@@ -216,6 +216,11 @@ export type MachineryTelegraphLevers = {
   setFeedback(throttle: number, rudderInput: number): void;
   /** Mobile: current lever values; desktop: zeros (caller ignores). */
   sampleMobileOutputs(): { throttle: number; rudderInput: number };
+  /**
+   * Mobile only: snap internal levers to discrete notch indices (same steps as W/S/A/D).
+   * Used when a physical keyboard drives the telegraph while the touch overlay is active.
+   */
+  syncFromNotchIndices(throttleNotch: number, rudderNotch: number): void;
   dispose(): void;
 };
 
@@ -391,6 +396,17 @@ export function createMachineryTelegraphLevers(options: {
     sampleMobileOutputs(): { throttle: number; rudderInput: number } {
       if (!options.interactive) return { throttle: 0, rudderInput: 0 };
       return { throttle, rudderInput };
+    },
+    syncFromNotchIndices(tNotch: number, rNotch: number): void {
+      if (!options.interactive) return;
+      const tMax = TELEGRAPH_THROTTLE_STEPS.length - 1;
+      const rMax = TELEGRAPH_RUDDER_STEPS.length - 1;
+      const ti = Math.max(0, Math.min(tMax, Math.round(tNotch)));
+      const ri = Math.max(0, Math.min(rMax, Math.round(rNotch)));
+      throttle = TELEGRAPH_THROTTLE_STEPS[ti] ?? 0;
+      rudderInput = TELEGRAPH_RUDDER_STEPS[ri] ?? 0;
+      placeKnobV();
+      placeKnobH();
     },
     dispose(): void {
       trackV.removeEventListener("pointerdown", startV);
