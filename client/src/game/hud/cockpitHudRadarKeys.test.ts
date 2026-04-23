@@ -3,6 +3,7 @@ import {
   cockpitRadarBlipsKey,
   cockpitRadarEsmKey,
   cockpitRadarPortalMarkersKey,
+  cockpitRadarSsmRailsKey,
 } from "./cockpitRadarKeys";
 
 {
@@ -27,4 +28,12 @@ import {
     { nx: 0.707, ny: -0.707 },
   ]);
   assert.equal(pk, "0.000_-1.000|0.707_-0.707");
+}
+
+{
+  assert.equal(cockpitRadarSsmRailsKey([]), "");
+  assert.equal(
+    cockpitRadarSsmRailsKey([{ x1: 0, y1: 0, x2: 3, y2: -4, stroke: "rgba(1,2,3,0.5)" }]),
+    "0.00_0.00_3.00_-4.00_rgba(1,2,3,0.5)",
+  );
 }

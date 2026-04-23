@@ -12,6 +12,7 @@ type RoomLike = {
 
 type PlayerLike = {
   id: string;
+  displayName?: string;
   shipClass?: string;
   x: number;
   z: number;
@@ -32,6 +33,11 @@ type VisualRuntimeOptions<TPlayer extends PlayerLike> = {
   getMountGltfTemplate?: (visualId: string) => THREE.Group | null;
   /** @deprecated Nutze getHullGltfTemplate */
   shipHullGltf?: THREE.Group | null;
+  /**
+   * Wenn ein **anderer** Spieler der `playerList` hinzugefügt wird (nach initialem Snapshot),
+   * z. B. Comms-Zeile in `main.ts`.
+   */
+  onRemotePlayerJoinedRoom?: (player: TPlayer) => void;
 };
 
 export type VisualRuntime<TPlayer extends PlayerLike> = {
@@ -48,8 +54,16 @@ export type VisualRuntime<TPlayer extends PlayerLike> = {
 export function createVisualRuntime<TPlayer extends PlayerLike>(
   options: VisualRuntimeOptions<TPlayer>,
 ): VisualRuntime<TPlayer> {
-  const { room, scene, mySessionId, playerListOf, getHullGltfTemplate, getMountGltfTemplate, shipHullGltf } =
-    options;
+  const {
+    room,
+    scene,
+    mySessionId,
+    playerListOf,
+    getHullGltfTemplate,
+    getMountGltfTemplate,
+    shipHullGltf,
+    onRemotePlayerJoinedRoom,
+  } = options;
   const shipRenderer = createShipRenderer(scene, mySessionId, {
     getHullGltfTemplate,
     getMountGltfTemplate,
@@ -61,19 +75,33 @@ export function createVisualRuntime<TPlayer extends PlayerLike>(
   let stateSyncCount = 0;
   let lastEnsurePlayerCount = -1;
   const lastEnsureShipClassById = new Map<string, string>();
+  /** Verhindert Doppel-Toasts bei `onAdd(..., true)` und List-Rebind; Leave entfernt. */
+  const joinAnnounceSeen = new Set<string>();
 
   const bindPlayerListHandlers = (): void => {
     const list = playerListOf(room);
     if (list === playerListHandlersBoundTo) return;
     playerListHandlersBoundTo = list;
+    let hydratingInitialOnAdd = true;
     list.onAdd((player) => {
       const sc = typeof player.shipClass === "string" ? player.shipClass : undefined;
       shipRenderer.ensureShip(player.id, sc);
+      if (player.id === mySessionId) return;
+      if (!onRemotePlayerJoinedRoom) return;
+      if (hydratingInitialOnAdd) {
+        joinAnnounceSeen.add(player.id);
+        return;
+      }
+      if (joinAnnounceSeen.has(player.id)) return;
+      joinAnnounceSeen.add(player.id);
+      onRemotePlayerJoinedRoom(player);
     }, true);
+    hydratingInitialOnAdd = false;
     list.onRemove((player) => {
       shipRenderer.removeShip(player.id);
       remoteInterp.delete(player.id);
       lastEnsureShipClassById.delete(player.id);
+      joinAnnounceSeen.delete(player.id);
     });
   };
 
@@ -136,6 +164,7 @@ export function createVisualRuntime<TPlayer extends PlayerLike>(
       playerListHandlersBoundTo = null;
       lastEnsurePlayerCount = -1;
       lastEnsureShipClassById.clear();
+      joinAnnounceSeen.clear();
     },
   };
 }

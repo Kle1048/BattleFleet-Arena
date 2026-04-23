@@ -46,7 +46,8 @@ export const AD_SOFTKILL_SAME_TARGET_REACQUIRE_BLOCK_MS = 4500;
  * unabhängig von Treffer/Fehlschuss. Wird in `BattleRoom` bereits beim `airDefenseFire` reserviert,
  * damit im selben Tick nicht zwei Raketen parallel einen SAM starten.
  */
-export const AD_SAM_COOLDOWN_MS = 4200;
+/** Mindestabstand zwischen SAM-Versuchen pro Verteidiger (3 s). */
+export const AD_SAM_COOLDOWN_MS = 3000;
 export const AD_PD_COOLDOWN_MS = 1800;
 export const AD_CIWS_COOLDOWN_MS = 520;
 

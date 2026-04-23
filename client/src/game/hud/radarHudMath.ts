@@ -6,6 +6,16 @@
 /** Anzeige-Radius in Welt-Einheiten (Server XZ) — aktives Suchrad / Blips. */
 export const RADAR_RANGE_WORLD = 600;
 
+/** SVG-Skalierung für Plan-Radar-Blips/Linien (viewBox ±52; Kreis ~r47). */
+export const RADAR_PLAN_SVG_BLIP_RADIUS = 46;
+
+/** Mittelring des Plan-Radars (`cockpit-radar-ring-mid`, SVG r≈24) — Referenz für SSM-Rail-Ticks. */
+export const RADAR_PLAN_SVG_MID_RING_RADIUS = 24;
+
+/** SSM-Rail-Tick: Standardlänge knapp über den Mittelring hinaus (SVG-Pixel ab Mitte). */
+const RADAR_SSM_RAIL_TICK_LEN_PX_DEFAULT =
+  RADAR_PLAN_SVG_MID_RING_RADIUS * 1.38;
+
 /**
  * Passive ESM — **Basis** für FAC (×1): Peilung bei eingeschaltetem Gegner-Radar.
  * Zerstörer ×1,5, Kreuzer ×2 — siehe `@battlefleet/shared` `esmDetectionRangeMul`.
@@ -109,4 +119,44 @@ export function esmLineTowardBlip(
   const ux = b.nx / d;
   const uy = b.ny / d;
   return { x1: 0, y1: 0, x2: ux * rimRadius, y2: uy * rimRadius };
+}
+
+/**
+ * Einheitsvektor in Welt-XZ entlang der festen SSM-Rail (Schiffslokal: +Z Bug, +X Steuerbord),
+ * `launchYawRadFromBow` wie `FixedSeaSkimmerLauncherSpec` / `launcherYawRadFromBow`.
+ */
+export function ssmRailWorldDirectionFromBow(
+  headingRad: number,
+  launchYawRadFromBow: number,
+): { ux: number; uz: number } {
+  const lx = Math.sin(launchYawRadFromBow);
+  const lz = Math.cos(launchYawRadFromBow);
+  const c = Math.cos(headingRad);
+  const s = Math.sin(headingRad);
+  const ux = lx * c + lz * s;
+  const uz = -lx * s + lz * c;
+  const d = Math.hypot(ux, uz);
+  if (d < 1e-8) return { ux: 0, uz: 1 };
+  return { ux: ux / d, uz: uz / d };
+}
+
+/**
+ * Tick-Linie auf dem **Nord-oben**-Plan-Radar (SVG: +y = Bild „oben“ = −Welt-Z).
+ * Standardlänge: über den Mittelring (`RADAR_PLAN_SVG_MID_RING_RADIUS`) hinaus.
+ */
+export function cockpitSsmRailTickLineNorthUp(
+  headingRad: number,
+  launchYawRadFromBow: number,
+  options?: { rimPx?: number; lengthFrac?: number; lengthPx?: number },
+): { x1: number; y1: number; x2: number; y2: number } {
+  const rimPx = options?.rimPx ?? RADAR_PLAN_SVG_BLIP_RADIUS;
+  const lenPxOpt = options?.lengthPx;
+  const len =
+    typeof lenPxOpt === "number" && Number.isFinite(lenPxOpt) && lenPxOpt > 0
+      ? lenPxOpt
+      : options?.lengthFrac != null
+        ? rimPx * options.lengthFrac
+        : RADAR_SSM_RAIL_TICK_LEN_PX_DEFAULT;
+  const { ux, uz } = ssmRailWorldDirectionFromBow(headingRad, launchYawRadFromBow);
+  return { x1: 0, y1: 0, x2: ux * len, y2: -uz * len };
 }

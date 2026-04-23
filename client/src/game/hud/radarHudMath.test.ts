@@ -1,12 +1,15 @@
 import assert from "node:assert/strict";
 import {
   RADAR_ESM_RANGE_WORLD,
+  RADAR_PLAN_SVG_BLIP_RADIUS,
   RADAR_RANGE_WORLD,
+  cockpitSsmRailTickLineNorthUp,
   esmLineTowardBlip,
   radarBlipNormalized,
   radarBlipNormalizedNorthUp,
   radarBlipNormalizedNorthUpClampedToRim,
   radarMapCenterMarkerOffsetNorthUp,
+  ssmRailWorldDirectionFromBow,
 } from "./radarHudMath";
 
 {
@@ -119,6 +122,22 @@ import {
   assert.ok(Math.abs(far!.mx) < 0.02);
   assert.ok(far!.my > 0);
   assert.ok(Math.abs(Math.hypot(far!.mx, far!.my) - scale) < 0.02);
+}
+
+{
+  const d = ssmRailWorldDirectionFromBow(0, 0);
+  assert.ok(Math.abs(d.ux) < 1e-9);
+  assert.ok(Math.abs(d.uz - 1) < 1e-9);
+  const tick = cockpitSsmRailTickLineNorthUp(0, 0, { rimPx: RADAR_PLAN_SVG_BLIP_RADIUS });
+  const len = Math.hypot(tick.x2 - tick.x1, tick.y2 - tick.y1);
+  assert.ok(len > 30 && len < 38);
+  assert.ok(tick.y2 < 0);
+}
+
+{
+  const d = ssmRailWorldDirectionFromBow(0, Math.PI / 2);
+  assert.ok(d.ux > 0.99 && d.ux < 1.01);
+  assert.ok(Math.abs(d.uz) < 1e-9);
 }
 
 console.log("radarHudMath tests ok");

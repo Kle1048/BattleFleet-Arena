@@ -73,13 +73,19 @@ type RegisterNetworkHandlersOptions<TPlayerList> = {
   setPingMs: (next: number | null) => void;
   setColyseusWarn: (next: string) => void;
   onPrimaryFireByLocalPlayer: () => void;
-  onHitNearLocalPlayer: () => void;
+  /** Artillerie-Splash nah — Einschlag-Seekarten-XZ für Stereo/Distanz. */
+  onHitNearAt?: (impactX: number, impactZ: number) => void;
   onMissileFireByLocalPlayer: () => void;
   onTorpedoFireByLocalPlayer: () => void;
   onMineImpactNearLocalPlayer: (distance: number) => void;
   onConnectionClosed: () => void;
   /** Optional: Hardkill-Schichten — Feuer und Intercept (`airDefenseFire` / `airDefenseIntercept`). */
-  onAirDefenseSound?: (ev: { phase: "fire" | "intercept"; layer: "sam" | "pd" | "ciws" }) => void;
+  onAirDefenseSound?: (ev: {
+    phase: "fire" | "intercept";
+    layer: "sam" | "pd" | "ciws";
+    worldX: number;
+    worldZ: number;
+  }) => void;
   /** Server `collisionContact`: Schiff↔Schiff / Schiff↔Insel (Kontaktbeginn). */
   onCollisionContact?: (kind: "ship" | "island") => void;
   /** Server `missileLockOn`: eigene ASuM hat Ziel erfasst. */
@@ -120,7 +126,7 @@ export function registerNetworkHandlers<TPlayerList>(
     setPingMs,
     setColyseusWarn,
     onPrimaryFireByLocalPlayer,
-    onHitNearLocalPlayer,
+    onHitNearAt,
     onMissileFireByLocalPlayer,
     onTorpedoFireByLocalPlayer,
     onMineImpactNearLocalPlayer,
@@ -225,7 +231,7 @@ export function registerNetworkHandlers<TPlayerList>(
         if (loc) {
           const dx = m.x - loc.x;
           const dz = m.z - loc.z;
-          if (dx * dx + dz * dz < 300 * 300) onHitNearLocalPlayer();
+          if (dx * dx + dz * dz < 300 * 300) onHitNearAt?.(m.x, m.z);
         }
       }
     }
@@ -291,7 +297,7 @@ export function registerNetworkHandlers<TPlayerList>(
         text: `LW: ${airDefenseLayerLabelDe(layer)} Abfang ERFOLG — ${defenderName}${ziel}`,
         kind: "info",
       });
-      onAirDefenseSound?.({ phase: "intercept", layer });
+      onAirDefenseSound?.({ phase: "intercept", layer, worldX: x, worldZ: z });
       showAirDefenseScreenPulse(camera, document.body, x, z, layer);
       playAirDefenseHitBurst(scene, x, z, layer);
       return;
@@ -319,7 +325,7 @@ export function registerNetworkHandlers<TPlayerList>(
       text: `LW: ${airDefenseLayerLabelDe(layer)} Feuer — ${defenderName}${ziel}`,
       kind: "info",
     });
-    onAirDefenseSound?.({ phase: "fire", layer });
+    onAirDefenseSound?.({ phase: "fire", layer, worldX: fromX, worldZ: fromZ });
     let getTrackedTargetXZ: (() => { x: number; z: number } | null) | undefined;
     if (
       parsed.missileId != null &&

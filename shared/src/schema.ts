@@ -78,6 +78,11 @@ export class PlayerState extends Schema {
    * `0` wenn nicht tot.
    */
   declare deathAtMs: number;
+  /**
+   * Session-ID des Killers für die letzte Zerstörung; leer bei Umwelt/OOB/ohne Zuordnung.
+   * Wird bei Respawn / Match-Reset geleert.
+   */
+  declare killedBySessionId: string;
 
   constructor() {
     super();
@@ -112,6 +117,7 @@ export class PlayerState extends Schema {
     this.aswmRemainingPort = 0;
     this.aswmRemainingStarboard = 0;
     this.deathAtMs = 0;
+    this.killedBySessionId = "";
   }
 }
 
@@ -147,6 +153,7 @@ defineTypes(PlayerState, {
   aswmRemainingPort: "number",
   aswmRemainingStarboard: "number",
   deathAtMs: "number",
+  killedBySessionId: "string",
 });
 
 /** Replizierte Lenkflugkörper (Task 7); Server autoritativ. */

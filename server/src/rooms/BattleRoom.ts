@@ -73,6 +73,7 @@ import {
   spawnAswmFromFireDirection,
   spawnTorpedoFromFireDirection,
   stepAswmMissile,
+  isAswmMissileClosingOnWorldPoint,
   stepTorpedoStraight,
   movementConfigForPlayer,
   stepMovement,
@@ -785,6 +786,8 @@ export class BattleRoom extends Room<BattleState> {
     if (!row || !p) return;
 
     const killerId = opts?.killerSessionId;
+    p.killedBySessionId =
+      killerId != null && isValidKillAttribution(killerId, sessionId) ? killerId : "";
     if (
       this.state.matchPhase === MATCH_PHASE_RUNNING &&
       killerId != null &&
@@ -990,6 +993,7 @@ export class BattleRoom extends Room<BattleState> {
       p.kills = 0;
       p.radarActive = true;
       p.deathAtMs = 0;
+      p.killedBySessionId = "";
 
       assertPlayerLifeInvariant(p.lifeState, p.hp, p.maxHp);
     }
@@ -1083,6 +1087,7 @@ export class BattleRoom extends Room<BattleState> {
     p.spawnProtectionSec = SPAWN_PROTECTION_DURATION_MS / 1000;
     p.radarActive = true;
     p.deathAtMs = 0;
+    p.killedBySessionId = "";
 
     assertPlayerLifeInvariant(p.lifeState, p.hp, p.maxHp);
   }
@@ -1538,7 +1543,15 @@ export class BattleRoom extends Room<BattleState> {
 
           const defenderHull = getAuthoritativeShipHullProfile(tgt.shipClass);
           const adClassArc = getShipClassProfile(tgt.shipClass).artilleryArcHalfAngleRad;
+          const samClosingOnDefender = isAswmMissileClosingOnWorldPoint(
+            m.x,
+            m.z,
+            m.headingRad,
+            tgt.x,
+            tgt.z,
+          );
           const samAllowed =
+            samClosingOnDefender &&
             defRow.radarActive &&
             hullProvidesAirDefenseSamLayer(defenderHull) &&
             missileBearingInHardkillLayerMountSector(

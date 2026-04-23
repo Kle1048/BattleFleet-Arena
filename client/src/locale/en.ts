@@ -18,9 +18,9 @@ export const en = {
    */
   shell: {
     /** main.ts — `document.title` on startup. */
-    documentTitle: "Sea Control: Arena",
+    documentTitle: "Sea Control: Cold War Arena",
     /** main.ts — visible `#title` above the game canvas. */
-    pageTitleBanner: "Sea Control: Arena — naval combat in the missile age",
+    pageTitleBanner: "Sea Control: Cold WarArena — naval combat in the missile age",
     /** Reserved — `#hud` row 1 when help panel is shown again. */
     helpHudLine1: "W / S — one step ahead / astern on the engine telegraph (7 steps)",
     /** Reserved — `#hud` row 2 when help panel is shown again. */
@@ -30,7 +30,7 @@ export const en = {
     /** Reserved — `#hud` row 4 when help panel is shown again. */
     helpHudLine4: "Space or left mouse button — primary / naval gun (hold; ~0.5 s cooldown)",
     /** Reserved — `#hud` row 5 when help panel is shown again. */
-    helpHudLine5: "Click an enemy ship — fire-control channel (hold target; fire as usual)",
+    helpHudLine5: "Click an enemy ship or press F — fire-control channel (hold target; fire as usual)",
     /** Reserved — `#hud` row 6 when help panel is shown again. */
     helpHudLine6:
       "Click water / sky or Esc — clear fire-control channel · Right mouse — hold SSM (cooldown; max 2 in flight)",
@@ -50,6 +50,10 @@ export const en = {
      * main.ts — `commsLog.append` on successful room join; `{roomId}` = short `room.roomId` slice.
      */
     roomChannelOpen: "CIC channel open — room {roomId}…",
+    /**
+     * visualRuntime.ts → `main.ts` — another human/bot entered the match; `{name}` = `playerDisplayLabel`.
+     */
+    playerJoined: "{name} joined",
   },
 
   toast: {
@@ -58,13 +62,29 @@ export const en = {
      */
     destroyedWaitingRespawn: "Destroyed — waiting for respawn…",
     /**
-     * frameRuntime.ts — `showToast` when another player is destroyed; `{name}` = `playerDisplayLabel(p)`.
+     * frameRuntime.ts — local player destroyed by another; `{killer}` = `playerDisplayLabel` of killer.
      */
-    playerDestroyed: "{name} destroyed",
+    destroyedWaitingRespawnByKiller: "Destroyed by {killer} — waiting for respawn…",
+    /**
+     * frameRuntime.ts — kill feed when killer is known; `{killer}` / `{victim}` = display labels.
+     */
+    playerKilledByKiller: "{killer} destroyed {victim}",
+    /**
+     * frameRuntime.ts — victim died with no attributed killer (OOB, island scrape, etc.); `{victim}` = label.
+     */
+    playerDestroyedNoKiller: "{victim} destroyed",
     /**
      * frameRuntime.ts — `showToast` when incoming ASuM count goes from 0 to &gt;0 (air defense hint).
      */
     vampireIncomingAd: "Vampire! Vampire! Vampire!",
+    /**
+     * frameRuntime.ts — local player crosses into the central Sea Control Area (passive score zone).
+     */
+    seaControlEntered: "Sea Control Area — entered",
+    /**
+     * frameRuntime.ts — local player leaves the Sea Control Area.
+     */
+    seaControlLeft: "Sea Control Area — left",
     /**
      * frameRuntime.ts — `showToast` on progression level-up; `{level}`, `{rank}` = naval rank string.
      */
@@ -140,6 +160,10 @@ export const en = {
     clear: "Clear",
     /** messageLog.ts — clear button `title` and `aria-label`. */
     clearTitle: "Clear messages",
+    /** messageLog.ts — help button label (opens mission briefing). */
+    help: "Help",
+    /** messageLog.ts — help button `title` and `aria-label`. */
+    helpTitle: "Open mission briefing and controls help",
   },
 
   /** debugOverlay.ts — FPS / room / ping dev HUD. */
@@ -278,31 +302,31 @@ export const en = {
     /** missionBriefing.ts — dialog `aria-label`. */
     ariaDialog: "Mission briefing",
     /** missionBriefing.ts — header strip (classification). */
-    headerClassified: "UNCLASSIFIED // TRAINING",
+    headerClassified: "UNCLASSIFIED // OPER",
     /** missionBriefing.ts — header operation tag. */
-    headerOp: "OP. ARENA-1",
+    headerOp: "OPERATION: COLD-WAR-ARENA",
     /** missionBriefing.ts — main heading. */
     title: "Mission briefing",
     /**
      * missionBriefing.ts — lead paragraph before `<strong>` product name (`product.fullName`).
      */
-    leadBefore: "You take the bridge of a fast attack craft in ",
+    leadBefore: "You take the bridge of a various cold war warships in ",
     /** missionBriefing.ts — lead paragraph after product name. */
     leadAfter:
-      ". Your objective is to engage hostile units and survive the engagement.",
+      ". Your objective is to take and hold the sea control area and engage hostile units.",
     /** missionBriefing.ts — “Situation” section title. */
     sectionSituationTitle: "Situation",
     /** missionBriefing.ts — situation body copy. */
     sectionSituationBody:
-      "Open sea with islands. Friendly and hostile contacts appear on the tactical display (CIC). The bridge shows course, speed, and ship status.",
+      "Open sea with islands. Use the tactical display to locate the objective and detect hostile contacts.",
     /** missionBriefing.ts — “Mission” section title. */
     sectionMissionTitle: "Mission",
     /** missionBriefing.ts — mission list item 1. */
-    missionBullet1: "Locate and engage the enemy.",
+    missionBullet1: "Establish Sea Control within the center of the islands.",
     /** missionBriefing.ts — mission list item 2. */
-    missionBullet2: "Watch hull points and ordnance.",
+    missionBullet2: "Locate and engage all enemy units.",
     /** missionBriefing.ts — mission list item 3. */
-    missionBullet3: "Match end follows arena rules (time / win conditions).",
+    missionBullet3: "Hold the objective and survive engagements to get promoted.",
     /** missionBriefing.ts — map layout section title. */
     sectionMapTitle: "Arena layout",
     /** missionBriefing.ts — map bullet: central objective zone. */
@@ -310,13 +334,13 @@ export const en = {
       "Sea Control Area: central square objective zone; passive score gain is multiplied while inside.",
     /** missionBriefing.ts — map bullet: arena edge / out-of-bounds behavior. */
     mapBulletOob:
-      "OOB Boundary: outside the operational area you trigger an out-of-bounds countdown and risk destruction.",
+      "OOB Boundary: Leaving the area of operation results in termination!",
     /** missionBriefing.ts — map bullet: islands as terrain constraints. */
     mapBulletIslands:
       "Islands: block movement and line of fire; use them for cover but avoid collision damage.",
     /** missionBriefing.ts — map bullet: portal reference marker. */
     mapBulletPortal:
-      "Portal marker: a ring landmark on the map edge used as a fixed tactical reference point.",
+      "Portal marker: Enter the ring to be deployed to other #VibeJam games.",
     /** missionBriefing.ts — map bullet: navigation orientation cue. */
     mapBulletNorth: "North arrow: use north-up orientation for callouts and maneuver coordination.",
     /** missionBriefing.ts — controls section title. */
@@ -331,8 +355,26 @@ export const en = {
     controlRmbSuffix: "anti-ship missiles (SSM)",
     /** missionBriefing.ts — text after `<kbd>R</kbd>` span. */
     controlRadarSuffix: "search radar on/off",
-    /** missionBriefing.ts — “don’t show again” checkbox label. */
-    skipLabel: "Don't show again",
+    /** missionBriefing.ts — text after `<kbd>F</kbd>` span (fire-control channel). */
+    controlFireControlSuffix:
+      "fire-control channel: cycle the designated hostile in range, or click an enemy hull to lock; primary / SSM fire toward that target when valid",
+    /** missionBriefing.ts — ship classes & progression ranks. */
+    sectionShipsTitle: "Ship classes & progression",
+    /**
+     * missionBriefing.ts — FAC line; `{rank}` = minimum naval rank (level 1), from `progressionNavalRankEn(1)`.
+     */
+    shipBulletFac:
+      "FAC (fast attack craft): fastest and most agile; lighter hull and a smaller anti-ship missile magazine. From progression level 1 — {rank}.",
+    /**
+     * missionBriefing.ts — destroyer line; `{rank}` = rank at level 3 unlock (`progressionNavalRankEn(3)`).
+     */
+    shipBulletDestroyer:
+      "Destroyer: balanced naval gun, torpedo, and SSM fit — the all-round workhorse. Unlocks at progression level 3 — {rank}.",
+    /**
+     * missionBriefing.ts — cruiser line; `{rank}` = rank at level 5 unlock (`progressionNavalRankEn(5)`).
+     */
+    shipBulletCruiser:
+      "Cruiser: heaviest hull and largest SSM battery; slower turn and lower cruise speed. Unlocks at progression level 5 — {rank}.",
     /** missionBriefing.ts — dismiss button. */
     continue: "Understood — continue",
   },

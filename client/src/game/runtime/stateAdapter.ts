@@ -28,6 +28,7 @@ export type NetPlayer = Pick<
   | "shipClass"
   | "displayName"
   | "deathAtMs"
+  | "killedBySessionId"
   | "radarActive"
   | "aswmRemainingPort"
   | "aswmRemainingStarboard"

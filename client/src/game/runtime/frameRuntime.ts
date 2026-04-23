@@ -17,11 +17,14 @@ import {
   esmEmitterStrokeCss,
   resolveAirDefenseDefenderIdForMissile,
   wreckVariantFromSessionId,
+  isInSeaControlZone,
+  launcherYawRadFromBow,
   type AirDefenseMissileSnapshot,
   type AirDefensePlayerSnapshot,
   type ShipClassId,
 } from "@battlefleet/shared";
 import { t } from "../../locale/t";
+import { seaControlZoneHudTransition } from "./seaControlZoneHud";
 import type { InputSample } from "../input/keyboardMouse";
 import { computeWreckVisualPose } from "../scene/shipWreckAnimation";
 import {
@@ -54,9 +57,11 @@ import {
   getShipDebugTuningForVisualClass,
   getShipDebugTuningGeneration,
 } from "./shipDebugTuning";
-import type { CockpitRadarThreatLine } from "../hud/cockpitRadarKeys";
+import type { CockpitRadarThreatLine, CockpitSsmRailLine } from "../hud/cockpitRadarKeys";
 import {
   RADAR_ESM_RANGE_WORLD,
+  RADAR_PLAN_SVG_BLIP_RADIUS,
+  cockpitSsmRailTickLineNorthUp,
   esmLineTowardBlip,
   radarBlipNormalizedNorthUp,
   radarBlipNormalizedNorthUpClampedToRim,
@@ -96,6 +101,8 @@ type NetPlayerLike = {
   displayName: string;
   /** Serverzeit (ms) bei Tod; nur in `awaiting_respawn` gesetzt. */
   deathAtMs?: number;
+  /** Session des Killers für die letzte Zerstörung; leer ohne Zuordnung. */
+  killedBySessionId?: string;
   radarActive?: boolean;
   adHudIncomingAswm?: number;
   aswmRemainingPort: number;
@@ -148,6 +155,7 @@ type CockpitLike = {
     ownRadarActive: boolean;
     esmLines: { x1: number; y1: number; x2: number; y2: number; stroke?: string }[];
     radarThreatLines: CockpitRadarThreatLine[];
+    ssmRailLines: CockpitSsmRailLine[];
   }) => void;
 };
 
@@ -184,6 +192,8 @@ type RuntimeState = {
   lastOobCountdown: number;
   lastLifeStateBySessionId: Map<string, string>;
   lastDamageSmokeAtBySessionId: Map<string, number>;
+  /** `null` = noch kein Sample (kein Toast beim ersten Frame); sonst letzte Sea-Control-Zugehörigkeit. */
+  lastSeaControlZone: boolean | null;
   /** Vorheriger Wert von `adHudIncomingAswm` (lokaler Spieler) für Vampire-Toast. */
   lastAdHudIncomingAswm: number;
   /** Live-Debug für Aim-Linien/Sektorprüfung (lokaler Spieler). */
@@ -199,6 +209,7 @@ export function createFrameRuntimeState(initialHudLevel = 1): RuntimeState {
     lastOobCountdown: 0,
     lastLifeStateBySessionId: new Map<string, string>(),
     lastDamageSmokeAtBySessionId: new Map<string, number>(),
+    lastSeaControlZone: null,
     lastAdHudIncomingAswm: 0,
     aimLineSectorDebug: "",
     lastInputDedupKey: null,
@@ -298,6 +309,18 @@ export function runFrameRuntimeStep<
     onShipDestroyed,
   } = options;
 
+  const playersById = new Map<string, TPlayer>();
+  for (const pl of playerList) {
+    playersById.set(pl.id, pl);
+  }
+
+  const killerLabelForVictim = (victim: TPlayer): string => {
+    const kid = typeof victim.killedBySessionId === "string" ? victim.killedBySessionId.trim() : "";
+    if (!kid) return "";
+    const kp = playersById.get(kid);
+    return kp ? toDisplayLabel(kp) : toDisplayLabel({ id: kid });
+  };
+
   const presentIds = new Set<string>();
   for (const p of playerList) {
     presentIds.add(p.id);
@@ -307,10 +330,25 @@ export function runFrameRuntimeStep<
       prev !== PlayerLifeState.AwaitingRespawn &&
       p.lifeState === PlayerLifeState.AwaitingRespawn
     ) {
+      const killerName = killerLabelForVictim(p);
       if (p.id === mySessionId) {
-        gameMessageHud.showToast(t("toast.destroyedWaitingRespawn"), "danger", 5500);
+        if (killerName) {
+          gameMessageHud.showToast(
+            t("toast.destroyedWaitingRespawnByKiller", { killer: killerName }),
+            "danger",
+            5500,
+          );
+        } else {
+          gameMessageHud.showToast(t("toast.destroyedWaitingRespawn"), "danger", 5500);
+        }
+      } else if (killerName) {
+        gameMessageHud.showToast(
+          t("toast.playerKilledByKiller", { killer: killerName, victim: toDisplayLabel(p) }),
+          "info",
+          5200,
+        );
       } else {
-        gameMessageHud.showToast(t("toast.playerDestroyed", { name: toDisplayLabel(p) }), "info", 5000);
+        gameMessageHud.showToast(t("toast.playerDestroyedNoKiller", { victim: toDisplayLabel(p) }), "info", 5000);
       }
       onShipDestroyed?.(p);
     }
@@ -321,11 +359,6 @@ export function runFrameRuntimeStep<
       state.lastLifeStateBySessionId.delete(id);
       state.lastDamageSmokeAtBySessionId.delete(id);
     }
-  }
-
-  const playersById = new Map<string, TPlayer>();
-  for (const p of playerList) {
-    playersById.set(p.id, p);
   }
 
   const adPlayerSnapshots: AirDefensePlayerSnapshot[] = [];
@@ -351,6 +384,7 @@ export function runFrameRuntimeStep<
 
   if (matchEnded || !me || me.lifeState === PlayerLifeState.AwaitingRespawn) {
     state.lastAdHudIncomingAswm = 0;
+    state.lastSeaControlZone = null;
   } else {
     const inc = typeof me.adHudIncomingAswm === "number" ? me.adHudIncomingAswm : 0;
     const prev = state.lastAdHudIncomingAswm;
@@ -358,6 +392,15 @@ export function runFrameRuntimeStep<
       gameMessageHud.showToast(t("toast.vampireIncomingAd"), "info", 5500);
     }
     state.lastAdHudIncomingAswm = inc;
+
+    const inSeaControl = isInSeaControlZone(me.x, me.z);
+    const sc = seaControlZoneHudTransition(state.lastSeaControlZone, inSeaControl);
+    state.lastSeaControlZone = sc.next;
+    if (sc.edge === "enter") {
+      gameMessageHud.showToast(t("toast.seaControlEntered"), "info", 3800);
+    } else if (sc.edge === "leave") {
+      gameMessageHud.showToast(t("toast.seaControlLeft"), "info", 3800);
+    }
   }
 
   const tuningGen = getShipDebugTuningGeneration();
@@ -558,6 +601,7 @@ export function runFrameRuntimeStep<
           : me.shipClass,
       ) as ShipClassId;
       const profShip = getShipClassProfile(cockpitClassId);
+      const hullVis = getAuthoritativeHullProfile(cockpitClassId);
       const maxSp =
         cfgMaxSpeed *
         profShip.movementSpeedMul *
@@ -583,10 +627,25 @@ export function runFrameRuntimeStep<
       const radarPortalMarkers: RadarBlipNorm[] = [];
       const esmLines: { x1: number; y1: number; x2: number; y2: number; stroke?: string }[] = [];
       const radarThreatLines: CockpitRadarThreatLine[] = [];
+      const ssmRailLines: CockpitSsmRailLine[] = [];
       let radarVisible = false;
       const ownRadarActive = me.radarActive !== false;
       if (!matchEnded && me.lifeState !== PlayerLifeState.AwaitingRespawn) {
         radarVisible = true;
+        const launchers = hullVis?.fixedSeaSkimmerLaunchers;
+        if (launchers?.length) {
+          for (const L of launchers) {
+            const yb = launcherYawRadFromBow(L);
+            const line = cockpitSsmRailTickLineNorthUp(p.headingRad, yb, {
+              rimPx: RADAR_PLAN_SVG_BLIP_RADIUS,
+            });
+            let stroke: string | undefined;
+            if (L.side === "port") stroke = "rgba(255, 72, 88, 0.94)";
+            else if (L.side === "starboard") stroke = "rgba(72, 255, 128, 0.94)";
+            else stroke = "rgba(210, 225, 255, 0.85)";
+            ssmRailLines.push({ ...line, stroke });
+          }
+        }
         const pe = radarBlipNormalizedNorthUpClampedToRim(
           p.x,
           p.z,
@@ -642,7 +701,6 @@ export function runFrameRuntimeStep<
       }
 
       const shipClassId = cockpitClassId;
-      const hullVis = getAuthoritativeHullProfile(shipClassId);
       const magCaps = getAswmMagazineFromProfile(hullVis, shipClassId);
       const aswmMagPortCap = magCaps.port;
       const aswmMagStarboardCap = magCaps.starboard;
@@ -696,6 +754,7 @@ export function runFrameRuntimeStep<
         ownRadarActive,
         esmLines,
         radarThreatLines,
+        ssmRailLines: radarVisible ? ssmRailLines : [],
       });
     }
   }

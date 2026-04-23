@@ -17,6 +17,8 @@ function formatTime(d: Date): string {
 
 export function createMessageLog(options?: {
   parent?: HTMLElement;
+  /** Opens the in-game mission briefing overlay (e.g. from Help). */
+  onShowHelp?: () => void;
 }): {
   append: (e: CommsLogEntry) => void;
   dispose: () => void;
@@ -32,15 +34,30 @@ export function createMessageLog(options?: {
   headTitle.className = "message-log-title";
   headTitle.textContent = t("messageLog.panelTitle");
 
+  const actions = document.createElement("div");
+  actions.className = "message-log-actions";
+
+  if (options?.onShowHelp) {
+    const helpBtn = document.createElement("button");
+    helpBtn.type = "button";
+    helpBtn.className = "message-log-help";
+    helpBtn.textContent = t("messageLog.help");
+    helpBtn.title = t("messageLog.helpTitle");
+    helpBtn.setAttribute("aria-label", t("messageLog.helpTitle"));
+    helpBtn.addEventListener("click", () => options.onShowHelp?.());
+    actions.appendChild(helpBtn);
+  }
+
   const clearBtn = document.createElement("button");
   clearBtn.type = "button";
   clearBtn.className = "message-log-clear";
   clearBtn.textContent = t("messageLog.clear");
   clearBtn.title = t("messageLog.clearTitle");
   clearBtn.setAttribute("aria-label", t("messageLog.clearTitle"));
+  actions.appendChild(clearBtn);
 
   head.appendChild(headTitle);
-  head.appendChild(clearBtn);
+  head.appendChild(actions);
 
   const list = document.createElement("ul");
   list.className = "message-log-list";

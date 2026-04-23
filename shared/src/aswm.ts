@@ -327,6 +327,28 @@ export function spawnAswmFromFixedLauncher(
   };
 }
 
+/**
+ * True, wenn die ASuM sich **dem Punkt nähert** (Projektion der Flugrichtung auf Schiff→Punkt &gt; 0),
+ * d. h. der Abstand zur Referenz sinkt entlang der aktuellen Flugrichtung — nicht bei bereits
+ * vorbeigeflogenen / sich entfernenden Flugbahnen (für SAM-Freigabe in `BattleRoom`).
+ */
+export function isAswmMissileClosingOnWorldPoint(
+  missileX: number,
+  missileZ: number,
+  missileHeadingRad: number,
+  targetX: number,
+  targetZ: number,
+): boolean {
+  const dx = targetX - missileX;
+  const dz = targetZ - missileZ;
+  const distSq = dx * dx + dz * dz;
+  /** Bereits praktisch am Ziel — als „nähernd“ werten (kein SAM-Deadlock). */
+  if (distSq <= 2.25) return true;
+  const f = forwardXZ(missileHeadingRad);
+  const dot = f.x * dx + f.z * dz;
+  return dot > 1e-4;
+}
+
 export function stepAswmMissile(
   x: number,
   z: number,

@@ -417,6 +417,13 @@
         stroke-linecap: round;
         filter: drop-shadow(0 0 3px rgba(255, 255, 255, 0.35));
       }
+      .cockpit-radar-ssm-rail {
+        fill: none;
+        stroke: rgba(200, 220, 255, 0.88);
+        stroke-width: 1.05;
+        stroke-linecap: round;
+        filter: drop-shadow(0 0 2px rgba(0, 0, 0, 0.55));
+      }
       .cockpit-radar-mapcenter-diamond {
         fill: none;
         stroke: rgba(0, 255, 120, 0.95);
@@ -717,20 +724,6 @@
         background: linear-gradient(180deg, transparent, rgba(0, 12, 28, 0.45));
         border-radius: 0 0 13px 13px;
       }
-      .mission-briefing-skip {
-        display: flex;
-        align-items: center;
-        gap: 10px;
-        font-size: 0.82rem;
-        cursor: pointer;
-        user-select: none;
-        opacity: 0.88;
-      }
-      .mission-briefing-skip-input {
-        width: 1rem;
-        height: 1rem;
-        accent-color: #6ab8f0;
-      }
       .mission-briefing-continue-btn {
         width: 100%;
         padding: 12px 16px;
@@ -836,6 +829,12 @@
         justify-content: space-between;
         gap: 8px;
       }
+      .message-log-actions {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        flex-shrink: 0;
+      }
       .message-log-title {
         font-size: 9px; letter-spacing: 0.14em; font-weight: 700;
         color: rgba(200, 230, 255, 0.88);
@@ -845,6 +844,7 @@
         border-bottom: 1px solid rgba(100, 160, 220, 0.2);
         padding-bottom: 4px;
       }
+      .message-log-help,
       .message-log-clear {
         flex-shrink: 0;
         padding: 2px 8px;
@@ -858,6 +858,13 @@
         cursor: pointer;
         touch-action: manipulation;
       }
+      .message-log-help {
+        padding: 2px 6px;
+        font-size: 8px;
+        letter-spacing: 0.06em;
+        opacity: 0.92;
+      }
+      .message-log-help:hover,
       .message-log-clear:hover {
         filter: brightness(1.1);
       }
@@ -1042,6 +1049,8 @@
     <div id="app"></div>
     <div id="bottom-debug-dock" class="bottom-debug-dock" aria-hidden="true"></div>
     <div id="hud" aria-hidden="true"></div>
+    <!-- VibeJam 2026: required entrant / popularity tracking (single production domain). -->
+    <script async src="https://vibej.am/2026/widget.js"></script>
     <script type="module" src="/src/main.ts"></script>
   </body>
 </html>

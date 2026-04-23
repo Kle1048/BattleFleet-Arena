@@ -5,6 +5,7 @@
 import type { ShipClassId } from "@battlefleet/shared";
 import { t } from "../../locale/t";
 import {
+  RADAR_PLAN_SVG_BLIP_RADIUS,
   RADAR_RANGE_WORLD,
   radarMapCenterMarkerOffsetNorthUp,
   type RadarBlipNorm,
@@ -13,16 +14,19 @@ import {
   cockpitRadarBlipsKey,
   cockpitRadarEsmKey,
   cockpitRadarPortalMarkersKey,
+  cockpitRadarSsmRailsKey,
   cockpitRadarThreatKey,
   type CockpitEsmLine,
   type CockpitRadarThreatLine,
+  type CockpitSsmRailLine,
 } from "./cockpitRadarKeys";
 
-export type { CockpitEsmLine, CockpitRadarThreatLine };
+export type { CockpitEsmLine, CockpitRadarThreatLine, CockpitSsmRailLine };
 export {
   cockpitRadarBlipsKey,
   cockpitRadarEsmKey,
   cockpitRadarPortalMarkersKey,
+  cockpitRadarSsmRailsKey,
   cockpitRadarThreatKey,
 };
 
@@ -66,9 +70,9 @@ export type CockpitHudUpdate = {
   esmLines: CockpitEsmLine[];
   /** Hostile ASuM — Peilung (gestrichelt / durchgezogen je nach Lock). */
   radarThreatLines: CockpitRadarThreatLine[];
+  /** Feste SSM-Rails — kurze Peiler-Ticks (Nord oben). */
+  ssmRailLines: CockpitSsmRailLine[];
 };
-
-const RADAR_BLIP_SCALE = 46;
 
 const BRIDGE_COMPACT_KEY = "bfa.hud.bridgeCompact";
 const OPZ_COMPACT_KEY = "bfa.hud.opzCompact";
@@ -176,6 +180,7 @@ export function createCockpitHud(opts?: {
               <line class="cockpit-radar-axis cockpit-radar-axis-45" x1="-33.941" y1="33.941" x2="33.941" y2="-33.941" />
               <text class="cockpit-radar-cardinal-n" x="0" y="-39" text-anchor="middle">${t("hud.radarNorth")}</text>
               <line class="cockpit-radar-course" x1="0" y1="0" x2="0" y2="-42" />
+              <g class="cockpit-radar-ssm-rails" clip-path="url(#cockpitRadarClip)"></g>
               <g class="cockpit-radar-esm" clip-path="url(#cockpitRadarClip)"></g>
               <g class="cockpit-radar-threats" clip-path="url(#cockpitRadarClip)"></g>
               <g class="cockpit-radar-mapcenter-wrap" clip-path="url(#cockpitRadarClip)" style="opacity:0" title="${t("hud.radarMapCenterTitle")}">
@@ -272,6 +277,7 @@ export function createCockpitHud(opts?: {
   const ownRadarStatusEl = wrap.querySelector(".cockpit-own-radar-status") as HTMLButtonElement;
   const radarBlipsG = wrap.querySelector(".cockpit-radar-blips") as SVGGElement;
   const radarPortalMarkersG = wrap.querySelector(".cockpit-radar-portal-markers") as SVGGElement;
+  const radarSsmRailsG = wrap.querySelector(".cockpit-radar-ssm-rails") as SVGGElement;
   const radarEsmG = wrap.querySelector(".cockpit-radar-esm") as SVGGElement;
   const radarThreatG = wrap.querySelector(".cockpit-radar-threats") as SVGGElement;
   const radarCourseLine = wrap.querySelector(".cockpit-radar-course") as SVGLineElement;
@@ -293,8 +299,23 @@ export function createCockpitHud(opts?: {
 
   let lastRadarBlipsKey = "";
   let lastRadarPortalMarkersKey = "";
+  let lastSsmRailsKey = "";
   let lastEsmKey = "";
   let lastThreatKey = "";
+
+  function drawSsmRails(lines: CockpitSsmRailLine[]): void {
+    radarSsmRailsG.replaceChildren();
+    for (const ln of lines) {
+      const el = document.createElementNS(svgNs, "line");
+      el.setAttribute("x1", String(ln.x1));
+      el.setAttribute("y1", String(ln.y1));
+      el.setAttribute("x2", String(ln.x2));
+      el.setAttribute("y2", String(ln.y2));
+      el.setAttribute("class", "cockpit-radar-ssm-rail");
+      if (ln.stroke) el.style.stroke = ln.stroke;
+      radarSsmRailsG.appendChild(el);
+    }
+  }
 
   function drawThreatLines(lines: CockpitRadarThreatLine[]): void {
     radarThreatG.replaceChildren();
@@ -334,8 +355,8 @@ export function createCockpitHud(opts?: {
       const r = b.nx * b.nx + b.ny * b.ny;
       if (r > 1.02) continue;
       const dot = document.createElementNS(svgNs, "circle");
-      dot.setAttribute("cx", String(b.nx * RADAR_BLIP_SCALE));
-      dot.setAttribute("cy", String(b.ny * RADAR_BLIP_SCALE));
+      dot.setAttribute("cx", String(b.nx * RADAR_PLAN_SVG_BLIP_RADIUS));
+      dot.setAttribute("cy", String(b.ny * RADAR_PLAN_SVG_BLIP_RADIUS));
       dot.setAttribute("r", "3");
       dot.setAttribute("class", "cockpit-radar-blip");
       radarBlipsG.appendChild(dot);
@@ -348,8 +369,8 @@ export function createCockpitHud(opts?: {
       const r = b.nx * b.nx + b.ny * b.ny;
       if (r > 1.02) continue;
       const dot = document.createElementNS(svgNs, "circle");
-      dot.setAttribute("cx", String(b.nx * RADAR_BLIP_SCALE));
-      dot.setAttribute("cy", String(b.ny * RADAR_BLIP_SCALE));
+      dot.setAttribute("cx", String(b.nx * RADAR_PLAN_SVG_BLIP_RADIUS));
+      dot.setAttribute("cy", String(b.ny * RADAR_PLAN_SVG_BLIP_RADIUS));
       dot.setAttribute("r", "2.35");
       dot.setAttribute("class", "cockpit-radar-portal-marker");
       radarPortalMarkersG.appendChild(dot);
@@ -439,6 +460,7 @@ export function createCockpitHud(opts?: {
       ownRadarActive,
       esmLines,
       radarThreatLines,
+      ssmRailLines,
     }: CockpitHudUpdate): void {
       playerNameEl.textContent = playerDisplayName;
       shipClassEl.textContent = shipClassLabel;
@@ -451,7 +473,7 @@ export function createCockpitHud(opts?: {
 
       const distToCtr = Math.hypot(worldX, worldZ);
       if (distToCtr > 12) {
-        const off = radarMapCenterMarkerOffsetNorthUp(worldX, worldZ, RADAR_BLIP_SCALE, RADAR_RANGE_WORLD);
+        const off = radarMapCenterMarkerOffsetNorthUp(worldX, worldZ, RADAR_PLAN_SVG_BLIP_RADIUS, RADAR_RANGE_WORLD);
         if (off) {
           radarMapCenterWrap.setAttribute("transform", `translate(${off.mx},${off.my})`);
           radarMapCenterWrap.style.opacity = "1";
@@ -514,6 +536,11 @@ export function createCockpitHud(opts?: {
       if (radarVisible) {
         radarRoot.classList.remove("cockpit-radar-hidden");
         const bk = cockpitRadarBlipsKey(radarBlips);
+        const sk = cockpitRadarSsmRailsKey(ssmRailLines);
+        if (sk !== lastSsmRailsKey) {
+          lastSsmRailsKey = sk;
+          drawSsmRails(ssmRailLines);
+        }
         const ek = cockpitRadarEsmKey(esmLines);
         if (ek !== lastEsmKey) {
           lastEsmKey = ek;
@@ -537,8 +564,10 @@ export function createCockpitHud(opts?: {
         radarRoot.classList.add("cockpit-radar-hidden");
         lastRadarBlipsKey = "";
         lastRadarPortalMarkersKey = "";
+        lastSsmRailsKey = "";
         lastEsmKey = "";
         lastThreatKey = "";
+        radarSsmRailsG.replaceChildren();
         radarEsmG.replaceChildren();
         radarThreatG.replaceChildren();
         radarBlipsG.replaceChildren();

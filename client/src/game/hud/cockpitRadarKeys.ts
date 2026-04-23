@@ -11,6 +11,15 @@ export type CockpitRadarThreatLine = {
   dashed: boolean;
 };
 
+/** Feste SSM-Rail — kurzer Peiler-Tick auf dem Plan-Radar (Nord oben). */
+export type CockpitSsmRailLine = {
+  x1: number;
+  y1: number;
+  x2: number;
+  y2: number;
+  stroke?: string;
+};
+
 /** Stabiler String zum Erkennen von Änderungen am Plan-Radar (kein DOM-Rebuild bei gleichem Kontaktbild). */
 export function cockpitRadarBlipsKey(blips: readonly RadarBlipNorm[]): string {
   if (blips.length === 0) return "";
@@ -38,6 +47,16 @@ export function cockpitRadarThreatKey(lines: readonly CockpitRadarThreatLine[]):
     .map(
       (l) =>
         `${l.x1.toFixed(2)}_${l.y1.toFixed(2)}_${l.x2.toFixed(2)}_${l.y2.toFixed(2)}_${l.dashed ? "d" : "s"}`,
+    )
+    .join("|");
+}
+
+export function cockpitRadarSsmRailsKey(lines: readonly CockpitSsmRailLine[]): string {
+  if (lines.length === 0) return "";
+  return lines
+    .map(
+      (l) =>
+        `${l.x1.toFixed(2)}_${l.y1.toFixed(2)}_${l.x2.toFixed(2)}_${l.y2.toFixed(2)}_${l.stroke ?? ""}`,
     )
     .join("|");
 }

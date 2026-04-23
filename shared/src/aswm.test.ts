@@ -12,6 +12,7 @@ import {
   spawnAswmFromFixedLauncher,
   spawnAswmFromFireDirection,
   stepAswmMissile,
+  isAswmMissileClosingOnWorldPoint,
 } from "./aswm";
 import type { FixedSeaSkimmerLauncherSpec } from "./shipVisualLayout";
 
@@ -173,6 +174,12 @@ assert.ok(ASWM_ACQUIRE_HALF_ANGLE_RAD > 0.5 && ASWM_ACQUIRE_HALF_ANGLE_RAD < 0.5
   };
   const p = spawnAswmFromFixedLauncher(0, 0, 0, L);
   assert.ok(Math.abs(p.headingRad - Math.PI / 4) < 1e-5);
+}
+
+{
+  assert.equal(isAswmMissileClosingOnWorldPoint(0, 0, 0, 0, 100), true);
+  assert.equal(isAswmMissileClosingOnWorldPoint(0, 100, 0, 0, 0), false);
+  assert.equal(isAswmMissileClosingOnWorldPoint(0, 0, 0, 0, 0), true);
 }
 
 console.log("aswm tests ok");

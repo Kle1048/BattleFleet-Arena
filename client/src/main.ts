@@ -38,7 +38,7 @@ import { createMissileFx } from "./game/effects/missileFx";
 import { createTorpedoFx } from "./game/effects/torpedoFx";
 import { gameAudio } from "./game/audio/gameAudio";
 import { pickShipLobbyChoice } from "./game/ui/classPicker";
-import { showMissionBriefingIfNeeded } from "./game/ui/missionBriefing";
+import { showMissionBriefing } from "./game/ui/missionBriefing";
 import { addVibeJamPortalWorldRings } from "./game/portal/portalWorldVisuals";
 import {
   captureVibeJamPortalSessionIfNeeded,
@@ -199,7 +199,12 @@ async function bootstrap(): Promise<void> {
   const debugOverlay = createDebugOverlay({ parent: bridgeEl });
   debugOverlayForFatal = debugOverlay;
   installGlobalRuntimeErrorHandlers(debugOverlay);
-  const commsLog = createMessageLog({ parent: opzEl });
+  const commsLog = createMessageLog({
+    parent: opzEl,
+    onShowHelp: () => {
+      void showMissionBriefing();
+    },
+  });
   const botController = createBotController();
   const setBotEnabled = (enabled: boolean): void => {
     if (enabled) botController.enable();
@@ -242,7 +247,6 @@ async function bootstrap(): Promise<void> {
   });
 
   const client = createColyseusClient(COLYSEUS_URL);
-  await showMissionBriefingIfNeeded();
   captureVibeJamPortalSessionIfNeeded();
   const vibeJamPortalRings = addVibeJamPortalWorldRings(scene);
   const lobby = isVibeJamPortalEntry()
@@ -330,7 +334,9 @@ async function bootstrap(): Promise<void> {
       colyseusWarn = next;
     },
     onPrimaryFireByLocalPlayer: () => gameAudio.primaryFire(),
-    onHitNearLocalPlayer: () => gameAudio.hitNear(),
+    onHitNearAt: (impactX, impactZ) => {
+      gameAudio.hitNearAt(impactX, impactZ);
+    },
     onMissileFireByLocalPlayer: () => gameAudio.missileFire(),
     onTorpedoFireByLocalPlayer: () => gameAudio.torpedoFire(),
     onMineImpactNearLocalPlayer: (distance) => {
@@ -345,13 +351,14 @@ async function bootstrap(): Promise<void> {
       debugShipSwitchRef.send = undefined;
       scheduleReload(1200);
     },
-    onAirDefenseSound: ({ phase, layer }) => {
+    onAirDefenseSound: ({ phase, layer, worldX, worldZ }) => {
+      const sp = { worldX, worldZ };
       if (layer === "sam" || layer === "pd") {
-        if (phase === "fire") gameAudio.airDefenseSamFire();
-        else gameAudio.airDefenseSamIntercept();
+        if (phase === "fire") gameAudio.airDefenseSamFire(sp);
+        else gameAudio.airDefenseSamIntercept(sp);
       } else {
-        if (phase === "fire") gameAudio.airDefenseCiwsFire();
-        else gameAudio.airDefenseCiwsIntercept();
+        if (phase === "fire") gameAudio.airDefenseCiwsFire(sp);
+        else gameAudio.airDefenseCiwsIntercept(sp);
       }
     },
     onCollisionContact: (kind) => {
@@ -367,7 +374,7 @@ async function bootstrap(): Promise<void> {
         /** Pro Rauch-Puff einmal — Gain ~1/√8 gegenüber früher „einmal 0.32“, damit es nicht übersteuert. */
         const chaffGainPerPuff = 0.32 / Math.sqrt(8);
         fxSystem.spawnSoftkillChaffCloud(skMe.x, skMe.z, skMe.headingRad, undefined, (_puffIndex) => {
-          gameAudio.softkillChaff(chaffGainPerPuff);
+          gameAudio.softkillChaff(chaffGainPerPuff, { worldX: skMe.x, worldZ: skMe.z });
         });
       } else {
         gameAudio.softkillChaff(0.32);
@@ -379,16 +386,7 @@ async function bootstrap(): Promise<void> {
       );
     },
     onWeaponHitAt: (x, z) => {
-      const me = getPlayer(playerListOf(room), mySessionId);
-      if (!me) {
-        gameAudio.weaponHit(0.32);
-        return;
-      }
-      const d = Math.hypot(x - me.x, z - me.z);
-      const maxD = 520;
-      if (d > maxD) return;
-      const prox = 1 - d / maxD;
-      gameAudio.weaponHit(0.18 + 0.48 * prox);
+      gameAudio.weaponHitAt(x, z);
     },
     getPdmsMuzzleSeek: (defenderId) => resolvePdmsMuzzleSeek?.(defenderId) ?? null,
     appendAirDefenseComms: (e) => commsLog.append(e),
@@ -422,6 +420,12 @@ async function bootstrap(): Promise<void> {
     playerListOf,
     getHullGltfTemplate,
     getMountGltfTemplate,
+    onRemotePlayerJoinedRoom: (p) => {
+      commsLog.append({
+        text: t("comms.playerJoined", { name: playerDisplayLabel(p) }),
+        kind: "info",
+      });
+    },
   });
   const hudRuntime = createHudRuntime({
     debugOverlay,
@@ -522,6 +526,16 @@ async function bootstrap(): Promise<void> {
     frameTimeMs = Math.max(0, now - lastFrameNow);
     lastFrameNow = now;
     const playerList = playerListOf(room);
+    const meAudio = getPlayer(playerList, mySessionId);
+    if (meAudio && meAudio.lifeState !== PlayerLifeState.AwaitingRespawn) {
+      gameAudio.setListenerShipPose({
+        x: meAudio.x,
+        z: meAudio.z,
+        headingRad: meAudio.headingRad,
+      });
+    } else {
+      gameAudio.setListenerShipPose(null);
+    }
     const operationalHalf = readOperationalAreaHalfExtent(room);
     if (operationalHalf !== lastSyncedOperationalHalf) {
       setOperationalAreaHalfExtent(operationalHalf);
@@ -653,7 +667,7 @@ async function bootstrap(): Promise<void> {
         const isSelf = p.id === mySessionId;
         const me = getPlayer(playerList, mySessionId);
         if (isSelf) {
-          gameAudio.explosion(0.58);
+          gameAudio.explosionSelf();
           screenFlash.trigger({ intensity: 1 });
           triggerCameraShake({ durationMs: 520, amplitude: 15 });
         } else if (me) {
@@ -663,11 +677,12 @@ async function bootstrap(): Promise<void> {
             screenFlash.trigger({ intensity: 0.26 + 0.55 * prox });
             triggerCameraShake({ durationMs: 220 + 280 * prox, amplitude: 4.5 + 12 * prox });
           }
-          if (dist <= 500) {
-            gameAudio.explosion(0.22 + 0.5 * (1 - dist / 500));
+          if (dist <= 520) {
+            const peak = 0.22 + 0.5 * (1 - Math.min(dist, 500) / 500);
+            gameAudio.explosionOtherAt(p.x, p.z, Math.max(0.1, peak));
           }
         } else {
-          gameAudio.explosion(0.38);
+          gameAudio.explosionOtherAt(p.x, p.z, 0.38);
         }
       },
     });

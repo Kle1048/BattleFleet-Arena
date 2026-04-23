@@ -376,3 +376,23 @@ npm run devlog:append
 
 > Update: fix(air-defense): restore SAM cooldown while keeping fire-time reservation | Naval arena WIP · #Vibejam · code + play ⚔️🎮
 
+---
+
+## 2026-04-23
+
+- **Author:** Klemens1048
+- **Commit:** feat: plan radar SSM rails, spatial ship audio, sea control HUD
+
+**Details:**
+
+- - Cockpit plan radar: fixed SSM launcher bearing ticks (north-up), port/starboard colors, length past mid ring
+- - Ship spatial audio module and gameAudio integration
+- - Sea control zone HUD + frame/visual wiring; mission briefing and locale updates
+- - Shared ASuM/schema tweaks; BattleRoom sync; message log and network runtime
+- Made-with: Cursor
+
+### Suggested post (Twitter / X, #Vibejam)
+
+> Shipped: feat: plan radar SSM rails, spatial ship audio, sea control HUD 🚢 AI-assisted competitive game — #Vibejam #indiedev
+
+---

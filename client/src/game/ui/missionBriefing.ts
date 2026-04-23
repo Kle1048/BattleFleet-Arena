@@ -1,24 +1,13 @@
 /**
- * Vor dem Lobby-Dialog: Mission-Briefing-Overlay (Beispiel). Optional per localStorage ausblendbar.
+ * Mission-Briefing-Overlay (Hilfe / Vor dem Einsatz).
  */
 
+import { progressionNavalRankEn } from "@battlefleet/shared";
 import { isVibeJamPortalEntry } from "../portal/vibeJamPortal";
 import { t } from "../../locale/t";
 
-const STORAGE_KEY = "battlefleet_missionBriefing_v1";
-
-export function shouldShowMissionBriefing(): boolean {
-  if (typeof window === "undefined") return true;
-  try {
-    return window.localStorage.getItem(STORAGE_KEY) !== "1";
-  } catch {
-    return true;
-  }
-}
-
 /**
  * Zeigt den Briefing-Screen und resolved nach Bestätigung.
- * Wenn „Nicht mehr anzeigen“ aktiv ist, wird der Schlüssel gesetzt.
  */
 export function showMissionBriefing(): Promise<void> {
   return new Promise((resolve) => {
@@ -69,14 +58,19 @@ export function showMissionBriefing(): Promise<void> {
               <li><span class="mission-briefing-kbd">LMB</span> or <span class="mission-briefing-kbd">Space</span> ${t("missionBriefing.controlPrimarySuffix")}</li>
               <li><span class="mission-briefing-kbd">RMB</span> ${t("missionBriefing.controlRmbSuffix")}</li>
               <li><span class="mission-briefing-kbd">R</span> ${t("missionBriefing.controlRadarSuffix")}</li>
+              <li><span class="mission-briefing-kbd">F</span> ${t("missionBriefing.controlFireControlSuffix")}</li>
+            </ul>
+          </section>
+          <section class="mission-briefing-section">
+            <h3 class="mission-briefing-h3">${t("missionBriefing.sectionShipsTitle")}</h3>
+            <ul class="mission-briefing-list mission-briefing-list--compact">
+              <li>${t("missionBriefing.shipBulletFac", { rank: progressionNavalRankEn(1) })}</li>
+              <li>${t("missionBriefing.shipBulletDestroyer", { rank: progressionNavalRankEn(3) })}</li>
+              <li>${t("missionBriefing.shipBulletCruiser", { rank: progressionNavalRankEn(5) })}</li>
             </ul>
           </section>
         </div>
         <footer class="mission-briefing-footer">
-          <label class="mission-briefing-skip">
-            <input type="checkbox" class="mission-briefing-skip-input" />
-            <span>${t("missionBriefing.skipLabel")}</span>
-          </label>
           <button type="button" class="mission-briefing-continue-btn">${t("missionBriefing.continue")}</button>
         </footer>
       </div>
@@ -94,17 +88,9 @@ export function showMissionBriefing(): Promise<void> {
       }
     }
 
-    const skipInput = root.querySelector(".mission-briefing-skip-input") as HTMLInputElement;
     const continueBtn = root.querySelector(".mission-briefing-continue-btn") as HTMLButtonElement;
 
     const finish = (): void => {
-      if (skipInput.checked) {
-        try {
-          window.localStorage.setItem(STORAGE_KEY, "1");
-        } catch {
-          /* ignore quota / private mode */
-        }
-      }
       root.remove();
       resolve();
     };
@@ -116,9 +102,8 @@ export function showMissionBriefing(): Promise<void> {
   });
 }
 
-/** Zeigt das Briefing nur, wenn der Spieler es nicht dauerhaft ausgeschaltet hat. */
+/** Zeigt das Briefing (z. B. beim Start); Portal-Einstieg überspringt. */
 export async function showMissionBriefingIfNeeded(): Promise<void> {
   if (isVibeJamPortalEntry()) return;
-  if (!shouldShowMissionBriefing()) return;
   await showMissionBriefing();
 }
