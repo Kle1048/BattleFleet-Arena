@@ -328,3 +328,35 @@ npm run devlog:append
 
 > Update: feat: Vibe Jam portal flow, radar markers, black-hole visuals | Naval arena WIP · #Vibejam · code + play ⚔️🎮
 
+---
+
+## 2026-04-23
+
+- **Author:** Klemens1048
+- **Commit:** feat: improve AD pacing, UI copy, and server bootstrap flow
+
+**Details:**
+
+- Adjust air-defense timing to prevent simultaneous SAM launches, localize remaining fire-control text in the client, and add server startup/bootstrap updates including leaderboard wiring.
+- Made-with: Cursor
+
+### Suggested post (Twitter / X, #Vibejam)
+
+> Shipped: feat: improve AD pacing, UI copy, and server bootstrap flow 🚢 AI-assisted competitive game — #Vibejam #indiedev
+
+---
+
+## 2026-04-23
+
+- **Author:** Klemens1048
+- **Commit:** feat: improve AD pacing, UI copy, and server bootstrap flow
+
+**Details:**
+
+- Adjust air-defense timing to prevent simultaneous SAM launches, localize remaining fire-control text in the client, and add server startup/bootstrap updates including leaderboard wiring.
+- Made-with: Cursor
+
+### Suggested post (Twitter / X, #Vibejam)
+
+> Update: feat: improve AD pacing, UI copy, and server bootstrap flow | Naval arena WIP · #Vibejam · code + play ⚔️🎮
+

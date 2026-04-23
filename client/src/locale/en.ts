@@ -227,6 +227,8 @@ export const en = {
       "FFA — win: highest score (passive + combat; center ×5). Kills count. \"Continue\": leave the room and reconnect.",
     /** matchEndHud.ts — score table `aria-label`. */
     tableAria: "Scoreboard",
+    /** matchEndHud.ts — all-time table `aria-label`. */
+    overallTableAria: "Overall leaderboard",
     /** matchEndHud.ts — table header: placement column. */
     colPlace: "#",
     /** matchEndHud.ts — table header: player name. */
@@ -241,6 +243,18 @@ export const en = {
     colScore: "Score",
     /** matchEndHud.ts — primary action button. */
     continue: "Continue",
+    /** matchEndHud.ts — section title below match result. */
+    overallTitle: "Top 10 overall",
+    /** matchEndHud.ts — loading text while API request runs. */
+    overallLoading: "Loading overall leaderboard...",
+    /** matchEndHud.ts — API failed or timed out. */
+    overallUnavailable: "Overall leaderboard unavailable right now.",
+    /** matchEndHud.ts — API succeeded but no stored rows yet. */
+    overallEmpty: "No overall entries yet.",
+    /** matchEndHud.ts — overall table header: wins total. */
+    colOverallWins: "Wins",
+    /** matchEndHud.ts — overall table header: played matches total. */
+    colOverallMatches: "Matches",
   },
 
   /** classPicker.ts — pre-match name entry overlay. */
@@ -289,6 +303,22 @@ export const en = {
     missionBullet2: "Watch hull points and ordnance.",
     /** missionBriefing.ts — mission list item 3. */
     missionBullet3: "Match end follows arena rules (time / win conditions).",
+    /** missionBriefing.ts — map layout section title. */
+    sectionMapTitle: "Arena layout",
+    /** missionBriefing.ts — map bullet: central objective zone. */
+    mapBulletSeaControl:
+      "Sea Control Area: central square objective zone; passive score gain is multiplied while inside.",
+    /** missionBriefing.ts — map bullet: arena edge / out-of-bounds behavior. */
+    mapBulletOob:
+      "OOB Boundary: outside the operational area you trigger an out-of-bounds countdown and risk destruction.",
+    /** missionBriefing.ts — map bullet: islands as terrain constraints. */
+    mapBulletIslands:
+      "Islands: block movement and line of fire; use them for cover but avoid collision damage.",
+    /** missionBriefing.ts — map bullet: portal reference marker. */
+    mapBulletPortal:
+      "Portal marker: a ring landmark on the map edge used as a fixed tactical reference point.",
+    /** missionBriefing.ts — map bullet: navigation orientation cue. */
+    mapBulletNorth: "North arrow: use north-up orientation for callouts and maneuver coordination.",
     /** missionBriefing.ts — controls section title. */
     sectionControlsTitle: "Controls (quick)",
     /** missionBriefing.ts — text after `<kbd>WASD</kbd>` span. */

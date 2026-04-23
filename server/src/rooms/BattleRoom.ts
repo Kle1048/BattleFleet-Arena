@@ -5,6 +5,7 @@ import {
   MAX_HUMAN_CLIENTS_IN_ROOM,
   readMinTotalParticipantsFromEnv,
 } from "../serverBotPopulation.js";
+import { normalizePlayerToken, recordMatchResults } from "../leaderboardStore.js";
 import {
   operationalHalfExtentFromParticipantCount,
   ARTILLERY_DAMAGE,
@@ -44,6 +45,7 @@ import {
   participatesInWorldSimulation,
   pickAswmAcquisitionTarget,
   AD_SAM_RANGE_SQ,
+  AD_SAM_COOLDOWN_MS,
   AD_SOFTKILL_RANGE_SQ,
   AD_SOFTKILL_SAME_TARGET_REACQUIRE_BLOCK_MS,
   type AirDefenseHardkillLayer,
@@ -129,6 +131,8 @@ const HP_REGEN_PER_SEC_FACTOR = 0.01;
 const SERVER_BOT_SPAWN_STAGGER_MS = 450;
 /** Abstand beim Entfernen von Bots, wenn Menschen die Slots füllen (sanftes Ausdünnen). */
 const SERVER_BOT_REMOVE_STAGGER_MS = 1600;
+/** Input-Comms werden pro Session höchstens in diesem Abstand geloggt (wenn aktiviert). */
+const COMM_INPUT_LOG_SAMPLE_MS = 2000;
 
 export type InputPayload = {
   throttle: number;
@@ -227,7 +231,13 @@ export class BattleRoom extends Room<BattleState> {
    */
   private readonly adPendingRollByMissileId = new Map<
     number,
-    { defenderId: string; layer: AirDefenseHardkillLayer; rollReadyAtMs: number }
+    {
+      defenderId: string;
+      layer: AirDefenseHardkillLayer;
+      rollReadyAtMs: number;
+      /** Für SAM: Cooldown wurde bereits beim `airDefenseFire` reserviert. */
+      samCooldownReservedAtFire?: boolean;
+    }
   >();
   /** Softkill: höchstens ein Versuch pro Rakete+Verteidiger. */
   private readonly adSoftkillAttemptedMissileDefender = new Set<string>();
@@ -259,8 +269,10 @@ export class BattleRoom extends Room<BattleState> {
     string,
     ReturnType<typeof createBotController>
   >();
+  private readonly playerKeyBySessionId = new Map<string, string>();
   private lastServerBotSpawnAtMs = Date.now() - SERVER_BOT_SPAWN_STAGGER_MS;
   private lastServerBotRemovalAtMs = Date.now();
+  private readonly lastCommsInputLogAtMsBySession = new Map<string, number>();
 
   onCreate() {
     this.setState(new BattleState());
@@ -273,21 +285,30 @@ export class BattleRoom extends Room<BattleState> {
       this.roomId,
       this.minTotalParticipants,
     );
+    if (this.isCommsLoggingEnabled()) {
+      console.log("[BattleRoom] comms logging enabled (BFA_LOG_COMMS=1) roomId=%s", this.roomId);
+    }
 
     this.onMessage("ping", (client, payload: { clientTime?: number }) => {
+      this.logComm("ping", client.sessionId);
       const t = Number(payload?.clientTime);
       client.send("pong", { clientTime: Number.isFinite(t) ? t : 0 });
     });
 
     this.onMessage("playAgain", () => {
+      this.logComm("playAgain");
       this.resetMatchForNewRound(Date.now());
     });
 
     this.onMessage("input", (client, payload: InputPayload) => {
+      this.logInputCommSampled(client.sessionId);
       this.applyInputPayload(client.sessionId, payload);
     });
 
     this.onMessage("debugSetShipClass", (client, payload: { shipClass?: string }) => {
+      this.logComm("debugSetShipClass", client.sessionId, {
+        shipClass: payload?.shipClass,
+      });
       if (process.env.NODE_ENV === "production" && process.env.BFA_DEBUG_SHIP_SWITCH !== "1") {
         return;
       }
@@ -315,6 +336,33 @@ export class BattleRoom extends Room<BattleState> {
 
     this.lastPassiveXpAtMs = Date.now();
     this.maxClients = MAX_HUMAN_CLIENTS_IN_ROOM;
+  }
+
+  private isCommsLoggingEnabled(): boolean {
+    return process.env.BFA_LOG_COMMS === "1";
+  }
+
+  private logComm(event: string, sessionId?: string, extra?: Record<string, unknown>): void {
+    if (!this.isCommsLoggingEnabled()) return;
+    const parts: string[] = [];
+    parts.push(`event=${event}`);
+    if (sessionId) parts.push(`sessionId=${sessionId}`);
+    parts.push(`roomId=${this.roomId}`);
+    if (extra) {
+      for (const [k, v] of Object.entries(extra)) {
+        parts.push(`${k}=${String(v)}`);
+      }
+    }
+    console.log(`[BattleRoom][comms] ${parts.join(" ")}`);
+  }
+
+  private logInputCommSampled(sessionId: string): void {
+    if (!this.isCommsLoggingEnabled()) return;
+    const now = Date.now();
+    const last = this.lastCommsInputLogAtMsBySession.get(sessionId) ?? 0;
+    if (now - last < COMM_INPUT_LOG_SAMPLE_MS) return;
+    this.lastCommsInputLogAtMsBySession.set(sessionId, now);
+    this.logComm("input(sampled)", sessionId);
   }
 
   private getOperationalHalfExtent(): number {
@@ -706,9 +754,12 @@ export class BattleRoom extends Room<BattleState> {
     }
   }
 
-  onJoin(client: Client, options?: { shipClass?: string; displayName?: string }) {
+  onJoin(client: Client, options?: { shipClass?: string; displayName?: string; playerToken?: string }) {
     const displayName = sanitizePlayerDisplayName(options?.displayName);
+    const playerKey = normalizePlayerToken(options?.playerToken, client.sessionId);
+    this.playerKeyBySessionId.set(client.sessionId, playerKey);
     this.joinNewParticipant(client.sessionId, displayName);
+    this.logComm("join", client.sessionId, { displayName });
     console.log(
       "[BattleRoom] onJoin sessionId=%s playerList.length=%d roomId=%s",
       client.sessionId,
@@ -718,6 +769,9 @@ export class BattleRoom extends Room<BattleState> {
   }
 
   onLeave(client: Client) {
+    this.logComm("leave", client.sessionId);
+    this.lastCommsInputLogAtMsBySession.delete(client.sessionId);
+    this.playerKeyBySessionId.delete(client.sessionId);
     this.detachParticipant(client.sessionId);
   }
 
@@ -814,11 +868,33 @@ export class BattleRoom extends Room<BattleState> {
     this.matchEndBroadcastSent = true;
     this.state.matchPhase = MATCH_PHASE_ENDED;
     this.state.matchRemainingSec = 0;
+    this.persistLeaderboardForMatchEnd();
     this.pendingShells = [];
     this.clearAllMissilesAndTorpedoes();
     this.clearWreckList();
     this.broadcast("matchEnded", {} as Record<string, never>);
     console.log("[BattleRoom] match ended roomId=%s", this.roomId);
+  }
+
+  private persistLeaderboardForMatchEnd(): void {
+    const humanPlayers: PlayerState[] = [];
+    for (const p of this.state.playerList) {
+      if (!this.serverBotIds.has(p.id)) humanPlayers.push(p);
+    }
+    if (humanPlayers.length < 1) return;
+    let bestScore = Number.NEGATIVE_INFINITY;
+    for (const p of humanPlayers) {
+      if (p.score > bestScore) bestScore = p.score;
+    }
+    const rows = humanPlayers.map((p) => ({
+      playerKey: this.playerKeyBySessionId.get(p.id) ?? `session:${p.id}`,
+      displayName: p.displayName,
+      kills: p.kills,
+      score: p.score,
+      xp: p.xp,
+      won: p.score === bestScore,
+    }));
+    recordMatchResults(rows);
   }
 
   /**
@@ -1519,16 +1595,18 @@ export class BattleRoom extends Room<BattleState> {
             } else {
               airDefenseConsumed = true;
               if (!isHardkillLayerInRange(pending.layer, distSq)) {
-                const cdMiss = applyHardkillCooldownAfterRoll(
-                  pending.layer,
-                  now,
-                  defRow.adSamNextAtMs,
-                  defRow.adPdNextAtMs,
-                  defRow.adCiwsNextAtMs,
-                );
-                defRow.adSamNextAtMs = cdMiss.samNextAtMs;
-                defRow.adPdNextAtMs = cdMiss.pdNextAtMs;
-                defRow.adCiwsNextAtMs = cdMiss.ciwsNextAtMs;
+                if (!(pending.layer === "sam" && pending.samCooldownReservedAtFire)) {
+                  const cdMiss = applyHardkillCooldownAfterRoll(
+                    pending.layer,
+                    now,
+                    defRow.adSamNextAtMs,
+                    defRow.adPdNextAtMs,
+                    defRow.adCiwsNextAtMs,
+                  );
+                  defRow.adSamNextAtMs = cdMiss.samNextAtMs;
+                  defRow.adPdNextAtMs = cdMiss.pdNextAtMs;
+                  defRow.adCiwsNextAtMs = cdMiss.ciwsNextAtMs;
+                }
                 this.adPendingRollByMissileId.delete(m.missileId);
               } else if (
                 (pending.layer === "sam" || pending.layer === "pd") &&
@@ -1537,16 +1615,18 @@ export class BattleRoom extends Room<BattleState> {
                 /* SAM/PD: Abfangkörper unterwegs — noch kein Wurf. */
               } else {
                 const hit = rollHardkillHit(pending.layer, Math.random);
-                const cd = applyHardkillCooldownAfterRoll(
-                  pending.layer,
-                  now,
-                  defRow.adSamNextAtMs,
-                  defRow.adPdNextAtMs,
-                  defRow.adCiwsNextAtMs,
-                );
-                defRow.adSamNextAtMs = cd.samNextAtMs;
-                defRow.adPdNextAtMs = cd.pdNextAtMs;
-                defRow.adCiwsNextAtMs = cd.ciwsNextAtMs;
+                if (!(pending.layer === "sam" && pending.samCooldownReservedAtFire)) {
+                  const cd = applyHardkillCooldownAfterRoll(
+                    pending.layer,
+                    now,
+                    defRow.adSamNextAtMs,
+                    defRow.adPdNextAtMs,
+                    defRow.adCiwsNextAtMs,
+                  );
+                  defRow.adSamNextAtMs = cd.samNextAtMs;
+                  defRow.adPdNextAtMs = cd.pdNextAtMs;
+                  defRow.adCiwsNextAtMs = cd.ciwsNextAtMs;
+                }
                 if (hit) {
                   this.broadcast("airDefenseIntercept", {
                     weapon: "aswm",
@@ -1573,10 +1653,16 @@ export class BattleRoom extends Room<BattleState> {
               const distCenterM = Math.hypot(m.x - tgt.x, m.z - tgt.z);
               const rollReadyAtMs =
                 layer === "ciws" ? now : now + computeSamPdInterceptTravelMs(distCenterM);
+              const samCooldownReservedAtFire = layer === "sam";
+              if (samCooldownReservedAtFire) {
+                // WICHTIG: Reserve direkt beim Abschuss, damit derselbe Tick nicht mehrere SAMs startet.
+                defRow.adSamNextAtMs = now + AD_SAM_COOLDOWN_MS;
+              }
               this.adPendingRollByMissileId.set(m.missileId, {
                 defenderId: adDefenderId,
                 layer,
                 rollReadyAtMs,
+                samCooldownReservedAtFire,
               });
               this.broadcast("airDefenseFire", {
                 weapon: "aswm",

@@ -104,6 +104,26 @@ const COLYSEUS_URL = colyseusHttpBase(
   typeof window !== "undefined" ? window.location.hostname : undefined,
 );
 
+function getOrCreatePlayerToken(): string {
+  const key = "bfa_player_token_v1";
+  try {
+    const existing = window.localStorage.getItem(key);
+    if (existing && /^[A-Za-z0-9_-]{8,128}$/.test(existing)) return existing;
+  } catch {
+    // Ignore storage access issues.
+  }
+  const generated =
+    typeof crypto !== "undefined" && typeof crypto.randomUUID === "function"
+      ? crypto.randomUUID().replace(/-/g, "")
+      : `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 14)}`;
+  try {
+    window.localStorage.setItem(key, generated);
+  } catch {
+    // Ignore storage write failures.
+  }
+  return generated;
+}
+
 const root = document.getElementById("app");
 if (!root) throw new Error(t("errors.appRootMissing"));
 
@@ -247,6 +267,7 @@ async function bootstrap(): Promise<void> {
       {
         shipClass: lobby.shipClass,
         displayName: lobby.displayName,
+        playerToken: getOrCreatePlayerToken(),
       },
       BattleState,
     ),
@@ -407,6 +428,38 @@ async function bootstrap(): Promise<void> {
     matchEndHud,
     mySessionId,
     joinedAt,
+    fetchOverallLeaderboard: async () => {
+      const ctrl = new AbortController();
+      const id = window.setTimeout(() => ctrl.abort(), 4_000);
+      try {
+        const res = await fetch(`${COLYSEUS_URL}/api/leaderboard?limit=10`, {
+          signal: ctrl.signal,
+        });
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const json = (await res.json()) as {
+          rows?: Array<{
+            displayName?: unknown;
+            scoreTotal?: unknown;
+            kills?: unknown;
+            wins?: unknown;
+            matches?: unknown;
+          }>;
+        };
+        const rows = Array.isArray(json.rows) ? json.rows : [];
+        return rows.map((it) => ({
+          displayName:
+            typeof it.displayName === "string" && it.displayName.trim().length > 0
+              ? it.displayName.trim()
+              : "—",
+          scoreTotal: typeof it.scoreTotal === "number" ? it.scoreTotal : 0,
+          kills: typeof it.kills === "number" ? it.kills : 0,
+          wins: typeof it.wins === "number" ? it.wins : 0,
+          matches: typeof it.matches === "number" ? it.matches : 0,
+        }));
+      } finally {
+        window.clearTimeout(id);
+      }
+    },
   });
   const { visuals, remoteInterp, ensureShipVisual, removeShipVisual } = visualRuntime;
   const shipWakeRibbonSystem = createShipWakeRibbonSystem(scene);

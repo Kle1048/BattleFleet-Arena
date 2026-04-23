@@ -52,6 +52,16 @@ export function showMissionBriefing(): Promise<void> {
             </ul>
           </section>
           <section class="mission-briefing-section">
+            <h3 class="mission-briefing-h3">${t("missionBriefing.sectionMapTitle")}</h3>
+            <ul class="mission-briefing-list mission-briefing-list--compact">
+              <li>${t("missionBriefing.mapBulletSeaControl")}</li>
+              <li>${t("missionBriefing.mapBulletOob")}</li>
+              <li>${t("missionBriefing.mapBulletIslands")}</li>
+              <li>${t("missionBriefing.mapBulletPortal")}</li>
+              <li>${t("missionBriefing.mapBulletNorth")}</li>
+            </ul>
+          </section>
+          <section class="mission-briefing-section">
             <h3 class="mission-briefing-h3">${t("missionBriefing.sectionControlsTitle")}</h3>
             <ul class="mission-briefing-list mission-briefing-list--compact">
               <li><span class="mission-briefing-kbd">WASD</span> ${t("missionBriefing.controlWasdSuffix")}</li>

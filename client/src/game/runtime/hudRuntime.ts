@@ -24,6 +24,16 @@ type MatchEndHudLike = {
     }[],
     mySessionId: string,
   ) => void;
+  setOverallLeaderboard: (state: {
+    status: "loading" | "error" | "ready";
+    rows?: Array<{
+      displayName: string;
+      scoreTotal: number;
+      kills: number;
+      wins: number;
+      matches: number;
+    }>;
+  }) => void;
   hide: () => void;
 };
 
@@ -41,6 +51,15 @@ type CreateHudRuntimeOptions = {
   matchEndHud: MatchEndHudLike;
   mySessionId: string;
   joinedAt: number;
+  fetchOverallLeaderboard: () => Promise<
+    Array<{
+      displayName: string;
+      scoreTotal: number;
+      kills: number;
+      wins: number;
+      matches: number;
+    }>
+  >;
 };
 
 export function createHudRuntime(options: CreateHudRuntimeOptions): {
@@ -67,9 +86,10 @@ export function createHudRuntime(options: CreateHudRuntimeOptions): {
     players: Iterable<HudPlayerLike>;
   }) => void;
 } {
-  const { debugOverlay, matchEndHud, mySessionId, joinedAt } = options;
+  const { debugOverlay, matchEndHud, mySessionId, joinedAt, fetchOverallLeaderboard } = options;
   /** Verhindert ~60×/s `show()` während `MATCH_PHASE_ENDED` (DOM-Neuaufbau / „flackert“). */
   let matchEndScoreboardShown = false;
+  let leaderboardRequestSeq = 0;
 
   return {
     updateDebugOverlay({
@@ -150,9 +170,21 @@ export function createHudRuntime(options: CreateHudRuntimeOptions): {
             a.sessionId.localeCompare(b.sessionId),
         );
         matchEndHud.show(rows, mySessionId);
+        matchEndHud.setOverallLeaderboard({ status: "loading" });
+        const reqId = ++leaderboardRequestSeq;
+        void fetchOverallLeaderboard()
+          .then((overallRows) => {
+            if (reqId !== leaderboardRequestSeq || !matchEndScoreboardShown) return;
+            matchEndHud.setOverallLeaderboard({ status: "ready", rows: overallRows });
+          })
+          .catch(() => {
+            if (reqId !== leaderboardRequestSeq || !matchEndScoreboardShown) return;
+            matchEndHud.setOverallLeaderboard({ status: "error" });
+          });
         matchEndScoreboardShown = true;
       } else {
         if (matchEndScoreboardShown) {
+          leaderboardRequestSeq += 1;
           matchEndHud.hide();
           matchEndScoreboardShown = false;
         }

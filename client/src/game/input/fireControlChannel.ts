@@ -117,7 +117,7 @@ export function createFireControlChannel(options: {
     designatedTargetId = null;
     setRingVisible(false);
     if (reason === "lost") {
-      onToast("Feuerleitkanal: Ziel verloren", "danger", 3200);
+      onToast("Fire-control channel: target lost", "danger", 3200);
     }
   };
 
@@ -125,7 +125,7 @@ export function createFireControlChannel(options: {
     if (target.lifeState === PlayerLifeState.AwaitingRespawn) return;
     if (target.id === mySessionId) return;
     designatedTargetId = target.id;
-    onToast(`Feuerleitkanal: ${playerLabel(target)}`, "info", 2800);
+    onToast(`Fire-control channel: ${playerLabel(target)}`, "info", 2800);
   };
 
   const sqDist = (ax: number, az: number, bx: number, bz: number): number => {
@@ -150,7 +150,7 @@ export function createFireControlChannel(options: {
         return a.id.localeCompare(b.id);
       });
     if (candidates.length === 0) {
-      onToast(`Feuerleitkanal: Kein Ziel <= ${TARGET_ACQUIRE_MAX_DIST_M} m`, "danger", 2600);
+      onToast(`Fire-control channel: no target <= ${TARGET_ACQUIRE_MAX_DIST_M} m`, "danger", 2600);
       return;
     }
     if (!designatedTargetId) {
@@ -202,7 +202,7 @@ export function createFireControlChannel(options: {
     if (designatedTargetId) {
       designatedTargetId = null;
       setRingVisible(false);
-      onToast("Feuerleitkanal: aufgehoben", "info", 2000);
+      onToast("Fire-control channel: cleared", "info", 2000);
     }
   };
 

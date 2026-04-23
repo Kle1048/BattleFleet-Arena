@@ -4,6 +4,7 @@ import express from "express";
 import { WebSocketTransport } from "@colyseus/ws-transport";
 import { Server } from "@colyseus/core";
 import { BattleRoom } from "./rooms/BattleRoom.js";
+import { topLeaderboard } from "./leaderboardStore.js";
 
 const port = Number(process.env.PORT) || 2567;
 /** z. B. `::` für IPv6; Standard IPv4 alle Interfaces (zuverlässig mit 127.0.0.1-Client). */
@@ -17,6 +18,20 @@ app.use(
   }),
 );
 app.use(express.json());
+
+app.get("/api/leaderboard", (req, res) => {
+  const rawLimit = typeof req.query.limit === "string" ? Number.parseInt(req.query.limit, 10) : NaN;
+  const limit = Number.isFinite(rawLimit) ? rawLimit : 10;
+  const rows = topLeaderboard(limit).map((r) => ({
+    displayName: r.displayName,
+    scoreTotal: r.scoreTotal,
+    kills: r.kills,
+    wins: r.wins,
+    matches: r.matches,
+    updatedAtMs: r.updatedAtMs,
+  }));
+  res.json({ rows });
+});
 
 const server = createServer(app);
 const gameServer = new Server({
