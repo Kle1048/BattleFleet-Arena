@@ -360,3 +360,19 @@ npm run devlog:append
 
 > Update: feat: improve AD pacing, UI copy, and server bootstrap flow | Naval arena WIP · #Vibejam · code + play ⚔️🎮
 
+---
+
+## 2026-04-23
+
+- **Author:** Klemens1048
+- **Commit:** fix(air-defense): restore SAM cooldown while keeping fire-time reservation
+
+**Details:**
+
+- AD_SAM_COOLDOWN_MS was lowered to 1s, which allowed a new SAM every second per defender. Restore 4200ms global spacing; reservation at airDefenseFire still blocks simultaneous SAM starts in one tick.
+- Made-with: Cursor
+
+### Suggested post (Twitter / X, #Vibejam)
+
+> Update: fix(air-defense): restore SAM cooldown while keeping fire-time reservation | Naval arena WIP · #Vibejam · code + play ⚔️🎮
+

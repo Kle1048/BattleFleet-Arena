@@ -41,8 +41,12 @@ export const AD_SOFTKILL_COOLDOWN_MS = 2500;
  */
 export const AD_SOFTKILL_SAME_TARGET_REACQUIRE_BLOCK_MS = 4500;
 
-/** Gewollt kurz für „salvoartig, aber nicht simultan“: ein SAM-Start ca. jede 1s. */
-export const AD_SAM_COOLDOWN_MS = 1000;
+/**
+ * Globaler SAM-Abstand pro Verteidiger (ms) — nach jedem SAM-Versuch (Feuer + Trefferwurf),
+ * unabhängig von Treffer/Fehlschuss. Wird in `BattleRoom` bereits beim `airDefenseFire` reserviert,
+ * damit im selben Tick nicht zwei Raketen parallel einen SAM starten.
+ */
+export const AD_SAM_COOLDOWN_MS = 4200;
 export const AD_PD_COOLDOWN_MS = 1800;
 export const AD_CIWS_COOLDOWN_MS = 520;
 

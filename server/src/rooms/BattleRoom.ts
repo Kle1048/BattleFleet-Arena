@@ -1655,7 +1655,7 @@ export class BattleRoom extends Room<BattleState> {
                 layer === "ciws" ? now : now + computeSamPdInterceptTravelMs(distCenterM);
               const samCooldownReservedAtFire = layer === "sam";
               if (samCooldownReservedAtFire) {
-                // WICHTIG: Reserve direkt beim Abschuss, damit derselbe Tick nicht mehrere SAMs startet.
+                // Direkt beim Feuer: globalen SAM-Takt reservieren (verhindert mehrere SAM-Starts im selben Tick).
                 defRow.adSamNextAtMs = now + AD_SAM_COOLDOWN_MS;
               }
               this.adPendingRollByMissileId.set(m.missileId, {
