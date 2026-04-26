@@ -122,3 +122,14 @@ export function topLeaderboard(limit = 10): LeaderboardRow[] {
   );
   return rows.slice(0, n);
 }
+
+export function leaderboardSize(): number {
+  ensureLoaded();
+  return byPlayerKey.size;
+}
+
+export function resetLeaderboard(): void {
+  ensureLoaded();
+  byPlayerKey.clear();
+  persistToDisk();
+}

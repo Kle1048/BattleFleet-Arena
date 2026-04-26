@@ -3,11 +3,22 @@ import type { Client } from "@colyseus/core";
 import {
   desiredServerBotCount as computeDesiredServerBotCount,
   MAX_HUMAN_CLIENTS_IN_ROOM,
-  readMinTotalParticipantsFromEnv,
 } from "../serverBotPopulation.js";
+import {
+  getMatchDurationMs,
+  getMinRoomPlayers,
+  getOobDestroyAfterMs,
+  getOperationalAreaHalfExtent,
+  getPassiveXpBase,
+  getPassiveXpIntervalMs,
+  getRespawnDelayMs,
+  getSamCooldownMs,
+  getSeaControlXpMultiplier,
+  getSpawnProtectionMs,
+  isMaintenanceMode,
+} from "../adminConfig.js";
 import { normalizePlayerToken, recordMatchResults } from "../leaderboardStore.js";
 import {
-  operationalHalfExtentFromParticipantCount,
   ARTILLERY_DAMAGE,
   ARTILLERY_PLAYER_MAX_HP,
   ARTILLERY_SPLASH_RADIUS,
@@ -23,7 +34,6 @@ import {
   DESTROYER_LIKE_MVP,
   FEATURE_MINES_ENABLED,
   MissileState,
-  OOB_DESTROY_AFTER_MS,
   TORPEDO_HIT_RADIUS,
   TORPEDO_ISLAND_COLLISION_RADIUS,
   TORPEDO_LIFETIME_MS,
@@ -45,7 +55,6 @@ import {
   participatesInWorldSimulation,
   pickAswmAcquisitionTarget,
   AD_SAM_RANGE_SQ,
-  AD_SAM_COOLDOWN_MS,
   AD_SOFTKILL_RANGE_SQ,
   AD_SOFTKILL_SAME_TARGET_REACQUIRE_BLOCK_MS,
   type AirDefenseHardkillLayer,
@@ -61,8 +70,6 @@ import {
   type ShipCollisionParticipant,
   accumulateShipRamDamage,
   accumulateWreckRamDamage,
-  RESPAWN_DELAY_MS,
-  SPAWN_PROTECTION_DURATION_MS,
   smoothRudder,
   ASWM_SHOT_INTERVAL_MS,
   pickFixedSeaSkimmerLauncherWithAmmo,
@@ -80,9 +87,6 @@ import {
   tryComputeArtillerySalvo,
   tryPickRespawnPosition,
   pickRimSpawnDeterministic,
-  MATCH_DURATION_MS,
-  MATCH_PASSIVE_XP_BASE,
-  MATCH_PASSIVE_XP_INTERVAL_MS,
   MATCH_PHASE_ENDED,
   MATCH_PHASE_RUNNING,
   isValidKillAttribution,
@@ -119,7 +123,6 @@ import {
   shipLocalToWorldXZ,
   isInSeaControlZone,
   missileBearingInHardkillLayerMountSector,
-  SEA_CONTROL_XP_MULTIPLIER,
   createBotController,
   type BotVisibleMissile,
   type BotVisiblePlayer,
@@ -218,6 +221,33 @@ function playerIndexInList(list: BattleState["playerList"], sessionId: string): 
 }
 
 export class BattleRoom extends Room<BattleState> {
+  private static readonly activeRooms = new Set<BattleRoom>();
+
+  static activeRoomSummaries(): {
+    roomId: string;
+    clients: number;
+    bots: number;
+    matchPhase: string;
+    matchRemainingSec: number;
+  }[] {
+    return [...BattleRoom.activeRooms].map((room) => ({
+      roomId: room.roomId,
+      clients: room.clients.length,
+      bots: room.serverBotIds.size,
+      matchPhase: room.state.matchPhase,
+      matchRemainingSec: room.state.matchRemainingSec,
+    }));
+  }
+
+  static restartActiveRounds(): { rooms: number; restarted: number } {
+    let restarted = 0;
+    for (const room of BattleRoom.activeRooms) {
+      room.restartRoundFromAdmin();
+      restarted++;
+    }
+    return { rooms: BattleRoom.activeRooms.size, restarted };
+  }
+
   private readonly cfg = DESTROYER_LIKE_MVP;
   private sim = new Map<string, SimEntry>();
   private pendingShells: PendingShell[] = [];
@@ -259,11 +289,6 @@ export class BattleRoom extends Room<BattleState> {
   /** OBB-überlappende Schiff-Paare (`idA|idB`), Vor-Frame für Kanten-SFX bei Schiff-Schiff. */
   private collisionShipPairPrev = new Set<string>();
 
-  /**
-   * Mindestzahl Teilnehmer (Menschen+Bots), sobald ≥1 Mensch im Raum ist; siehe `BFA_MIN_ROOM_PLAYERS`.
-   * Ohne Menschen werden keine Server-Bots nachgezogen.
-   */
-  private readonly minTotalParticipants = readMinTotalParticipantsFromEnv();
   private nextServerBotSerial = 1;
   private readonly serverBotIds = new Set<string>();
   private readonly serverBotBrains = new Map<
@@ -276,15 +301,16 @@ export class BattleRoom extends Room<BattleState> {
   private readonly lastCommsInputLogAtMsBySession = new Map<string, number>();
 
   onCreate() {
+    BattleRoom.activeRooms.add(this);
     this.setState(new BattleState());
     this.syncOperationalAreaHalfExtent();
-    this.matchEndsAtMs = Date.now() + MATCH_DURATION_MS;
+    this.matchEndsAtMs = Date.now() + getMatchDurationMs();
     this.matchEndBroadcastSent = false;
     this.setSeatReservationTime(60);
     console.log(
-      "[BattleRoom] onCreate, roomId=%s minTotalParticipants=%d (BFA_MIN_ROOM_PLAYERS)",
+      "[BattleRoom] onCreate, roomId=%s minTotalParticipants=%d (admin config)",
       this.roomId,
-      this.minTotalParticipants,
+      getMinRoomPlayers(),
     );
     if (this.isCommsLoggingEnabled()) {
       console.log("[BattleRoom] comms logging enabled (BFA_LOG_COMMS=1) roomId=%s", this.roomId);
@@ -339,6 +365,10 @@ export class BattleRoom extends Room<BattleState> {
     this.maxClients = MAX_HUMAN_CLIENTS_IN_ROOM;
   }
 
+  onDispose() {
+    BattleRoom.activeRooms.delete(this);
+  }
+
   private isCommsLoggingEnabled(): boolean {
     return process.env.BFA_LOG_COMMS === "1";
   }
@@ -371,11 +401,11 @@ export class BattleRoom extends Room<BattleState> {
     if (typeof raw === "number" && Number.isFinite(raw) && raw > 0) {
       return raw;
     }
-    return operationalHalfExtentFromParticipantCount(this.state.playerList.length);
+    return getOperationalAreaHalfExtent(this.state.playerList.length);
   }
 
   private syncOperationalAreaHalfExtent(): void {
-    const next = operationalHalfExtentFromParticipantCount(this.state.playerList.length);
+    const next = getOperationalAreaHalfExtent(this.state.playerList.length);
     if (this.state.operationalAreaHalfExtent !== next) {
       this.state.operationalAreaHalfExtent = next;
     }
@@ -421,7 +451,7 @@ export class BattleRoom extends Room<BattleState> {
   }
 
   private desiredServerBotCount(): number {
-    return computeDesiredServerBotCount(this.minTotalParticipants, this.clients.length);
+    return computeDesiredServerBotCount(getMinRoomPlayers(), this.clients.length);
   }
 
   private reconcileServerBots(now: number): void {
@@ -540,7 +570,7 @@ export class BattleRoom extends Room<BattleState> {
     }
     const angleForFallback =
       this.state.playerList.length * 2.5132741228718345 + sessionId.length * 0.37;
-    const spawnHalf = operationalHalfExtentFromParticipantCount(this.state.playerList.length + 1);
+    const spawnHalf = getOperationalAreaHalfExtent(this.state.playerList.length + 1);
     const spawnPick =
       tryPickRespawnPosition(
         spawnHalf,
@@ -743,19 +773,22 @@ export class BattleRoom extends Room<BattleState> {
   /** Passives XP für alle im Kampf simulierten Spieler; Sea Control ×5. */
   private applyPassiveXpTick(now: number): void {
     if (this.state.matchPhase !== MATCH_PHASE_RUNNING) return;
-    if (now - this.lastPassiveXpAtMs < MATCH_PASSIVE_XP_INTERVAL_MS) return;
+    if (now - this.lastPassiveXpAtMs < getPassiveXpIntervalMs()) return;
     this.lastPassiveXpAtMs = now;
 
     for (const p of this.state.playerList) {
       if (!participatesInWorldSimulation(p.lifeState)) continue;
       const row = this.sim.get(p.id);
-      const mult = isInSeaControlZone(p.x, p.z) ? SEA_CONTROL_XP_MULTIPLIER : 1;
-      const amt = MATCH_PASSIVE_XP_BASE * mult;
+      const mult = isInSeaControlZone(p.x, p.z) ? getSeaControlXpMultiplier() : 1;
+      const amt = getPassiveXpBase() * mult;
       this.grantXpAndProgress(p, row, amt);
     }
   }
 
   onJoin(client: Client, options?: { shipClass?: string; displayName?: string; playerToken?: string }) {
+    if (isMaintenanceMode()) {
+      throw new Error("Server is in maintenance mode.");
+    }
     const displayName = sanitizePlayerDisplayName(options?.displayName);
     const playerKey = normalizePlayerToken(options?.playerToken, client.sessionId);
     this.playerKeyBySessionId.set(client.sessionId, playerKey);
@@ -809,9 +842,10 @@ export class BattleRoom extends Room<BattleState> {
     p.maxHp = progressionMaxHpForLevel(newLevel, baseHpDead);
     p.hp = 0;
     p.lifeState = PlayerLifeState.AwaitingRespawn;
-    p.respawnCountdownSec = RESPAWN_DELAY_MS / 1000;
+    const respawnDelayMs = getRespawnDelayMs();
+    p.respawnCountdownSec = respawnDelayMs / 1000;
     p.spawnProtectionSec = 0;
-    row.respawnAtMs = now + RESPAWN_DELAY_MS;
+    row.respawnAtMs = now + respawnDelayMs;
     row.invulnerableUntilMs = 0;
     row.ship.speed = 0;
     row.ship.throttle = 0;
@@ -902,10 +936,14 @@ export class BattleRoom extends Room<BattleState> {
 
   /**
    * Nach Task-10-Ende: neue Runde im **gleichen** Raum (vermeidet „Reload → sofort wieder Scoreboard“).
-   * Nur gültig, wenn das Match bereits beendet war.
+   * Ohne Admin-Force nur gültig, wenn das Match bereits beendet war.
    */
-  private resetMatchForNewRound(now: number): void {
-    if (this.state.matchPhase !== MATCH_PHASE_ENDED) return;
+  public restartRoundFromAdmin(): void {
+    this.resetMatchForNewRound(Date.now(), true);
+  }
+
+  private resetMatchForNewRound(now: number, force = false): void {
+    if (!force && this.state.matchPhase !== MATCH_PHASE_ENDED) return;
 
     this.pendingShells = [];
     this.clearAllMissilesAndTorpedoes();
@@ -913,7 +951,7 @@ export class BattleRoom extends Room<BattleState> {
     this.collisionIslandOverlapPrev.clear();
     this.collisionWreckOverlapPrev.clear();
     this.matchEndBroadcastSent = false;
-    this.matchEndsAtMs = now + MATCH_DURATION_MS;
+    this.matchEndsAtMs = now + getMatchDurationMs();
     this.lastPassiveXpAtMs = now;
     this.state.matchPhase = MATCH_PHASE_RUNNING;
     const remMs = this.matchEndsAtMs - now;
@@ -966,7 +1004,8 @@ export class BattleRoom extends Room<BattleState> {
       row.adCiwsNextAtMs = 0;
       row.adSoftkillLastUsedAtMs = 0;
       row.respawnAtMs = null;
-      row.invulnerableUntilMs = now + SPAWN_PROTECTION_DURATION_MS;
+      const spawnProtectionMs = getSpawnProtectionMs();
+      row.invulnerableUntilMs = now + spawnProtectionMs;
       row.radarActive = true;
 
       p.x = spawnX;
@@ -988,7 +1027,7 @@ export class BattleRoom extends Room<BattleState> {
       p.torpedoCooldownSec = 0;
       p.lifeState = PlayerLifeState.SpawnProtected;
       p.respawnCountdownSec = 0;
-      p.spawnProtectionSec = SPAWN_PROTECTION_DURATION_MS / 1000;
+      p.spawnProtectionSec = spawnProtectionMs / 1000;
       p.score = 0;
       p.kills = 0;
       p.radarActive = true;
@@ -1069,7 +1108,8 @@ export class BattleRoom extends Room<BattleState> {
     row.adPdNextAtMs = 0;
     row.adCiwsNextAtMs = 0;
     row.adSoftkillLastUsedAtMs = 0;
-    row.invulnerableUntilMs = now + SPAWN_PROTECTION_DURATION_MS;
+    const spawnProtectionMs = getSpawnProtectionMs();
+    row.invulnerableUntilMs = now + spawnProtectionMs;
     row.radarActive = true;
 
     p.x = row.ship.x;
@@ -1084,7 +1124,7 @@ export class BattleRoom extends Room<BattleState> {
     p.hp = p.maxHp;
     p.lifeState = PlayerLifeState.SpawnProtected;
     p.respawnCountdownSec = 0;
-    p.spawnProtectionSec = SPAWN_PROTECTION_DURATION_MS / 1000;
+    p.spawnProtectionSec = spawnProtectionMs / 1000;
     p.radarActive = true;
     p.deathAtMs = 0;
     p.killedBySessionId = "";
@@ -1669,7 +1709,7 @@ export class BattleRoom extends Room<BattleState> {
               const samCooldownReservedAtFire = layer === "sam";
               if (samCooldownReservedAtFire) {
                 // Direkt beim Feuer: globalen SAM-Takt reservieren (verhindert mehrere SAM-Starts im selben Tick).
-                defRow.adSamNextAtMs = now + AD_SAM_COOLDOWN_MS;
+                defRow.adSamNextAtMs = now + getSamCooldownMs();
               }
               this.adPendingRollByMissileId.set(m.missileId, {
                 defenderId: adDefenderId,
@@ -2172,11 +2212,12 @@ export class BattleRoom extends Room<BattleState> {
           row.oobSinceMs = now;
         }
         const elapsed = now - row.oobSinceMs;
-        if (elapsed >= OOB_DESTROY_AFTER_MS) {
+        const oobDestroyAfterMs = getOobDestroyAfterMs();
+        if (elapsed >= oobDestroyAfterMs) {
           p.oobCountdownSec = 0;
           this.enterAwaitingRespawn(sessionId, now);
         } else {
-          p.oobCountdownSec = Math.max(0, (OOB_DESTROY_AFTER_MS - elapsed) / 1000);
+          p.oobCountdownSec = Math.max(0, (oobDestroyAfterMs - elapsed) / 1000);
         }
       }
     }

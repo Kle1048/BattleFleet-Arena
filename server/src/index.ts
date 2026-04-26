@@ -4,6 +4,7 @@ import express from "express";
 import { WebSocketTransport } from "@colyseus/ws-transport";
 import { Server } from "@colyseus/core";
 import { BattleRoom } from "./rooms/BattleRoom.js";
+import { registerAdminPanel } from "./adminPanel.js";
 import { topLeaderboard } from "./leaderboardStore.js";
 
 const port = Number(process.env.PORT) || 2567;
@@ -18,6 +19,10 @@ app.use(
   }),
 );
 app.use(express.json());
+registerAdminPanel(app, {
+  activeRoomSummaries: () => BattleRoom.activeRoomSummaries(),
+  restartActiveRounds: () => BattleRoom.restartActiveRounds(),
+});
 
 app.get("/api/leaderboard", (req, res) => {
   const rawLimit = typeof req.query.limit === "string" ? Number.parseInt(req.query.limit, 10) : NaN;
