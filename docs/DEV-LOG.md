@@ -425,6 +425,60 @@ npm run devlog:append
 
 ### Suggested post (Twitter / X, #Vibejam)
 
-> ⚓ feat(client): refine combat controls and feedback — BattleFleet Arena, naval RTS for #Vibejam. Who else is shipping? #gamedev #AIgames
+> Shipped: feat(client): refine combat controls and feedback 🚢 AI-assisted competitive game — #Vibejam #indiedev
 
-<!-- devlog-rev:415020547963196168d7c516aae30f70334ebffe -->
+<!-- devlog-rev:e4806e48b7691642748a36a1192a265ff344a79e -->
+---
+
+## 2026-04-26
+
+- **Author:** Klemens1048
+- **Commit:** fix: reduce match duration to five minutes
+
+**Details:**
+
+- Made-with: Cursor
+
+### Suggested post (Twitter / X, #Vibejam)
+
+> Update: fix: reduce match duration to five minutes | Naval arena WIP · #Vibejam · code + play ⚔️🎮
+
+<!-- devlog-rev:37cbb29d00e82883802b4b3e6a776850eecf7698 -->
+---
+
+## 2026-04-26
+
+- **Author:** Klemens1048
+- **Commit:** feat(server): add local admin panel
+
+**Details:**
+
+- Made-with: Cursor
+
+### Suggested post (Twitter / X, #Vibejam)
+
+> Update: feat(server): add local admin panel | Naval arena WIP · #Vibejam · code + play ⚔️🎮
+
+<!-- devlog-rev:280819ca081dd9c61fdac4151f5219f0e2f3607f -->
+---
+
+## 2026-04-26
+
+- **Author:** Klemens1048
+- **Commit:** feat(client): engine loop, dynamic music, telegraph tick, sound mix debug
+
+**Details:**
+
+- - Motor: Web-Audio loop + Synth-Fallback, Pegel/Filter/Intensität angehoben
+- - Dynamische Musik: 3 Stufen (Ambient/Tension/Combat), je A/B, Crossfade + Distanz-Heuristik
+- - Telegraf-Raster-Klick; soundCatalog + Preload
+- - Debug-Panel Tab Sound: Musik/Motor/SFX-Multiplikatoren (localStorage)
+- - WAVs: engine_loop, telegraph_notch_click, music_* (music_ambient_b.wav fehlt noch optional)
+- Hinweis: music_ambient_b.wav kann später ergänzt werden; Stufe 0 nutzt dann nur A.
+- Made-with: Cursor
+
+### Suggested post (Twitter / X, #Vibejam)
+
+> Shipped: feat(client): engine loop, dynamic music, telegraph tick, sound mix debug 🚢 AI-assisted competitive game — #Vibejam #indiedev
+
+<!-- devlog-rev:e771353cfa164bf70be856eca752aa9b3f70a85f -->

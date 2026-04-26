@@ -11,6 +11,7 @@ export const BATTLEFLEET_LOCAL_STORAGE_KEYS: readonly string[] = [
   "battlefleet_ship_profile_patch_v1",
   "battlefleet_show_ship_hitbox",
   "battlefleet_show_wreck_collision",
+  "bfa.soundMix.v1",
 ];
 
 /** Entfernt alle oben genannten Einträge (nur dieser Ursprung / Browser). */

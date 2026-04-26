@@ -35,6 +35,7 @@ import {
   setWreckCollisionDebugVisible,
 } from "./shipProfileRuntime";
 import { appendToBottomDebugDock } from "./bottomDebugDock";
+import { getSoundMix, resetSoundMixToDefaults, setSoundMix } from "../audio/soundMixState";
 
 const SHIP_STORAGE_KEY = "bfa.shipDebugTuning.v2";
 
@@ -189,6 +190,7 @@ export function createEnvironmentDebugPanel(
   const panelWaterThree = makePanel();
   const panelShip = makePanel();
   const panelCam = makePanel();
+  const panelSound = makePanel();
 
   const addSectionTitle = (parent: HTMLElement, text: string, withTopBorder = true): void => {
     const el = document.createElement("div");
@@ -721,12 +723,30 @@ export function createEnvironmentDebugPanel(
   lagWrap.appendChild(lagVal);
   panelCam.appendChild(lagWrap);
 
-  type TabId = "env" | "water" | "ship" | "cam";
+  const smInit = getSoundMix();
+  addSectionTitle(panelSound, "Audio-Mix (×1 = Standard)", false);
+  const smHint = document.createElement("div");
+  smHint.style.cssText = "grid-column:1/-1;font-size:10px;color:#84b5d9;margin-bottom:4px;";
+  smHint.textContent =
+    "Multiplikatoren auf die Programm-Basis: dynamische Hintergrundmusik, Motordauerton, SFX. Wert wird in localStorage gespeichert.";
+  panelSound.appendChild(smHint);
+  const musMixRef = addSlider(panelSound, "Dynamische Musik", 0, 2.5, 0.05, smInit.music, (v) => {
+    setSoundMix({ music: v });
+  });
+  const engMixRef = addSlider(panelSound, "Motor-Loop", 0, 2.5, 0.05, smInit.engine, (v) => {
+    setSoundMix({ engine: v });
+  });
+  const sfxMixRef = addSlider(panelSound, "SFX (Waffen, Treffer, …)", 0, 2.5, 0.05, smInit.sfx, (v) => {
+    setSoundMix({ sfx: v });
+  });
+
+  type TabId = "env" | "water" | "ship" | "cam" | "sound";
   const tabPanels: { id: TabId; label: string; el: HTMLDivElement }[] = [
     { id: "env", label: "Umgebung", el: panelEnv },
     { id: "water", label: "Wasser (Three)", el: panelWaterThree },
     { id: "ship", label: "Schiff", el: panelShip },
     { id: "cam", label: "Kamera", el: panelCam },
+    { id: "sound", label: "Sound", el: panelSound },
   ];
 
   const tabButtons = new Map<TabId, HTMLButtonElement>();
@@ -797,6 +817,15 @@ export function createEnvironmentDebugPanel(
     lagInput.value = String(camNext.headUpYawLagSec);
     lagVal.textContent = camNext.headUpYawLagSec.toFixed(2);
     savePersistedFollowCameraTuning({ ...camNext });
+
+    resetSoundMixToDefaults();
+    const smR = getSoundMix();
+    musMixRef.input.value = String(smR.music);
+    musMixRef.val.textContent = smR.music.toFixed(3);
+    engMixRef.input.value = String(smR.engine);
+    engMixRef.val.textContent = smR.engine.toFixed(3);
+    sfxMixRef.input.value = String(smR.sfx);
+    sfxMixRef.val.textContent = smR.sfx.toFixed(3);
 
     env = { ...DEFAULT_ENVIRONMENT_TUNING };
     bundle.applyEnvironmentTuning(DEFAULT_ENVIRONMENT_TUNING);

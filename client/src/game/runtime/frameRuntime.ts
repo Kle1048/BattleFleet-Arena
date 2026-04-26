@@ -26,6 +26,11 @@ import {
 import { t } from "../../locale/t";
 import { seaControlZoneHudTransition } from "./seaControlZoneHud";
 import type { InputSample } from "../input/keyboardMouse";
+import {
+  TELEGRAPH_RUDDER_STEPS,
+  TELEGRAPH_THROTTLE_STEPS,
+  valueToStepIndex,
+} from "../input/telegraphSteps";
 import { computeWreckVisualPose } from "../scene/shipWreckAnimation";
 import {
   applyShipVisualRuntimeTuning,
@@ -171,6 +176,16 @@ type GameMessageHudLike = {
 type AudioLike = {
   warning: () => void;
   levelUp: () => void;
+  telegraphNotchClick: () => void;
+  updateEngineBed: (opts: {
+    dtMs: number;
+    active: boolean;
+    throttle?: number;
+    speed?: number;
+    maxSpeed?: number;
+  }) => void;
+  updateEngineBedOff: () => void;
+  updateDynamicMusic: (opts: { dtMs: number; active: boolean; smoothedTier0to2: number }) => void;
 };
 
 type FxLike = {
@@ -205,6 +220,11 @@ type RuntimeState = {
   /** Dedupe für `input`-Nachrichten (Telegraf / Ziel — nicht jedes Frame). */
   lastInputDedupKey: string | null;
   lastInputDedupAtMs: number;
+  /** Letzter Telegraf-Raster (Motor), für Rasterton; −1 = noch nicht initialisiert. */
+  lastTelegraphThrottleIndex: number;
+  lastTelegraphRudderIndex: number;
+  /** 0=ruhig, 1=Kontakt, 2=Gefecht — geglättet für Musikkreuzblenden. */
+  musicSmoothedTierF: number;
 };
 
 export function createFrameRuntimeState(initialHudLevel = 1): RuntimeState {
@@ -218,6 +238,9 @@ export function createFrameRuntimeState(initialHudLevel = 1): RuntimeState {
     aimLineSectorDebug: "",
     lastInputDedupKey: null,
     lastInputDedupAtMs: 0,
+    lastTelegraphThrottleIndex: -1,
+    lastTelegraphRudderIndex: -1,
+    musicSmoothedTierF: 0,
   };
 }
 
@@ -242,6 +265,29 @@ function buildInputDedupKey(input: InputSample, mineSpawnLocalZ: number): string
   return `A|${quantInput(input.throttle)}|${quantInput(input.rudderInput)}|${aim}|${
     input.radarActive ? 1 : 0
   }|${mineZ}|${f}`;
+}
+
+/**
+ * 0: kein/ferner Gegner, 1: Fahrwasser-Kontakt, 2: dichtes Gefecht (Entfernung/Stack).
+ * Heuristik, später mit Raketen-Alarmen / Treffer erweiterbar.
+ */
+function musicTargetTierFromField(
+  me: NetPlayerLike,
+  myId: string,
+  list: Iterable<NetPlayerLike>,
+): 0 | 1 | 2 {
+  let minD = Infinity;
+  let in520 = 0;
+  for (const pl of list) {
+    if (pl.id === myId) continue;
+    if (pl.lifeState === PlayerLifeState.AwaitingRespawn) continue;
+    const d = Math.hypot(pl.x - me.x, pl.z - me.z);
+    if (d < minD) minD = d;
+    if (d < 520) in520++;
+  }
+  if (!Number.isFinite(minD) || minD > 2000) return 0;
+  if (minD < 400 || in520 >= 2) return 2;
+  return 1;
 }
 
 export function runFrameRuntimeStep<
@@ -419,6 +465,48 @@ export function runFrameRuntimeStep<
     } else if (sc.edge === "leave") {
       gameMessageHud.showToast(t("toast.seaControlLeft"), "info", 3800);
     }
+  }
+
+  if (matchEnded || !me || me.lifeState === PlayerLifeState.AwaitingRespawn) {
+    gameAudio.updateEngineBedOff();
+    state.lastTelegraphThrottleIndex = -1;
+    state.lastTelegraphRudderIndex = -1;
+    state.musicSmoothedTierF = 0;
+    gameAudio.updateDynamicMusic({ active: false, dtMs, smoothedTier0to2: 0 });
+  } else {
+    const progLevel = Math.min(
+      PROGRESSION_MAX_LEVEL,
+      Math.max(1, Math.floor(typeof me.level === "number" ? me.level : 1)),
+    );
+    const classId = normalizeShipClassId(me.shipClass) as ShipClassId;
+    const profShip = getShipClassProfile(classId);
+    const maxSpForEngine =
+      cfgMaxSpeed * profShip.movementSpeedMul * progressionMovementScale(progLevel).maxSpeedFactor;
+    const tIdx = valueToStepIndex(inputSample.throttle, TELEGRAPH_THROTTLE_STEPS);
+    const rIdx = valueToStepIndex(inputSample.rudderInput, TELEGRAPH_RUDDER_STEPS);
+    if (state.lastTelegraphThrottleIndex >= 0) {
+      if (tIdx !== state.lastTelegraphThrottleIndex) gameAudio.telegraphNotchClick();
+      if (rIdx !== state.lastTelegraphRudderIndex) gameAudio.telegraphNotchClick();
+    }
+    state.lastTelegraphThrottleIndex = tIdx;
+    state.lastTelegraphRudderIndex = rIdx;
+    gameAudio.updateEngineBed({
+      dtMs,
+      active: true,
+      throttle: inputSample.throttle,
+      speed: Math.abs(me.speed),
+      maxSpeed: maxSpForEngine,
+    });
+    const mTarget = musicTargetTierFromField(me, mySessionId, playerList);
+    const f = state.musicSmoothedTierF;
+    const smoothHz = mTarget > f - 0.02 ? 0.6 : 0.22;
+    const aM = 1 - Math.exp(-(dtMs / 1000) * smoothHz);
+    state.musicSmoothedTierF = f + (mTarget - f) * aM;
+    gameAudio.updateDynamicMusic({
+      dtMs,
+      active: true,
+      smoothedTier0to2: state.musicSmoothedTierF,
+    });
   }
 
   const tuningGen = getShipDebugTuningGeneration();
