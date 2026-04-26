@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { PlayerLifeState } from "./playerLife";
 import {
   ASWM_ACQUIRE_HALF_ANGLE_RAD,
+  ASWM_ACQUIRE_CONE_LENGTH,
   pickAswmAcquisitionTarget,
   pickAswmSideForFallbackFire,
   pickAswmSideForFallbackFireForced,
@@ -60,7 +61,7 @@ import type { FixedSeaSkimmerLauncherSpec } from "./shipVisualLayout";
 
 {
   const t = pickAswmAcquisitionTarget(0, 0, 0, "a", [
-    { id: "b", x: 0, z: 250, lifeState: PlayerLifeState.Alive },
+    { id: "b", x: 0, z: ASWM_ACQUIRE_CONE_LENGTH + 10, lifeState: PlayerLifeState.Alive },
   ]);
   assert.equal(t, null);
 }

@@ -339,8 +339,13 @@ export function createShipWakeRibbonSystem(scene: THREE.Scene): ShipWakeRibbonSy
         });
       }
 
-      for (const [id, ribbon] of [...ribbons]) {
-        if (!activeIds.has(id)) {
+      const deadRibbonIds: string[] = [];
+      for (const id of ribbons.keys()) {
+        if (!activeIds.has(id)) deadRibbonIds.push(id);
+      }
+      for (const id of deadRibbonIds) {
+        const ribbon = ribbons.get(id);
+        if (ribbon) {
           ribbon.dispose();
           ribbons.delete(id);
         }

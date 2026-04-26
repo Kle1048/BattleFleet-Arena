@@ -27,11 +27,11 @@ export const ASWM_MAX_PER_OWNER = 2;
 /** Mindestabstand zwischen ASuM-Schüssen bei noch gefülltem Magazin (Server). */
 export const ASWM_SHOT_INTERVAL_MS = 1000;
 /** Nach Start: Sucher/Zielerfassung erst aktiv — verhindert Nutzung im Nahkampf (Server). */
-export const ASWM_SEEKER_ARM_DELAY_MS = 1000;
+export const ASWM_SEEKER_ARM_DELAY_MS = 500;
 /** Nach leerem Magazin: Zeit bis Magic Reload (Server); FAC nutzt Default, DD/CG in Rumpf-JSON. */
 export const ASWM_MAGIC_RELOAD_MS = 20_000;
 /** Länge des Suchkegels (m): nur Ziele innerhalb dieser Entfernung zur Rakete. */
-export const ASWM_ACQUIRE_CONE_LENGTH = 210;
+export const ASWM_ACQUIRE_CONE_LENGTH = 300;
 export const ASWM_SPAWN_FORWARD = 22;
 /** Startpunkt entlang der Rail-Abstrahlrichtung (nach Weltposition des Sockets). */
 export const ASWM_SPAWN_FROM_RAIL = 12;

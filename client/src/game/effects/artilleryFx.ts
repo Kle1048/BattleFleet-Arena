@@ -150,7 +150,7 @@ export function createArtilleryFx(scene: THREE.Scene, fx: FxSystem): {
         kind,
         msg.x,
         msg.z,
-        kind === "hit" ? 1.25 : kind === "island" ? 1 : 0.9,
+        kind === "hit" ? 1.42 : kind === "island" ? 1 : 0.9,
       );
     },
   };

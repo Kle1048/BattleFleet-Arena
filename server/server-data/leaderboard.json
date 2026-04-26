@@ -1,0 +1,25 @@
+{
+  "version": 1,
+  "rows": [
+    {
+      "playerKey": "mobqdqhgi2hoquuo50a",
+      "displayName": "DebugPlayer1",
+      "matches": 3,
+      "wins": 3,
+      "kills": 0,
+      "scoreTotal": 2412,
+      "xpTotal": 748,
+      "updatedAtMs": 1776972207564
+    },
+    {
+      "playerKey": "mobqdmyctteohvkn9gf",
+      "displayName": "Spieler",
+      "matches": 5,
+      "wins": 5,
+      "kills": 4,
+      "scoreTotal": 4080,
+      "xpTotal": 1318,
+      "updatedAtMs": 1777184734349
+    }
+  ]
+}

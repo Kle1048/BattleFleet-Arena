@@ -4,7 +4,7 @@
   "hullGltfId": "fac",
   "hullVisualScale": 0.00968,
   "clientVisualTuningDefaults": {
-    "gltfHullYOffset": -365,
+    "gltfHullYOffset": -600,
     "spriteScale": 1
   },
   "collisionHitbox": {

@@ -75,6 +75,10 @@ import {
   VIBE_JAM_RETURN_PORTAL_Z,
 } from "../portal/vibeJamPortal";
 
+/** Pro Frame wiederverwendet — vermeidet N× Array-Allokation für AD-Raketen-Snapshots. */
+const adMissileSnapsScratch: AirDefenseMissileSnapshot[] = [];
+const adPlayerSnapshotsScratch: AirDefensePlayerSnapshot[] = [];
+
 type NetPlayerLike = {
   id: string;
   x: number;
@@ -361,9 +365,9 @@ export function runFrameRuntimeStep<
     }
   }
 
-  const adPlayerSnapshots: AirDefensePlayerSnapshot[] = [];
+  adPlayerSnapshotsScratch.length = 0;
   for (const pl of playerList) {
-    adPlayerSnapshots.push({
+    adPlayerSnapshotsScratch.push({
       id: pl.id,
       x: pl.x,
       z: pl.z,
@@ -372,6 +376,20 @@ export function runFrameRuntimeStep<
       shipClass: pl.shipClass,
     });
   }
+  adMissileSnapsScratch.length = 0;
+  if (missileList) {
+    for (let mi = 0; mi < missileList.length; mi++) {
+      const m = missileList.at(mi);
+      if (!m) continue;
+      adMissileSnapsScratch.push({
+        ownerId: m.ownerId,
+        targetId: m.targetId,
+        x: m.x,
+        z: m.z,
+      });
+    }
+  }
+  const adPlayerSnapshots = adPlayerSnapshotsScratch;
 
   const me = playersById.get(mySessionId);
   if (me) {
@@ -475,22 +493,15 @@ export function runFrameRuntimeStep<
 
     /** LW-Mounts zur Rakete: solange Server „incoming“ meldet. */
     const layered = typeof p.adHudIncomingAswm === "number" && p.adHudIncomingAswm > 0;
-    let aimOpts: ArtilleryTrainAimOptions | undefined;
+      let aimOpts: ArtilleryTrainAimOptions | undefined;
     if (!isDeadVis && vis.rotatingMountTrains.some((t) => t.isAirDefense)) {
       let missileSim: { x: number; z: number } | null = null;
-      if (layered && missileList && missileList.length > 0) {
-        const missileSnaps: AirDefenseMissileSnapshot[] = [];
-        for (let mi = 0; mi < missileList.length; mi++) {
-          const m = missileList.at(mi);
-          if (!m) continue;
-          missileSnaps.push({
-            ownerId: m.ownerId,
-            targetId: m.targetId,
-            x: m.x,
-            z: m.z,
-          });
-        }
-        missileSim = pickThreatMissilePositionForDefender(missileSnaps, sessionId, adPlayerSnapshots);
+      if (layered && adMissileSnapsScratch.length > 0) {
+        missileSim = pickThreatMissilePositionForDefender(
+          adMissileSnapsScratch,
+          sessionId,
+          adPlayerSnapshots,
+        );
       }
       aimOpts = {
         layeredDefenseActive: layered,
@@ -677,26 +688,17 @@ export function runFrameRuntimeStep<
             }
           }
         }
-        if (missileList) {
-          for (let mi = 0; mi < missileList.length; mi++) {
-            const m = missileList.at(mi);
-            if (!m) continue;
-            if (m.ownerId === mySessionId) continue;
-            const snap: AirDefenseMissileSnapshot = {
-              ownerId: m.ownerId,
-              targetId: m.targetId,
-              x: m.x,
-              z: m.z,
-            };
-            if (resolveAirDefenseDefenderIdForMissile(snap, adPlayerSnapshots) !== mySessionId) {
-              continue;
-            }
-            const bM = radarBlipNormalizedNorthUp(p.x, p.z, m.x, m.z, RADAR_ESM_RANGE_WORLD);
-            if (!bM) continue;
-            const line = esmLineTowardBlip(bM);
-            const lockedOnMe = m.targetId === mySessionId;
-            radarThreatLines.push({ ...line, dashed: !lockedOnMe });
+        for (let ri = 0; ri < adMissileSnapsScratch.length; ri++) {
+          const m = adMissileSnapsScratch[ri]!;
+          if (m.ownerId === mySessionId) continue;
+          if (resolveAirDefenseDefenderIdForMissile(m, adPlayerSnapshots) !== mySessionId) {
+            continue;
           }
+          const bM = radarBlipNormalizedNorthUp(p.x, p.z, m.x, m.z, RADAR_ESM_RANGE_WORLD);
+          if (!bM) continue;
+          const line = esmLineTowardBlip(bM);
+          const lockedOnMe = m.targetId === mySessionId;
+          radarThreatLines.push({ ...line, dashed: !lockedOnMe });
         }
       }
 

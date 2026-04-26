@@ -4,7 +4,7 @@
   "hullGltfId": "destroyer",
   "hullVisualScale": 0.012,
   "clientVisualTuningDefaults": {
-    "gltfHullYOffset": -590,
+    "gltfHullYOffset": -633,
     "spriteScale": 1
   },
   "collisionHitbox": {

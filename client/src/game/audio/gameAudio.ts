@@ -16,10 +16,22 @@ import {
   SPATIAL_WEAPON_HIT_MAX_M,
   spatializedGainAndPan,
 } from "./shipSpatialAudio";
+import { effectiveSfxGain, extendDuckUntil } from "./sfxMix";
 
 let audioCtx: AudioContext | null = null;
 
 let listenerPose: ListenerShipPose | null = null;
+
+/** Kurzes Absenken anderer SFX nach Explosion / harten Treffern (Web-Audio one-shots). */
+let sfxDuckUntilMs = 0;
+
+function pokeSfxDuck(durationMs: number): void {
+  sfxDuckUntilMs = extendDuckUntil(performance.now(), sfxDuckUntilMs, durationMs);
+}
+
+function applySfxMixToGain(g0: number): number {
+  return effectiveSfxGain(g0, performance.now(), sfxDuckUntilMs);
+}
 
 function ctx(): AudioContext | null {
   if (typeof window === "undefined") return null;
@@ -48,6 +60,7 @@ function beep(
 
   const { gain: g0, pan, skip } = spatializedGainAndPan(gain, listenerPose, spatial);
   if (skip) return;
+  const gEff = applySfxMixToGain(g0);
 
   const t0 = c.currentTime;
   const osc = c.createOscillator();
@@ -57,7 +70,7 @@ function beep(
   osc.type = type;
   osc.frequency.setValueAtTime(freq, t0);
   g.gain.setValueAtTime(0.0001, t0);
-  g.gain.linearRampToValueAtTime(g0, t0 + 0.02);
+  g.gain.linearRampToValueAtTime(Math.max(0.0002, gEff), t0 + 0.02);
   g.gain.exponentialRampToValueAtTime(0.0001, t0 + durMs / 1000);
   osc.connect(g);
   g.connect(panner);
@@ -80,7 +93,7 @@ function playBuffer(id: SoundId, gain = 0.35, spatial?: SpatialSoundOpts): boole
   const g = c.createGain();
   const panner = c.createStereoPanner();
   panner.pan.value = pan;
-  g.gain.value = g0;
+  g.gain.value = applySfxMixToGain(g0);
   src.buffer = buf;
   src.connect(g);
   g.connect(panner);
@@ -157,6 +170,9 @@ export const gameAudio = {
   unlockFromUserGesture(): void {
     void ctx()?.resume();
   },
+
+  /** Kurzzeitig andere SFX leiser (z. B. nach HUD-/Shake-Feedback von außen). */
+  pokeSfxDuck,
 
   setListenerShipPose(p: ListenerShipPose | null): void {
     listenerPose = p;
@@ -288,11 +304,13 @@ export const gameAudio = {
   },
 
   explosionSelf(): void {
+    pokeSfxDuck(220);
     emitSoundId("explosion", 0.58);
   },
 
   explosionOtherAt(worldX: number, worldZ: number, peakGain: number): void {
     const g = Math.max(0.08, Math.min(0.65, peakGain));
+    pokeSfxDuck(95 + Math.round(85 * (g / 0.65)));
     if (!listenerPose) {
       emitSoundId("explosion", g * 0.55);
       return;

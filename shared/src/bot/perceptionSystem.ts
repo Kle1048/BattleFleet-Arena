@@ -1,5 +1,10 @@
 import { PlayerLifeState } from "../playerLife";
-import type { BotPlayerList, BotVisibleMissile, BotVisibleTorpedo, PerceptionSnapshot } from "./types";
+import type {
+  BotPlayerList,
+  BotVisibleMissile,
+  BotVisibleTorpedo,
+  PerceptionSnapshot,
+} from "./types";
 
 export function observeWorld(
   now: number,
@@ -20,12 +25,22 @@ export function observeWorld(
     }
   }
   if (!self) return null;
+  const missiles: BotVisibleMissile[] = [];
+  for (let i = 0; i < missileList.length; i++) {
+    const m = missileList[i];
+    if (m && m.ownerId !== mySessionId) missiles.push(m);
+  }
+  const torpedoes: BotVisibleTorpedo[] = [];
+  for (let i = 0; i < torpedoList.length; i++) {
+    const t = torpedoList[i];
+    if (t && t.ownerId !== mySessionId) torpedoes.push(t);
+  }
   return {
     timestamp: now,
     operationalHalfExtent,
     self,
     enemies,
-    missiles: missileList.filter((m) => m.ownerId !== mySessionId),
-    torpedoes: torpedoList.filter((t) => t.ownerId !== mySessionId),
+    missiles,
+    torpedoes,
   };
 }

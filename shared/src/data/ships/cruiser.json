@@ -4,7 +4,7 @@
   "hullGltfId": "cruiser",
   "hullVisualScale": 0.01393,
   "clientVisualTuningDefaults": {
-    "gltfHullYOffset": -308,
+    "gltfHullYOffset": -480,
     "gltfHullOffsetZ": 0,
     "spriteScale": 1,
     "wakeSpawnLocalZ": 20

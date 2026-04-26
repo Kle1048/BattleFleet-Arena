@@ -1,4 +1,4 @@
-﻿# BattleFleet Arena â€” Entwickler-Log
+# BattleFleet Arena â€” Entwickler-Log
 
 Automatische Kurz-Dokumentation pro **Git-Commit** (Metadaten + Vorschlag fÃ¼r einen Post zu **Vibejam** / KI-generierte bzw. KI-unterstÃ¼tzte Spiele).
 
@@ -396,3 +396,35 @@ npm run devlog:append
 > Shipped: feat: plan radar SSM rails, spatial ship audio, sea control HUD 🚢 AI-assisted competitive game — #Vibejam #indiedev
 
 ---
+---
+
+## 2026-04-26
+
+- **Author:** Klemens1048
+- **Commit:** feat(client): streamline cockpit comms layout
+
+**Details:**
+
+- Made-with: Cursor
+
+### Suggested post (Twitter / X, #Vibejam)
+
+> Shipped: feat(client): streamline cockpit comms layout 🚢 AI-assisted competitive game — #Vibejam #indiedev
+
+<!-- devlog-rev:b70cca0f136f63ab98ec22769867dc49caa59105 -->
+---
+
+## 2026-04-26
+
+- **Author:** Klemens1048
+- **Commit:** feat(client): refine combat controls and feedback
+
+**Details:**
+
+- Made-with: Cursor
+
+### Suggested post (Twitter / X, #Vibejam)
+
+> ⚓ feat(client): refine combat controls and feedback — BattleFleet Arena, naval RTS for #Vibejam. Who else is shipping? #gamedev #AIgames
+
+<!-- devlog-rev:415020547963196168d7c516aae30f70334ebffe -->

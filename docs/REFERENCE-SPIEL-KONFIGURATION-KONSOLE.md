@@ -158,7 +158,8 @@ Aus `client/src/game/input/keyboardMouse.ts` und der Hilfe in `index.html` (`#hu
 | **Maus** | Zielpunkt (X/Z) für Artillerie-Bogen / ASuM-Fallback-Richtung |
 | **Leertaste** oder **LMB halten** | Primärfeuer (Artillerie) |
 | **RMB halten** | Sekundärfeuer (ASuM) — Seitenwahl **aim-basiert** |
-| **MMB halten** oder **Q** | Torpedo/Minen (wenn Feature aktiv) |
+| **MMB halten** oder **T** | Torpedo/Minen (wenn Feature aktiv) |
+| **Q** / **E** halten | SSM feste Rail **Backbord** / **Steuerbord** (`aswmFireSide`; sonst **RMB** = zielrichtungsbasiert) |
 | **R** (Toggle) | Suchrad an/aus (`radarActive`) |
 | **B** | Bot an/aus (wenn nicht durch KI-Input übersteuert) |
 | **F** | Feuerleitkanal: nächstes gegnerisches Ziel wählen (zyklisch; Zielwahl bis ca. **600 m**) |
@@ -168,7 +169,7 @@ Aus `client/src/game/input/keyboardMouse.ts` und der Hilfe in `index.html` (`#hu
 
 **Mobile** (`mobileControls.ts`): Joystick Gas/Ruder, **NEXT TGT** (wie **F**), **FEUER**, **Port SSM** / **Stb SSM** (mit Server-Flag `aswmFireSide`), Dead-Zones für Fehlziele. Kein Minen-Button auf Mobile (Tastatur/PC).
 
-**Hybrid (Tablet / Surface + Tastatur):** Solange **W, S, A oder D** gehalten wird, gelten dieselben Telegraf-Stufen wie am PC, und die Touch-Schieber werden daran ausgerichtet. **Maus oder Stift** auf dem Canvas (`pointerType` `mouse` / `pen`) steuert die Zielpeilung wie am Desktop; reines Touch-Spiel ohne Maus nutzt weiter die feste Bug-Marke, wenn kein Ziel-Pin gesetzt ist. **Q**, **Leertaste**, **R**, **F** usw. wirken weiter global.
+**Hybrid (Tablet / Surface + Tastatur):** Solange **W, S, A oder D** gehalten wird, gelten dieselben Telegraf-Stufen wie am PC, und die Touch-Schieber werden daran ausgerichtet. **Maus oder Stift** auf dem Canvas (`pointerType` `mouse` / `pen`) steuert die Zielpeilung wie am Desktop; reines Touch-Spiel ohne Maus nutzt weiter die feste Bug-Marke, wenn kein Ziel-Pin gesetzt ist. **Q**/**E** (SSM-Rails), **Leertaste**, **R**, **F**, **T** (Minen, falls aktiv) usw. wirken weiter global.
 
 ---
 

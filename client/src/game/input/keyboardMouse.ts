@@ -1,10 +1,12 @@
-/** Pro Frame aus Tastatur + Maus; NDC wie WebGL (−1…1, Y oben positiv). Torpedo: **Q** + **Mittelklick**. */
+/** Pro Frame aus Tastatur + Maus; NDC wie WebGL (−1…1, Y oben positiv). SSM-Rail: Q Backbord / E Steuerbord (halten); Torpedo/Minen: T + Mittelklick. */
 import {
   ARTILLERY_MAX_RANGE,
   canPrimaryArtilleryEngageAimAtWorldPoint,
   FEATURE_MINES_ENABLED,
 } from "@battlefleet/shared";
+import { t } from "../../locale/t";
 import { createMachineryTelegraphLevers } from "./machineryTelegraphLevers";
+import { mergeAswmFireSide } from "./aswmKeyboardSide";
 import {
   createMobileControls,
   isMobileControlSurface,
@@ -22,15 +24,15 @@ export type InputSample = {
   rudderInput: number;
   aimWorldX: number;
   aimWorldZ: number;
-  /** True solange **LMB gehalten** oder **Leertaste** (Servertakt entscheidet über Cooldown / Dauerfeuer). */
+  /** True solange LMB gehalten oder Leertaste (Servertakt entscheidet über Cooldown / Dauerfeuer). */
   primaryFire: boolean;
-  /** True solange **RMB gehalten** — ASuM (Task 7). */
+  /** True solange RMB (SSM zielrichtungsbasiert), Q/E (feste Rail Backbord/Steuerbord) oder Mobile-SSM-Tasten. */
   secondaryFire: boolean;
-  /** Torpedo (Task 8): **Mittlere Maustaste** gehalten oder **Q**. */
+  /** Torpedo/Minen (Task 8): mittlere Maustaste gehalten oder T (wenn Feature aktiv). */
   torpedoFire: boolean;
-  /** Suchrad an/aus — **R** toggelt (ESM-Sichtbarkeit für Gegner). */
+  /** Suchrad an/aus — R toggelt (ESM-Sichtbarkeit für Gegner). */
   radarActive: boolean;
-  /** Nur Mobile: ASuM von fester Backbord-/Steuerbord-Seite (Softkeys). */
+  /** Feste SSM-Rail: Q = port, E = starboard (halten); Mobile-Softkeys; bei nur RMB ausgelassen → Zielrichtung am Server. */
   aswmFireSide?: "port" | "starboard";
   /**
    * `false`: Server nutzt `throttle` / `rudderInput` (aktueller Stand).
@@ -52,6 +54,25 @@ export type MobileAimEngagementRef = {
 };
 
 const MOBILE_FALLBACK_AIM_DIST = Math.min(ARTILLERY_MAX_RANGE * 0.42, 280);
+const KEYBOARD_CONTROL_MODE_STORAGE_KEY = "bfa.keyboardControlMode";
+
+type KeyboardControlMode = "hold" | "step";
+
+function readKeyboardControlMode(): KeyboardControlMode {
+  try {
+    return localStorage.getItem(KEYBOARD_CONTROL_MODE_STORAGE_KEY) === "step" ? "step" : "hold";
+  } catch {
+    return "hold";
+  }
+}
+
+function writeKeyboardControlMode(mode: KeyboardControlMode): void {
+  try {
+    localStorage.setItem(KEYBOARD_CONTROL_MODE_STORAGE_KEY, mode);
+  } catch {
+    // Storage can be unavailable in privacy modes; the in-memory mode still works.
+  }
+}
 
 function defaultBowAimWorld(self: { x: number; z: number; headingRad: number }): { x: number; z: number } {
   const d = MOBILE_FALLBACK_AIM_DIST;
@@ -107,18 +128,56 @@ export function createInputHandlers(
 
   let throttleNotch = TELEGRAPH_STOP_INDEX;
   let rudderNotch = TELEGRAPH_STOP_INDEX;
+  let keyboardControlMode = readKeyboardControlMode();
 
   let radarActive = true;
   /** HUD-/Touch-Knopf: Toggles werden im nächsten `sample()` verarbeitet (gleiche Quelle wie **R**). */
   let pendingRadarToggles = 0;
+
+  const controlModeButton = document.createElement("button");
+  controlModeButton.type = "button";
+  controlModeButton.style.cssText =
+    "pointer-events:auto;align-self:flex-start;padding:4px 7px;border-radius:7px;border:1px solid rgba(200,170,110,0.55);background:rgba(8,13,19,0.86);color:rgba(235,241,245,0.92);font:10px ui-monospace,Cascadia Mono,Consolas,monospace;letter-spacing:0.02em;cursor:pointer;";
+
+  function updateControlModeButton(): void {
+    controlModeButton.textContent =
+      keyboardControlMode === "hold"
+        ? t("telegraphLevers.controlModeHold")
+        : t("telegraphLevers.controlModeStep");
+    controlModeButton.title = t("telegraphLevers.controlModeToggleTitle");
+    controlModeButton.setAttribute("aria-label", t("telegraphLevers.controlModeToggleAria"));
+  }
+
+  function toggleKeyboardControlMode(): void {
+    keyboardControlMode = keyboardControlMode === "hold" ? "step" : "hold";
+    writeKeyboardControlMode(keyboardControlMode);
+    updateControlModeButton();
+    if (keyboardControlMode === "step") {
+      throttleNotch = valueToStepIndex(0, TELEGRAPH_THROTTLE_STEPS);
+      rudderNotch = valueToStepIndex(0, TELEGRAPH_RUDDER_STEPS);
+    }
+  }
+
+  updateControlModeButton();
+  controlModeButton.addEventListener("click", toggleKeyboardControlMode);
+  if (!mobileSurface) {
+    telegraph.root.style.pointerEvents = "auto";
+    telegraph.root.appendChild(controlModeButton);
+  }
 
   const onDown = (e: KeyboardEvent): void => {
     keys.add(e.code);
     if (e.code === "Space") {
       e.preventDefault();
     }
+    if (e.code === "KeyM" && !e.repeat) {
+      toggleKeyboardControlMode();
+    }
     if (e.code === "KeyR" && !e.repeat) {
       radarActive = !radarActive;
+    }
+    if (keyboardControlMode !== "step") {
+      return;
     }
     const tMax = TELEGRAPH_THROTTLE_STEPS.length - 1;
     const rMax = TELEGRAPH_RUDDER_STEPS.length - 1;
@@ -211,15 +270,24 @@ export function createInputHandlers(
       pinViewport = null;
     }
 
-    let throttle = TELEGRAPH_THROTTLE_STEPS[throttleNotch] ?? 0;
-    let rudderInput = TELEGRAPH_RUDDER_STEPS[rudderNotch] ?? 0;
+    let throttle =
+      keyboardControlMode === "hold"
+        ? (keys.has("KeyW") ? 1 : 0) + (keys.has("KeyS") ? -1 : 0)
+        : (TELEGRAPH_THROTTLE_STEPS[throttleNotch] ?? 0);
+    let rudderInput =
+      keyboardControlMode === "hold"
+        ? (keys.has("KeyD") ? 1 : 0) + (keys.has("KeyA") ? -1 : 0)
+        : (TELEGRAPH_RUDDER_STEPS[rudderNotch] ?? 0);
 
     const keyboardTelegraphKeysDown =
       keys.has("KeyW") || keys.has("KeyS") || keys.has("KeyA") || keys.has("KeyD");
 
     if (mobile.active) {
       if (keyboardTelegraphKeysDown) {
-        telegraph.syncFromNotchIndices(throttleNotch, rudderNotch);
+        telegraph.syncFromNotchIndices(
+          valueToStepIndex(throttle, TELEGRAPH_THROTTLE_STEPS),
+          valueToStepIndex(rudderInput, TELEGRAPH_RUDDER_STEPS),
+        );
       } else {
         const levers = telegraph.sampleMobileOutputs();
         throttle = levers.throttle;
@@ -285,13 +353,20 @@ export function createInputHandlers(
     ) {
       primaryFire = false;
     }
-    const secondaryFire = rmbHeld || mobile.secondaryFire;
+    const ssmKeyPort = keys.has("KeyQ");
+    const ssmKeyStarboard = keys.has("KeyE");
+    const keyboardSsmHold = ssmKeyPort || ssmKeyStarboard;
+    const secondaryFire = rmbHeld || mobile.secondaryFire || keyboardSsmHold;
     const torpedoFire =
-      FEATURE_MINES_ENABLED && (mmbHeld || keys.has("KeyQ") || mobile.torpedoFire);
-    const aswmFireSide =
-      mobile.active && mobile.secondaryFire && mobile.aswmFireSide
-        ? mobile.aswmFireSide
-        : undefined;
+      FEATURE_MINES_ENABLED && (mmbHeld || keys.has("KeyT") || mobile.torpedoFire);
+
+    const aswmFireSide = mergeAswmFireSide({
+      mobileActive: mobile.active,
+      mobileSecondaryFire: mobile.secondaryFire,
+      mobileAswmSide: mobile.aswmFireSide,
+      keyQ: ssmKeyPort,
+      keyE: ssmKeyStarboard,
+    });
     return {
       throttle,
       rudderInput,
@@ -316,6 +391,7 @@ export function createInputHandlers(
     dispose: () => {
       window.removeEventListener("keydown", onDown);
       window.removeEventListener("keyup", onUp);
+      controlModeButton.removeEventListener("click", toggleKeyboardControlMode);
       canvas.removeEventListener("pointermove", onMove);
       canvas.removeEventListener("pointerdown", onPointerDown);
       canvas.removeEventListener("pointerup", onPointerUp);

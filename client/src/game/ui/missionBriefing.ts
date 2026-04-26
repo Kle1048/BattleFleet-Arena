@@ -2,7 +2,7 @@
  * Mission-Briefing-Overlay (Hilfe / Vor dem Einsatz).
  */
 
-import { progressionNavalRankEn } from "@battlefleet/shared";
+import { FEATURE_MINES_ENABLED, progressionNavalRankEn } from "@battlefleet/shared";
 import { isVibeJamPortalEntry } from "../portal/vibeJamPortal";
 import { t } from "../../locale/t";
 
@@ -11,6 +11,9 @@ import { t } from "../../locale/t";
  */
 export function showMissionBriefing(): Promise<void> {
   return new Promise((resolve) => {
+    const minesControlsLi = FEATURE_MINES_ENABLED
+      ? `<li><span class="mission-briefing-kbd">T</span> or <span class="mission-briefing-kbd">MMB</span> ${t("missionBriefing.controlMinesTeSuffix")}</li>`
+      : "";
     const root = document.createElement("div");
     root.className = "mission-briefing-overlay";
     root.setAttribute("role", "dialog");
@@ -57,6 +60,8 @@ export function showMissionBriefing(): Promise<void> {
               <li><span class="mission-briefing-kbd">Mouse</span> ${t("missionBriefing.controlMouseSuffix")}</li>
               <li><span class="mission-briefing-kbd">LMB</span> or <span class="mission-briefing-kbd">Space</span> ${t("missionBriefing.controlPrimarySuffix")}</li>
               <li><span class="mission-briefing-kbd">RMB</span> ${t("missionBriefing.controlRmbSuffix")}</li>
+              <li><span class="mission-briefing-kbd">Q</span> / <span class="mission-briefing-kbd">E</span> ${t("missionBriefing.controlSsmQeSuffix")}</li>
+              ${minesControlsLi}
               <li><span class="mission-briefing-kbd">R</span> ${t("missionBriefing.controlRadarSuffix")}</li>
               <li><span class="mission-briefing-kbd">F</span> ${t("missionBriefing.controlFireControlSuffix")}</li>
             </ul>

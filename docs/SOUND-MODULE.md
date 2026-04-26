@@ -69,6 +69,7 @@ Neue Sounds erfordern einen neuen Eintrag in **`SoundFiles`**, **`SoundUrls`**, 
 - Format: **WAV** (Browser decodiert per Web Audio API; andere Formate wären nur nach Erweiterung der Lade-Logik sinnvoll).
 - Mehrere gleichzeitige Sounds: je Abspielen neuer `AudioBufferSourceNode`.
 - Lautstärke: grob über `gain` in `playSoundId` / `playBuffer`; kein globales Master-Volume im Modul.
+- **Plan A — Feel (`sfxMix.ts`):** Alle SFX werden mit **`MASTER_SFX_MULT`** (~0,9) skaliert. Nach **`weaponHit`**, **`explosion`** und optional **`gameAudio.pokeSfxDuck(ms)`** (z. B. von HUD-/Shake-Feedback) werden andere One-Shots für kurze Zeit mit **`SFX_DUCK_MULT`** leiser gemischt, damit harte Ereignisse sich akustisch abheben.
 
 ## ElevenLabs (Sound Effects) — Prompts pro Datei
 

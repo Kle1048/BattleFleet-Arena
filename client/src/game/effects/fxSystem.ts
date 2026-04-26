@@ -922,7 +922,8 @@ export function createFxSystem(scene: THREE.Scene): {
 
   function update(dtMs: number): void {
     flushPendingFx();
-    const dt = Math.max(0, dtMs) * 0.001;
+    /** Tab-Hintergrund: verhindert Partikel-Sprünge bei großen `dt`. */
+    const dt = Math.max(0, Math.min(100, dtMs)) * 0.001;
     for (const p of particles) {
       if (!p.active) continue;
       p.ageMs += dtMs;

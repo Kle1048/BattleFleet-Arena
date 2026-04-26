@@ -1,4 +1,5 @@
 import type * as THREE from "three";
+import { ARTILLERY_SPLASH_RADIUS, ASWM_HIT_RADIUS, PlayerLifeState } from "@battlefleet/shared";
 import {
   type AirDefenseSamLaunchFx,
   playAirDefenseFire,
@@ -34,6 +35,7 @@ type NetPlayerLike = {
   id: string;
   x: number;
   z: number;
+  lifeState?: string;
 };
 
 type ArtilleryFxLike = {
@@ -96,6 +98,11 @@ type RegisterNetworkHandlersOptions<TPlayerList> = {
   onSoftkillResult?: (success: boolean) => void;
   /** Direkter Waffentreffer (`kind === "hit"`) — Artillerie / ASuM / Torpedo. */
   onWeaponHitAt?: (worldX: number, worldZ: number) => void;
+  /**
+   * Plan A — Feel: lokaler Spieler im relevanten Radius (Artillerie-Splash / ASuM-Einschlag).
+   * Caller sollte Toasts / Kamera-Shake drosseln (Cooldown).
+   */
+  onFeelLocalWeaponThreat?: (ev: { tag: "artillery_hull" | "aswm_impact" }) => void;
   /** PDMS `airDefenseFire`: Mündung `bf_muzzle` am `visual_pdms`-Mount; nach `createVisualRuntime` setzen. */
   getPdmsMuzzleSeek?: (defenderId: string) => PdmsMuzzleSeekCoords | null;
   /** Comms-Room: Flugabwehr Feuer / erfolgreicher Abfang. */
@@ -137,6 +144,7 @@ export function registerNetworkHandlers<TPlayerList>(
     onMissileLockOn,
     onAswmMagazineReloaded,
     onSoftkillResult,
+    onFeelLocalWeaponThreat,
     getPdmsMuzzleSeek,
     appendAirDefenseComms,
     formatPlayerLabel,
@@ -228,10 +236,15 @@ export function registerNetworkHandlers<TPlayerList>(
       }
       if (kind === "hit") {
         const loc = findPlayerBySessionId(playerListOf(room), mySessionId);
-        if (loc) {
+        if (loc && loc.lifeState !== PlayerLifeState.AwaitingRespawn) {
           const dx = m.x - loc.x;
           const dz = m.z - loc.z;
-          if (dx * dx + dz * dz < 300 * 300) onHitNearAt?.(m.x, m.z);
+          const distSq = dx * dx + dz * dz;
+          const splashR = ARTILLERY_SPLASH_RADIUS * 1.28;
+          if (distSq <= splashR * splashR) {
+            onFeelLocalWeaponThreat?.({ tag: "artillery_hull" });
+          }
+          if (distSq < 300 * 300) onHitNearAt?.(m.x, m.z);
         }
       }
     }
@@ -258,6 +271,14 @@ export function registerNetworkHandlers<TPlayerList>(
       missileFx.flashImpact(m.x, m.z, m.kind);
       if (m.kind === "hit") {
         onWeaponHitAt?.(m.x, m.z);
+        const loc = findPlayerBySessionId(playerListOf(room), mySessionId);
+        if (loc && loc.lifeState !== PlayerLifeState.AwaitingRespawn) {
+          const dx = m.x - loc.x;
+          const dz = m.z - loc.z;
+          if (dx * dx + dz * dz <= (ASWM_HIT_RADIUS * 3.2) ** 2) {
+            onFeelLocalWeaponThreat?.({ tag: "aswm_impact" });
+          }
+        }
       }
     }
   });

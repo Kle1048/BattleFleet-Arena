@@ -3,6 +3,7 @@ import { getAuthoritativeShipHullProfile, type ShipWreckState } from "@battlefle
 import { createShipHitboxWireframe } from "../scene/shipHitboxDebug";
 import { assignToOverlayLayer } from "./renderOverlayLayers";
 import { worldToRenderX, worldToRenderYaw } from "./renderCoords";
+import { getShipDebugTuningForVisualClass } from "./shipDebugTuning";
 import { isWreckCollisionDebugVisible } from "./shipProfileRuntime";
 
 const rootsByWreckId = new Map<string, THREE.Group>();
@@ -13,7 +14,7 @@ type WreckListLike = {
 };
 
 /**
- * Wrack-Kollision-Debug: Hitbox-Drahtmodell (gleiche OBB wie Server: Sim-Punkt + Peilung + `collisionHitbox`).
+ * Wrack-Kollision-Debug: Hitbox-Drahtmodell mit demselben visuellen Pivot wie das Wrack-GLB.
  */
 export function syncWreckCollisionDebugMeshes(
   scene: THREE.Scene,
@@ -50,7 +51,10 @@ export function syncWreckCollisionDebugMeshes(
       }
 
       const yaw = worldToRenderYaw(w.headingRad);
-      root.position.set(worldToRenderX(w.anchorX), 0, w.anchorZ);
+      const tune = getShipDebugTuningForVisualClass(w.shipClass);
+      const pivotDx = Math.sin(yaw) * tune.shipPivotLocalZ;
+      const pivotDz = Math.cos(yaw) * tune.shipPivotLocalZ;
+      root.position.set(worldToRenderX(w.anchorX) - pivotDx, 0, w.anchorZ - pivotDz);
       root.rotation.order = "YXZ";
       root.rotation.y = yaw;
     }
