@@ -5,7 +5,7 @@
  */
 
 /** Sichtbar im Schema / HUD (Sekunden). */
-export const MATCH_DURATION_SEC = 720;
+export const MATCH_DURATION_SEC = 300;
 
 export const MATCH_DURATION_MS = MATCH_DURATION_SEC * 1000;
 

@@ -5,7 +5,7 @@ import {
   isValidKillAttribution,
 } from "./match";
 
-assert.equal(MATCH_DURATION_SEC, 720);
+assert.equal(MATCH_DURATION_SEC, 300);
 assert.equal(SCORE_PER_KILL, 100);
 assert.equal(isValidKillAttribution(undefined, "a"), false);
 assert.equal(isValidKillAttribution("", "a"), false);
