@@ -22,9 +22,9 @@ export const en = {
     /** main.ts — visible `#title` above the game canvas. */
     pageTitleBanner: "Sea Control: Cold WarArena — naval combat in the missile age",
     /** Reserved — `#hud` row 1 when help panel is shown again. */
-    helpHudLine1: "W / S — one step ahead / astern on the engine telegraph (7 steps)",
+    helpHudLine1: "W / S — engine ahead / astern while held (M toggles step mode)",
     /** Reserved — `#hud` row 2 when help panel is shown again. */
-    helpHudLine2: "A / D — one step port / starboard on the rudder (7 steps)",
+    helpHudLine2: "A / D — rudder port / starboard while held (M toggles step mode)",
     /** Reserved — `#hud` row 3 when help panel is shown again. */
     helpHudLine3: "Mouse move — aim line (firing arc toward the bow)",
     /** Reserved — `#hud` row 4 when help panel is shown again. */
@@ -33,7 +33,7 @@ export const en = {
     helpHudLine5: "Click an enemy ship or press F — fire-control channel (hold target; fire as usual)",
     /** Reserved — `#hud` row 6 when help panel is shown again. */
     helpHudLine6:
-      "Click water / sky or Esc — clear fire-control channel · Right mouse — hold SSM (cooldown; max 2 in flight)",
+      "Click water / sky or Esc — clear fire-control channel · Hold Q (port) / E (starboard) for fixed SSM rails, or right mouse for aim-based SSM",
   },
 
   /** main.ts — hard failures before/during bootstrap. */
@@ -101,6 +101,14 @@ export const en = {
      * main.ts — `onSoftkillResult` softkill ECM result (failure).
      */
     softkillFailed: "Softkill failed",
+    /**
+     * main.ts — Plan A Feel: artillery splash damaged local hull (radius check on `artyImpact`).
+     */
+    feelArtilleryHullHit: "Shell hit — hull damage",
+    /**
+     * main.ts — Plan A Feel: ASuM impact near local player (`aswmImpact` radius check).
+     */
+    feelAswmImpactNear: "Missile warhead — close aboard",
   },
 
   messageHud: {
@@ -164,6 +172,17 @@ export const en = {
     help: "Help",
     /** messageLog.ts — help button `title` and `aria-label`. */
     helpTitle: "Open mission briefing and controls help",
+    /** main.ts — initial Comms line: short objective briefing. */
+    initialObjective:
+      "Mission: take the central Sea Control area, destroy hostile ships, and survive to earn promotions.",
+    /** main.ts — initial Comms line: short movement controls. */
+    initialControlsMove: "Controls: WASD steers and drives; M toggles step mode; mouse aims.",
+    /** main.ts — initial Comms line: short weapon controls. */
+    initialControlsFight:
+      "Weapons: LMB / Space fires primary; RMB fires SSM at the locked target; Q / E fires port / starboard rails.",
+    /** main.ts — initial Comms line: short systems controls. */
+    initialControlsSystems:
+      "Systems: F cycles fire-control target, click enemy hulls to lock, R toggles search radar, Help opens the full briefing.",
   },
 
   /** debugOverlay.ts — FPS / room / ping dev HUD. */
@@ -346,13 +365,17 @@ export const en = {
     /** missionBriefing.ts — controls section title. */
     sectionControlsTitle: "Controls (quick)",
     /** missionBriefing.ts — text after `<kbd>WASD</kbd>` span. */
-    controlWasdSuffix: "propulsion / rudder",
+    controlWasdSuffix: "propulsion / rudder (hold; M toggles step mode)",
     /** missionBriefing.ts — text after `<kbd>Mouse</kbd>` span. */
     controlMouseSuffix: "aim line (fire direction)",
     /** missionBriefing.ts — text after LMB / Space spans (see template). */
     controlPrimarySuffix: "primary fire",
     /** missionBriefing.ts — text after `<kbd>RMB</kbd>` span. */
-    controlRmbSuffix: "anti-ship missiles (SSM)",
+    controlRmbSuffix: "SSM by aim (hold toward fire-control target)",
+    /** missionBriefing.ts — text after `<kbd>Q</kbd>` / `<kbd>E</kbd>` spans. */
+    controlSsmQeSuffix: "SSM fixed rail — port / starboard (hold)",
+    /** missionBriefing.ts — text after `<kbd>T</kbd>` / MMB spans (only when mines feature is on). */
+    controlMinesTeSuffix: "mine lay (hold; middle mouse also)",
     /** missionBriefing.ts — text after `<kbd>R</kbd>` span. */
     controlRadarSuffix: "search radar on/off",
     /** missionBriefing.ts — text after `<kbd>F</kbd>` span (fire-control channel). */
@@ -425,26 +448,6 @@ export const en = {
     ariaBridge: "Bridge",
     /** cockpitHud.ts — OPZ column `aria-label`. */
     ariaOpz: "CIC",
-    /** cockpitHud.ts — bridge panel title. */
-    panelBridge: "BRIDGE",
-    /** cockpitHud.ts — OPZ panel title. */
-    panelOpz: "CIC",
-    /** cockpitHud.ts — bridge compact toggle `title` / `aria-label` when expanded. */
-    bridgeToggleCollapseTitle: "Show course only",
-    /** cockpitHud.ts — bridge compact toggle `title` when collapsed. */
-    bridgeToggleExpandTitle: "Show full bridge",
-    /** cockpitHud.ts — bridge compact toggle `aria-label` when expanded. */
-    bridgeToggleCollapseAria: "Collapse bridge panel",
-    /** cockpitHud.ts — bridge compact toggle `aria-label` when collapsed. */
-    bridgeToggleExpandAria: "Expand bridge panel",
-    /** cockpitHud.ts — OPZ compact toggle `title` when expanded. */
-    opzToggleCollapseTitle: "Show HP only",
-    /** cockpitHud.ts — OPZ compact toggle `title` when collapsed. */
-    opzToggleExpandTitle: "Show full CIC",
-    /** cockpitHud.ts — OPZ compact toggle `aria-label` when expanded. */
-    opzToggleCollapseAria: "Collapse CIC panel",
-    /** cockpitHud.ts — OPZ compact toggle `aria-label` when collapsed. */
-    opzToggleExpandAria: "Expand CIC panel",
     /** cockpitHud.ts — minimal bridge row label. */
     labelCourse: "CRS",
     /** cockpitHud.ts — readout row. */
@@ -547,5 +550,13 @@ export const en = {
     rudderTick4: "St 1/3",
     rudderTick5: "St 2/3",
     rudderTick6: "St F",
+    /** keyboardMouse.ts — desktop keyboard control mode button. */
+    controlModeHold: "Keys: HOLD",
+    /** keyboardMouse.ts — desktop keyboard control mode button. */
+    controlModeStep: "Keys: STEP",
+    /** keyboardMouse.ts — desktop keyboard control mode button title. */
+    controlModeToggleTitle: "Toggle W/A/S/D between hold-to-steer and stepwise telegraph mode (M key)",
+    /** keyboardMouse.ts — desktop keyboard control mode button aria-label. */
+    controlModeToggleAria: "Toggle keyboard control mode",
   },
 } as const;

@@ -67,7 +67,7 @@ export function createMessageLog(options?: {
 
   const parent = options?.parent ?? document.body;
   if (options?.parent) {
-    parent.prepend(root);
+    parent.appendChild(root);
   } else {
     parent.appendChild(root);
   }

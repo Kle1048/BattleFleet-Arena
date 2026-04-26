@@ -75,6 +75,7 @@
       .cockpit-hud-root {
         position: fixed; inset: 0; pointer-events: none; z-index: 11;
         --speed-glow: 0.2;
+        --cockpit-bridge-panel-width: 220px;
       }
       /* Skalierung je Seite — Anker bleiben an linkem/rechtem Rand (nicht zur Mitte ziehen). */
       .cockpit-bridge {
@@ -85,6 +86,19 @@
         gap: var(--cockpit-hud-inner-gap);
         transform: scale(var(--hud-ui-scale));
         transform-origin: top left;
+      }
+      .cockpit-bridge-stack {
+        display: flex;
+        flex-direction: column;
+        align-items: stretch;
+        gap: var(--cockpit-hud-inner-gap);
+        width: var(--cockpit-bridge-panel-width);
+      }
+      .cockpit-bridge-stack > .cockpit-panel,
+      .cockpit-bridge-stack > .message-log-panel {
+        width: 100%;
+        min-width: 0;
+        max-width: none;
       }
       .cockpit-opz {
         position: absolute; right: 16px; top: 16px;
@@ -118,42 +132,6 @@
         border: 1px solid rgba(120, 190, 255, 0.28);
         box-shadow: none;
         backdrop-filter: blur(3px);
-      }
-      .cockpit-panel-head {
-        display: flex; align-items: center; gap: 8px;
-        padding-bottom: 4px;
-        margin-bottom: 2px;
-        border-bottom: 1px solid rgba(100, 160, 220, 0.22);
-      }
-      .cockpit-panel-head--bridge {
-        justify-content: space-between;
-      }
-      .cockpit-panel-head--opz {
-        justify-content: space-between;
-      }
-      .cockpit-panel-toggle {
-        flex-shrink: 0;
-        min-width: 28px;
-        height: 26px;
-        padding: 0 8px;
-        border-radius: 6px;
-        border: 1px solid rgba(120, 190, 255, 0.4);
-        background: rgba(8, 22, 44, 0.85);
-        color: rgba(200, 230, 255, 0.95);
-        font: 700 14px/1 ui-monospace, monospace;
-        cursor: pointer;
-        touch-action: manipulation;
-      }
-      .cockpit-panel-toggle:hover {
-        filter: brightness(1.12);
-      }
-      .cockpit-panel--opz.cockpit-panel--compact .cockpit-radar,
-      .cockpit-panel--opz.cockpit-panel--compact .cockpit-weapons-block {
-        display: none !important;
-      }
-      .cockpit-panel-title {
-        font-weight: 700; letter-spacing: 0.12em; font-size: 10px;
-        color: rgba(200, 230, 255, 0.88);
       }
       .cockpit-subhead {
         grid-column: 1/-1;
@@ -803,12 +781,12 @@
       .cockpit-ship-class { font-weight: 600; color: #a8d4ff; font-size: 13px; }
       .cockpit-player-name { font-weight: 600; color: #d0c8ff; font-size: 13px; max-width: 200px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; text-align: right; }
 
-      /* In .cockpit-opz eingehängt — gleicher Abstand zum OPZ wie Rand zum Bildschirm (nach Skalierung) */
+      /* In .cockpit-bridge eingehängt — gleiche Breite wie das Bridge-Panel. */
       .message-log-panel {
         position: relative;
         flex-shrink: 0;
         z-index: 12;
-        width: min(280px, 34vw);
+        width: 100%;
         max-height: min(200px, 36vh);
         overflow: hidden;
         display: flex; flex-direction: column;

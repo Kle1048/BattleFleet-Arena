@@ -74,25 +74,6 @@ export type CockpitHudUpdate = {
   ssmRailLines: CockpitSsmRailLine[];
 };
 
-const BRIDGE_COMPACT_KEY = "bfa.hud.bridgeCompact";
-const OPZ_COMPACT_KEY = "bfa.hud.opzCompact";
-
-function readHudCompact(key: string): boolean {
-  try {
-    return localStorage.getItem(key) === "1";
-  } catch {
-    return false;
-  }
-}
-
-function writeHudCompact(key: string, compact: boolean): void {
-  try {
-    localStorage.setItem(key, compact ? "1" : "0");
-  } catch {
-    /* ignore quota / private mode */
-  }
-}
-
 export function createCockpitHud(opts?: {
   /** Suchrad wie **R** umschalten (Touch / Maus am HUD-Knopf). */
   onRadarToggle?: () => void;
@@ -103,52 +84,46 @@ export function createCockpitHud(opts?: {
   wrap.setAttribute("aria-label", t("hud.ariaRoot"));
   wrap.innerHTML = `
     <div class="cockpit-bridge" aria-label="${t("hud.ariaBridge")}">
-      <div class="cockpit-panel cockpit-panel--bridge">
-        <div class="cockpit-panel-head cockpit-panel-head--bridge">
-          <span class="cockpit-panel-title">${t("hud.panelBridge")}</span>
-          <button type="button" class="cockpit-panel-toggle" aria-expanded="true" title="${t("hud.bridgeToggleCollapseTitle")}" aria-label="${t("hud.bridgeToggleCollapseAria")}">−</button>
-        </div>
-        <div class="cockpit-bridge-body">
-        <div class="cockpit-readouts cockpit-readouts--bridge">
-          <div class="cockpit-row">
-            <span class="cockpit-label">${t("hud.labelName")}</span>
-            <span class="cockpit-player-name">—</span>
+      <div class="cockpit-bridge-stack">
+        <div class="cockpit-panel cockpit-panel--bridge">
+          <div class="cockpit-bridge-body">
+          <div class="cockpit-readouts cockpit-readouts--bridge">
+            <div class="cockpit-row">
+              <span class="cockpit-label">${t("hud.labelName")}</span>
+              <span class="cockpit-player-name">—</span>
+            </div>
+            <div class="cockpit-row">
+              <span class="cockpit-label">${t("hud.labelClass")}</span>
+              <span class="cockpit-ship-class">—</span>
+            </div>
+            <div class="cockpit-row cockpit-row-rank">
+              <span class="cockpit-label">${t("hud.labelRank")}</span>
+              <span class="cockpit-rank-en">—</span>
+            </div>
+            <div class="cockpit-row">
+              <span class="cockpit-label">${t("hud.labelXp")}</span>
+              <span class="cockpit-xp">—</span>
+            </div>
+            <div class="cockpit-row cockpit-row-life hidden">
+              <span class="cockpit-label">${t("hud.labelStatus")}</span>
+              <span class="cockpit-life-status">—</span>
+            </div>
+            <div class="cockpit-row">
+              <span class="cockpit-label">${t("hud.labelMatch")}</span>
+              <span class="cockpit-match-time">—</span>
+            </div>
+            <div class="cockpit-row">
+              <span class="cockpit-label">${t("hud.labelScore")}</span>
+              <span class="cockpit-match-score"><span class="cockpit-score-val">0</span> <span class="cockpit-kills">(0)</span></span>
+            </div>
           </div>
-          <div class="cockpit-row">
-            <span class="cockpit-label">${t("hud.labelClass")}</span>
-            <span class="cockpit-ship-class">—</span>
           </div>
-          <div class="cockpit-row cockpit-row-rank">
-            <span class="cockpit-label">${t("hud.labelRank")}</span>
-            <span class="cockpit-rank-en">—</span>
-          </div>
-          <div class="cockpit-row">
-            <span class="cockpit-label">${t("hud.labelXp")}</span>
-            <span class="cockpit-xp">—</span>
-          </div>
-          <div class="cockpit-row cockpit-row-life hidden">
-            <span class="cockpit-label">${t("hud.labelStatus")}</span>
-            <span class="cockpit-life-status">—</span>
-          </div>
-          <div class="cockpit-row">
-            <span class="cockpit-label">${t("hud.labelMatch")}</span>
-            <span class="cockpit-match-time">—</span>
-          </div>
-          <div class="cockpit-row">
-            <span class="cockpit-label">${t("hud.labelScore")}</span>
-            <span class="cockpit-match-score"><span class="cockpit-score-val">0</span> <span class="cockpit-kills">(0)</span></span>
-          </div>
-        </div>
         </div>
       </div>
     </div>
 
     <div class="cockpit-opz" aria-label="${t("hud.ariaOpz")}">
       <div class="cockpit-panel cockpit-panel--opz">
-        <div class="cockpit-panel-head cockpit-panel-head--opz">
-          <span class="cockpit-panel-title">${t("hud.panelOpz")}</span>
-          <button type="button" class="cockpit-panel-toggle" aria-expanded="true" title="${t("hud.opzToggleCollapseTitle")}" aria-label="${t("hud.opzToggleCollapseAria")}">−</button>
-        </div>
         <div class="cockpit-radar">
           <div class="cockpit-radar-head">
             <span class="cockpit-radar-title">${t("hud.radarTitle")}</span>
@@ -220,47 +195,6 @@ export function createCockpitHud(opts?: {
       </div>
     </div>
   `;
-
-  const bridgePanel = wrap.querySelector(".cockpit-panel--bridge") as HTMLElement;
-  const opzPanel = wrap.querySelector(".cockpit-panel--opz") as HTMLElement;
-  const bridgeToggle = wrap.querySelector(".cockpit-panel--bridge .cockpit-panel-toggle") as HTMLButtonElement;
-  const opzToggle = wrap.querySelector(".cockpit-panel--opz .cockpit-panel-toggle") as HTMLButtonElement;
-  const bridgeBody = wrap.querySelector(".cockpit-bridge-body") as HTMLElement;
-
-  const applyBridgeCompact = (compact: boolean): void => {
-    bridgePanel.classList.toggle("cockpit-panel--compact", compact);
-    bridgeToggle.setAttribute("aria-expanded", compact ? "false" : "true");
-    bridgeToggle.textContent = compact ? "+" : "−";
-    bridgeToggle.title = compact ? t("hud.bridgeToggleExpandTitle") : t("hud.bridgeToggleCollapseTitle");
-    bridgeToggle.setAttribute(
-      "aria-label",
-      compact ? t("hud.bridgeToggleExpandAria") : t("hud.bridgeToggleCollapseAria"),
-    );
-    bridgeBody.hidden = compact;
-    writeHudCompact(BRIDGE_COMPACT_KEY, compact);
-  };
-
-  const applyOpzCompact = (compact: boolean): void => {
-    opzPanel.classList.toggle("cockpit-panel--compact", compact);
-    opzToggle.setAttribute("aria-expanded", compact ? "false" : "true");
-    opzToggle.textContent = compact ? "+" : "−";
-    opzToggle.title = compact ? t("hud.opzToggleExpandTitle") : t("hud.opzToggleCollapseTitle");
-    opzToggle.setAttribute(
-      "aria-label",
-      compact ? t("hud.opzToggleExpandAria") : t("hud.opzToggleCollapseAria"),
-    );
-    writeHudCompact(OPZ_COMPACT_KEY, compact);
-  };
-
-  applyBridgeCompact(readHudCompact(BRIDGE_COMPACT_KEY));
-  applyOpzCompact(readHudCompact(OPZ_COMPACT_KEY));
-
-  bridgeToggle.addEventListener("click", () => {
-    applyBridgeCompact(!bridgePanel.classList.contains("cockpit-panel--compact"));
-  });
-  opzToggle.addEventListener("click", () => {
-    applyOpzCompact(!opzPanel.classList.contains("cockpit-panel--compact"));
-  });
 
   const playerNameEl = wrap.querySelector(".cockpit-player-name") as HTMLElement;
   const shipClassEl = wrap.querySelector(".cockpit-ship-class") as HTMLElement;

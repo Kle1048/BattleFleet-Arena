@@ -10,6 +10,8 @@
 import * as THREE from "three";
 import {
   BattleState,
+  type BotVisibleMissile,
+  type BotVisibleTorpedo,
   DESTROYER_LIKE_MVP,
   MATCH_PHASE_ENDED,
   PlayerLifeState,
@@ -192,19 +194,24 @@ async function bootstrap(): Promise<void> {
   );
   const cockpit = createCockpitHud({ onRadarToggle: () => input.queueRadarToggle() });
   const bridgeEl = document.querySelector(".cockpit-bridge") as HTMLElement | null;
+  const bridgeStackEl = document.querySelector(".cockpit-bridge-stack") as HTMLElement | null;
   const opzEl = document.querySelector(".cockpit-opz") as HTMLElement | null;
-  if (!bridgeEl || !opzEl) {
+  if (!bridgeEl || !bridgeStackEl || !opzEl) {
     throw new Error(t("errors.cockpitHudMissing"));
   }
-  const debugOverlay = createDebugOverlay({ parent: bridgeEl });
-  debugOverlayForFatal = debugOverlay;
-  installGlobalRuntimeErrorHandlers(debugOverlay);
   const commsLog = createMessageLog({
-    parent: opzEl,
+    parent: bridgeStackEl,
     onShowHelp: () => {
       void showMissionBriefing();
     },
   });
+  commsLog.append({ text: t("messageLog.initialObjective") });
+  commsLog.append({ text: t("messageLog.initialControlsMove") });
+  commsLog.append({ text: t("messageLog.initialControlsFight") });
+  commsLog.append({ text: t("messageLog.initialControlsSystems") });
+  const debugOverlay = createDebugOverlay({ parent: bridgeEl });
+  debugOverlayForFatal = debugOverlay;
+  installGlobalRuntimeErrorHandlers(debugOverlay);
   const botController = createBotController();
   const setBotEnabled = (enabled: boolean): void => {
     if (enabled) botController.enable();
@@ -309,10 +316,14 @@ async function bootstrap(): Promise<void> {
   };
   window.addEventListener("keydown", onBotToggleKey);
   const frameRuntimeState = createFrameRuntimeState(1);
+  const botMissileScratch: BotVisibleMissile[] = [];
+  const botTorpedoScratch: BotVisibleTorpedo[] = [];
   const cameraCullState = createCameraCullRuntimeState();
   let prevWreckIds = new Set<string>();
   const lastWreckSmokeByWreckId = new Map<string, number>();
   let resolvePdmsMuzzleSeek: ((defenderId: string) => { x: number; y: number; z: number } | null) | undefined;
+
+  const lastFeelToastAtByTag: Record<string, number> = {};
 
   registerNetworkHandlers({
     room,
@@ -387,6 +398,21 @@ async function bootstrap(): Promise<void> {
     },
     onWeaponHitAt: (x, z) => {
       gameAudio.weaponHitAt(x, z);
+    },
+    onFeelLocalWeaponThreat: (ev) => {
+      const now = performance.now();
+      const minGap = ev.tag === "artillery_hull" ? 2400 : 2000;
+      if ((lastFeelToastAtByTag[ev.tag] ?? 0) + minGap > now) return;
+      lastFeelToastAtByTag[ev.tag] = now;
+      if (ev.tag === "artillery_hull") {
+        gameMessageHud.showToast(t("toast.feelArtilleryHullHit"), "danger", 2600);
+        triggerCameraShake({ durationMs: 200, amplitude: 5.5 });
+        gameAudio.pokeSfxDuck(115);
+      } else {
+        gameMessageHud.showToast(t("toast.feelAswmImpactNear"), "danger", 2800);
+        triggerCameraShake({ durationMs: 280, amplitude: 8 });
+        gameAudio.pokeSfxDuck(135);
+      }
     },
     getPdmsMuzzleSeek: (defenderId) => resolvePdmsMuzzleSeek?.(defenderId) ?? null,
     appendAirDefenseComms: (e) => commsLog.append(e),
@@ -621,12 +647,44 @@ async function bootstrap(): Promise<void> {
     const missileList = missileListOf(room);
     const torpedoList = torpedoListOf(room);
     const botEnabled = botController.isEnabled();
+    if (botEnabled && missileList) {
+      botMissileScratch.length = 0;
+      for (let i = 0; i < missileList.length; i++) {
+        const m = missileList.at(i);
+        if (m) {
+          botMissileScratch.push({
+            missileId: m.missileId,
+            ownerId: m.ownerId,
+            x: m.x,
+            z: m.z,
+          });
+        }
+      }
+    } else {
+      botMissileScratch.length = 0;
+    }
+    if (botEnabled && torpedoList) {
+      botTorpedoScratch.length = 0;
+      for (let i = 0; i < torpedoList.length; i++) {
+        const t = torpedoList.at(i);
+        if (t) {
+          botTorpedoScratch.push({
+            torpedoId: t.torpedoId,
+            ownerId: t.ownerId,
+            x: t.x,
+            z: t.z,
+          });
+        }
+      }
+    } else {
+      botTorpedoScratch.length = 0;
+    }
     const botInput = botController.update(
       now,
       playerList,
       mySessionId,
-      botEnabled && missileList ? [...missileList] : [],
-      botEnabled && torpedoList ? [...torpedoList] : [],
+      botMissileScratch,
+      botTorpedoScratch,
       operationalHalf,
     );
     const samp = botInput ?? humanInput;
