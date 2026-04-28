@@ -20,14 +20,12 @@ export function pickShipLobbyChoice(): Promise<ShipLobbyChoice> {
     root.setAttribute("aria-label", t("classPicker.ariaDialog"));
     root.innerHTML = `
       <div class="class-picker-panel">
-        <h2 class="class-picker-title">${t("product.fullName")}</h2>
-        <p class="class-picker-hint">${t("classPicker.hint")}</p>
         <label class="class-picker-name-label">
           <span class="class-picker-name-caption">${t("classPicker.nameCaption")}</span>
           <input type="text" class="class-picker-name-input" maxlength="${PLAYER_DISPLAY_NAME_MAX_LEN}"
-            autocomplete="nickname" spellcheck="false" placeholder="${t("classPicker.namePlaceholder")}" />
+            autocomplete="nickname" spellcheck="false" placeholder="" />
         </label>
-        <button type="button" class="class-picker-continue-btn">${t("classPicker.continue")}</button>
+        <button type="button" class="class-picker-continue-btn" aria-label="${t("classPicker.continue")}">→</button>
       </div>
     `;
     const nameInput = root.querySelector(".class-picker-name-input") as HTMLInputElement;

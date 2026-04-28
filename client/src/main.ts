@@ -40,6 +40,11 @@ import { createMissileFx } from "./game/effects/missileFx";
 import { createTorpedoFx } from "./game/effects/torpedoFx";
 import { gameAudio } from "./game/audio/gameAudio";
 import { pickShipLobbyChoice } from "./game/ui/classPicker";
+import {
+  mountSessionLoadBackdrop,
+  removeSessionLoadBackdrop,
+  setSessionLoadBackdropCaption,
+} from "./game/ui/sessionLoadBackdrop";
 import { showMissionBriefing } from "./game/ui/missionBriefing";
 import { addVibeJamPortalWorldRings } from "./game/portal/portalWorldVisuals";
 import {
@@ -164,6 +169,8 @@ loadPersistedFollowCameraTuning();
 let debugOverlayForFatal: ReturnType<typeof createDebugOverlay> | null = null;
 
 async function bootstrap(): Promise<void> {
+  mountSessionLoadBackdrop(t("sessionLoad.captionBoot"));
+  try {
   const mobileMapAimReticle = createMobileMapAimReticle(renderer.domElement);
   const bundle = await createGameScene();
   const { scene, camera, water, setOperationalAreaHalfExtent } = bundle;
@@ -259,6 +266,7 @@ async function bootstrap(): Promise<void> {
   const lobby = isVibeJamPortalEntry()
     ? resolveLobbyChoiceFromPortalParams()
     : await pickShipLobbyChoice();
+  setSessionLoadBackdropCaption(t("sessionLoad.captionJoining"));
   gameAudio.unlockFromUserGesture();
   await gameAudio.preloadSounds();
   const hullUrls = uniqueHullGltfUrlsForAllClasses();
@@ -802,9 +810,13 @@ async function bootstrap(): Promise<void> {
   (window as unknown as { __SCA: typeof scaConsoleApi; __BFA?: typeof scaConsoleApi }).__SCA = scaConsoleApi;
   /** @deprecated Prefer `window.__SCA`. */
   (window as unknown as { __BFA?: typeof scaConsoleApi }).__BFA = scaConsoleApi;
+  } finally {
+    removeSessionLoadBackdrop();
+  }
 }
 
 bootstrap().catch((err) => {
+  removeSessionLoadBackdrop();
   console.error(err);
   const detail = err instanceof Error ? err.message : String(err);
   debugOverlayForFatal?.update({

@@ -135,6 +135,28 @@ const HP_REGEN_PER_SEC_FACTOR = 0.01;
 const SERVER_BOT_SPAWN_STAGGER_MS = 450;
 /** Abstand beim Entfernen von Bots, wenn Menschen die Slots füllen (sanftes Ausdünnen). */
 const SERVER_BOT_REMOVE_STAGGER_MS = 1600;
+/**
+ * Historische Seehelden/Admiräle für Server-Bots.
+ * Anzeigeformat im Spiel immer: "<Name> (Bot)".
+ */
+const SERVER_BOT_HERO_NAMES = Object.freeze([
+  "Nelson",
+  "Nimitz",
+  "Yamamoto",
+  "Togo",
+  "Yi Sun-sin",
+  "Horatio Hood",
+  "Mahan",
+  "Dönitz",
+  "Hipper",
+  "Makarov",
+  "Farragut",
+  "Spruance",
+  "Mikawa",
+  "Leander",
+  "Jellicoe",
+  "Beatty",
+] as const);
 /** Input-Comms werden pro Session höchstens in diesem Abstand geloggt (wenn aktiviert). */
 const COMM_INPUT_LOG_SAMPLE_MS = 2000;
 
@@ -473,7 +495,8 @@ export class BattleRoom extends Room<BattleState> {
   private spawnServerBot(): void {
     const n = this.nextServerBotSerial++;
     const id = `bfa_bot_${n}_${Math.random().toString(36).slice(2, 8)}`;
-    this.joinNewParticipant(id, `Bot ${n}`);
+    const hero = SERVER_BOT_HERO_NAMES[(n - 1) % SERVER_BOT_HERO_NAMES.length] ?? "Admiral";
+    this.joinNewParticipant(id, `${hero} (Bot)`);
     this.serverBotIds.add(id);
     const brain = createBotController();
     brain.enable();

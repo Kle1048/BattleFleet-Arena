@@ -300,6 +300,14 @@ export const en = {
     colOverallMatches: "Matches",
   },
 
+  /** sessionLoadBackdrop.ts + main.ts — full-screen art under lobby / load. */
+  sessionLoad: {
+    /** While scene and UI bootstrap before name dialog. */
+    captionBoot: "Loading…",
+    /** After name, while sounds/models load and room joins. */
+    captionJoining: "Connecting…",
+  },
+
   /** classPicker.ts — pre-match name entry overlay. */
   classPicker: {
     /** classPicker.ts — dialog `aria-label`. */
@@ -309,7 +317,7 @@ export const en = {
      */
     hint: "Optional: enter a display name and continue. Everyone starts as FAC (fast attack craft).",
     /** classPicker.ts — label for name field. */
-    nameCaption: "Display name",
+    nameCaption: "Enter Name",
     /** classPicker.ts — name input `placeholder`. */
     namePlaceholder: "e.g. Commander",
     /** classPicker.ts — submit button. */

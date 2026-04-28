@@ -515,48 +515,93 @@
       }
       .match-end-replay:hover { filter: brightness(1.06); }
 
+      /* Key-Art unter Namensdialog (siehe `sessionLoadBackdrop.ts` + `assets/loading-hero.png`). */
+      .session-load-backdrop {
+        position: fixed;
+        inset: 0;
+        z-index: 100;
+        pointer-events: auto;
+      }
+      .session-load-backdrop-caption {
+        position: absolute;
+        right: 16px;
+        top: 16px;
+        padding: 8px 12px;
+        border-radius: 9px;
+        font-family: system-ui, sans-serif;
+        font-size: clamp(0.74rem, 1.6vw, 0.84rem);
+        font-weight: 600;
+        letter-spacing: 0.03em;
+        text-transform: uppercase;
+        color: #e8f4ff;
+        text-shadow: 0 2px 8px rgba(0, 0, 0, 0.7);
+        background: rgba(4, 14, 32, 0.46);
+        border: 1px solid rgba(120, 190, 255, 0.28);
+        pointer-events: none;
+      }
+
       .class-picker-overlay {
         position: fixed; inset: 0; z-index: 300;
         display: flex; align-items: center; justify-content: center;
-        background: rgba(4, 12, 28, 0.92);
+        padding: 16px;
+        background: transparent;
         pointer-events: auto;
       }
       .class-picker-panel {
         transform: scale(var(--hud-ui-scale));
         transform-origin: center center;
-        max-width: 520px; width: 92%; padding: 28px 26px;
-        background: linear-gradient(180deg, rgba(16, 36, 64, 0.98), rgba(6, 16, 36, 0.99));
-        border: 1px solid rgba(100, 180, 255, 0.4);
+        max-width: 460px; width: min(92vw, 460px); padding: 20px 20px 18px;
+        background:
+          linear-gradient(180deg, rgba(18, 28, 38, 0.7), rgba(6, 14, 24, 0.78));
+        border: 1px solid rgba(230, 198, 145, 0.35);
         border-radius: 14px;
-        box-shadow: 0 20px 56px rgba(0, 0, 0, 0.55);
+        box-shadow:
+          0 0 0 1px rgba(0, 0, 0, 0.24) inset,
+          0 22px 62px rgba(0, 0, 0, 0.56);
+        backdrop-filter: blur(5px);
         font-family: "Segoe UI", system-ui, sans-serif;
-        color: #d8ecff;
+        color: #e5edf5;
       }
-      .class-picker-title { font-size: 1.5rem; margin-bottom: 8px; color: #f0f8ff; font-weight: 700; }
-      .class-picker-hint { font-size: 0.88rem; opacity: 0.82; margin-bottom: 16px; line-height: 1.45; }
       .class-picker-name-label {
-        display: flex; flex-direction: column; gap: 6px; margin-bottom: 18px;
+        display: flex; flex-direction: column; gap: 8px; margin-bottom: 12px;
       }
       .class-picker-name-caption {
-        font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.07em; opacity: 0.78;
+        font-size: 0.84rem;
+        text-transform: uppercase;
+        letter-spacing: 0.12em;
+        font-weight: 700;
+        text-align: center;
+        color: #f5e2c6;
+        text-shadow: 0 1px 10px rgba(0, 0, 0, 0.55);
       }
       .class-picker-name-input {
-        width: 100%; padding: 10px 12px; border-radius: 8px;
-        border: 1px solid rgba(100, 170, 240, 0.45);
-        background: rgba(6, 20, 44, 0.85); color: #e8f4ff;
-        font: inherit; font-size: 0.95rem;
+        width: 100%;
+        padding: 11px 13px;
+        border-radius: 10px;
+        border: 1px solid rgba(232, 201, 150, 0.48);
+        background: rgba(10, 20, 34, 0.64);
+        color: #eef6ff;
+        font: inherit;
+        font-size: 0.97rem;
+        text-align: center;
       }
       .class-picker-name-input::placeholder { opacity: 0.45; }
       .class-picker-name-input:focus {
-        outline: none; border-color: rgba(150, 210, 255, 0.75);
-        box-shadow: 0 0 0 2px rgba(80, 160, 255, 0.25);
+        outline: none;
+        border-color: rgba(250, 216, 162, 0.74);
+        box-shadow: 0 0 0 2px rgba(196, 150, 78, 0.24);
       }
       .class-picker-continue-btn {
-        width: 100%; padding: 12px 16px;
-        font-size: 1rem; font-weight: 600;
-        color: #0a1828; background: linear-gradient(180deg, #9fd8ff, #6ab8f0);
-        border: none; border-radius: 8px; cursor: pointer;
-        box-shadow: 0 4px 14px rgba(0, 0, 0, 0.35);
+        width: 100%;
+        padding: 10px 14px;
+        font-size: 1.05rem;
+        font-weight: 700;
+        color: #18222d;
+        background: linear-gradient(180deg, #f0d6a8, #cea164);
+        border: none;
+        border-radius: 8px;
+        cursor: pointer;
+        box-shadow: 0 5px 16px rgba(0, 0, 0, 0.38);
       }
       .class-picker-continue-btn:hover { filter: brightness(1.06); }
 
