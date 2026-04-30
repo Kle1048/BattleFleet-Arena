@@ -482,3 +482,36 @@ npm run devlog:append
 > Shipped: feat(client): engine loop, dynamic music, telegraph tick, sound mix debug 🚢 AI-assisted competitive game — #Vibejam #indiedev
 
 <!-- devlog-rev:e771353cfa164bf70be856eca752aa9b3f70a85f -->
+---
+
+## 2026-04-28
+
+- **Author:** Klemens1048
+- **Commit:** feat(ui,server): add loading key-art flow and admiral bot names
+
+**Details:**
+
+- Use the new loading hero backdrop through bootstrap/name entry, simplify the name dialog to a centered cinematic style, and assign server bots rotating famous admiral names with a mandatory (Bot) suffix.
+- Made-with: Cursor
+
+### Suggested post (Twitter / X, #Vibejam)
+
+> ⚓ feat(ui,server): add loading key-art flow and admiral bot names — BattleFleet Arena, naval RTS for #Vibejam. Who else is shipping? #gamedev #AIgames
+
+<!-- devlog-rev:97911030c8a7a2d2df795e2fe295a09de3589279 -->
+---
+
+## 2026-04-30
+
+- **Author:** Klemens1048
+- **Commit:** chore(client): refresh loading hero image
+
+**Details:**
+
+- Made-with: Cursor
+
+### Suggested post (Twitter / X, #Vibejam)
+
+> Shipped: chore(client): refresh loading hero image 🚢 AI-assisted competitive game — #Vibejam #indiedev
+
+<!-- devlog-rev:bcbf803ab04a584fc80e01a345fed2093375f4b4 -->
