@@ -1,4 +1,4 @@
-const BASE = import.meta.env.BASE_URL;
+const BASE = import.meta.env?.BASE_URL ?? "/";
 
 const FALLBACK_MOUNT = `${BASE}assets/systems/mount_ssm_canister.glb`;
 

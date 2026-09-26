@@ -31,8 +31,7 @@ type VisualRuntimeOptions<TPlayer extends PlayerLike> = {
   getHullGltfTemplate?: (shipClassId: ShipClassId) => THREE.Group | null;
   /** Optional: Mount-GLBs nach `visual_*`-Id (aus Cache). */
   getMountGltfTemplate?: (visualId: string) => THREE.Group | null;
-  /** @deprecated Nutze getHullGltfTemplate */
-  shipHullGltf?: THREE.Group | null;
+  loadShipAssets?: (shipClassId: ShipClassId) => Promise<void> | undefined;
   /**
    * Wenn ein **anderer** Spieler der `playerList` hinzugefügt wird (nach initialem Snapshot),
    * z. B. Comms-Zeile in `main.ts`.
@@ -61,13 +60,13 @@ export function createVisualRuntime<TPlayer extends PlayerLike>(
     playerListOf,
     getHullGltfTemplate,
     getMountGltfTemplate,
-    shipHullGltf,
+    loadShipAssets,
     onRemotePlayerJoinedRoom,
   } = options;
   const shipRenderer = createShipRenderer(scene, mySessionId, {
     getHullGltfTemplate,
     getMountGltfTemplate,
-    shipHullGltf,
+    loadShipAssets,
   });
   const visuals = shipRenderer.getVisuals() as Map<string, ShipVisual>;
   const remoteInterp = new Map<string, InterpolationBuffer>();

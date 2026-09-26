@@ -39,7 +39,7 @@ Bei Anmeldung über **Google / SSO** gibt es oft kein klassisches GitHub-Passwor
 3. **IPv4** der VM notieren (für `ssh` und für `VITE_COLYSEUS_URL`).
 4. **Firewall** (empfohlen):
    - **TCP 22** — SSH (idealerweise nur von vertrauenswürdigen IPs).
-   - **TCP 2567** — Colyseus (nur nötig, wenn **kein** Reverse-Proxy davor; siehe Abschnitt 12).
+   - **TCP 2567** — Colyseus (nur nötig, wenn **kein** Reverse-Proxy davor; siehe Abschnitt 13).
    - Mit **Nginx + HTTPS** zusätzlich: **TCP 80** und **TCP 443** (Let’s Encrypt + Clients). Dann kann **2567 von außen zu** bleiben, wenn Colyseus nur noch `127.0.0.1:2567` bedient.
 
 ---
@@ -169,6 +169,8 @@ User=root
 WorkingDirectory=/opt/BattleFleet-Arena
 Environment=NODE_ENV=production
 Environment=PORT=2567
+Environment=LISTEN_HOST=127.0.0.1
+EnvironmentFile=/etc/battlefleet.env
 ExecStart=/usr/bin/npm run start -w server
 Restart=on-failure
 RestartSec=5
@@ -178,6 +180,10 @@ WantedBy=multi-user.target
 ```
 
 ### 8.3 Aktivieren und starten
+
+Vorher `/etc/battlefleet.env` mit den Werten aus Abschnitt 10.1 anlegen.
+`LISTEN_HOST=127.0.0.1` setzt Nginx oder einen SSH-Tunnel voraus; ein direkter
+öffentlicher Port ist damit bewusst nicht erreichbar.
 
 ```bash
 systemctl daemon-reload
@@ -229,11 +235,144 @@ systemctl status battlefleet --no-pager
 
 - **Port:** `server/src/index.ts` — `PORT` aus Umgebung oder Standard **2567**.
 - **Bind:** `LISTEN_HOST` optional; Standard **`0.0.0.0`** (alle IPv4-Interfaces), damit die öffentliche IP erreichbar ist.
-- **CORS:** im Server für Colyseus/Express so gesetzt, dass Clients von anderen Origins verbinden können.
+- **Origins:** `BFA_ALLOWED_ORIGINS` muss die tatsächlichen Client-Origins enthalten
+  (z. B. `https://deinname.github.io`, ohne Repository-Pfad). Die Prüfung umfasst
+  Express, Colyseus-Matchmaking und WebSocket-Upgrades. Produktion erlaubt ohne
+  Konfiguration keine Browser-Origin; CLI-Clients ohne Origin bleiben möglich.
 
 ---
 
-## 10. Lokal gegen den VPS spielen (Entwicklung)
+## 10. Lokales Admin-Panel
+
+Der Server stellt ein kleines Admin-Panel unter **`/admin`** bereit. Es ist für lokale Administration gedacht und sollte nicht öffentlich im Internet freigegeben werden.
+
+### 10.1 Zugriffsschutz
+
+**Jeder Admin-API-Aufruf verlangt ein gültiges `BFA_ADMIN_TOKEN`**, auch vom
+Server selbst und über SSH-Tunnel. `127.0.0.1`, `::1` und Forwarded-Header sind
+keine Authentifizierung. Ohne Token bleibt die Admin-API deaktiviert (503).
+Ungültige/fehlende Zugangsdaten ergeben 401, fremde Admin-Origins 403.
+Nur die statische Anmeldemaske unter `/admin` ist ohne Token abrufbar; sie enthält
+keine Laufzeitdaten. Die API akzeptiert `Authorization: Bearer ...` oder `x-admin-token`.
+
+Auf dem VPS ein zufälliges Token erzeugen, z. B. mit `openssl rand -hex 32`.
+Dieses Geheimnis nicht in Chat, Git, Client-Konfiguration oder URLs kopieren.
+Mit `sudo install -m 600 /dev/null /etc/battlefleet.env` **nur bei Ersteinrichtung**
+die Datei anlegen (eine vorhandene Datei nicht überschreiben), dann mit
+`sudoedit /etc/battlefleet.env` befüllen:
+
+```ini
+BFA_ADMIN_TOKEN=<hier-das-zufaellige-64-stellige-Hex-Token>
+BFA_ALLOWED_ORIGINS=https://deinname.github.io
+```
+
+Platzhalter ersetzen; die Origin enthält keinen Pfad oder abschließenden Slash.
+Mehrere Origins werden durch Kommas getrennt. Die Allowlist ist für Spielclients,
+nicht für das Admin-Panel: dessen Browser-API bleibt auf dieselbe Origin beschränkt.
+Das Token muss 32–256 druckbare ASCII-Zeichen ohne Leerzeichen enthalten; ein
+zu kurzes/ungültiges konfiguriertes Token verhindert den Serverstart.
+Die Datei wird über `EnvironmentFile` in Abschnitt 8 eingebunden. Anschließend
+`systemctl daemon-reload` und `systemctl restart battlefleet` ausführen.
+Zum Widerrufen/Rotieren Token ersetzen und neu starten; ohne Token bleibt das Spiel
+nutzbar, aber alle Admin-APIs sind gesperrt.
+
+Empfohlen für den VPS ist der SSH-Tunnel. In **Windows PowerShell**:
+
+```powershell
+ssh -L 8080:127.0.0.1:2567 root@<VPS-IPv4>
+```
+
+Danach lokal im Browser öffnen:
+
+```text
+http://127.0.0.1:8080/admin
+```
+
+Im Panel das Token eingeben und **Connect** wählen. Es wird nur im Speicher des
+Tabs gehalten, nicht in Cookies, Local-/SessionStorage oder URLs. **Disconnect**
+oder Neuladen entfernt es. Außerhalb eines lokalen SSH-Tunnels ausschließlich
+HTTPS verwenden. Der Tunnel ersetzt die Token-Anmeldung nicht.
+
+Falls ein bestimmter SSH-Key nötig ist:
+
+```powershell
+ssh -i C:\Users\Kleme\.ssh\id_ed25519 -L 8080:127.0.0.1:2567 root@<VPS-IPv4>
+```
+
+Wichtig: Den Tunnel-Befehl auf dem **Windows-PC** ausführen, nicht in der bereits geöffneten SSH-Session auf dem Server.
+
+### 10.2 Funktionen
+
+Das Panel zeigt Server-Status, aktive Rooms, Leaderboard und Runtime-Konfiguration. Aktuell steuerbar:
+
+- **Match duration:** Dauer neuer oder neu gestarteter Runden in Sekunden.
+- **Bot fill target players:** Zielgröße aus Menschen + Server-Bots; Bots füllen nur auf, wenn mindestens ein Mensch im Raum ist.
+- **Maintenance mode:** Blockiert neue Joins, bestehende Runden laufen weiter.
+- **Map half extent:** Größe des Einsatzgebiets; `0` bedeutet automatische Größe nach Teilnehmerzahl.
+- **Passive XP interval / base:** Takt und Menge passiver XP-Vergabe.
+- **Sea Control XP multiplier:** Multiplikator für passive XP in der Sea-Control-Zone.
+- **Respawn delay:** Wartezeit nach Zerstörung.
+- **Spawn protection:** Schutzzeit nach Spawn/Respawn.
+- **SAM cooldown:** Globaler SAM-Takt pro Verteidiger.
+- **Out-of-bounds destroy timer:** Zeit außerhalb des Einsatzgebiets bis zur Zerstörung.
+- **Restart active rounds:** Setzt alle aktiven Rooms sofort neu auf. Die unterbrochene Runde wird nicht in die Bestenliste geschrieben.
+- **Reset leaderboard:** Löscht die persistierte Bestenliste nach Bestätigung.
+
+### 10.3 Persistenz
+
+Admin-Werte werden unter `server-data/admin-config.json` gespeichert. Die Bestenliste liegt unter `server-data/leaderboard.json`.
+
+Diese Dateien sind **Laufzeitdaten** und sollten normalerweise nicht mitcommitted werden. Auf dem VPS bleiben sie bei `git pull`, `npm ci`, Build und `systemctl restart battlefleet` erhalten.
+
+### 10.4 API-Beispiele
+
+Token aus einer bereits sicher gesetzten lokalen Umgebungsvariable übernehmen
+(nicht als Klartextbefehl in der Shell-Historie eingeben). Diese Beispiele greifen
+nur über den zuvor geöffneten SSH-Tunnel zu:
+
+```powershell
+$adminHeaders = @{ Authorization = "Bearer $env:BFA_ADMIN_TOKEN" }
+```
+
+Status:
+
+```powershell
+Invoke-RestMethod http://127.0.0.1:8080/api/admin/status -Headers $adminHeaders
+```
+
+Konfiguration setzen:
+
+```powershell
+Invoke-RestMethod http://127.0.0.1:8080/api/admin/config `
+  -Headers $adminHeaders `
+  -Method Patch `
+  -ContentType "application/json" `
+  -Body '{"matchDurationSec":300,"minRoomPlayers":6,"maintenanceMode":false}'
+```
+
+Aktive Runden neu starten:
+
+```powershell
+Invoke-RestMethod http://127.0.0.1:8080/api/admin/round/restart `
+  -Headers $adminHeaders `
+  -Method Post `
+  -ContentType "application/json" `
+  -Body '{"confirm":"RESTART"}'
+```
+
+Leaderboard löschen:
+
+```powershell
+Invoke-RestMethod http://127.0.0.1:8080/api/admin/leaderboard/reset `
+  -Headers $adminHeaders `
+  -Method Post `
+  -ContentType "application/json" `
+  -Body '{"confirm":"RESET"}'
+```
+
+---
+
+## 11. Lokal gegen den VPS spielen (Entwicklung)
 
 Auf dem **Windows-PC** im Repo-Root (PowerShell), **`DEINE_HETZNER_IP`** ersetzen:
 
@@ -247,7 +386,7 @@ Browser: meist `http://localhost:5173` — der Client spricht Colyseus unter der
 
 ---
 
-## 11. Technische Repo-Änderung (Shared + Node)
+## 12. Technische Repo-Änderung (Shared + Node)
 
 **Problem:** `shared/package.json` exportierte zuvor direkt `./src/index.ts`. **Node** kann diese ESM-Imports (ohne `.js`-Endungen) nicht zuverlässig ausführen.
 
@@ -260,7 +399,7 @@ Browser: meist `http://localhost:5173` — der Client spricht Colyseus unter der
 
 ---
 
-## 12. HTTPS / WSS (Produktion: Nginx + Let’s Encrypt)
+## 13. HTTPS / WSS (Produktion: Nginx + Let’s Encrypt)
 
 Für Clients unter **HTTPS** (z. B. GitHub Pages) muss das Backend unter **`https://`** erreichbar sein, sonst blockieren Browser oft **Mixed Content** (`http://`-API von `https://`-Seite).
 
@@ -268,9 +407,31 @@ Für Clients unter **HTTPS** (z. B. GitHub Pages) muss das Backend unter **`ht
 
 1. **DNS:** Subdomain (z. B. `battlefleet-api.example.com`) als **A-Record** auf die **VPS-IPv4**.
 2. **Firewall:** **22**, **80**, **443** inbound; **2567** nur noch intern, wenn Nginx auf `127.0.0.1:2567` proxyt.
-3. **Nginx:** `server_name` = deine Subdomain; `location /` → `proxy_pass http://127.0.0.1:2567;` inkl. WebSocket-Header (`Upgrade`, `Connection`).
+3. **Nginx:** `server_name` = deine Subdomain; `location /` → `proxy_pass http://127.0.0.1:2567;` inkl. WebSocket-Header (`Upgrade`, `Connection`). Admin-Pfade gemäß folgender Konfiguration sperren; `Host` weitergeben.
 4. **Certbot:** `certbot --nginx -d battlefleet-api.example.com`
 5. **Client-Build / GitHub Variable:** `VITE_COLYSEUS_URL=https://battlefleet-api.example.com` (ohne `:2567`, wenn alles über 443 läuft).
+
+Im öffentlichen Nginx-`server`-Block Admin-Pfade vollständig sperren, einschließlich
+Groß-/Kleinschreibungsvarianten (Express routet standardmäßig case-insensitiv):
+
+```nginx
+location ~* ^/(admin|api/admin)(/|$) { return 404; }
+
+location / {
+    proxy_pass http://127.0.0.1:2567;
+    proxy_http_version 1.1;
+    proxy_set_header Host $host;
+    proxy_set_header Upgrade $http_upgrade;
+    proxy_set_header Connection "upgrade";
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header X-Forwarded-Proto $scheme;
+}
+```
+
+Kein zusätzliches `location ^~ /` verwenden, das die Admin-Sperre übergeht.
+Mit `nginx -t` prüfen und Nginx neu laden. Der SSH-Tunnel verbindet sich direkt
+mit dem Backend und bleibt nutzbar. Token-Prüfung bleibt auch bei fehlerhafter
+Proxy-Konfiguration zwingend; Forwarded-Header werden dafür nicht vertraut.
 
 Smoke-Test auf dem Server:
 
@@ -284,7 +445,7 @@ Siehe auch [GITHUB-PAGES.md](./GITHUB-PAGES.md) für den statischen Client.
 
 ---
 
-## 13. Kurz-Checkliste
+## 14. Kurz-Checkliste
 
 - [ ] Hetzner: Ubuntu; Firewall **22**; bei direktem Colyseus zusätzlich **2567**, bei Nginx/TLS **80** + **443**
 - [ ] Node LTS, Git, Repo unter z. B. `/opt/BattleFleet-Arena`

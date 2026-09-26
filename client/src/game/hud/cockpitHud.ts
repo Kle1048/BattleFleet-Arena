@@ -4,6 +4,7 @@
 
 import type { ShipClassId } from "@battlefleet/shared";
 import { t } from "../../locale/t";
+import { createDomWriter } from "./domWriter";
 import {
   RADAR_PLAN_SVG_BLIP_RADIUS,
   RADAR_RANGE_WORLD,
@@ -224,6 +225,8 @@ export function createCockpitHud(opts?: {
   }
 
   const svgNs = "http://www.w3.org/2000/svg";
+  const dom = createDomWriter();
+  const magazineKeys = new WeakMap<HTMLElement, string>();
 
   let lastRadarBlipsKey = "";
   let lastSsmRailsKey = "";
@@ -312,10 +315,13 @@ export function createCockpitHud(opts?: {
 
   /** Rot = bereits verschossen, Grün = im Magazin bereit. */
   function fillAswmMagRow(container: HTMLElement, capacity: number, remaining: number): void {
-    container.replaceChildren();
     const cap = Math.max(0, Math.floor(Number(capacity) || 0));
     const rawRem = Number(remaining);
     const rem = Math.max(0, Math.min(cap, Math.floor(Number.isFinite(rawRem) ? rawRem : 0)));
+    const key = `${cap}:${rem}`;
+    if (magazineKeys.get(container) === key) return;
+    magazineKeys.set(container, key);
+    container.replaceChildren();
     const spent = Math.max(0, cap - rem);
     const dots: HTMLElement[] = [];
     for (let i = 0; i < spent; i++) {
@@ -374,79 +380,79 @@ export function createCockpitHud(opts?: {
       radarThreatLines,
       ssmRailLines,
     }: CockpitHudUpdate): void {
-      playerNameEl.textContent = playerDisplayName;
-      shipClassEl.textContent = shipClassLabel;
+      dom.text(playerNameEl, playerDisplayName);
+      dom.text(shipClassEl, shipClassLabel);
 
       const courseRim = 42;
       const crx = Math.sin(headingRad) * courseRim;
       const cry = -Math.cos(headingRad) * courseRim;
-      radarCourseLine.setAttribute("x2", String(crx));
-      radarCourseLine.setAttribute("y2", String(cry));
+      dom.attribute(radarCourseLine, "x2", crx.toFixed(2));
+      dom.attribute(radarCourseLine, "y2", cry.toFixed(2));
 
       const distToCtr = Math.hypot(worldX, worldZ);
       if (distToCtr > 12) {
         const off = radarMapCenterMarkerOffsetNorthUp(worldX, worldZ, RADAR_PLAN_SVG_BLIP_RADIUS, RADAR_RANGE_WORLD);
         if (off) {
-          radarMapCenterWrap.setAttribute("transform", `translate(${off.mx},${off.my})`);
-          radarMapCenterWrap.style.opacity = "1";
+          dom.attribute(radarMapCenterWrap, "transform", `translate(${off.mx.toFixed(2)},${off.my.toFixed(2)})`);
+          dom.style(radarMapCenterWrap, "opacity", "1");
         } else {
-          radarMapCenterWrap.style.opacity = "0";
+          dom.style(radarMapCenterWrap, "opacity", "0");
         }
       } else {
-        radarMapCenterWrap.style.opacity = "0";
+        dom.style(radarMapCenterWrap, "opacity", "0");
       }
 
       const speedRatio = maxSpeed > 0 ? Math.min(1, Math.abs(speed) / maxSpeed) : 0;
-      wrap.style.setProperty("--speed-glow", String(0.15 + speedRatio * 0.55));
+      dom.style(wrap, "--speed-glow", (0.15 + speedRatio * 0.55).toFixed(3));
 
       const hpRatio = maxHp > 0 ? Math.max(0, Math.min(1, hp / maxHp)) : 0;
-      fillHp.style.left = "0%";
-      fillHp.style.width = `${hpRatio * 100}%`;
-      fillHp.style.background =
+      dom.style(fillHp, "left", "0%");
+      dom.style(fillHp, "width", `${(hpRatio * 100).toFixed(2)}%`);
+      dom.style(fillHp, "background",
         hpRatio > 0.35
           ? "linear-gradient(90deg, rgba(80,200,120,0.4), rgba(120,255,160,0.95))"
-          : "linear-gradient(90deg, rgba(255,200,80,0.5), rgba(255,90,90,0.95))";
+          : "linear-gradient(90deg, rgba(255,200,80,0.5), rgba(255,90,90,0.95))");
 
       if (respawnCountdownSec > 0.05) {
-        lifeRow.classList.remove("hidden");
-        lifeStatusEl.textContent = t("hud.statusRespawnIn", {
+        dom.toggle(lifeRow, "hidden", false);
+        dom.text(lifeStatusEl, t("hud.statusRespawnIn", {
           seconds: respawnCountdownSec.toFixed(1),
-        });
-        lifeStatusEl.style.opacity = "0.95";
+        }));
+        dom.style(lifeStatusEl, "opacity", "0.95");
       } else if (spawnProtectionSec > 0.05) {
-        lifeRow.classList.remove("hidden");
-        lifeStatusEl.textContent = t("hud.statusSpawnProtection", {
+        dom.toggle(lifeRow, "hidden", false);
+        dom.text(lifeStatusEl, t("hud.statusSpawnProtection", {
           seconds: spawnProtectionSec.toFixed(1),
-        });
-        lifeStatusEl.style.opacity = "0.95";
+        }));
+        dom.style(lifeStatusEl, "opacity", "0.95");
       } else {
-        lifeRow.classList.add("hidden");
-        lifeStatusEl.textContent = t("hud.emDash");
+        dom.toggle(lifeRow, "hidden", true);
+        dom.text(lifeStatusEl, t("hud.emDash"));
       }
 
-      matchTimeEl.textContent = formatMatchTime(matchRemainingSec);
-      scoreValEl.textContent = `${score}`;
-      killsSpan.textContent = `(${kills})`;
-      rankEl.textContent = rankLabelEn;
-      xpEl.textContent = xpLine;
+      dom.text(matchTimeEl, formatMatchTime(matchRemainingSec));
+      dom.text(scoreValEl, `${score}`);
+      dom.text(killsSpan, `(${kills})`);
+      dom.text(rankEl, rankLabelEn);
+      dom.text(xpEl, xpLine);
 
-      ownRadarStatusEl.textContent = ownRadarActive ? t("hud.radarOn") : t("hud.radarOff");
-      ownRadarStatusEl.classList.toggle("cockpit-own-radar-off", !ownRadarActive);
-      ownRadarStatusEl.setAttribute("aria-pressed", ownRadarActive ? "true" : "false");
+      dom.text(ownRadarStatusEl, ownRadarActive ? t("hud.radarOn") : t("hud.radarOff"));
+      dom.toggle(ownRadarStatusEl, "cockpit-own-radar-off", !ownRadarActive);
+      dom.attribute(ownRadarStatusEl, "aria-pressed", ownRadarActive ? "true" : "false");
 
       fillAswmMagRow(aswmDotsPort, aswmMagPortCap, aswmRemainingPort);
       fillAswmMagRow(aswmDotsStarboard, aswmMagStarboardCap, aswmRemainingStarboard);
       const aswmRemainingTotal = aswmRemainingPort + aswmRemainingStarboard;
       if (aswmRemainingTotal <= 0 && secondaryCooldownSec > 0.05) {
-        aswmLoadCdEl.textContent = `${secondaryCooldownSec.toFixed(1)} s`;
-        aswmLoadCdEl.style.opacity = "0.95";
+        dom.text(aswmLoadCdEl, `${secondaryCooldownSec.toFixed(1)} s`);
+        dom.style(aswmLoadCdEl, "opacity", "0.95");
       } else {
-        aswmLoadCdEl.textContent = "";
-        aswmLoadCdEl.style.opacity = "0";
+        dom.text(aswmLoadCdEl, "");
+        dom.style(aswmLoadCdEl, "opacity", "0");
       }
 
       if (radarVisible) {
-        radarRoot.classList.remove("cockpit-radar-hidden");
+        dom.toggle(radarRoot, "cockpit-radar-hidden", false);
         const bk = cockpitRadarBlipsKey(radarBlips);
         const sk = cockpitRadarSsmRailsKey(ssmRailLines);
         if (sk !== lastSsmRailsKey) {
@@ -468,15 +474,15 @@ export function createCockpitHud(opts?: {
           drawRadarBlips(radarBlips);
         }
       } else {
-        radarRoot.classList.add("cockpit-radar-hidden");
+        dom.toggle(radarRoot, "cockpit-radar-hidden", true);
+        if (lastRadarBlipsKey) radarBlipsG.replaceChildren();
+        if (lastSsmRailsKey) radarSsmRailsG.replaceChildren();
+        if (lastEsmKey) radarEsmG.replaceChildren();
+        if (lastThreatKey) radarThreatG.replaceChildren();
         lastRadarBlipsKey = "";
         lastSsmRailsKey = "";
         lastEsmKey = "";
         lastThreatKey = "";
-        radarSsmRailsG.replaceChildren();
-        radarEsmG.replaceChildren();
-        radarThreatG.replaceChildren();
-        radarBlipsG.replaceChildren();
       }
     },
   };

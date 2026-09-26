@@ -5,7 +5,7 @@ export const AssetKeys = {
   shipS143AGlb: "ship_s143a_glb",
 } as const;
 
-const BASE_URL = import.meta.env.BASE_URL;
+const BASE_URL = import.meta.env?.BASE_URL ?? "/";
 
 export const AssetUrls = {
   waterPatternGrid: `${BASE_URL}assets/water-pattern.svg`,

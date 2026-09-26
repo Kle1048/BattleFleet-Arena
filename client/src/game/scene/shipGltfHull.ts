@@ -1,5 +1,6 @@
 import * as THREE from "three";
-import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
+import { gltfAssetCache } from "./gltfAssetCache";
+import { markSharedGeometry } from "./shipVisualResources";
 import { SHIP_BOW_Z, SHIP_STERN_Z } from "./createGameScene";
 
 /**
@@ -20,38 +21,17 @@ const TARGET_HULL_LENGTH = SHIP_BOW_Z - SHIP_STERN_Z;
 /** Zusätzlicher Faktor auf die normierte Rumpflänge (visuelle Größe im Spiel). */
 const SHIP_GLTF_EXTRA_SCALE = 200;
 
-const cachedByUrl = new Map<string, THREE.Group>();
-const loadPromises = new Map<string, Promise<THREE.Group | null>>();
 
 /**
  * Lädt ein Schiff-GLB pro URL (Cache). Gleiche URL = gemeinsames Template zum Klonen.
  * Bei Fehler `null` — Fallback auf Sprite/Prisma.
  */
 export function loadShipHullGltfSource(url: string): Promise<THREE.Group | null> {
-  const hit = cachedByUrl.get(url);
-  if (hit) return Promise.resolve(hit);
-  let p = loadPromises.get(url);
-  if (!p) {
-    const loader = new GLTFLoader();
-    p = loader
-      .loadAsync(url)
-      .then((gltf) => {
-        cachedByUrl.set(url, gltf.scene);
-        loadPromises.delete(url);
-        return gltf.scene;
-      })
-      .catch((err) => {
-        console.error("[BattleFleet] Ship GLB load failed:", url, err);
-        loadPromises.delete(url);
-        return null;
-      });
-    loadPromises.set(url, p);
-  }
-  return p;
+  return gltfAssetCache.load(url);
 }
 
 export function getShipHullGltfSourceForUrl(url: string): THREE.Group | null {
-  return cachedByUrl.get(url) ?? null;
+  return gltfAssetCache.get(url) ?? null;
 }
 
 export function collectHullMeshMaterials(root: THREE.Object3D): THREE.Material[] {
@@ -120,7 +100,8 @@ function prepareShipGltfInstance(root: THREE.Object3D): void {
  */
 export function cloneMeshMaterialsDeep(root: THREE.Object3D): void {
   root.traverse((o) => {
-    if (!(o instanceof THREE.Mesh)) return;
+    if (!(o instanceof THREE.Mesh || o instanceof THREE.Line || o instanceof THREE.Points)) return;
+    markSharedGeometry(o.geometry);
     const m = o.material;
     if (Array.isArray(m)) {
       o.material = m.map((mat) => mat.clone());

@@ -1,0 +1,11 @@
+import assert from "node:assert/strict";
+import { TickMetrics } from "./tickMetrics.js";
+const metrics = new TickMetrics();
+assert.deepEqual(metrics.snapshot(), { samples: 0, mean: 0, p95: 0, max: 0 });
+metrics.record(NaN); metrics.record(-1); metrics.record(Infinity);
+assert.equal(metrics.snapshot().samples, 0);
+for (let n = 1; n <= 200; n++) metrics.record(n);
+assert.deepEqual(metrics.snapshot(), { samples: 200, mean: 100.5, p95: 190, max: 200 });
+for (let n = 0; n < 200; n++) metrics.record(2);
+assert.deepEqual(metrics.snapshot(), { samples: 200, mean: 2, p95: 2, max: 2 });
+console.log("bounded tick metrics tests ok");

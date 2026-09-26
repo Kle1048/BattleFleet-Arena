@@ -1,8 +1,7 @@
-import { createServer } from "node:http";
-import cors from "cors";
+import { createServer, type IncomingMessage } from "node:http";
 import express from "express";
 import { WebSocketTransport } from "@colyseus/ws-transport";
-import { Server } from "@colyseus/core";
+import { isAllowedOrigin, OriginCheckedServer, publicOriginMiddleware, readAllowedOrigins } from "./serverSecurity.js";
 import { BattleRoom } from "./rooms/BattleRoom.js";
 import { registerAdminPanel } from "./adminPanel.js";
 import { topLeaderboard } from "./leaderboardStore.js";
@@ -12,17 +11,14 @@ const port = Number(process.env.PORT) || 2567;
 const listenHost = process.env.LISTEN_HOST ?? "0.0.0.0";
 
 const app = express();
-app.use(
-  cors({
-    origin: true,
-    credentials: true,
-  }),
-);
-app.use(express.json());
+app.disable("x-powered-by");
+const allowedOrigins = readAllowedOrigins();
 registerAdminPanel(app, {
   activeRoomSummaries: () => BattleRoom.activeRoomSummaries(),
   restartActiveRounds: () => BattleRoom.restartActiveRounds(),
 });
+app.use(publicOriginMiddleware(allowedOrigins));
+app.use(express.json());
 
 app.get("/api/leaderboard", (req, res) => {
   const rawLimit = typeof req.query.limit === "string" ? Number.parseInt(req.query.limit, 10) : NaN;
@@ -39,9 +35,12 @@ app.get("/api/leaderboard", (req, res) => {
 });
 
 const server = createServer(app);
-const gameServer = new Server({
-  transport: new WebSocketTransport({ server }),
-});
+const gameServer = new OriginCheckedServer({
+  transport: new WebSocketTransport({
+    server,
+    verifyClient: (info: { req: IncomingMessage }) => isAllowedOrigin(info.req.headers.origin, allowedOrigins),
+  }),
+}, allowedOrigins);
 
 gameServer.define("battle", BattleRoom);
 

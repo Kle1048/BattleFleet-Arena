@@ -28,14 +28,6 @@ export function shipOverlapsAnyIsland(pose: ShipCollisionPose): boolean {
   return shipOverlapsAnyIslandPolygons(pose, DEFAULT_MAP_ISLAND_POLYGONS);
 }
 
-/** @deprecated Use `shipOverlapsAnyIslandPolygons`. */
-export function shipOverlapsAnyIslandCircles(
-  pose: ShipCollisionPose,
-  _islands: readonly { x: number; z: number; radius: number }[],
-): boolean {
-  return shipOverlapsAnyIslandPolygons(pose, DEFAULT_MAP_ISLAND_POLYGONS);
-}
-
 /** Mindestens Wrack-Hitbox (OBB wie Schiff–Schiff); `anchor*` = Simulationspunkt wie bei Spielern. */
 export type WreckHitboxPoseInput = {
   anchorX: number;

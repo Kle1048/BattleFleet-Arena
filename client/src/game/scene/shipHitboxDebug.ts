@@ -25,6 +25,5 @@ export function createShipHitboxWireframe(hit: ShipCollisionHitbox): THREE.LineS
   line.position.set(center.x, center.y, center.z);
   line.name = "shipHitboxDebug";
   geom.dispose();
-  edges.dispose();
   return line;
 }

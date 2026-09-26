@@ -36,6 +36,8 @@ import {
 import { createLocalPlayerWeaponGuideOverlay } from "./shipWeaponSectorOverlay";
 import { assignToOverlayLayer } from "../runtime/renderOverlayLayers";
 import { worldToRenderX } from "../runtime/renderCoords";
+import { disposeVisualResources } from "./shipVisualResources";
+import { createAsyncAssetCache, fetchAssetBytes } from "../runtime/asyncAssetCache";
 
 const DECK_Y = 1.2;
 const AIM_TURRET_GRAY = 0xb8bcc4;
@@ -45,26 +47,23 @@ const AIM_DEBUG_LINE_OUT_OF_SECTOR = 0xff4d4d;
 const SHIP_SPRITE_BASE_WORLD_HEIGHT = SHIP_BOW_Z - SHIP_STERN_Z;
 /** Kiel knapp über der Wasseroberfläche — Rumpf als Prisma (Dreieck × Höhe in Y). */
 const HULL_KEEL_Y = 0.28;
-const shipTextureLoader = new THREE.TextureLoader();
-let cachedSchnellbootTexture: THREE.Texture | null = null;
-let spriteLoadAttempted = false;
+const spriteTextureCache = createAsyncAssetCache({
+  async load(url: string, signal) {
+    const bytes = await fetchAssetBytes(url, signal);
+    const bitmap = await createImageBitmap(new Blob([bytes]), { imageOrientation: "flipY" });
+    const texture = new THREE.Texture(bitmap);
+    texture.colorSpace = THREE.SRGBColorSpace;
+    texture.needsUpdate = true;
+    return texture;
+  },
+  disposeValue: (texture) => { texture.dispose(); texture.image.close(); },
+});
 
 function getSchnellbootTexture(): THREE.Texture | null {
-  if (cachedSchnellbootTexture) return cachedSchnellbootTexture;
-  if (!spriteLoadAttempted) {
-    spriteLoadAttempted = true;
-    cachedSchnellbootTexture = shipTextureLoader.load(
-      AssetUrls.shipSchnellboot256,
-      (texture) => {
-        texture.colorSpace = THREE.SRGBColorSpace;
-      },
-      undefined,
-      () => {
-        cachedSchnellbootTexture = null;
-      },
-    );
-  }
-  return cachedSchnellbootTexture;
+  if (typeof document === "undefined") return null;
+  void spriteTextureCache.load(AssetUrls.shipSchnellboot256);
+  // Keep the procedural hull visible while the sprite is pending or unavailable.
+  return spriteTextureCache.get(AssetUrls.shipSchnellboot256) ?? null;
 }
 
 function shipSpriteWorldWidthFromTexture(texture: THREE.Texture): number {
@@ -206,6 +205,19 @@ export type ShipVisual = {
    */
   hullModelBaseUniformScale: number;
 };
+
+/** Per-instance resources only. GLB geometry and sprite/GLB textures belong to their caches. */
+export function disposeShipVisual(vis: ShipVisual): void {
+  disposeVisualResources(vis.group);
+  vis.hullGltfMaterials.length = 0;
+  vis.mountGltfMaterials.length = 0;
+  vis.rotatingMountTrains.length = 0;
+  vis.aimLineMounts.length = 0;
+}
+
+export function disposeShipSpriteTexture(): void {
+  spriteTextureCache.dispose();
+}
 
 function hullAliveMaterial(isLocal: boolean): THREE.MeshStandardMaterial {
   return createShipHullAliveMaterial(isLocal);

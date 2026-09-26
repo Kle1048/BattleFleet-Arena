@@ -1,18 +1,13 @@
 import type * as THREE from "three";
 import { normalizeShipClassId, SHIP_CLASS_FAC } from "@battlefleet/shared";
 import type { ShipClassId } from "@battlefleet/shared";
-import { createShipVisual, type ShipVisual } from "../../scene/shipVisual";
+import { createShipVisual, disposeShipVisual, type ShipVisual } from "../../scene/shipVisual";
 import type { GameRenderer } from "../../runtime/rendererContracts";
 
 export type ShipSyncItem = {
   id: string;
   shipClass?: string;
 };
-
-function clearShipVisual(scene: THREE.Scene, vis: ShipVisual): void {
-  scene.remove(vis.group);
-  vis.group.clear();
-}
 
 export function createShipRenderer(
   scene: THREE.Scene,
@@ -22,8 +17,7 @@ export function createShipRenderer(
     getHullGltfTemplate?: (shipClassId: ShipClassId) => THREE.Group | null;
     /** Pro `visual_*`-Id (Mount-Loadout) — geklontes GLB aus Cache. */
     getMountGltfTemplate?: (visualId: string) => THREE.Group | null;
-    /** @deprecated Nutze getHullGltfTemplate */
-    shipHullGltf?: THREE.Group | null;
+    loadShipAssets?: (shipClassId: ShipClassId) => Promise<void> | undefined;
   },
 ): GameRenderer<ShipSyncItem> & {
   getVisuals: () => ReadonlyMap<string, ShipVisual>;
@@ -33,15 +27,10 @@ export function createShipRenderer(
   const visuals = new Map<string, ShipVisual>();
   /** Zuletzt gebaute Klasse pro Session — bei Wechsel (Progression) Rumpf neu laden. */
   const shipClassBySession = new Map<string, ShipClassId>();
+  let disposed = false;
 
-  function ensureShip(sessionId: string, shipClassId?: string): void {
-    const cid = normalizeShipClassId(shipClassId ?? SHIP_CLASS_FAC);
-    if (visuals.has(sessionId)) {
-      if (shipClassBySession.get(sessionId) === cid) return;
-      removeShip(sessionId);
-    }
-    const template =
-      options?.getHullGltfTemplate?.(cid) ?? options?.shipHullGltf ?? undefined;
+  function buildVisual(sessionId: string, cid: ShipClassId): ShipVisual {
+    const template = options?.getHullGltfTemplate?.(cid);
     const vis = createShipVisual({
       isLocal: sessionId === mySessionId,
       shipClassId: cid,
@@ -52,12 +41,33 @@ export function createShipRenderer(
     scene.add(vis.group);
     visuals.set(sessionId, vis);
     shipClassBySession.set(sessionId, cid);
+    return vis;
+  }
+
+  function ensureShip(sessionId: string, shipClassId?: string): void {
+    if (disposed) return;
+    const cid = normalizeShipClassId(shipClassId ?? SHIP_CLASS_FAC);
+    if (visuals.has(sessionId)) {
+      if (shipClassBySession.get(sessionId) === cid) return;
+      removeShip(sessionId);
+    }
+    const initial = buildVisual(sessionId, cid);
+    const pendingAssets = options?.loadShipAssets?.(cid);
+    void pendingAssets?.then(() => {
+      // Ignore late completions after leave, class change, wreck expiry or shutdown.
+      if (disposed || visuals.get(sessionId) !== initial) return;
+      const replacement = buildVisual(sessionId, cid);
+      replacement.group.position.copy(initial.group.position);
+      replacement.group.quaternion.copy(initial.group.quaternion);
+      replacement.group.visible = initial.group.visible;
+      disposeShipVisual(initial);
+    }).catch((error: unknown) => console.warn("[BattleFleet] Ship assets unavailable", error));
   }
 
   function removeShip(sessionId: string): boolean {
     const vis = visuals.get(sessionId);
     if (!vis) return false;
-    clearShipVisual(scene, vis);
+    disposeShipVisual(vis);
     visuals.delete(sessionId);
     shipClassBySession.delete(sessionId);
     return true;
@@ -80,8 +90,9 @@ export function createShipRenderer(
       // Pose/material updates are orchestrated by frame runtime.
     },
     dispose() {
+      disposed = true;
       for (const vis of visuals.values()) {
-        clearShipVisual(scene, vis);
+        disposeShipVisual(vis);
       }
       visuals.clear();
       shipClassBySession.clear();

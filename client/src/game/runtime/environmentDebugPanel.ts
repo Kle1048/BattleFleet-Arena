@@ -36,8 +36,7 @@ import {
 } from "./shipProfileRuntime";
 import { appendToBottomDebugDock } from "./bottomDebugDock";
 import { getSoundMix, resetSoundMixToDefaults, setSoundMix } from "../audio/soundMixState";
-
-const SHIP_STORAGE_KEY = "bfa.shipDebugTuning.v2";
+import { savePersistedShipTuning } from "./shipTuningStorage";
 
 type ShipSliderDef = {
   key: {
@@ -81,31 +80,6 @@ function clamp(v: number, min: number, max: number): number {
   return Math.max(min, Math.min(max, v));
 }
 
-function loadPersistedShipTuning(): Partial<ShipDebugTuning> {
-  try {
-    const raw = localStorage.getItem(SHIP_STORAGE_KEY);
-    if (!raw) return {};
-    const parsed = JSON.parse(raw) as Partial<ShipDebugTuning>;
-    if (!parsed || typeof parsed !== "object") return {};
-    /** Früher: absoluter Z-Wert (z. B. −60). Jetzt: Offset zum Heck der Hitbox — sehr negative Alt-Werte verwerfen. */
-    if (typeof parsed.wakeSpawnLocalZ === "number" && parsed.wakeSpawnLocalZ < -35) {
-      const { wakeSpawnLocalZ: _drop, ...rest } = parsed;
-      return rest;
-    }
-    return parsed;
-  } catch {
-    return {};
-  }
-}
-
-function savePersistedShipTuning(value: Partial<ShipDebugTuning>): void {
-  try {
-    localStorage.setItem(SHIP_STORAGE_KEY, JSON.stringify(value));
-  } catch {
-    // ignore storage errors
-  }
-}
-
 function hexInputToNumber(hex: string): number {
   const s = hex.replace("#", "");
   return Number.parseInt(s, 16);
@@ -124,9 +98,6 @@ export function createEnvironmentDebugPanel(
   bundle: GameSceneBundle,
   options?: EnvironmentDebugPanelOptions,
 ): { dispose: () => void } {
-  const persistedShip = loadPersistedShipTuning();
-  applyShipDebugTuning(persistedShip);
-
   const currentCamera: FollowCameraTuning = {
     ...DEFAULT_FOLLOW_CAMERA_TUNING,
     ...getFollowCameraTuning(),
@@ -403,7 +374,6 @@ export function createEnvironmentDebugPanel(
   const currentShip: ShipDebugTuning = {
     ...DEFAULT_SHIP_DEBUG_TUNING,
     ...getShipDebugTuning(),
-    ...persistedShip,
   };
   const arcLabel = document.createElement("label");
   arcLabel.textContent = "Weapon Arc Visible";

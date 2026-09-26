@@ -71,9 +71,6 @@ export function computeSamPdInterceptTravelMs(distM: number): number {
   );
 }
 
-/** @deprecated Nicht mehr genutzt — Hardkill läuft ohne Tasten-Commit. */
-export const AD_HARDKILL_COMMIT_DURATION_MS = 15_000;
-
 export type AirDefenseHardkillLayer = "sam" | "pd" | "ciws";
 
 const HARDKILL_LAYER_VISUAL: Record<AirDefenseHardkillLayer, string> = {

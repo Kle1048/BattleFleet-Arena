@@ -1,5 +1,7 @@
 # BattleFleet Arena — Modul- und Feature-Inventar (Refactoring-Basis)
 
+> Historische Bestandsaufnahme: Dateigrößen, Nutzungsstatus und einzelne Featurebeschreibungen sind nicht mehr durchgehend aktuell. Für den geplanten Modulaufbruch gelten [Zielarchitektur](./TARGET-ARCHITECTURE.md) und [Refactoring-Plan](./REFACTORING-PLAN.md); dieses Inventar ist keine aktuelle Liste zu löschender Module.
+
 Stand: Codebase-Analyse (Monorepo `client`, `server`, `shared`).  
 Zweck: Überblick über **alle relevanten Dateien/Module**, **Spielfeatures** mit Kurzbeschreibung, sowie **Hinweise zu Umfang, Komplexität und möglicher Nutzung** — als Ausgangspunkt für Struktur-Refactorings.
 

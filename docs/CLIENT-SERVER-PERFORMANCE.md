@@ -1,0 +1,78 @@
+# Client and server hotpaths (review points 10 and 11)
+
+## Client
+
+- Cockpit model/radar calculations run at most every 50 ms (nominal 20 Hz), not
+  once per rendered frame. Life-state, ship-class, radar and match-end changes
+  force an immediate refresh. Low or irregular frame rates do not trigger catch-up bursts.
+- Input sending, interpolation, follow camera, audio fades and FX retain their
+  frame cadence. The real frame regression checks 120 input/FX frames versus
+  20 cockpit updates per simulated second, plus immediate state transitions.
+- HUD text, styles, attributes and classes are written only on changes. Magazine
+  nodes are rebuilt only when normalized capacity/remaining counts change.
+  Radar groups retain their existing change keys and are cleared once when hidden.
+- Per-runtime player indexes and air-defense reference arrays are reused. Targeting
+  reads schema references synchronously; it does not retain historical snapshots.
+  Wreck ID sets are double-buffered, roll cleanup consumes the visual map directly,
+  and ground picking reuses THREE vectors.
+- Ship visual tuning is cached by class and invalidated on `applyShipDebugTuning`.
+  Authoritative class content remains static during a session.
+- Environment/bot debug panels are dynamically imported only on demand:
+  `window.__SCA.showDevHud(true)` or `?debug=1`. Bot debug renders at most 10 Hz
+  and stops while the developer HUD is hidden. Persisted ship tuning still loads
+  at startup independently of the optional panels. Server-side production checks
+  on debug commands are unchanged; hiding UI is not authorization.
+  The production build moves about 25 kB (7.4 kB gzip) into the optional debug
+  chunk; the main entry shrank from approximately 211 to 189 kB before gzip.
+
+## Server
+
+- Participant and connected-client maps replace linear lookups. Only
+  `joinNewParticipant`/`detachParticipant` and human `onJoin` own these indexes;
+  bots have no client entry. Round reset mutates existing schema objects and
+  therefore retains index identity; leaving/rejoining replaces it.
+- Movement configs are cached per player and recomputed on class or level change.
+  Base movement settings and authoritative hull content are static server content.
+- Air-defense scratch maps, collision participant arrays and collision pair sets
+  are reused. Tick-local ram damage is merged without copying a third map.
+  Passive-XP/OOB settings are read once per relevant pass, preserving live admin changes.
+- Player lookup inside pair checks is now O(1); the physical pair checks remain
+  O(n²). This does not replace a spatial index or the later simulation decomposition.
+- Each room records a bounded 200-sample window of physics self-times. The protected
+  `/api/admin/status` exposes `rooms[].tickMs` with `samples`, `mean`, `p95`, `max`
+  in milliseconds. Percentiles are calculated on request, not each simulation tick.
+  They exclude network encoding, event-loop scheduling delay and browser rendering.
+
+## Reproducible measurement
+
+From the repository root:
+
+```sh
+node --conditions=bfa-source --import tsx scripts/benchmark-ticks.mjs
+```
+
+Local Windows / Node 22.17.0 measurements, 100 warm-up ticks + 400 samples:
+
+| Synthetic load | Before median / p95 | After median / p95 |
+| --- | --- | --- |
+| 16 participants, 32 missiles | 1.92 / 3.20 ms | 1.53 / 2.64 ms |
+| 64 participants, 128 missiles | 29.96 / 37.08 ms | 17.68 / 24.12 ms |
+
+The benchmark fixes random seed and simulation time, uses an isolated temporary
+data directory, and replenishes fresh missiles outside the measured step. Ships
+have no movement input; there are no network clients or bot brains. Missile
+replenishment exercises initial-flight/air-defense work, not the full lifetime of
+every projectile. The 64-participant case is a synthetic stress case, not a new
+supported player limit. These single-machine results show a trend, not a promised
+FPS improvement or production capacity. Repeat on target hardware and follow up
+with real multiplayer/bot workloads and browser frame-time/GPU profiling.
+
+## Scope
+
+Regression coverage includes participant/bot join/leave/reset, cache invalidation,
+HUD cadence and urgent updates, unchanged DOM writes, radar hide/show, deferred UI
+shutdown and storage migration. Particles (point 14), the large renderer bundle,
+simulation architecture (point 12) and persistence (point 13) remain separate work.
+The production-preview smoke test confirmed a real room join, a radar toggle and
+optional debug-panel loading. The protected admin endpoint returned live bounded
+tick metrics; this two-participant smoke test is not a capacity benchmark.

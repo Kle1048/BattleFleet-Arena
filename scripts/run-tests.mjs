@@ -1,10 +1,10 @@
 // Alle src-Dateien mit Suffix .test.ts nacheinander mit tsx ausführen (bestehende assert-Skripte).
 import { spawnSync } from "node:child_process";
 import { readdir, stat } from "node:fs/promises";
-import { join, dirname } from "node:path";
-import { fileURLToPath } from "node:url";
+import { join, relative } from "node:path";
 
-const root = join(dirname(fileURLToPath(import.meta.url)), "..");
+// npm workspace scripts run with the package directory as cwd.
+const root = process.cwd();
 
 async function* walk(dir) {
   for (const name of await readdir(dir)) {
@@ -23,19 +23,26 @@ for await (const f of walk(join(root, "src"))) {
   files.push(f);
 }
 files.sort();
+if (files.length === 0) {
+  console.error(`No .test.ts files found in ${join(root, "src")}`);
+  process.exit(1);
+}
+console.log(`Running ${files.length} test files in ${root}`);
 
 let failed = false;
 for (const file of files) {
-  const rel = file.slice(root.length + 1);
-  const r = spawnSync(process.execPath, ["--import", "tsx", file], {
+  const rel = relative(root, file);
+  const r = spawnSync(process.execPath, ["--conditions=bfa-source", "--import", "tsx", file], {
     cwd: root,
     stdio: "inherit",
     env: process.env,
+    timeout: 60_000,
   });
   if (r.status !== 0) {
-    console.error(`[test failed] ${rel}`);
+    console.error(`[test failed] ${rel}`, r.error ?? r.signal ?? r.status);
     failed = true;
   }
 }
 
+console.log(`${files.length} test files completed; ${failed ? "FAILED" : "passed"}.`);
 process.exit(failed ? 1 : 0);

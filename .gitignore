@@ -7,3 +7,5 @@ dist/
 .env.*
 !.env.example
 .cursor/
+# Runtime data (default location depends on the server process working directory).
+server-data/

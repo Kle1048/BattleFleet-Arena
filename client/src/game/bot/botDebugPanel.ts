@@ -95,6 +95,7 @@ export function createBotDebugPanel(options: BotDebugPanelOptions = {}): {
       lastRenderedEnabled = true;
       const c = state.context;
       title.textContent = t("botDebug.titleActive");
+      if (!expanded) return;
       const inputLines = state.lastInputs
         .slice(-5)
         .map((q) => `T ${fmt(q.throttle)} R ${fmt(q.rudderInput)} F ${q.primaryFire ? 1 : 0}`)

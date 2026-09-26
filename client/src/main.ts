@@ -27,7 +27,6 @@ import { createCockpitHud } from "./game/hud/cockpitHud";
 import { createMessageLog } from "./game/hud/messageLog";
 import { createDebugOverlay } from "./game/hud/debugOverlay";
 import { createBotController } from "@battlefleet/shared";
-import { createBotDebugPanel } from "./game/bot/botDebugPanel";
 import { createMatchEndHud } from "./game/hud/matchEndHud";
 import {
   createGameMessageHud,
@@ -55,20 +54,25 @@ import { createHudRuntime } from "./game/runtime/hudRuntime";
 import { createRuntimeShutdown } from "./game/runtime/runtimeShutdown";
 import { createAssetManager } from "./game/runtime/assetManager";
 import { loadPersistedFollowCameraTuning } from "./game/runtime/followCameraTuning";
-import { resolveMountGltfUrl, uniqueMountVisualUrls } from "./game/runtime/mountGltfUrls";
+import { resolveMountGltfUrl } from "./game/runtime/mountGltfUrls";
 import {
   resolveShipHullGltfUrlForClass,
-  uniqueHullGltfUrlsForAllClasses,
 } from "./game/runtime/shipProfileRuntime";
 import type { ShipClassId } from "@battlefleet/shared";
-import { getShipHullGltfSourceForUrl, loadShipHullGltfSource } from "./game/scene/shipGltfHull";
+import { getShipHullGltfSourceForUrl } from "./game/scene/shipGltfHull";
+import { gltfAssetCache } from "./game/scene/gltfAssetCache";
+import { disposeShipSpriteTexture } from "./game/scene/shipVisual";
+import { loadShipAssets } from "./game/runtime/shipAssetLoading";
 import {
   getPdmsMuzzleSeekCoords,
   getPrimaryArtilleryMuzzleSeekCoords,
 } from "./game/scene/shipMountVisuals";
 import { renderToWorldX } from "./game/runtime/renderCoords";
 import { updateGameWaterAnimations } from "./game/runtime/materialLibrary";
-import { createEnvironmentDebugPanel } from "./game/runtime/environmentDebugPanel";
+import { applyShipDebugTuning, getShipDebugTuning } from "./game/runtime/shipDebugTuning";
+import { loadPersistedShipTuning } from "./game/runtime/shipTuningStorage";
+import { createLazyResource } from "./game/runtime/lazyResource";
+import { createUpdateCadence } from "./game/runtime/updateCadence";
 import { installReflectionCameraLayerMask } from "./game/runtime/renderOverlayLayers";
 import {
   createCameraCullRuntimeState,
@@ -157,31 +161,33 @@ renderer.domElement.style.cursor = `url("data:image/svg+xml,${encodeURIComponent
 const assetManager = createAssetManager();
 
 loadPersistedFollowCameraTuning();
+applyShipDebugTuning(loadPersistedShipTuning());
 
 /** Nach Cockpit-HUD gesetzt — für bootstrap().catch */
 let debugOverlayForFatal: ReturnType<typeof createDebugOverlay> | null = null;
+let disposeSceneAssets: (() => void) | undefined;
 
 async function bootstrap(): Promise<void> {
   mountSessionLoadBackdrop(t("sessionLoad.captionBoot"));
   try {
   const mobileMapAimReticle = createMobileMapAimReticle(renderer.domElement);
   const bundle = await createGameScene();
+  disposeSceneAssets = bundle.dispose;
   const { scene, camera, water, setOperationalAreaHalfExtent } = bundle;
   const debugShipSwitchRef: { send?: (id: ShipClassId) => void } = {};
-  const environmentDebugPanel = createEnvironmentDebugPanel(bundle, {
-    getDebugShipClassSender: () => debugShipSwitchRef.send,
-  });
+  bundle.islandCollisionPolygonGroup.visible = getShipDebugTuning().showIslandCollisionPolygons;
   const cfg = DESTROYER_LIKE_MVP;
 
   const groundPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
   const raycaster = new THREE.Raycaster();
+  const groundNdc = new THREE.Vector2();
+  const groundHit = new THREE.Vector3();
 
   function getGroundPoint(ndcX: number, ndcY: number): { x: number; z: number } | null {
-    raycaster.setFromCamera(new THREE.Vector2(ndcX, ndcY), camera);
-    const out = new THREE.Vector3();
-    const ok = raycaster.ray.intersectPlane(groundPlane, out);
+    raycaster.setFromCamera(groundNdc.set(ndcX, ndcY), camera);
+    const ok = raycaster.ray.intersectPlane(groundPlane, groundHit);
     if (!ok) return null;
-    return { x: renderToWorldX(out.x), z: out.z };
+    return { x: renderToWorldX(groundHit.x), z: groundHit.z };
   }
 
   const mobileAimEngagement: MobileAimEngagementRef = { self: null };
@@ -217,9 +223,11 @@ async function bootstrap(): Promise<void> {
     if (enabled) botController.enable();
     else botController.disable();
   };
-  const botDebugPanel = createBotDebugPanel({
-    onSetEnabled: setBotEnabled,
+  const debugTools = createLazyResource(async () => {
+    const { createDebugTools } = await import("./game/runtime/debugTools");
+    return createDebugTools(bundle, { getDebugShipClassSender: () => debugShipSwitchRef.send }, setBotEnabled);
   });
+  const debugPanelDue = createUpdateCadence(100);
   document.getElementById("bottom-debug-dock")?.classList.add("bottom-debug-dock--hidden");
   const gameMessageHud = createGameMessageHud({
     onToast: (e) => commsLog.append({ text: e.text, kind: e.kind }),
@@ -257,12 +265,6 @@ async function bootstrap(): Promise<void> {
   const lobby = await pickShipLobbyChoice();
   setSessionLoadBackdropCaption(t("sessionLoad.captionJoining"));
   gameAudio.unlockFromUserGesture();
-  await gameAudio.preloadSounds();
-  const hullUrls = uniqueHullGltfUrlsForAllClasses();
-  const mountUrls = uniqueMountVisualUrls();
-  await Promise.all(
-    [...hullUrls, ...mountUrls].map((u) => loadShipHullGltfSource(u)),
-  );
   function getHullGltfTemplate(shipClassId: ShipClassId) {
     return getShipHullGltfSourceForUrl(resolveShipHullGltfUrlForClass(shipClassId));
   }
@@ -283,6 +285,8 @@ async function bootstrap(): Promise<void> {
     t("bootstrap.joinServerTimeout", { url: COLYSEUS_URL }),
   );
   const mySessionId = room.sessionId;
+  gameAudio.startBackgroundAudio();
+  void loadShipAssets(lobby.shipClass);
   debugShipSwitchRef.send = (id) => {
     room.send("debugSetShipClass", { shipClass: id });
   };
@@ -317,6 +321,7 @@ async function bootstrap(): Promise<void> {
   const botTorpedoScratch: BotVisibleTorpedo[] = [];
   const cameraCullState = createCameraCullRuntimeState();
   let prevWreckIds = new Set<string>();
+  let nextWreckIds = new Set<string>();
   const lastWreckSmokeByWreckId = new Map<string, number>();
   let resolvePdmsMuzzleSeek: ((defenderId: string) => { x: number; y: number; z: number } | null) | undefined;
 
@@ -443,6 +448,7 @@ async function bootstrap(): Promise<void> {
     playerListOf,
     getHullGltfTemplate,
     getMountGltfTemplate,
+    loadShipAssets,
     onRemotePlayerJoinedRoom: (p) => {
       commsLog.append({
         text: t("comms.playerJoined", { name: playerDisplayLabel(p) }),
@@ -506,6 +512,10 @@ async function bootstrap(): Promise<void> {
   const runtimeShutdown = createRuntimeShutdown([
     mobileMapAimReticle,
     visualRuntime,
+    bundle,
+    gameAudio,
+    { dispose: disposeShipSpriteTexture },
+    gltfAssetCache,
     artilleryFx,
     missileFx,
     torpedoFx,
@@ -517,12 +527,11 @@ async function bootstrap(): Promise<void> {
       },
     },
     assetManager,
-    environmentDebugPanel,
+    debugTools,
     reflectionLayerMask,
     renderer,
     {
       dispose() {
-        botDebugPanel.dispose();
         window.removeEventListener("keydown", onBotToggleKey);
       },
     },
@@ -593,12 +602,15 @@ async function bootstrap(): Promise<void> {
     visualRuntime.ensureVisualsForPlayers(playerList);
 
     const wreckList = wreckListOf(room);
+    const oldWreckIds = prevWreckIds;
     prevWreckIds = syncWreckListVisuals(
       wreckList,
       ensureShipVisual,
       removeShipVisual,
       prevWreckIds,
+      nextWreckIds,
     );
+    nextWreckIds = oldWreckIds;
     updateAllWreckVisualPoses(wreckList, visuals, Date.now());
     syncWreckCollisionDebugMeshes(scene, wreckList);
     if (wreckList) {
@@ -611,20 +623,15 @@ async function bootstrap(): Promise<void> {
           lastWreckSmokeByWreckId.set(w.wreckId, now);
         }
       }
-      const aliveWrecks = new Set<string>();
-      for (let i = 0; i < wreckList.length; i++) {
-        const w = wreckList.at(i);
-        if (w) aliveWrecks.add(w.wreckId);
-      }
       for (const id of lastWreckSmokeByWreckId.keys()) {
-        if (!aliveWrecks.has(id)) lastWreckSmokeByWreckId.delete(id);
+        if (!prevWreckIds.has(id)) lastWreckSmokeByWreckId.delete(id);
       }
     }
 
     const { phase: matchPhase, remainingSec: matchRemainingSecRaw } = readMatchTimer(room);
     const matchEnded = matchPhase === MATCH_PHASE_ENDED;
 
-    const meForAim = getPlayer(playerList, mySessionId);
+    const meForAim = meAudio;
     if (meForAim && meForAim.lifeState !== PlayerLifeState.AwaitingRespawn) {
       mobileAimEngagement.self = {
         x: meForAim.x,
@@ -740,7 +747,7 @@ async function bootstrap(): Promise<void> {
     });
 
 
-    const meLod = getPlayer(playerList, mySessionId);
+    const meLod = meAudio;
     shipWakeRibbonSystem.updateFromPlayers({
       players: playerList,
       visuals,
@@ -748,7 +755,9 @@ async function bootstrap(): Promise<void> {
       nowSeconds: now * 0.001,
     });
 
-    botDebugPanel.render(botController.getDebugState());
+    if (debugOverlay.getDevPanelsVisible() && debugPanelDue(now)) {
+      debugTools.get()?.renderBot(botController.getDebugState());
+    }
 
     fxSystem.update(frameTimeMs);
 
@@ -775,7 +784,14 @@ async function bootstrap(): Promise<void> {
     /** Dev-Debug (FPS-Toggle, Diagnose, Bot, Environment): `true` einblenden, `false` nur FPS/Frame/Ping. */
     showDevHud: (show = true) => {
       debugOverlay.setDevPanelsVisible(show);
-      document.getElementById("bottom-debug-dock")?.classList.toggle("bottom-debug-dock--hidden", !show);
+      const dock = document.getElementById("bottom-debug-dock");
+      dock?.classList.toggle("bottom-debug-dock--hidden", !show);
+      dock?.setAttribute("aria-hidden", String(!show));
+      if (show) void debugTools.ensure().then((tools) => {
+        if (tools) document.getElementById("bottom-debug-dock")?.classList.toggle(
+          "bottom-debug-dock--hidden", !debugOverlay.getDevPanelsVisible(),
+        );
+      }).catch((error: unknown) => console.warn("[BattleFleet] Debug panels unavailable", error));
     },
     get devHudVisible(): boolean {
       return debugOverlay.getDevPanelsVisible();
@@ -784,6 +800,7 @@ async function bootstrap(): Promise<void> {
   (window as unknown as { __SCA: typeof scaConsoleApi; __BFA?: typeof scaConsoleApi }).__SCA = scaConsoleApi;
   /** @deprecated Prefer `window.__SCA`. */
   (window as unknown as { __BFA?: typeof scaConsoleApi }).__BFA = scaConsoleApi;
+  if (new URLSearchParams(window.location.search).get("debug") === "1") scaConsoleApi.showDevHud(true);
   } finally {
     removeSessionLoadBackdrop();
   }
@@ -807,6 +824,10 @@ bootstrap().catch((err) => {
   banner.textContent = t("bootstrap.connectionFailed", { url: COLYSEUS_URL, detail });
   document.body.appendChild(banner);
   try {
+    disposeSceneAssets?.();
+    gameAudio.dispose();
+    gltfAssetCache.dispose();
+    disposeShipSpriteTexture();
     assetManager.dispose();
     renderer.dispose();
   } catch {

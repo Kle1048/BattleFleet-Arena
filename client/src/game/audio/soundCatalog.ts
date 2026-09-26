@@ -2,7 +2,7 @@
  * WAV-Dateien unter `client/public/assets/sounds/` ablegen; Dateinamen = Werte unten.
  * Fehlende Dateien sind unkritisch — `gameAudio` fällt auf Synth-Beeps zurück.
  */
-const BASE = `${import.meta.env.BASE_URL}assets/sounds/`;
+const BASE = `${import.meta.env?.BASE_URL ?? "/"}assets/sounds/`;
 
 export const SoundFiles = {
   primaryFire: "primary_fire.wav",
@@ -39,12 +39,13 @@ export const SoundFiles = {
   /** Hebelraster am Maschinentelegraf / Ruder-Wiederholer (pro Rasterwechsel). */
   telegraphNotchClick: "telegraph_notch_click.wav",
   /** Dynamische Musik, Stufe 0 (ruhig) — Variante A/B. */
-  musicAmbientA: "music_ambient_a.wav",
-  musicAmbientB: "music_ambient_b.wav",
-  musicTensionA: "music_tension_a.wav",
-  musicTensionB: "music_tension_b.wav",
-  musicCombatA: "music_combat_a.wav",
-  musicCombatB: "music_combat_b.wav",
+  musicAmbientA: "music_ambient_a.m4a",
+  // No B recording is supplied; reuse A rather than requesting a missing file.
+  musicAmbientB: "music_ambient_a.m4a",
+  musicTensionA: "music_tension_a.m4a",
+  musicTensionB: "music_tension_b.m4a",
+  musicCombatA: "music_combat_a.m4a",
+  musicCombatB: "music_combat_b.m4a",
 } as const;
 
 export type SoundId = keyof typeof SoundFiles;

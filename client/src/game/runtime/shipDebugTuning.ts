@@ -38,6 +38,7 @@ let currentShipDebugTuning: ShipDebugTuning = {
 
 /** Erhöht sich bei jedem `applyShipDebugTuning` — für bedingtes Neu-Anwenden auf Meshes. */
 let shipDebugTuningGeneration = 0;
+const tuningByClass = new Map<string, Readonly<ShipDebugTuning>>();
 
 export function getShipDebugTuningGeneration(): number {
   return shipDebugTuningGeneration;
@@ -60,8 +61,11 @@ export function getShipDebugTuning(): Readonly<ShipDebugTuning> {
  * `applyShipVisualRuntimeTuning` ohne zusätzliches Objekt).
  */
 export function getShipDebugTuningForVisualClass(shipClassId: unknown): Readonly<ShipDebugTuning> {
+  const classId = normalizeShipClassId(shipClassId ?? SHIP_CLASS_FAC);
+  const cached = tuningByClass.get(classId);
+  if (cached) return cached;
   const user = getShipDebugTuning();
-  const o = getAuthoritativeHullProfile(normalizeShipClassId(shipClassId ?? SHIP_CLASS_FAC))?.clientVisualTuningDefaults;
+  const o = getAuthoritativeHullProfile(classId)?.clientVisualTuningDefaults;
   if (
     !o ||
     (o.spriteScale === undefined &&
@@ -71,15 +75,18 @@ export function getShipDebugTuningForVisualClass(shipClassId: unknown): Readonly
       o.shipPivotLocalZ === undefined &&
       o.wakeSpawnLocalZ === undefined)
   ) {
+    tuningByClass.set(classId, user);
     return user;
   }
-  return {
+  const merged = {
     ...user,
     spriteScale: o.spriteScale ?? user.spriteScale,
     gltfHullYOffset: o.gltfHullYOffset ?? user.gltfHullYOffset,
     shipPivotLocalZ: o.shipPivotLocalZ ?? user.shipPivotLocalZ,
     wakeSpawnLocalZ: o.wakeSpawnLocalZ ?? user.wakeSpawnLocalZ,
   };
+  tuningByClass.set(classId, merged);
+  return merged;
 }
 
 export function applyShipDebugTuning(patch: Partial<ShipDebugTuning>): Readonly<ShipDebugTuning> {
@@ -132,6 +139,7 @@ export function applyShipDebugTuning(patch: Partial<ShipDebugTuning>): Readonly<
         : currentShipDebugTuning.showIslandCollisionPolygons,
   };
   currentShipDebugTuning = next;
+  tuningByClass.clear();
   shipDebugTuningGeneration += 1;
   return currentShipDebugTuning;
 }

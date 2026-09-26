@@ -37,8 +37,8 @@ export function stepVisualRollSmoothed(
 }
 
 /** Aufruf einmal pro Frame nach dem Schiffs-Loop — entfernte Spieler aus dem Glättungs-Speicher. */
-export function pruneVisualRollSmoothed(activeSessionIds: ReadonlySet<string>): void {
-  for (const id of [...rollSmoothedRadBySessionId.keys()]) {
+export function pruneVisualRollSmoothed(activeSessionIds: { has: (id: string) => boolean }): void {
+  for (const id of rollSmoothedRadBySessionId.keys()) {
     if (!activeSessionIds.has(id)) rollSmoothedRadBySessionId.delete(id);
   }
 }

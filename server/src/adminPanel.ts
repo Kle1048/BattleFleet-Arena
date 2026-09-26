@@ -1,4 +1,6 @@
-import type { Express, NextFunction, Request, Response } from "express";
+import express, { type Express } from "express";
+import { randomBytes } from "node:crypto";
+import { createAdminGuard } from "./serverSecurity.js";
 import { getAdminConfig, updateAdminConfig } from "./adminConfig.js";
 import { leaderboardSize, resetLeaderboard, topLeaderboard } from "./leaderboardStore.js";
 
@@ -12,40 +14,6 @@ export type AdminPanelControls = {
   }[];
   restartActiveRounds: () => { rooms: number; restarted: number };
 };
-
-function isLoopbackAddress(raw: string | undefined): boolean {
-  if (!raw) return false;
-  const s = raw.replace("::ffff:", "").trim();
-  return s === "127.0.0.1" || s === "::1" || s === "localhost";
-}
-
-function isLocalAdminRequest(req: Request): boolean {
-  const forwardedFor = req.header("x-forwarded-for");
-  if (forwardedFor) {
-    const first = forwardedFor.split(",")[0]?.trim();
-    if (!isLoopbackAddress(first)) return false;
-  }
-  return isLoopbackAddress(req.socket.remoteAddress);
-}
-
-function hasAdminToken(req: Request): boolean {
-  const expected = process.env.BFA_ADMIN_TOKEN?.trim();
-  if (!expected) return false;
-  const auth = req.header("authorization") ?? "";
-  const bearer = auth.startsWith("Bearer ") ? auth.slice("Bearer ".length).trim() : "";
-  const headerToken = req.header("x-admin-token")?.trim() ?? "";
-  return bearer === expected || headerToken === expected;
-}
-
-function requireAdmin(req: Request, res: Response, next: NextFunction): void {
-  if (isLocalAdminRequest(req) || hasAdminToken(req)) {
-    next();
-    return;
-  }
-  res.status(403).json({
-    error: "Admin panel is only available from localhost or with BFA_ADMIN_TOKEN.",
-  });
-}
 
 function adminStatus(controls: AdminPanelControls) {
   return {
@@ -70,16 +38,29 @@ function adminStatus(controls: AdminPanelControls) {
   };
 }
 
-export function registerAdminPanel(app: Express, controls: AdminPanelControls): void {
-  app.get("/admin", requireAdmin, (_req, res) => {
-    res.type("html").send(adminHtml());
+export function registerAdminPanel(app: Express, controls: AdminPanelControls, token = process.env.BFA_ADMIN_TOKEN): void {
+  const requireAdmin = createAdminGuard(token);
+  app.use(["/admin", "/api/admin"], (_req, res, next) => {
+    res.setHeader("Cache-Control", "no-store");
+    res.setHeader("X-Content-Type-Options", "nosniff");
+    res.setHeader("Referrer-Policy", "no-referrer");
+    res.setHeader("X-Frame-Options", "DENY");
+    next();
   });
+  // Only the static login shell is public; no config, status or credential is embedded.
+  app.get("/admin", (_req, res) => {
+    const nonce = randomBytes(18).toString("base64");
+    res.setHeader("Content-Security-Policy", `default-src 'none'; script-src 'nonce-${nonce}'; style-src 'nonce-${nonce}'; connect-src 'self'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'`);
+    res.type("html").send(adminHtml(nonce));
+  });
+  // Protect the whole namespace, including future endpoints; authenticate before parsing bodies.
+  app.use("/api/admin", requireAdmin, express.json({ limit: "16kb" }));
 
-  app.get("/api/admin/status", requireAdmin, (_req, res) => {
+  app.get("/api/admin/status", (_req, res) => {
     res.json(adminStatus(controls));
   });
 
-  app.patch("/api/admin/config", requireAdmin, (req, res) => {
+  app.patch("/api/admin/config", (req, res) => {
     const body = (req.body ?? {}) as {
       matchDurationSec?: unknown;
       minRoomPlayers?: unknown;
@@ -120,7 +101,7 @@ export function registerAdminPanel(app: Express, controls: AdminPanelControls): 
     res.json({ config: next });
   });
 
-  app.post("/api/admin/leaderboard/reset", requireAdmin, (req, res) => {
+  app.post("/api/admin/leaderboard/reset", (req, res) => {
     const body = (req.body ?? {}) as { confirm?: unknown };
     if (body.confirm !== "RESET") {
       res.status(400).json({ error: 'Send {"confirm":"RESET"} to reset the leaderboard.' });
@@ -130,7 +111,7 @@ export function registerAdminPanel(app: Express, controls: AdminPanelControls): 
     res.json({ ok: true, leaderboard: { count: leaderboardSize() } });
   });
 
-  app.post("/api/admin/round/restart", requireAdmin, (req, res) => {
+  app.post("/api/admin/round/restart", (req, res) => {
     const body = (req.body ?? {}) as { confirm?: unknown };
     if (body.confirm !== "RESTART") {
       res.status(400).json({ error: 'Send {"confirm":"RESTART"} to restart active rounds.' });
@@ -140,14 +121,14 @@ export function registerAdminPanel(app: Express, controls: AdminPanelControls): 
   });
 }
 
-function adminHtml(): string {
+function adminHtml(nonce: string): string {
   return `<!doctype html>
 <html lang="en">
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>BattleFleet Admin</title>
-  <style>
+  <style nonce="${nonce}">
     :root { color-scheme: dark; font-family: Inter, system-ui, sans-serif; background: #07111d; color: #edf6ff; }
     body { margin: 0; padding: 24px; background: radial-gradient(circle at top, #17314c, #07111d 52%); }
     main { max-width: 960px; margin: 0 auto; display: grid; gap: 16px; }
@@ -179,6 +160,16 @@ function adminHtml(): string {
     <h1>BattleFleet Server Admin</h1>
     <p>Local admin panel for quick live tuning. Match duration applies to newly created or restarted rounds; bot fill target is reconciled by active rooms.</p>
   </header>
+
+  <section>
+    <h2>Admin authentication</h2>
+    <form id="loginForm" class="grid">
+      <label>Admin token<input id="adminToken" type="password" autocomplete="off" required minlength="32" maxlength="256" /></label>
+      <button type="submit">Connect</button>
+      <button id="logout" type="button">Disconnect</button>
+    </form>
+    <p>The token is kept in this tab's memory only. Use HTTPS or a local SSH tunnel. Reloading disconnects.</p>
+  </section>
 
   <section>
     <h2>Status</h2>
@@ -257,13 +248,18 @@ function adminHtml(): string {
     <div id="message"></div>
   </section>
 </main>
-<script>
+<script nonce="${nonce}">
 const $ = (id) => document.getElementById(id);
+let adminToken = "";
 
 async function requestJson(url, options = {}) {
+  if (!adminToken) throw new Error("Enter the admin token and connect first.");
   const res = await fetch(url, {
-    headers: { "content-type": "application/json", ...(options.headers || {}) },
     ...options,
+    credentials: "omit",
+    cache: "no-store",
+    redirect: "error",
+    headers: { ...(options.headers || {}), "content-type": "application/json", "authorization": "Bearer " + adminToken },
   });
   const json = await res.json();
   if (!res.ok) throw new Error(json.error || res.statusText);
@@ -366,7 +362,22 @@ $("restartRounds").addEventListener("click", async () => {
   }
 });
 
-refresh().catch((error) => setMessage(String(error.message || error), true));
+$("loginForm").addEventListener("submit", async (event) => {
+  event.preventDefault();
+  adminToken = $("adminToken").value.trim();
+  $("adminToken").value = "";
+  try {
+    await refresh();
+    setMessage("Connected.");
+  } catch (error) {
+    adminToken = "";
+    setMessage(String(error.message || error), true);
+  }
+});
+$("logout").addEventListener("click", () => {
+  adminToken = "";
+  location.reload();
+});
 </script>
 </body>
 </html>`;

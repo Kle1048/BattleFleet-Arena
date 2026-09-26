@@ -1,5 +1,7 @@
 import { Room } from "@colyseus/core";
 import type { Client } from "@colyseus/core";
+import { performance } from "node:perf_hooks";
+import { TickMetrics } from "../tickMetrics.js";
 import {
   desiredServerBotCount as computeDesiredServerBotCount,
   MAX_HUMAN_CLIENTS_IN_ROOM,
@@ -20,7 +22,6 @@ import {
 import { normalizePlayerToken, recordMatchResults } from "../leaderboardStore.js";
 import {
   ARTILLERY_DAMAGE,
-  ARTILLERY_PLAYER_MAX_HP,
   ARTILLERY_SPLASH_RADIUS,
   ASWM_DAMAGE,
   ASWM_HIT_RADIUS,
@@ -251,6 +252,7 @@ export class BattleRoom extends Room<BattleState> {
     bots: number;
     matchPhase: string;
     matchRemainingSec: number;
+    tickMs: ReturnType<TickMetrics["snapshot"]>;
   }[] {
     return [...BattleRoom.activeRooms].map((room) => ({
       roomId: room.roomId,
@@ -258,6 +260,7 @@ export class BattleRoom extends Room<BattleState> {
       bots: room.serverBotIds.size,
       matchPhase: room.state.matchPhase,
       matchRemainingSec: room.state.matchRemainingSec,
+      tickMs: room.tickMetrics.snapshot(),
     }));
   }
 
@@ -271,7 +274,16 @@ export class BattleRoom extends Room<BattleState> {
   }
 
   private readonly cfg = DESTROYER_LIKE_MVP;
+  private readonly tickMetrics = new TickMetrics();
   private sim = new Map<string, SimEntry>();
+  /** Indexes mirror participant lifecycle; the ArraySchema remains the wire format. */
+  private readonly playersById = new Map<string, PlayerState>();
+  private readonly clientsById = new Map<string, Client>();
+  private readonly movementConfigs = new WeakMap<PlayerState, { shipClass: string; level: number; config: ShipMovementConfig }>();
+  private readonly adIncomingScratch = new Map<string, number>();
+  private readonly adRadarHintScratch = new Set<string>();
+  private readonly collisionParticipantsScratch: ShipCollisionParticipant[] = [];
+  private collisionShipPairScratch = new Set<string>();
   private pendingShells: PendingShell[] = [];
   private nextShellId = 1;
   private nextMissileId = 1;
@@ -380,7 +392,9 @@ export class BattleRoom extends Room<BattleState> {
 
     this.setSimulationInterval((timeDelta) => {
       const dtSec = timeDelta / 1000;
-      this.physicsStep(dtSec);
+      const started = performance.now();
+      try { this.physicsStep(dtSec); }
+      finally { this.tickMetrics.record(performance.now() - started); }
     }, 1000 / TICK_HZ);
 
     this.lastPassiveXpAtMs = Date.now();
@@ -389,6 +403,11 @@ export class BattleRoom extends Room<BattleState> {
 
   onDispose() {
     BattleRoom.activeRooms.delete(this);
+    this.playersById.clear();
+    this.clientsById.clear();
+    this.adIncomingScratch.clear();
+    this.adRadarHintScratch.clear();
+    this.collisionParticipantsScratch.length = 0;
   }
 
   private isCommsLoggingEnabled(): boolean {
@@ -434,10 +453,7 @@ export class BattleRoom extends Room<BattleState> {
   }
 
   private findPlayer(sessionId: string): PlayerState | undefined {
-    for (const p of this.state.playerList) {
-      if (p.id === sessionId) return p;
-    }
-    return undefined;
+    return this.playersById.get(sessionId);
   }
 
   private applyInputPayload(sessionId: string, payload: InputPayload): void {
@@ -586,6 +602,7 @@ export class BattleRoom extends Room<BattleState> {
   }
 
   private joinNewParticipant(sessionId: string, displayName: string): void {
+    if (this.playersById.has(sessionId)) throw new Error("Participant already joined");
     const shipClass = SHIP_CLASS_FAC;
     const others: { x: number; z: number }[] = [];
     for (const q of this.state.playerList) {
@@ -673,11 +690,14 @@ export class BattleRoom extends Room<BattleState> {
     ps.aswmRemainingPort = simRow.aswmRemainingPort;
     ps.aswmRemainingStarboard = simRow.aswmRemainingStarboard;
     this.state.playerList.push(ps);
+    this.playersById.set(sessionId, ps);
     assertPlayerLifeInvariant(ps.lifeState, ps.hp, ps.maxHp);
     this.syncOperationalAreaHalfExtent();
   }
 
   private detachParticipant(sessionId: string): void {
+    this.playersById.delete(sessionId);
+    this.clientsById.delete(sessionId);
     this.collisionIslandOverlapPrev.delete(sessionId);
     this.collisionWreckOverlapPrev.delete(sessionId);
     this.sim.delete(sessionId);
@@ -745,18 +765,22 @@ export class BattleRoom extends Room<BattleState> {
       if (!p) continue;
       row.aswmReloadUntilMs = 0;
       this.resetAswmMagazineFromClass(row, p.shipClass);
-      const client = this.clients.find((c) => c.sessionId === sessionId);
+      const client = this.clientsById.get(sessionId);
       client?.send("aswmMagazineReloaded", {} as Record<string, never>);
     }
   }
 
   private movementCfgForPlayer(p: PlayerState): ShipMovementConfig {
-    return movementConfigForPlayer(
+    const cached = this.movementConfigs.get(p);
+    if (cached?.shipClass === p.shipClass && cached.level === p.level) return cached.config;
+    const config = movementConfigForPlayer(
       this.cfg,
       getShipClassProfile(p.shipClass),
       p.level,
       getAuthoritativeShipHullProfile(p.shipClass)?.movement ?? null,
     );
+    this.movementConfigs.set(p, { shipClass: p.shipClass, level: p.level, config });
+    return config;
   }
 
   /**
@@ -799,11 +823,13 @@ export class BattleRoom extends Room<BattleState> {
     if (now - this.lastPassiveXpAtMs < getPassiveXpIntervalMs()) return;
     this.lastPassiveXpAtMs = now;
 
+    const seaControlMultiplier = getSeaControlXpMultiplier();
+    const passiveBase = getPassiveXpBase();
     for (const p of this.state.playerList) {
       if (!participatesInWorldSimulation(p.lifeState)) continue;
       const row = this.sim.get(p.id);
-      const mult = isInSeaControlZone(p.x, p.z) ? getSeaControlXpMultiplier() : 1;
-      const amt = getPassiveXpBase() * mult;
+      const mult = isInSeaControlZone(p.x, p.z) ? seaControlMultiplier : 1;
+      const amt = passiveBase * mult;
       this.grantXpAndProgress(p, row, amt);
     }
   }
@@ -816,6 +842,7 @@ export class BattleRoom extends Room<BattleState> {
     const playerKey = normalizePlayerToken(options?.playerToken, client.sessionId);
     this.playerKeyBySessionId.set(client.sessionId, playerKey);
     this.joinNewParticipant(client.sessionId, displayName);
+    this.clientsById.set(client.sessionId, client);
     this.logComm("join", client.sessionId, { displayName });
     console.log(
       "[BattleRoom] onJoin sessionId=%s playerList.length=%d roomId=%s",
@@ -1020,7 +1047,11 @@ export class BattleRoom extends Room<BattleState> {
       row.mineSpawnLocalZ = -22;
       row.oobSinceMs = null;
       row.primaryReadyAtMs = 0;
+      // Establish the new round's class before deriving its magazine and HP.
+      p.shipClass = SHIP_CLASS_FAC;
       this.resetAswmMagazineFromClass(row, p.shipClass);
+      p.aswmRemainingPort = row.aswmRemainingPort;
+      p.aswmRemainingStarboard = row.aswmRemainingStarboard;
       row.torpedoReadyAtMs = 0;
       row.adSamNextAtMs = 0;
       row.adPdNextAtMs = 0;
@@ -1041,7 +1072,6 @@ export class BattleRoom extends Room<BattleState> {
       p.oobCountdownSec = 0;
       p.level = 1;
       p.xp = 0;
-      p.shipClass = SHIP_CLASS_FAC;
       const baseHpR = shipClassBaseMaxHp(p.shipClass);
       p.maxHp = progressionMaxHpForLevel(1, baseHpR);
       p.hp = p.maxHp;
@@ -1434,9 +1464,11 @@ export class BattleRoom extends Room<BattleState> {
     return adDefenderId;
   }
 
-  private syncAirDefenseHud(now: number): void {
-    const incoming = new Map<string, number>();
-    const radarHint = new Map<string, boolean>();
+  private syncAirDefenseHud(): void {
+    const incoming = this.adIncomingScratch;
+    const radarHint = this.adRadarHintScratch;
+    incoming.clear();
+    radarHint.clear();
     for (let i = 0; i < this.state.missileList.length; i++) {
       const m = this.state.missileList.at(i);
       if (!m) continue;
@@ -1456,7 +1488,7 @@ export class BattleRoom extends Room<BattleState> {
         hb,
       );
       if (!row.radarActive && distSq <= AD_SAM_RANGE_SQ) {
-        radarHint.set(defId, true);
+        radarHint.add(defId);
       }
     }
     for (const p of this.state.playerList) {
@@ -1467,11 +1499,10 @@ export class BattleRoom extends Room<BattleState> {
         p.adHudRadarAffectsSam = false;
         continue;
       }
-      const row = this.sim.get(p.id);
       p.adHudIncomingAswm = incoming.get(p.id) ?? 0;
       p.adHudCanCommitHardkill = p.adHudIncomingAswm > 0;
       p.adHardkillCommitRemainingSec = 0;
-      p.adHudRadarAffectsSam = radarHint.get(p.id) ?? false;
+      p.adHudRadarAffectsSam = radarHint.has(p.id);
     }
   }
 
@@ -1528,7 +1559,7 @@ export class BattleRoom extends Room<BattleState> {
       const prevTargetId = m.targetId;
       m.targetId = acquired ?? "";
       if (prevTargetId === "" && m.targetId !== "") {
-        const ownerClient = this.clients.find((c) => c.sessionId === m.ownerId);
+        const ownerClient = this.clientsById.get(m.ownerId);
         ownerClient?.send("missileLockOn", {});
       }
 
@@ -1599,7 +1630,7 @@ export class BattleRoom extends Room<BattleState> {
                   untilMs: now + AD_SOFTKILL_SAME_TARGET_REACQUIRE_BLOCK_MS,
                 });
               }
-              const defClient = this.clients.find((c) => c.sessionId === adDefenderId);
+              const defClient = this.clientsById.get(adDefenderId);
               defClient?.send("softkillResult", { success: sk.brokeLock });
             }
           }
@@ -1972,7 +2003,7 @@ export class BattleRoom extends Room<BattleState> {
 
   /** Client-SFX: nur betroffener Spieler (kein Broadcast). */
   private sendCollisionContact(sessionId: string, kind: "island" | "ship"): void {
-    const client = this.clients.find((c) => c.sessionId === sessionId);
+    const client = this.clientsById.get(sessionId);
     client?.send("collisionContact", { kind });
   }
 
@@ -2013,6 +2044,7 @@ export class BattleRoom extends Room<BattleState> {
 
     const islandPolys = DEFAULT_MAP_ISLAND_POLYGONS;
     const wreckList = this.state.wreckList;
+    const oobDestroyAfterMs = getOobDestroyAfterMs();
 
     for (const [sessionId, row] of this.sim) {
       const p = this.findPlayer(sessionId);
@@ -2083,7 +2115,8 @@ export class BattleRoom extends Room<BattleState> {
       }
     }
 
-    const shipShipParticipants: ShipCollisionParticipant[] = [];
+    const shipShipParticipants = this.collisionParticipantsScratch;
+    shipShipParticipants.length = 0;
     for (const [sessionId, row] of this.sim) {
       const p = this.findPlayer(sessionId);
       if (!p || !participatesInWorldSimulation(p.lifeState)) continue;
@@ -2101,10 +2134,8 @@ export class BattleRoom extends Room<BattleState> {
         (sc) => getAuthoritativeShipHullProfile(sc)?.collisionHitbox,
         dt,
       );
-      const combinedRaw = new Map<string, number>();
-      for (const [id, r] of ram.rawDamageBySessionId) {
-        combinedRaw.set(id, r);
-      }
+      // The result is tick-local; reuse it rather than copying all entries into a third map.
+      const combinedRaw = ram.rawDamageBySessionId;
       for (const [id, r] of wreckRam) {
         combinedRaw.set(id, (combinedRaw.get(id) ?? 0) + r);
       }
@@ -2129,16 +2160,18 @@ export class BattleRoom extends Room<BattleState> {
     }
 
     {
-      const nextShipPairs = new Set<string>();
+      const nextShipPairs = this.collisionShipPairScratch;
+      nextShipPairs.clear();
       const n = shipShipParticipants.length;
       for (let i = 0; i < n; i++) {
+        const A = shipShipParticipants[i]!;
+        const idA = A.sessionId;
+        const pa = idA ? this.findPlayer(idA) : undefined;
+        if (!pa || !participatesInWorldSimulation(pa.lifeState)) continue;
         for (let j = i + 1; j < n; j++) {
-          const A = shipShipParticipants[i]!;
           const B = shipShipParticipants[j]!;
-          const idA = A.sessionId;
           const idB = B.sessionId;
           if (!idA || !idB) continue;
-          const pa = this.findPlayer(idA);
           const pb = this.findPlayer(idB);
           if (!pa || !pb) continue;
           if (
@@ -2174,6 +2207,7 @@ export class BattleRoom extends Room<BattleState> {
           }
         }
       }
+      this.collisionShipPairScratch = this.collisionShipPairPrev;
       this.collisionShipPairPrev = nextShipPairs;
     }
 
@@ -2235,7 +2269,6 @@ export class BattleRoom extends Room<BattleState> {
           row.oobSinceMs = now;
         }
         const elapsed = now - row.oobSinceMs;
-        const oobDestroyAfterMs = getOobDestroyAfterMs();
         if (elapsed >= oobDestroyAfterMs) {
           p.oobCountdownSec = 0;
           this.enterAwaitingRespawn(sessionId, now);
@@ -2249,6 +2282,6 @@ export class BattleRoom extends Room<BattleState> {
       this.stepMissiles(dt, now);
       this.stepTorpedoes(dt, now);
     }
-    this.syncAirDefenseHud(now);
+    this.syncAirDefenseHud();
   }
 }

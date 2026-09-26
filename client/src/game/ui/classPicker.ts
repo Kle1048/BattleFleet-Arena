@@ -48,9 +48,3 @@ export function pickShipLobbyChoice(): Promise<ShipLobbyChoice> {
     queueMicrotask(() => nameInput.focus());
   });
 }
-
-/** @deprecated Nutze `pickShipLobbyChoice`. */
-export async function pickShipClass(): Promise<ShipClassId> {
-  const c = await pickShipLobbyChoice();
-  return c.shipClass;
-}

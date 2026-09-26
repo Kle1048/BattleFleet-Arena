@@ -16,9 +16,11 @@ export const TIER_PAIRS: [SoundId, SoundId][] = [
 const MUSIC_OUT_MULT = 0.28;
 
 let bufferMap: Map<SoundId, AudioBuffer | null> | null = null;
+let requestBuffer: (id: SoundId) => void = () => {};
 
-export function setDynamicMusicBufferMap(m: Map<SoundId, AudioBuffer | null>): void {
+export function setDynamicMusicBufferMap(m: Map<SoundId, AudioBuffer | null>, request: (id: SoundId) => void): void {
   bufferMap = m;
+  requestBuffer = request;
 }
 
 function getBuf(id: SoundId): AudioBuffer | null {
@@ -37,12 +39,13 @@ type Voice = {
   source: AudioBufferSourceNode | null;
   gain: GainNode | null;
   useA: boolean;
+  requested: boolean;
 };
 
 const voices: Voice[] = [
-  { source: null, gain: null, useA: true },
-  { source: null, gain: null, useA: true },
-  { source: null, gain: null, useA: true },
+  { source: null, gain: null, useA: true, requested: false },
+  { source: null, gain: null, useA: true, requested: false },
+  { source: null, gain: null, useA: true, requested: false },
 ];
 let musicMaster: { ctx: AudioContext; node: GainNode } | null = null;
 
@@ -67,6 +70,7 @@ function getOrCreateMaster(c: AudioContext): GainNode {
 }
 
 function stopVoice(v: Voice): void {
+  v.requested = false;
   if (v.source) {
     try {
       v.source.stop(0.001);
@@ -85,7 +89,11 @@ function pickBufferId(t: 0 | 1 | 2, useA: boolean): SoundId {
 }
 
 function startVoice(c: AudioContext, out: AudioNode, t: 0 | 1 | 2, v: Voice): void {
-  v.useA = Math.random() < 0.5;
+  if (!v.requested) {
+    v.useA = Math.random() < 0.5;
+    v.requested = true;
+    requestBuffer(pickBufferId(t, v.useA));
+  }
   const idA = pickBufferId(t, true);
   const idB = pickBufferId(t, false);
   const aBuf = getBuf(idA);
@@ -97,7 +105,11 @@ function startVoice(c: AudioContext, out: AudioNode, t: 0 | 1 | 2, v: Voice): vo
     : bBuf && bBuf.length > 0
       ? bBuf
       : aBuf;
-  if (!buf) return;
+  if (!buf) {
+    // Alternate variant on failure/pending load; requests are deduplicated and bounded.
+    requestBuffer(pickBufferId(t, !v.useA));
+    return;
+  }
   const g = c.createGain();
   g.gain.value = 0.0001;
   const s = c.createBufferSource();
@@ -136,7 +148,7 @@ export function updateDynamicMusic(
     const v = voices[k]!;
     const wk = w[k] ?? 0;
     if (wk < 0.02) {
-      if (v.source) stopVoice(v);
+      if (v.source || v.requested) stopVoice(v);
       continue;
     }
     if (!v.source) {
@@ -147,6 +159,14 @@ export function updateDynamicMusic(
 }
 
 export const dynamicMusicTuning = { MUSIC_OUT_MULT, TIER_PAIRS, SoundFiles };
+
+export function disposeDynamicMusic(): void {
+  for (const voice of voices) stopVoice(voice);
+  musicMaster?.node.disconnect();
+  musicMaster = null;
+  bufferMap = null;
+  requestBuffer = () => {};
+}
 
 export function getMusicFileNames(tier: 0 | 1 | 2): { a: string; b: string } {
   const [a, b] = TIER_PAIRS[tier] ?? TIER_PAIRS[0]!;

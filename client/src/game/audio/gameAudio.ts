@@ -6,8 +6,9 @@
  * Quellen mit Welt-XZ nutzen `StereoPannerNode.pan` + optionale Distanz-Dämpfung.
  */
 
-import { ALL_SOUND_IDS, type SoundId, SoundUrls } from "./soundCatalog";
-import { setDynamicMusicBufferMap, updateDynamicMusic as runDynamicMusicUpdate } from "./dynamicMusic";
+import { type SoundId, SoundUrls } from "./soundCatalog";
+import { disposeDynamicMusic, setDynamicMusicBufferMap, updateDynamicMusic as runDynamicMusicUpdate } from "./dynamicMusic";
+import { createAsyncAssetCache, fetchAssetBytes } from "../runtime/asyncAssetCache";
 import {
   type ListenerShipPose,
   type SpatialSoundOpts,
@@ -21,6 +22,7 @@ import { effectiveSfxGain, extendDuckUntil } from "./sfxMix";
 import { getEngineUserMult } from "./soundMixState";
 
 let audioCtx: AudioContext | null = null;
+let disposed = false;
 
 let listenerPose: ListenerShipPose | null = null;
 
@@ -36,6 +38,7 @@ function applySfxMixToGain(g0: number): number {
 }
 
 function ctx(): AudioContext | null {
+  if (disposed) return null;
   if (typeof window === "undefined") return null;
   if (!audioCtx) {
     try {
@@ -48,6 +51,23 @@ function ctx(): AudioContext | null {
 }
 
 const buffers = new Map<SoundId, AudioBuffer | null>();
+const soundCache = createAsyncAssetCache({
+  async load(url: string, signal) {
+    const c = ctx();
+    if (!c) throw new Error("Audio unavailable");
+    const bytes = await fetchAssetBytes(url, signal);
+    return c.decodeAudioData(bytes);
+  },
+});
+
+function requestSound(id: SoundId): void {
+  if (disposed || buffers.has(id) || !ctx()) return;
+  buffers.set(id, null);
+  void soundCache.load(SoundUrls[id]).then((buffer) => {
+    if (!disposed) buffers.set(id, buffer);
+  });
+}
+setDynamicMusicBufferMap(buffers, requestSound);
 
 /** Dauer-Loop: Maschinenraum; unabhängig von SFX-Duck. */
 let engineBed: null | {
@@ -80,8 +100,17 @@ function smExp(prev: number, next: number, dtMs: number, smoothHz: number): numb
 }
 
 function ensureEngineRumbleGraph(c: AudioContext): void {
-  if (engineBed || engineSynth) return;
+  requestSound("engineLoop");
   const buf = buffers.get("engineLoop");
+  // Upgrade the temporary synth once the background load has completed.
+  if (engineSynth && buf) {
+    engineSynth.osc.stop();
+    engineSynth.osc.disconnect();
+    engineSynth.filter.disconnect();
+    engineSynth.gain.disconnect();
+    engineSynth = null;
+  }
+  if (engineBed || engineSynth) return;
   if (buf) {
     const source = c.createBufferSource();
     source.buffer = buf;
@@ -208,7 +237,7 @@ function playBuffer(id: SoundId, gain = 0.35, spatial?: SpatialSoundOpts): boole
   if (!c) return false;
   if (c.state === "suspended") void c.resume();
   const buf = buffers.get(id);
-  if (!buf) return false;
+  if (!buf) { requestSound(id); return false; }
 
   const { gain: g0, pan, skip } = spatializedGainAndPan(gain, listenerPose, spatial);
   if (skip) return false;
@@ -305,28 +334,24 @@ export const gameAudio = {
     listenerPose = p;
   },
 
-  async preloadSounds(): Promise<void> {
-    const c = ctx();
-    if (!c) return;
-    for (const id of ALL_SOUND_IDS) {
-      buffers.set(id, null);
-    }
-    await Promise.all(
-      ALL_SOUND_IDS.map(async (id) => {
-        const url = SoundUrls[id];
-        try {
-          const res = await fetch(url);
-          if (!res.ok) return;
-          const arr = await res.arrayBuffer();
-          const copy = arr.slice(0);
-          const decoded = await c.decodeAudioData(copy);
-          buffers.set(id, decoded);
-        } catch {
-          buffers.set(id, null);
-        }
-      }),
-    );
-    setDynamicMusicBufferMap(buffers);
+  startBackgroundAudio(): void {
+    requestSound("engineLoop");
+    requestSound("musicAmbientA");
+  },
+
+  dispose(): void {
+    if (disposed) return;
+    disposed = true;
+    soundCache.dispose();
+    disposeDynamicMusic();
+    engineBed?.source.stop();
+    engineSynth?.osc.stop();
+    engineBed = null;
+    engineSynth = null;
+    buffers.clear();
+    listenerPose = null;
+    if (audioCtx) void audioCtx.close();
+    audioCtx = null;
   },
 
   hasSoundFile(id: SoundId): boolean {

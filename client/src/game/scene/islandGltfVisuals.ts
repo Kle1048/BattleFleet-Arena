@@ -1,7 +1,7 @@
 import * as THREE from "three";
-import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
+import { gltfAssetCache } from "./gltfAssetCache";
 
-const BASE_URL = import.meta.env.BASE_URL;
+const BASE_URL = import.meta.env?.BASE_URL ?? "/";
 
 /**
  * Drei Kartendetails — pro Insel index % 3 (5 Inseln → Verteilung auf alle drei Typen).
@@ -18,36 +18,13 @@ const SHALLOW_VARIANT_INDEX = 0;
 /** Abweichende Y-Rotation je weiterer Shallow-Insel (nur visuell). */
 const SHALLOW_Y_ROTATION_STEP_RAD = (2 * Math.PI) / 3;
 
-const templateByUrl = new Map<string, THREE.Group>();
-const loadPromises = new Map<string, Promise<THREE.Group | null>>();
-
-function loadIslandTemplate(url: string): Promise<THREE.Group | null> {
-  const cached = templateByUrl.get(url);
-  if (cached) return Promise.resolve(cached);
-  let p = loadPromises.get(url);
-  if (!p) {
-    const loader = new GLTFLoader();
-    p = loader
-      .loadAsync(url)
-      .then((gltf) => {
-        const scene = gltf.scene as THREE.Group;
-        templateByUrl.set(url, scene);
-        loadPromises.delete(url);
-        return scene;
-      })
-      .catch((err) => {
-        console.error("[BattleFleet] Island GLB load failed:", url, err);
-        loadPromises.delete(url);
-        return null;
-      });
-    loadPromises.set(url, p);
-  }
-  return p;
+export async function loadIslandGltfTemplate(islandIndex: number): Promise<void> {
+  await gltfAssetCache.load(ISLAND_GLB_URLS[islandIndex % ISLAND_GLB_URLS.length]!);
 }
 
-/** Lädt alle drei Insel-Templates parallel; fehlgeschlagene URLs loggen und ignorieren. */
+/** Editor-only preloading; the game renders placeholders immediately. */
 export async function preloadIslandGltfTemplates(): Promise<void> {
-  await Promise.all(ISLAND_GLB_URLS.map((u) => loadIslandTemplate(u)));
+  await Promise.all(ISLAND_GLB_URLS.map((_, index) => loadIslandGltfTemplate(index)));
 }
 
 /**
@@ -89,7 +66,7 @@ function fitIslandToGameplayRadius(root: THREE.Object3D, radius: number): void {
  */
 export function createIslandGltfInstance(islandIndex: number, radius: number): THREE.Group | null {
   const url = ISLAND_GLB_URLS[islandIndex % ISLAND_GLB_URLS.length]!;
-  const template = templateByUrl.get(url);
+  const template = gltfAssetCache.get(url);
   if (!template) return null;
   const root = template.clone(true) as THREE.Group;
   fitIslandToGameplayRadius(root, radius);

@@ -24,8 +24,10 @@ export function syncWreckListVisuals(
   ensureShip: (sessionKey: string, shipClassId?: ShipClassId) => void,
   removeShip: (sessionKey: string) => boolean,
   prevWreckIds: Set<string>,
+  next: Set<string> = new Set<string>(),
 ): Set<string> {
-  const next = new Set<string>();
+  if (next === prevWreckIds) throw new Error("Wreck ID buffers must be distinct");
+  next.clear();
   if (wreckList) {
     for (let i = 0; i < wreckList.length; i++) {
       const w = wreckList.at(i);

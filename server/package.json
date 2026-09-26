@@ -3,20 +3,18 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "predev": "npm run build --prefix ../shared",
-    "dev": "tsx watch src/index.ts",
+    "dev": "tsx watch --include \"../shared/src/**\" --conditions=bfa-source src/index.ts",
     "prebuild": "npm run build --prefix ../shared",
     "build": "tsc",
-    "pretest": "npm run build --prefix ../shared",
+    "typecheck": "tsc --noEmit",
     "start": "node dist/index.js",
-    "test": "node --import tsx src/serverBotPopulation.test.ts && node --import tsx src/adminConfig.test.ts"
+    "test": "node ../scripts/run-tests.mjs"
   },
   "dependencies": {
     "@battlefleet/shared": "file:../shared",
     "@colyseus/core": "^0.15.48",
     "@colyseus/schema": "^2.0.37",
     "@colyseus/ws-transport": "^0.15.3",
-    "colyseus": "^0.15.48",
     "cors": "^2.8.5",
     "express": "^4.21.0"
   },

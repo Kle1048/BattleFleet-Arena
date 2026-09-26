@@ -25,7 +25,9 @@ import {
 import { assignToOverlayLayer, configureMainCameraForGameplay } from "../runtime/renderOverlayLayers";
 import { skySunPositionFromDirection, sunDirectionFromAngles } from "./environmentSun";
 import { LIGHTING_PRESETS, type LightingPresetId } from "./lightingPresets";
-import { createIslandGltfInstance, preloadIslandGltfTemplates } from "./islandGltfVisuals";
+import { createIslandGltfInstance, loadIslandGltfTemplate } from "./islandGltfVisuals";
+import { createAsyncAssetCache, fetchAssetBytes } from "../runtime/asyncAssetCache";
+import { disposeVisualResources } from "./shipVisualResources";
 
 export type { LightingPresetId } from "./lightingPresets";
 
@@ -52,6 +54,7 @@ export const SHIP_LENGTH = SHIP_BOW_Z - SHIP_STERN_Z;
 export const SHIP_CAMERA_PIVOT_LOCAL_Z = SHIP_BOW_Z - SHIP_LENGTH / 6;
 
 export type GameSceneBundle = {
+  dispose: () => void;
   scene: THREE.Scene;
   camera: THREE.PerspectiveCamera;
   /** three.js `Water` (Reflexion + Normalmap). */
@@ -66,19 +69,6 @@ export type GameSceneBundle = {
   /** Rote AO-Linie — `half` = `room.state.operationalAreaHalfExtent` (Server). */
   setOperationalAreaHalfExtent: (halfExtent: number) => void;
 };
-
-async function loadWaterNormals(): Promise<THREE.Texture> {
-  const loader = new THREE.TextureLoader();
-  try {
-    const t = await loader.loadAsync("/textures/waternormals.jpg");
-    t.wrapS = t.wrapT = THREE.RepeatWrapping;
-    return t;
-  } catch {
-    const t = await loader.loadAsync("https://threejs.org/examples/textures/waternormals.jpg");
-    t.wrapS = t.wrapT = THREE.RepeatWrapping;
-    return t;
-  }
-}
 
 function applyFog(
   scene: THREE.Scene,
@@ -229,6 +219,20 @@ export function artilleryFxCullRadiusSq(
 }
 
 export async function createGameScene(): Promise<GameSceneBundle> {
+  let disposed = false;
+  const normalCache = createAsyncAssetCache({
+    async load(url: string, signal) {
+      const bytes = await fetchAssetBytes(url, signal);
+      const bitmap = await createImageBitmap(new Blob([bytes]), {
+        imageOrientation: "flipY", colorSpaceConversion: "none",
+      });
+      const texture = new THREE.Texture(bitmap);
+      texture.wrapS = texture.wrapT = THREE.RepeatWrapping;
+      texture.needsUpdate = true;
+      return texture;
+    },
+    disposeValue: (texture) => { texture.dispose(); texture.image.close(); },
+  });
   const persisted = loadPersistedEnvironmentTuning();
   let tuning: EnvironmentTuning = { ...DEFAULT_ENVIRONMENT_TUNING, ...persisted };
 
@@ -247,7 +251,9 @@ export async function createGameScene(): Promise<GameSceneBundle> {
   camera.lookAt(0, lookY, 0);
   configureMainCameraForGameplay(camera);
 
-  const waterNormals = await loadWaterNormals();
+  // Flat normal is immediately usable, even offline. No asset blocks lobby/join.
+  const waterNormals = new THREE.DataTexture(new Uint8Array([128, 128, 255, 255]), 1, 1);
+  waterNormals.needsUpdate = true;
   const MAP_HALF = waterMapHalfExtent();
   const waterGeometry = new THREE.PlaneGeometry(MAP_HALF * 2, MAP_HALF * 2);
 
@@ -326,7 +332,9 @@ export async function createGameScene(): Promise<GameSceneBundle> {
   assignToOverlayLayer(seaControlBorder);
   scene.add(seaControlBorder);
 
-  await preloadIslandGltfTemplates();
+  void normalCache.load(`${import.meta.env?.BASE_URL ?? "/"}textures/waternormals.jpg`).then((texture) => {
+    if (texture && !disposed) (water.material as THREE.ShaderMaterial).uniforms.normalSampler!.value = texture;
+  });
   let islandIdx = 0;
   for (const is of DEFAULT_MAP_ISLANDS) {
     const glbIsland = createIslandGltfInstance(islandIdx, is.radius);
@@ -334,6 +342,16 @@ export async function createGameScene(): Promise<GameSceneBundle> {
     island.position.set(worldToRenderX(is.x), 0, is.z);
     island.name = `island_${is.id}`;
     scene.add(island);
+    const index = islandIdx;
+    void loadIslandGltfTemplate(index).then(() => {
+      if (disposed || glbIsland) return;
+      const replacement = createIslandGltfInstance(index, is.radius);
+      if (!replacement) return;
+      replacement.position.copy(island.position);
+      replacement.name = island.name;
+      scene.add(replacement);
+      disposeVisualResources(island);
+    });
     islandIdx += 1;
   }
 
@@ -366,6 +384,11 @@ export async function createGameScene(): Promise<GameSceneBundle> {
   };
 
   return {
+    dispose() {
+      disposed = true;
+      normalCache.dispose();
+      waterNormals.dispose();
+    },
     scene,
     camera,
     water,

@@ -1,4 +1,6 @@
-# Architektur — BattleFleet-Arena (Stand: **Task 9 MVP** — SAM/CIWS + Task 8/7…)
+# Historische Architektur — BattleFleet-Arena (Task 9 MVP)
+
+> Historischer Stand, nicht die aktuelle Implementierungsreferenz. Unter anderem Kamera, Inselkollisionen, Asset-Laden und Modulzuschnitt haben sich seitdem verändert. Für den Stand nach Review-Punkten 10/11 und die geplanten Grenzen siehe [Zielarchitektur](./TARGET-ARCHITECTURE.md); für die Umsetzung der verbleibenden Punkte 12–14 siehe [Refactoring-Plan](./REFACTORING-PLAN.md). Die folgende Beschreibung bleibt als MVP-Historie erhalten.
 
 Dieses Dokument beschreibt die **Ist-Architektur** von Client und Server: **Three.js** im Browser, **Colyseus** auf Node, **`shared`** für Konstanten, **Inseln**, **Artillerie-Helfer** und **`shipMovement`**. **Bewegung**, **Schiff↔Insel** und **Artillerie-Treffer** laufen **serverseitig** (20 Hz).
 

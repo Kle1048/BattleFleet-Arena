@@ -2,7 +2,11 @@
 
 | Dokument | Inhalt |
 |----------|--------|
-| [ARCHITECTURE.md](./ARCHITECTURE.md) | Colyseus **20-Hz-Tick**, Schema (`playerList`, **`missileList`**, **`torpedoList`**), Lebensphasen, AO/OOB, Artillerie, **ASuM** + **Torpedo**, **SAM/CIWS** (`airDefenseFire` / `airDefenseIntercept`), VFX/Culling, `gameMessageHud` |
+| [TARGET-ARCHITECTURE.md](./TARGET-ARCHITECTURE.md) | Planungsbaseline: Ist/Ziel, Modulbesitz, Abhängigkeiten, Simulation, Client, Speicherung und Partikel |
+| [REFACTORING-PLAN.md](./REFACTORING-PLAN.md) | Umsetzung von Review-Punkten 12–14 in prüfbaren Schritten, Tests, Performance-Gates und Rückweg |
+| [CLIENT-SERVER-PERFORMANCE.md](./CLIENT-SERVER-PERFORMANCE.md) | Implementierte Hotpath-Verbesserungen aus 10/11 und Messgrenzen |
+| [CLIENT-ASSET-LIFECYCLE.md](./CLIENT-ASSET-LIFECYCLE.md) | Asset-Laden, Ressourcenbesitz und Dispose-Verträge |
+| [ARCHITECTURE.md](./ARCHITECTURE.md) | Historische Task-9-MVP-Beschreibung; nicht der aktuelle Architekturstand |
 | [GITHUB-PAGES.md](./GITHUB-PAGES.md) | Client-Deploy über **GitHub Actions** → **Pages** (`VITE_BASE_PATH`, `VITE_COLYSEUS_URL`, HTTPS-Hinweis) |
 | [DEVELOPER-DIARY-2026-04-06.md](./DEVELOPER-DIARY-2026-04-06.md) | Entwicklertagebuch zum MVP-Onlinegang (Hetzner, Nginx/TLS, Pages, Mixed-Content-Fix) |
 
