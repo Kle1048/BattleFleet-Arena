@@ -1,20 +1,6 @@
 # BattleFleet Arena â€” Entwickler-Log
 
-Automatische Kurz-Dokumentation pro **Git-Commit** (Metadaten + Vorschlag fÃ¼r einen Post zu **Vibejam** / KI-generierte bzw. KI-unterstÃ¼tzte Spiele).
-
-## Einmalig: Hook aktivieren
-
-Im Repository-Root:
-
-```bash
-git config core.hooksPath scripts/git-hooks
-```
-
-Danach wird bei jedem Commit (auÃŸer **Merge-Commits**) unten ein neuer Block angehÃ¤ngt. Manuell nachziehen:
-
-```bash
-npm run devlog:append
-```
+Historische Kurz-Dokumentation der bisherigen Entwicklung.
 
 ---
 
@@ -32,10 +18,6 @@ npm run devlog:append
 - Shared: collisionContactQueries mit Tests; Dokumentation in docs/SOUND-MODULE.md.
 - Made-with: Cursor
 
-### Vorschlag Twitter / X (#Vibejam)
-
-> âš“ feat(audio): Spiel-SFX mit WAV-Assets und Server-Anbindung â€” BattleFleet Arena nimmt Fahrt auf fÃ¼r #Vibejam: KI-unterstÃ¼tztes Naval-RTS. Wer baut noch mit am Jam? #gamedev #AIgames
-
 ---
 
 ## 2026-04-12 â€” Gameplay: ASuM-Magazine, Progression, Schiffsklassen; Visuals: Umwelt & Wasser
@@ -50,12 +32,7 @@ npm run devlog:append
 - - Lobby: nur Name, Server-FAC; Klassenwahl entfernt; shared shipMovement-Import fix
 - - Schiffe: gleiches FAC-GLB fÃ¼r DD/CG mit hullVisualScale; Rumpf-Profile & Tests
 - - Client: Environment (Sonne, Lighting, Foam), Reflection-Layers, Wake-Tuning, Wasser-Debug-Panel ersetzt
-- - docs: Architektur, Visuals-Plan, Ship-Model, Dev-Log; scripts append-dev-log, post-commit hook
 - Made-with: Cursor
-
-### Vorschlag Twitter / X (#Vibejam)
-
-> Shipped: Gameplay: ASuM-Magazine, Progression, Schiffsklassen; Visuals: Umwelt & Wasser ðŸš¢ Wir hacken an einem AI-collab Wettkampfspiel â€” #Vibejam #indiedev
 
 ---
 
@@ -68,10 +45,6 @@ npm run devlog:append
 
 - Includes hull profile cache, visual dirty checks, progression ship classes, feature-module inventory doc. Branch label: 3D Modells implemented bad FPS.
 - Made-with: Cursor
-
-### Vorschlag Twitter / X (#Vibejam)
-
-> âš“ Snapshot: 3D hull GLBs, class visuals, tuning & perf (bad FPS) â€” BattleFleet Arena nimmt Fahrt auf fÃ¼r #Vibejam: KI-unterstÃ¼tztes Naval-RTS. Wer baut noch mit am Jam? #gamedev #AIgames
 
 ---
 
@@ -92,10 +65,6 @@ npm run devlog:append
 - - Tests: cockpitRadarKeys, radarHudMath ESM
 - Made-with: Cursor
 
-### Vorschlag Twitter / X (#Vibejam)
-
-> Shipped: Client: Performance, Insel-GLBs, Karte, Kamera, ESM & visuelle StabilitÃ¤t ðŸš¢ Wir hacken an einem AI-collab Wettkampfspiel â€” #Vibejam #indiedev
-
 ---
 
 ## 2026-04-12 â€” `f4428f2`
@@ -111,10 +80,6 @@ npm run devlog:append
 - - Server: BattleRoom sync for ASuM magazine; assorted client FX/runtime tweaks
 - Made-with: Cursor
 
-### Vorschlag Twitter / X (#Vibejam)
-
-> Shipped: feat(client,hud,shared): ASuM HUD, Colyseus BattleState, air defense, ship layout fixes ðŸš¢ Wir hacken an einem AI-collab Wettkampfspiel â€” #Vibejam #indiedev
-
 ---
 
 ## 2026-04-12 â€” `7d84f9a`
@@ -129,10 +94,6 @@ npm run devlog:append
 - - editorShell.css mirrors ship-editor styles from index for profile overlay
 - Made-with: Cursor
 
-### Vorschlag Twitter / X (#Vibejam)
-
-> Shipped: feat(client): ship workbench entry (editor.html) + Vite multi-page ðŸš¢ Wir hacken an einem AI-collab Wettkampfspiel â€” #Vibejam #indiedev
-
 ---
 
 ## 2026-04-13 â€” `2343f3c`
@@ -146,10 +107,6 @@ npm run devlog:append
 - - Shared: airDefenseMissileTargeting, shipProfileEditorJson, mountFireSector/shipVisualLayout tests
 - - Client runtime/HUD: weapon schematic mini, mount URLs, ship visuals; BattleRoom sync
 - Made-with: Cursor
-
-### Vorschlag Twitter / X (#Vibejam)
-
-> Update: feat(client,shared,server): workbench ship markers, air-defense targeting, profile JSON | Naval Arena WIP Â· #Vibejam Â· wenn Code & KI zusammenlaufen âš”ï¸ðŸŽ®
 
 ---
 
@@ -167,10 +124,6 @@ npm run devlog:append
 - - nipplejs-Dependency; messageLog ersetzt Placeholder.
 - Made-with: Cursor
 
-### Vorschlag Twitter / X (#Vibejam)
-
-> Shipped: client: Mobile-HUD, kollabierbare Panels und Comms-Log ðŸš¢ Wir hacken an einem AI-collab Wettkampfspiel â€” #Vibejam #indiedev
-
 ---
 
 ## 2026-04-18 â€” `48afbc6`
@@ -187,10 +140,6 @@ npm run devlog:append
 - - Docs: DEV-LOG, Ship-Model-Module; remove obsolete wakeTrail/wakeRuntimeTuning
 - Made-with: Cursor
 
-### Vorschlag Twitter / X (#Vibejam)
-
-> âš“ feat: ship wake ribbons, mounts/sockets, editor & gameplay polish â€” BattleFleet Arena nimmt Fahrt auf fÃ¼r #Vibejam: KI-unterstÃ¼tztes Naval-RTS. Wer baut noch mit am Jam? #gamedev #AIgames
-
 ---
 
 ## 2026-04-19 â€” `32a4d26`
@@ -205,10 +154,6 @@ npm run devlog:append
 - - Shared: seaControl, esmDetection, aswmShipAim, Tests; Ship-Daten & Schema
 - Made-with: Cursor
 
-### Vorschlag Twitter / X (#Vibejam)
-
-> Shipped: chore: spielbarer MVP-Prototyp â€” Feature-BÃ¼ndel vor Optimierungsphase ðŸš¢ Wir hacken an einem AI-collab Wettkampfspiel â€” #Vibejam #indiedev
-
 ---
 
 ## 2026-04-20
@@ -221,10 +166,6 @@ npm run devlog:append
 - Client: machinery telegraph with discrete steps, mobile softkeys (no nipplejs), fixed-screen aim reticle and primary fire along viewport ray each frame, mobile browser guards, shared crosshair SVG, English locale module, mission briefing, frame/HUD runtime, wreck visuals and debug, docs and sounds.
 - Shared/Server: wrecks, ram and shipâ€“ship collision, schema and ASuM updates, BattleRoom extensions; dependency cleanup.
 - Made-with: Cursor
-
-### Suggested post (Twitter / X, #Vibejam)
-
-> Shipped: feat: mobiles Steuer- und Kampf-UX, Wrecks, Locale und Server-Erweiterungen ðŸš¢ AI-assisted competitive game â€” #Vibejam #indiedev
 
 ---
 
@@ -243,10 +184,6 @@ npm run devlog:append
 - - Update artillery, respawn, collision queries, and tests for polygon APIs.
 - Made-with: Cursor
 
-### Suggested post (Twitter / X, #Vibejam)
-
-> Shipped: Island polygon collision, editor, and HUD/input fixes ðŸš¢ AI-assisted competitive game â€” #Vibejam #indiedev
-
 ---
 ---
 
@@ -259,10 +196,6 @@ npm run devlog:append
 
 - Made-with: Cursor
 
-### Suggested post (Twitter / X, #Vibejam)
-
-> ⚓ chore(vercel): set outputDirectory to client/dist and monorepo build — BattleFleet Arena, naval RTS for #Vibejam. Who else is shipping? #gamedev #AIgames
-
 ---
 
 ## 2026-04-22
@@ -274,10 +207,6 @@ npm run devlog:append
 
 - Made-with: Cursor
 
-### Suggested post (Twitter / X, #Vibejam)
-
-> Shipped: feat: server bots + shared bot module, client/runtime updates 🚢 AI-assisted competitive game — #Vibejam #indiedev
-
 ---
 
 ## 2026-04-22
@@ -288,10 +217,6 @@ npm run devlog:append
 **Details:**
 
 - Made-with: Cursor
-
-### Suggested post (Twitter / X, #Vibejam)
-
-> ⚓ feat: server bots + shared bot module, client/runtime updates — BattleFleet Arena, naval RTS for #Vibejam. Who else is shipping? #gamedev #AIgames
 
 ---
 
@@ -304,30 +229,6 @@ npm run devlog:append
 
 - Made-with: Cursor
 
-### Suggested post (Twitter / X, #Vibejam)
-
-> ⚓ chore(docs): dev-log hook follow-up — BattleFleet Arena, naval RTS for #Vibejam. Who else is shipping? #gamedev #AIgames
-
----
-
-## 2026-04-22
-
-- **Author:** Klemens1048
-- **Commit:** feat: Vibe Jam portal flow, radar markers, black-hole visuals
-
-**Details:**
-
-- - Add client portal rings, hub/return redirects, session ref capture, briefing skip for portal entry.
-- - Show portal positions on cockpit radar (rim clamp); portal marker styles and HUD wiring.
-- - Shared sanitizePortalReturnRef and hub URL; tests for sanitizer and radar keys.
-- - Black-hole style portal meshes; .env.example and Vite env types for production deploy.
-- - Cap server bot fill tests at MAX_SERVER_BOTS (5).
-- Made-with: Cursor
-
-### Suggested post (Twitter / X, #Vibejam)
-
-> Update: feat: Vibe Jam portal flow, radar markers, black-hole visuals | Naval arena WIP · #Vibejam · code + play ⚔️🎮
-
 ---
 
 ## 2026-04-23
@@ -340,10 +241,6 @@ npm run devlog:append
 - Adjust air-defense timing to prevent simultaneous SAM launches, localize remaining fire-control text in the client, and add server startup/bootstrap updates including leaderboard wiring.
 - Made-with: Cursor
 
-### Suggested post (Twitter / X, #Vibejam)
-
-> Shipped: feat: improve AD pacing, UI copy, and server bootstrap flow 🚢 AI-assisted competitive game — #Vibejam #indiedev
-
 ---
 
 ## 2026-04-23
@@ -355,10 +252,6 @@ npm run devlog:append
 
 - Adjust air-defense timing to prevent simultaneous SAM launches, localize remaining fire-control text in the client, and add server startup/bootstrap updates including leaderboard wiring.
 - Made-with: Cursor
-
-### Suggested post (Twitter / X, #Vibejam)
-
-> Update: feat: improve AD pacing, UI copy, and server bootstrap flow | Naval arena WIP · #Vibejam · code + play ⚔️🎮
 
 ---
 
@@ -371,10 +264,6 @@ npm run devlog:append
 
 - AD_SAM_COOLDOWN_MS was lowered to 1s, which allowed a new SAM every second per defender. Restore 4200ms global spacing; reservation at airDefenseFire still blocks simultaneous SAM starts in one tick.
 - Made-with: Cursor
-
-### Suggested post (Twitter / X, #Vibejam)
-
-> Update: fix(air-defense): restore SAM cooldown while keeping fire-time reservation | Naval arena WIP · #Vibejam · code + play ⚔️🎮
 
 ---
 
@@ -391,10 +280,6 @@ npm run devlog:append
 - - Shared ASuM/schema tweaks; BattleRoom sync; message log and network runtime
 - Made-with: Cursor
 
-### Suggested post (Twitter / X, #Vibejam)
-
-> Shipped: feat: plan radar SSM rails, spatial ship audio, sea control HUD 🚢 AI-assisted competitive game — #Vibejam #indiedev
-
 ---
 ---
 
@@ -406,10 +291,6 @@ npm run devlog:append
 **Details:**
 
 - Made-with: Cursor
-
-### Suggested post (Twitter / X, #Vibejam)
-
-> Shipped: feat(client): streamline cockpit comms layout 🚢 AI-assisted competitive game — #Vibejam #indiedev
 
 <!-- devlog-rev:b70cca0f136f63ab98ec22769867dc49caa59105 -->
 ---
@@ -423,10 +304,6 @@ npm run devlog:append
 
 - Made-with: Cursor
 
-### Suggested post (Twitter / X, #Vibejam)
-
-> Shipped: feat(client): refine combat controls and feedback 🚢 AI-assisted competitive game — #Vibejam #indiedev
-
 <!-- devlog-rev:e4806e48b7691642748a36a1192a265ff344a79e -->
 ---
 
@@ -439,10 +316,6 @@ npm run devlog:append
 
 - Made-with: Cursor
 
-### Suggested post (Twitter / X, #Vibejam)
-
-> Update: fix: reduce match duration to five minutes | Naval arena WIP · #Vibejam · code + play ⚔️🎮
-
 <!-- devlog-rev:37cbb29d00e82883802b4b3e6a776850eecf7698 -->
 ---
 
@@ -454,10 +327,6 @@ npm run devlog:append
 **Details:**
 
 - Made-with: Cursor
-
-### Suggested post (Twitter / X, #Vibejam)
-
-> Update: feat(server): add local admin panel | Naval arena WIP · #Vibejam · code + play ⚔️🎮
 
 <!-- devlog-rev:280819ca081dd9c61fdac4151f5219f0e2f3607f -->
 ---
@@ -477,10 +346,6 @@ npm run devlog:append
 - Hinweis: music_ambient_b.wav kann später ergänzt werden; Stufe 0 nutzt dann nur A.
 - Made-with: Cursor
 
-### Suggested post (Twitter / X, #Vibejam)
-
-> Shipped: feat(client): engine loop, dynamic music, telegraph tick, sound mix debug 🚢 AI-assisted competitive game — #Vibejam #indiedev
-
 <!-- devlog-rev:e771353cfa164bf70be856eca752aa9b3f70a85f -->
 ---
 
@@ -494,10 +359,6 @@ npm run devlog:append
 - Use the new loading hero backdrop through bootstrap/name entry, simplify the name dialog to a centered cinematic style, and assign server bots rotating famous admiral names with a mandatory (Bot) suffix.
 - Made-with: Cursor
 
-### Suggested post (Twitter / X, #Vibejam)
-
-> ⚓ feat(ui,server): add loading key-art flow and admiral bot names — BattleFleet Arena, naval RTS for #Vibejam. Who else is shipping? #gamedev #AIgames
-
 <!-- devlog-rev:97911030c8a7a2d2df795e2fe295a09de3589279 -->
 ---
 
@@ -509,9 +370,5 @@ npm run devlog:append
 **Details:**
 
 - Made-with: Cursor
-
-### Suggested post (Twitter / X, #Vibejam)
-
-> Shipped: chore(client): refresh loading hero image 🚢 AI-assisted competitive game — #Vibejam #indiedev
 
 <!-- devlog-rev:bcbf803ab04a584fc80e01a345fed2093375f4b4 -->

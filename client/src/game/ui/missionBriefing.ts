@@ -3,7 +3,6 @@
  */
 
 import { FEATURE_MINES_ENABLED, progressionNavalRankEn } from "@battlefleet/shared";
-import { isVibeJamPortalEntry } from "../portal/vibeJamPortal";
 import { t } from "../../locale/t";
 
 /**
@@ -49,7 +48,6 @@ export function showMissionBriefing(): Promise<void> {
               <li>${t("missionBriefing.mapBulletSeaControl")}</li>
               <li>${t("missionBriefing.mapBulletOob")}</li>
               <li>${t("missionBriefing.mapBulletIslands")}</li>
-              <li>${t("missionBriefing.mapBulletPortal")}</li>
               <li>${t("missionBriefing.mapBulletNorth")}</li>
             </ul>
           </section>
@@ -107,8 +105,7 @@ export function showMissionBriefing(): Promise<void> {
   });
 }
 
-/** Zeigt das Briefing (z. B. beim Start); Portal-Einstieg überspringt. */
+/** Zeigt das Briefing (z. B. beim Start). */
 export async function showMissionBriefingIfNeeded(): Promise<void> {
-  if (isVibeJamPortalEntry()) return;
   await showMissionBriefing();
 }

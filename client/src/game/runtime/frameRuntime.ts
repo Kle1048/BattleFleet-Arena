@@ -69,16 +69,8 @@ import {
   cockpitSsmRailTickLineNorthUp,
   esmLineTowardBlip,
   radarBlipNormalizedNorthUp,
-  radarBlipNormalizedNorthUpClampedToRim,
   type RadarBlipNorm,
 } from "../hud/radarHudMath";
-import {
-  hasVibeJamReturnPortal,
-  VIBE_JAM_EXIT_PORTAL_X,
-  VIBE_JAM_EXIT_PORTAL_Z,
-  VIBE_JAM_RETURN_PORTAL_X,
-  VIBE_JAM_RETURN_PORTAL_Z,
-} from "../portal/vibeJamPortal";
 
 /** Pro Frame wiederverwendet — vermeidet N× Array-Allokation für AD-Raketen-Snapshots. */
 const adMissileSnapsScratch: AirDefenseMissileSnapshot[] = [];
@@ -159,7 +151,6 @@ type CockpitLike = {
     playerDisplayName: string;
     shipClassId: ShipClassId;
     radarBlips: RadarBlipNorm[];
-    radarPortalMarkers: RadarBlipNorm[];
     radarVisible: boolean;
     ownRadarActive: boolean;
     esmLines: { x1: number; y1: number; x2: number; y2: number; stroke?: string }[];
@@ -723,7 +714,6 @@ export function runFrameRuntimeStep<
       state.lastHudLevel = progLevel;
 
       const radarBlips: RadarBlipNorm[] = [];
-      const radarPortalMarkers: RadarBlipNorm[] = [];
       const esmLines: { x1: number; y1: number; x2: number; y2: number; stroke?: string }[] = [];
       const radarThreatLines: CockpitRadarThreatLine[] = [];
       const ssmRailLines: CockpitSsmRailLine[] = [];
@@ -744,22 +734,6 @@ export function runFrameRuntimeStep<
             else stroke = "rgba(210, 225, 255, 0.85)";
             ssmRailLines.push({ ...line, stroke });
           }
-        }
-        const pe = radarBlipNormalizedNorthUpClampedToRim(
-          p.x,
-          p.z,
-          VIBE_JAM_EXIT_PORTAL_X,
-          VIBE_JAM_EXIT_PORTAL_Z,
-        );
-        if (pe) radarPortalMarkers.push(pe);
-        if (hasVibeJamReturnPortal()) {
-          const pr = radarBlipNormalizedNorthUpClampedToRim(
-            p.x,
-            p.z,
-            VIBE_JAM_RETURN_PORTAL_X,
-            VIBE_JAM_RETURN_PORTAL_Z,
-          );
-          if (pr) radarPortalMarkers.push(pr);
         }
         for (const other of playerList) {
           if (other.id === mySessionId) continue;
@@ -839,7 +813,6 @@ export function runFrameRuntimeStep<
             : toShortSession(me.id),
         shipClassId,
         radarBlips,
-        radarPortalMarkers,
         radarVisible,
         ownRadarActive,
         esmLines,

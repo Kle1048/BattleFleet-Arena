@@ -365,9 +365,6 @@ export const en = {
     /** missionBriefing.ts — map bullet: islands as terrain constraints. */
     mapBulletIslands:
       "Islands: block movement and line of fire; use them for cover but avoid collision damage.",
-    /** missionBriefing.ts — map bullet: portal reference marker. */
-    mapBulletPortal:
-      "Portal marker: Enter the ring to be deployed to other #VibeJam games.",
     /** missionBriefing.ts — map bullet: navigation orientation cue. */
     mapBulletNorth: "North arrow: use north-up orientation for callouts and maneuver coordination.",
     /** missionBriefing.ts — controls section title. */
