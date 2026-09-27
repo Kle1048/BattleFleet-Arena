@@ -17,7 +17,7 @@ const { BattleRoom } = await import("./BattleRoom.js");
 const { updateAdminConfig } = await import("../adminConfig.js");
 const { topLeaderboard, resetLeaderboard, leaderboardRevision } = await import("../leaderboardStore.js");
 const { storageLifecycle } = await import("../application/storageServices.js");
-await updateAdminConfig({ minRoomPlayers: 1, respawnDelayMs: 1000, spawnProtectionMs: 1000, operationalAreaHalfExtent: 4000 });
+await updateAdminConfig({ minRoomPlayers: 1, respawnDelayMs: 1000, spawnProtectionMs: 1000, operationalAreaHalfExtent: 4000, islandsEnabled: true });
 
 type Event = { recipient: string; type: string; payload: unknown };
 let now = 1_800_000_000_000;

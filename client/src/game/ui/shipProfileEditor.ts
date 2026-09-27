@@ -8,6 +8,10 @@ import {
   SHIP_CLASS_DESTROYER,
   SHIP_CLASS_FAC,
   getAuthoritativeShipHullProfile,
+  loadShipProfile,
+  modelSpatialMetadata,
+  shipProfileSource,
+  type ShipHullProfileSource,
   parseDefaultLoadoutJson,
   parseFixedSeaSkimmerLaunchersJson,
   parseMountSlotsJson,
@@ -53,7 +57,9 @@ function readFireSector(root: HTMLElement): MountFireSector | undefined {
   const kind = (root.querySelector('[data-field="fsKind"]') as HTMLSelectElement).value;
   if (kind === "symmetric") {
     const half = num((root.querySelector('[data-field="fsHalf"]') as HTMLInputElement).value, Math.PI * (2 / 3));
-    return { kind: "symmetric", halfAngleRadFromBow: half };
+    const center = optionalNum((root.querySelector('[data-field="fsCenter"]') as HTMLInputElement).value);
+    return { kind: "symmetric", halfAngleRadFromBow: half,
+      ...(center === undefined ? {} : { centerYawRadFromBow: center }) };
   }
   if (kind === "asymmetric") {
     return {
@@ -62,6 +68,12 @@ function readFireSector(root: HTMLElement): MountFireSector | undefined {
       maxYawRadFromBow: num((root.querySelector('[data-field="fsMax"]') as HTMLInputElement).value, 1),
     };
   }
+  if (kind === "union") {
+    // The profile loader validates kind, nesting depth and every child sector.
+    return { kind: "union", sectors: JSON.parse(
+      (root.querySelector('[data-field="fsUnion"]') as HTMLTextAreaElement).value,
+    ) };
+  }
   return undefined;
 }
 
@@ -69,6 +81,8 @@ function writeFireSector(root: HTMLElement, fs: MountFireSector | undefined): vo
   const kindEl = root.querySelector('[data-field="fsKind"]') as HTMLSelectElement;
   const sym = root.querySelector('[data-fs-panel="symmetric"]') as HTMLElement;
   const asym = root.querySelector('[data-fs-panel="asymmetric"]') as HTMLElement;
+  const union = root.querySelector('[data-fs-panel="union"]') as HTMLElement;
+  union.hidden = fs?.kind !== "union";
   if (!fs) {
     kindEl.value = "";
     sym.hidden = true;
@@ -80,6 +94,8 @@ function writeFireSector(root: HTMLElement, fs: MountFireSector | undefined): vo
     sym.hidden = false;
     asym.hidden = true;
     (root.querySelector('[data-field="fsHalf"]') as HTMLInputElement).value = String(fs.halfAngleRadFromBow);
+    (root.querySelector('[data-field="fsCenter"]') as HTMLInputElement).value =
+      fs.centerYawRadFromBow === undefined ? "" : String(fs.centerYawRadFromBow);
   } else if (fs.kind === "asymmetric") {
     kindEl.value = "asymmetric";
     sym.hidden = true;
@@ -87,9 +103,10 @@ function writeFireSector(root: HTMLElement, fs: MountFireSector | undefined): vo
     (root.querySelector('[data-field="fsMin"]') as HTMLInputElement).value = String(fs.minYawRadFromBow);
     (root.querySelector('[data-field="fsMax"]') as HTMLInputElement).value = String(fs.maxYawRadFromBow);
   } else {
-    kindEl.value = "";
+    kindEl.value = "union";
     sym.hidden = true;
     asym.hidden = true;
+    (root.querySelector('[data-field="fsUnion"]') as HTMLTextAreaElement).value = JSON.stringify(fs.sectors, null, 2);
   }
 }
 
@@ -110,7 +127,6 @@ function readFullProfile(root: HTMLElement): ShipHullVisualProfile {
 
   const labelDe = q("labelDe").value.trim();
   const hullGltfId = (root.querySelector('[data-field="hullGltfId"]') as HTMLSelectElement).value;
-  const hullVisualScale = num(q("hullVisualScale").value, 1);
 
   const movement: ShipHullMovementDefinition = {
     movementSpeedMul: num(q("movementSpeedMul").value, 1),
@@ -146,32 +162,11 @@ function readFullProfile(root: HTMLElement): ShipHullVisualProfile {
 
   const aswmMagicReloadMs = optionalNum(q("aswmMagicReloadMs").value);
 
-  const spriteScale = optionalNum(q("cvSpriteScale").value);
-  const gltfHullYOffset = optionalNum(q("cvHullYOffset").value);
-  const gltfHullOffsetX = optionalNum(q("cvHullOffsetX").value);
-  const gltfHullOffsetZ = optionalNum(q("cvHullOffsetZ").value);
-  const shipPivotLocalZ = optionalNum(q("cvShipPivotZ").value);
-  const clientVisualTuningDefaults =
-    spriteScale !== undefined ||
-    gltfHullYOffset !== undefined ||
-    gltfHullOffsetX !== undefined ||
-    gltfHullOffsetZ !== undefined ||
-    shipPivotLocalZ !== undefined
-      ? {
-          ...(spriteScale !== undefined ? { spriteScale } : {}),
-          ...(gltfHullYOffset !== undefined ? { gltfHullYOffset } : {}),
-          ...(gltfHullOffsetX !== undefined ? { gltfHullOffsetX } : {}),
-          ...(gltfHullOffsetZ !== undefined ? { gltfHullOffsetZ } : {}),
-          ...(shipPivotLocalZ !== undefined ? { shipPivotLocalZ } : {}),
-        }
-      : undefined;
-
-  return {
+  const source = {
     profileId: q("profileId").value.trim() || "profile",
     shipClassId,
     labelDe: labelDe || undefined,
     hullGltfId,
-    hullVisualScale,
     collisionHitbox,
     movement,
     defaultRotatingMountFireSector,
@@ -180,8 +175,8 @@ function readFullProfile(root: HTMLElement): ShipHullVisualProfile {
     aswmMagazine,
     aswmMagicReloadMs,
     defaultLoadout: Object.keys(defaultLoadout).length ? defaultLoadout : undefined,
-    clientVisualTuningDefaults,
   };
+  return loadShipProfile(source, modelSpatialMetadata(hullGltfId), shipClassId);
 }
 
 function tryReadFullProfile(root: HTMLElement): ShipHullVisualProfile | null {
@@ -199,7 +194,6 @@ function writeForm(root: HTMLElement, merged: ShipHullVisualProfile): void {
   (root.querySelector('[data-field="shipClassId"]') as HTMLSelectElement).value = merged.shipClassId;
   q("labelDe").value = merged.labelDe ?? "";
   (root.querySelector('[data-field="hullGltfId"]') as HTMLSelectElement).value = merged.hullGltfId;
-  q("hullVisualScale").value = String(merged.hullVisualScale ?? 1);
 
   const m = merged.movement ?? {};
   q("movementSpeedMul").value = String(m.movementSpeedMul ?? 1);
@@ -230,20 +224,14 @@ function writeForm(root: HTMLElement, merged: ShipHullVisualProfile): void {
   q("aswmMagicReloadMs").value =
     merged.aswmMagicReloadMs !== undefined ? String(merged.aswmMagicReloadMs) : "";
 
-  const cv = merged.clientVisualTuningDefaults;
-  q("cvSpriteScale").value = cv?.spriteScale !== undefined ? String(cv.spriteScale) : "";
-  q("cvHullYOffset").value = cv?.gltfHullYOffset !== undefined ? String(cv.gltfHullYOffset) : "";
-  q("cvHullOffsetX").value = cv?.gltfHullOffsetX !== undefined ? String(cv.gltfHullOffsetX) : "";
-  q("cvHullOffsetZ").value = cv?.gltfHullOffsetZ !== undefined ? String(cv.gltfHullOffsetZ) : "";
-  q("cvShipPivotZ").value = cv?.shipPivotLocalZ !== undefined ? String(cv.shipPivotLocalZ) : "";
-
+  const source = shipProfileSource(merged);
   (root.querySelector('[data-json="mountSlots"]') as HTMLTextAreaElement).value = JSON.stringify(
-    merged.mountSlots ?? [],
+    source.mountSlots ?? [],
     null,
     2,
   );
   (root.querySelector('[data-json="fixedSeaSkimmerLaunchers"]') as HTMLTextAreaElement).value =
-    JSON.stringify(merged.fixedSeaSkimmerLaunchers ?? [], null, 2);
+    JSON.stringify(source.fixedSeaSkimmerLaunchers ?? [], null, 2);
   (root.querySelector('[data-json="defaultLoadout"]') as HTMLTextAreaElement).value = JSON.stringify(
     merged.defaultLoadout ?? {},
     null,
@@ -299,7 +287,7 @@ export function createShipProfileEditorPanel(
       <p class="ship-editor-hint ship-profile-editor-hint">
         Speichern = Patch in <strong>localStorage</strong>. JSON-Tabs: <code>mountSlots</code>,
         <code>fixedSeaSkimmerLaunchers</code>, <code>defaultLoadout</code> — gleiche Struktur wie in
-        <code>shared/src/data/ships/</code>.
+        <code>shared/src/data/ships/</code>. Positionen, Ausrichtung und Maße werden ausschließlich im 3D-Modell bearbeitet; die Vorschau verwendet die daraus erzeugten Marker.
       </p>
       <div class="ship-editor-tabs" role="tablist" aria-label="Profil-Kategorien">
         <button type="button" class="ship-editor-tab is-active" role="tab" aria-selected="true" data-tab="basis">Basis</button>
@@ -307,7 +295,6 @@ export function createShipProfileEditorPanel(
         <button type="button" class="ship-editor-tab" role="tab" aria-selected="false" data-tab="hitbox">Hitbox</button>
         <button type="button" class="ship-editor-tab" role="tab" aria-selected="false" data-tab="fire">Feuersektor</button>
         <button type="button" class="ship-editor-tab" role="tab" aria-selected="false" data-tab="asum">ASuM</button>
-        <button type="button" class="ship-editor-tab" role="tab" aria-selected="false" data-tab="client">Darstellung</button>
         <button type="button" class="ship-editor-tab" role="tab" aria-selected="false" data-tab="json">JSON</button>
       </div>
       <div class="ship-editor-tab-panels">
@@ -320,9 +307,6 @@ export function createShipProfileEditorPanel(
             <input type="text" data-field="labelDe" class="ship-editor-input" /></label>
           <label class="ship-editor-field"><span>hullGltfId</span>
             <select data-field="hullGltfId" class="ship-editor-input">${hullOptions}</select></label>
-          <label class="ship-editor-field"><span>hullVisualScale</span>
-            <input type="range" data-field="hullVisualScale" min="0.001" max="3" step="0.0001" value="1" class="ship-editor-range" />
-            <span class="ship-editor-range-val" data-range-for="hullVisualScale">1</span></label>
         </div>
         <div class="ship-editor-tab-panel" data-tab-panel="movement" role="tabpanel" hidden>
           <label class="ship-editor-field"><span>movementSpeedMul</span>
@@ -359,16 +343,23 @@ export function createShipProfileEditorPanel(
               <option value="">(kein Eintrag)</option>
               <option value="symmetric">symmetric</option>
               <option value="asymmetric">asymmetric</option>
+              <option value="union">union</option>
             </select></label>
           <div data-fs-panel="symmetric" hidden>
             <label class="ship-editor-field"><span>halfAngleRadFromBow</span>
               <input type="number" step="0.01" data-field="fsHalf" class="ship-editor-num" /></label>
+            <label class="ship-editor-field"><span>centerYawRadFromBow (optional, Standard 0)</span>
+              <input type="number" step="0.01" data-field="fsCenter" class="ship-editor-num" /></label>
           </div>
           <div data-fs-panel="asymmetric" hidden>
             <label class="ship-editor-field"><span>minYawRadFromBow</span>
               <input type="number" step="0.01" data-field="fsMin" class="ship-editor-num" /></label>
             <label class="ship-editor-field"><span>maxYawRadFromBow</span>
               <input type="number" step="0.01" data-field="fsMax" class="ship-editor-num" /></label>
+          </div>
+          <div data-fs-panel="union" hidden>
+            <label class="ship-editor-field"><span>sectors (JSON-Array)</span>
+              <textarea data-field="fsUnion" class="ship-editor-json" rows="6">[]</textarea></label>
           </div>
         </div>
         <div class="ship-editor-tab-panel" data-tab-panel="asum" role="tabpanel" hidden>
@@ -380,19 +371,6 @@ export function createShipProfileEditorPanel(
           <p class="ship-profile-json-note">Beide Felder leer: kein Override. Beide gesetzt: Magazin wird überschrieben.</p>
           <label class="ship-editor-field"><span>aswmMagicReloadMs (optional)</span>
             <input type="number" step="100" min="0" data-field="aswmMagicReloadMs" class="ship-editor-num" /></label>
-        </div>
-        <div class="ship-editor-tab-panel" data-tab-panel="client" role="tabpanel" hidden>
-          <p class="ship-profile-json-note">clientVisualTuningDefaults</p>
-          <label class="ship-editor-field"><span>spriteScale</span>
-            <input type="number" step="0.05" data-field="cvSpriteScale" class="ship-editor-num" /></label>
-          <label class="ship-editor-field"><span>gltfHullYOffset</span>
-            <input type="number" step="0.05" data-field="cvHullYOffset" class="ship-editor-num" /></label>
-          <label class="ship-editor-field"><span>gltfHullOffsetX (+X Steuerbord)</span>
-            <input type="number" step="0.05" data-field="cvHullOffsetX" class="ship-editor-num" placeholder="optional" /></label>
-          <label class="ship-editor-field"><span>gltfHullOffsetZ (+Z Bug)</span>
-            <input type="number" step="0.05" data-field="cvHullOffsetZ" class="ship-editor-num" placeholder="optional" /></label>
-          <label class="ship-editor-field"><span>shipPivotLocalZ (optional, sonst Env-Debug)</span>
-            <input type="number" step="0.1" min="-80" max="80" data-field="cvShipPivotZ" class="ship-editor-num" placeholder="leer = global" /></label>
         </div>
         <div class="ship-editor-tab-panel" data-tab-panel="json" role="tabpanel" hidden>
           <label class="ship-editor-field ship-editor-json-block"><span>mountSlots (JSON-Array)</span>
@@ -491,6 +469,7 @@ export function createShipProfileEditorPanel(
       const asym = root.querySelector('[data-fs-panel="asymmetric"]') as HTMLElement;
       sym.hidden = kind !== "symmetric";
       asym.hidden = kind !== "asymmetric";
+      (root.querySelector('[data-fs-panel="union"]') as HTMLElement).hidden = kind !== "union";
       scheduleLivePreview();
     },
     { signal },
@@ -523,7 +502,7 @@ export function createShipProfileEditorPanel(
             window.alert("Unbekannte shipClassId.");
             return;
           }
-          setHullProfilePatchForClass(profile.shipClassId, profile);
+          setHullProfilePatchForClass(profile.shipClassId, shipProfileSource(profile));
           setHullProfileWorkbenchLivePreview(profile.shipClassId, null);
           currentClass = profile.shipClassId;
           (root.querySelector('[data-field="shipClassId"]') as HTMLSelectElement).value = currentClass;
@@ -543,7 +522,7 @@ export function createShipProfileEditorPanel(
       if (action === "export") {
         const merged = getEffectiveHullProfile(currentClass);
         if (!merged) return;
-        const blob = new Blob([JSON.stringify(merged, null, 2)], { type: "application/json" });
+        const blob = new Blob([JSON.stringify(shipProfileSource(merged), null, 2)], { type: "application/json" });
         const a = document.createElement("a");
         a.href = URL.createObjectURL(blob);
         a.download = `ship-${merged.profileId}.json`;
@@ -563,7 +542,7 @@ export function createShipProfileEditorPanel(
         const reader = new FileReader();
         reader.onload = () => {
           try {
-            const data = JSON.parse(String(reader.result)) as ShipHullVisualProfile;
+            const data = JSON.parse(String(reader.result)) as ShipHullProfileSource;
             if (!data.shipClassId || !getAuthoritativeShipHullProfile(data.shipClassId)) {
               throw new Error("Ungültige oder unbekannte shipClassId");
             }

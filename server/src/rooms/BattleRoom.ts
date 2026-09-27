@@ -1,4 +1,4 @@
-import { Room, type Client } from "@colyseus/core";
+import { Room, ServerError, type Client } from "@colyseus/core";
 import { performance } from "node:perf_hooks";
 import { randomUUID } from "node:crypto";
 import { BattleState } from "@battlefleet/shared/protocol/schema";
@@ -17,10 +17,13 @@ import { normalizePlayerToken } from "../leaderboardStore.js";
 import { matchResultService } from "../application/storageServices.js";
 import { storageErrorCode } from "../persistence/storageErrors.js";
 import { TickMetrics } from "../tickMetrics.js";
+import { MAX_ROOMS, TokenBucket } from "../loadLimits.js";
 
 export type { InputCommand as InputPayload } from "@battlefleet/shared/protocol";
 const TICK_HZ = 20;
 const COMM_INPUT_LOG_SAMPLE_MS = 2000;
+const processInputBudget = new TokenBucket(MAX_ROOMS * MAX_HUMAN_CLIENTS_IN_ROOM * 30,
+  MAX_ROOMS * MAX_HUMAN_CLIENTS_IN_ROOM * 12);
 
 /** Nur exakte Klassen-IDs — kein `normalizeShipClassId`-Fallback auf FAC. */
 function parseDebugShipClassPayload(raw: unknown): typeof SHIP_CLASS_FAC | typeof SHIP_CLASS_DESTROYER | typeof SHIP_CLASS_CRUISER | null {
@@ -66,6 +69,9 @@ export class BattleRoom extends Room<BattleState> {
   private readonly clientsById = new Map<string, Client>();
   private readonly playerKeyBySessionId = new Map<string, string>();
   private readonly lastCommsInputLogAtMsBySession = new Map<string, number>();
+  private readonly inputBudgets = new WeakMap<Client, TokenBucket>();
+  private readonly controlBudgets = new WeakMap<Client, TokenBucket>();
+  private readonly resetBudget = new TokenBucket(0.2, 1);
   private readonly simulation: GameSimulation;
   private publisher!: SchemaPublisher;
   private readonly gameEvents: GameEventSink = {
@@ -73,14 +79,32 @@ export class BattleRoom extends Room<BattleState> {
     send: (id, type, payload) => this.clientsById.get(id)?.send(type, payload),
   };
 
-  constructor(private readonly environment: SimulationEnvironment = systemEnvironment) {
+  constructor(private readonly environment: SimulationEnvironment = systemEnvironment,
+    private readonly monotonicNow: () => number = () => performance.now()) {
     super();
     this.simulation = new GameSimulation(environment, simulationSettings, this.gameEvents,
       () => this.clients.length, () => performance.now(), (results, matchId) => this.persistMatchResults(results, matchId), randomUUID);
   }
 
   onCreate() {
+    if (BattleRoom.activeRooms.size >= MAX_ROOMS) {
+      this.releaseFailedStartup();
+      throw new ServerError(503, "Server room capacity reached. Please retry later.");
+    }
     BattleRoom.activeRooms.add(this);
+    try { this.initializeRoom(); }
+    catch (error) { this.releaseFailedStartup(); throw error; }
+  }
+
+  private releaseFailedStartup(): void {
+    // Colyseus does not dispose a room whose onCreate throws; even its constructor
+    // installs timers. Rejected reservations must not leave a ticking orphan.
+    this.autoDispose = false;
+    this.setSimulationInterval(); this.setPatchRate(null);
+    this.clock.clear(); this.clock.stop(); this.onDispose();
+  }
+
+  private initializeRoom(): void {
     this.setState(new BattleState());
     this.publisher = new SchemaPublisher(this.state);
     this.simulation.start();
@@ -96,23 +120,27 @@ export class BattleRoom extends Room<BattleState> {
     }
 
     this.onMessage("ping", (client, payload: { clientTime?: number }) => {
+      if (!this.allowMessage(client, false)) return;
       this.logComm("ping", client.sessionId);
-      const t = Number(payload?.clientTime);
+      const t = typeof payload?.clientTime === "number" ? payload.clientTime : 0;
       client.send("pong", { clientTime: Number.isFinite(t) ? t : 0 });
     });
 
-    this.onMessage("playAgain", () => {
+    this.onMessage("playAgain", (client) => {
+      if (!this.allowMessage(client, false) || !this.resetBudget.take()) return;
       this.logComm("playAgain");
       this.simulation.reset(this.environment.nowMs());
       this.publish();
     });
 
     this.onMessage("input", (client, payload: unknown) => {
+      if (!this.allowMessage(client, true) || !processInputBudget.take()) return;
       this.logInputCommSampled(client.sessionId);
       this.applyInputPayload(client.sessionId, payload);
     });
 
     this.onMessage("debugSetShipClass", (client, payload: { shipClass?: string }) => {
+      if (!this.allowMessage(client, false)) return;
       this.logComm("debugSetShipClass", client.sessionId, {
         shipClass: payload?.shipClass,
       });
@@ -145,6 +173,14 @@ export class BattleRoom extends Room<BattleState> {
   }
 
   private publish(): void { this.publisher.publish(this.simulation.state); }
+
+  private allowMessage(client: Client, input: boolean): boolean {
+    if (this.clientsById.get(client.sessionId) !== client) return false;
+    const budgets = input ? this.inputBudgets : this.controlBudgets;
+    let bucket = budgets.get(client);
+    if (!bucket) { bucket = new TokenBucket(input ? 30 : 2, input ? 12 : 4, this.monotonicNow); budgets.set(client, bucket); }
+    return bucket.take();
+  }
 
   /** Input still executes synchronously between ticks; no added command queue or frame of latency. */
   private applyInputPayload(id: string, payload: unknown): void {

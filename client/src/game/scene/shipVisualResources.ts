@@ -15,6 +15,8 @@ export function disposeVisualResources(root: THREE.Object3D, ownsSharedAssets = 
   const materials = new Set<THREE.Material>();
   const textures = new Set<THREE.Texture>();
   root.traverse((object) => {
+    // InstancedMesh owns per-instance GPU buffers, separately from shared GLB geometry.
+    if (object instanceof THREE.InstancedMesh) object.dispose();
     const renderable = object as THREE.Mesh;
     if (renderable.geometry && (ownsSharedAssets || !sharedGeometries.has(renderable.geometry))) {
       geometries.add(renderable.geometry);

@@ -6,7 +6,7 @@ import { updateGameWaterAnimations } from "../game/runtime/materialLibrary";
 import { createCockpitHud } from "../game/hud/cockpitHud";
 import { loadShipAssets } from "../game/runtime/shipAssetLoading";
 import { getAuthoritativeHullProfile, resolveShipHullGltfUrlForClass, setHullProfileWorkbenchLivePreview } from "../game/runtime/shipProfileRuntime";
-import { resolveMountGltfUrl, resolveMountModelVisualId } from "../game/runtime/mountGltfUrls";
+import { resolveMountGltfUrl } from "../game/runtime/mountGltfUrls";
 import { getShipHullGltfSourceForUrl } from "../game/scene/shipGltfHull";
 import { gltfAssetCache } from "../game/scene/gltfAssetCache";
 import { disposeShipSpriteTexture } from "../game/scene/shipVisual";
@@ -15,6 +15,8 @@ import { ISLAND_GLB_URLS } from "../game/scene/islandGltfVisuals";
 import { createReplay } from "./replay";
 import { createVisualCheckpoint } from "./visualCheckpoint";
 import { measureGpuFrames } from "./gpuProbe";
+import { profileRender } from "./renderProfile";
+import { compareStaticMountDraws } from "./staticMountComparison";
 import { createMeasurements, type ResourceSample } from "./metrics";
 import { FIXTURE_ID, FIXTURE_SAMPLE_FRAMES, FIXTURE_SEED, FIXTURE_STEP_MS, FIXTURE_WARMUP_FRAMES } from "./fixture";
 import gameShell from "../../index.html?raw";
@@ -36,6 +38,8 @@ const runButton = document.querySelector<HTMLButtonElement>("#benchmark-run")!;
 const stopButton = document.querySelector<HTMLButtonElement>("#benchmark-stop")!;
 const visualButton = document.querySelector<HTMLButtonElement>("#benchmark-visual")!;
 const gpuButton = document.querySelector<HTMLButtonElement>("#benchmark-gpu")!;
+const profileButton = document.querySelector<HTMLButtonElement>("#benchmark-profile")!;
+const mountsButton = document.querySelector<HTMLButtonElement>("#benchmark-mounts")!;
 const nativeNow = performance.now.bind(performance);
 const results: unknown[] = [];
 let stopRun = () => {};
@@ -62,7 +66,9 @@ async function start(): Promise<void> {
   renderer.setPixelRatio(1); renderer.setSize(1280, 720);
   renderer.info.autoReset = false; // Count reflection/shadow/main draws together.
   cleanup.push(() => { renderer.dispose(); renderer.forceContextLoss(); });
-  const bundle = await createGameScene({ environmentTuning: DEFAULT_ENVIRONMENT_TUNING });
+  // Keep the historic fixture available; explicit ?islands=0 tests today's game default.
+  const islandsEnabled = new URLSearchParams(location.search).get("islands") !== "0";
+  const bundle = await createGameScene({ environmentTuning: DEFAULT_ENVIRONMENT_TUNING, islandsEnabled });
   cleanup.push(() => { gltfAssetCache.dispose(); disposeShipSpriteTexture(); });
   cleanup.push(() => { bundle.dispose(); disposeVisualResources(bundle.scene); });
   resizeCamera(bundle.camera, 1280, 720);
@@ -86,15 +92,16 @@ async function start(): Promise<void> {
   for (const id of ["fac", "destroyer", "cruiser"] as const) {
     const profile = getAuthoritativeHullProfile(id)!;
     for (const slot of profile.mountSlots ?? []) {
-      const visual = profile.defaultLoadout?.[slot.id] ?? slot.defaultVisualId;
-      if (visual) mountUrls.add(resolveMountGltfUrl(resolveMountModelVisualId(visual, profile.hullGltfId)));
+      const equipment = profile.defaultLoadout?.[slot.id];
+      if (equipment) mountUrls.add(resolveMountGltfUrl(equipment.modelId));
     }
     for (const launcher of profile.fixedSeaSkimmerLaunchers ?? []) {
-      if (launcher.visualId) mountUrls.add(resolveMountGltfUrl(resolveMountModelVisualId(launcher.visualId, profile.hullGltfId)));
+      if (launcher.equipment) mountUrls.add(resolveMountGltfUrl(launcher.equipment.modelId));
     }
   }
   const mountAssets = [...mountUrls].map(url => ({ url, loaded: !!getShipHullGltfSourceForUrl(url) }));
-  results.push({ fixture: FIXTURE_ID, seed: FIXTURE_SEED, build: import.meta.env.MODE,
+  results.push({ fixture: islandsEnabled ? FIXTURE_ID : `${FIXTURE_ID}-open-water`, islandsEnabled,
+    seed: FIXTURE_SEED, build: import.meta.env.MODE,
     viewport: [1280, 720], pixelRatio: 1, deviceViewport: [window.innerWidth, window.innerHeight],
     environment: bundle.getEnvironmentTuning(), hullAssets, islandAssets, mountAssets,
     startupAssetLoadMs: assetLoadMs, startupCache: "browser-cache state uncontrolled; not a cold-download measurement",
@@ -111,6 +118,8 @@ async function start(): Promise<void> {
   let visual: ReturnType<typeof createVisualCheckpoint> | undefined;
   let visualAngle = 0;
   let gpuAbort: AbortController | undefined;
+  let profileAbort: AbortController | undefined;
+  let mountAngle = 0;
   cleanup.push(() => visual?.dispose());
   visualButton.disabled = false;
   function ensureVisual() {
@@ -127,6 +136,33 @@ async function start(): Promise<void> {
     status.textContent = `Visual checkpoint frame 360 + fixed air defense: ${angle}. Not a performance measurement.`;
   });
   gpuButton.disabled = false;
+  profileButton.disabled = false;
+  mountsButton.disabled = false;
+  mountsButton.addEventListener("click", async () => {
+    if (!stopButton.disabled) return;
+    const angle = (["follow", "port", "overhead"] as const)[mountAngle++ % 3]!;
+    ensureVisual().show(angle);
+    runButton.disabled = true; stopButton.disabled = false; mountsButton.disabled = true;
+    profileAbort = new AbortController(); status.textContent = `Comparing fixed launchers: ${angle}`;
+    try {
+      const comparison = await compareStaticMountDraws(renderer, bundle.scene, bundle.camera, profileAbort.signal);
+      results.splice(4); results.push({ staticMountComparison: { angle, ...comparison } }); print();
+      status.textContent = `Fixed launcher comparison complete: ${angle}`;
+    } catch (error) { status.textContent = `INVALID fixed launcher comparison: ${String(error)}`; }
+    finally { profileAbort = undefined; runButton.disabled = false; stopButton.disabled = true; mountsButton.disabled = false; }
+  });
+  profileButton.addEventListener("click", async () => {
+    if (!stopButton.disabled) return;
+    ensureVisual().show("follow");
+    runButton.disabled = true; stopButton.disabled = false; profileButton.disabled = true;
+    profileAbort = new AbortController();
+    status.textContent = "Profiling static render passes: 20 warmup + 120 samples";
+    try {
+      const renderProfile = await profileRender(renderer, bundle.scene, bundle.camera, profileAbort.signal);
+      results.splice(4); results.push({ renderProfile }); print(); status.textContent = "Render profile complete";
+    } catch (error) { status.textContent = `INVALID render profile: ${String(error)}`; }
+    finally { profileAbort = undefined; runButton.disabled = false; stopButton.disabled = true; profileButton.disabled = false; }
+  });
   gpuButton.addEventListener("click", async () => {
     if (!stopButton.disabled) return;
     ensureVisual().show("follow");
@@ -151,6 +187,7 @@ async function start(): Promise<void> {
       programs: renderer.info.programs?.length ?? 0, heapBytes: typeof heap === "number" ? heap : null };
   };
   stopRun = () => {
+    profileAbort?.abort();
     gpuAbort?.abort();
     stopped = true; cancelAnimationFrame(raf); active?.dispose(); active = undefined; settle?.(); settle = undefined;
     runButton.disabled = false; stopButton.disabled = true;

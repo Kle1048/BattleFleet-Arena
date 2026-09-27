@@ -1,0 +1,38 @@
+[
+  {
+    "part": "hull",
+    "triangles": 5390,
+    "texture_resolution": 1024,
+    "maps": [
+      "basecolor"
+    ],
+    "rust_patches": 0
+  },
+  {
+    "part": "artillery",
+    "triangles": 388,
+    "texture_resolution": 256,
+    "maps": [
+      "basecolor"
+    ],
+    "rust_patches": 0
+  },
+  {
+    "part": "pdms",
+    "triangles": 748,
+    "texture_resolution": 256,
+    "maps": [
+      "basecolor"
+    ],
+    "rust_patches": 0
+  },
+  {
+    "part": "exocet",
+    "triangles": 936,
+    "texture_resolution": 256,
+    "maps": [
+      "basecolor"
+    ],
+    "rust_patches": 0
+  }
+]

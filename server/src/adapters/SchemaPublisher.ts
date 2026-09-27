@@ -81,5 +81,6 @@ export class SchemaPublisher {
     this.target.matchPhase = source.matchPhase;
     this.target.matchRemainingSec = source.matchRemainingSec;
     this.target.operationalAreaHalfExtent = source.operationalAreaHalfExtent;
+    this.target.islandsEnabled = source.islandsEnabled;
   }
 }

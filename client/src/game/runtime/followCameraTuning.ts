@@ -1,6 +1,9 @@
 const STORAGE_KEY = "bfa.followCameraTuning.v1";
 
 export type FollowCameraTuning = {
+  mode: "map" | "thirdPerson";
+  orbitDistance: number;
+  orbitPitchDeg: number;
   /** Neigung zur XZ-Ebene: 90° = senkrecht nach unten, kleinere Werte = flacher (mehr Horizont). */
   pitchDeg: number;
   /** `true`: Norden bleibt Bildschirm-oben. `false`: Bug zeigt nach oben (mitdrehend). */
@@ -18,6 +21,9 @@ export type FollowCameraTuning = {
 };
 
 export const DEFAULT_FOLLOW_CAMERA_TUNING: Readonly<FollowCameraTuning> = {
+  mode: "map",
+  orbitDistance: 240,
+  orbitPitchDeg: 18,
   pitchDeg: 70,
   northUp: true,
   heightAbovePivot: 900,
@@ -25,6 +31,11 @@ export const DEFAULT_FOLLOW_CAMERA_TUNING: Readonly<FollowCameraTuning> = {
 };
 
 let current: FollowCameraTuning = { ...DEFAULT_FOLLOW_CAMERA_TUNING };
+const listeners = new Set<(value: Readonly<FollowCameraTuning>) => void>();
+export function subscribeFollowCameraTuning(listener: (value: Readonly<FollowCameraTuning>) => void): () => void {
+  listeners.add(listener);
+  return () => { listeners.delete(listener); };
+}
 
 function clampPitch(v: number): number {
   return Math.max(15, Math.min(90, v));
@@ -75,19 +86,25 @@ export function getFollowCameraTuning(): Readonly<FollowCameraTuning> {
 }
 
 export function applyFollowCameraTuning(patch: Partial<FollowCameraTuning>): Readonly<FollowCameraTuning> {
+  const finite = (value: number | undefined, fallback: number) => Number.isFinite(value) ? value! : fallback;
   current = {
-    pitchDeg: clampPitch(patch.pitchDeg ?? current.pitchDeg),
+    mode: patch.mode === "map" || patch.mode === "thirdPerson" ? patch.mode : current.mode,
+    orbitDistance: Math.max(80, Math.min(2000, finite(patch.orbitDistance, current.orbitDistance))),
+    orbitPitchDeg: Math.max(8, Math.min(80, finite(patch.orbitPitchDeg, current.orbitPitchDeg))),
+    pitchDeg: clampPitch(finite(patch.pitchDeg, current.pitchDeg)),
     northUp: typeof patch.northUp === "boolean" ? patch.northUp : current.northUp,
-    heightAbovePivot: clampHeight(patch.heightAbovePivot ?? current.heightAbovePivot),
+    heightAbovePivot: clampHeight(finite(patch.heightAbovePivot, current.heightAbovePivot)),
     headUpYawLagSec: clampHeadUpYawLagSec(
-      typeof patch.headUpYawLagSec === "number" ? patch.headUpYawLagSec : current.headUpYawLagSec,
+      finite(patch.headUpYawLagSec, current.headUpYawLagSec),
     ),
   };
+  for (const listener of listeners) listener(current);
   return current;
 }
 
 export function resetFollowCameraTuning(): void {
   current = { ...DEFAULT_FOLLOW_CAMERA_TUNING };
+  for (const listener of listeners) listener(current);
 }
 
 export function loadPersistedFollowCameraTuning(): void {
@@ -97,6 +114,9 @@ export function loadPersistedFollowCameraTuning(): void {
     const parsed = JSON.parse(raw) as Partial<FollowCameraTuning>;
     if (!parsed || typeof parsed !== "object") return;
     applyFollowCameraTuning({
+      mode: parsed.mode,
+      orbitDistance: parsed.orbitDistance,
+      orbitPitchDeg: parsed.orbitPitchDeg,
       pitchDeg: typeof parsed.pitchDeg === "number" ? parsed.pitchDeg : undefined,
       northUp: typeof parsed.northUp === "boolean" ? parsed.northUp : undefined,
       heightAbovePivot:

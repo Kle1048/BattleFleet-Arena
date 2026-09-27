@@ -15,10 +15,7 @@ import {
   ASWM_SHOT_INTERVAL_MS,
   pickFixedSeaSkimmerLauncherWithAmmo,
   pickFixedSeaSkimmerLauncherWithAmmoForForcedSide,
-  pickAswmSideForFallbackFire,
-  pickAswmSideForFallbackFireForced,
   spawnAswmFromFixedLauncher,
-  spawnAswmFromFireDirection,
   stepAswmMissile,
   progressionIncomingDamageFactor,
   getShipClassProfile,
@@ -49,6 +46,7 @@ export class MissileSystem {
     private readonly events: GameEventSink,
     private readonly isMatchCombatActive: () => boolean,
     private readonly getOperationalHalfExtent: () => number,
+    private readonly getIslandPolygons = () => DEFAULT_MAP_ISLAND_POLYGONS,
   ) {}
 
   clear(): void {
@@ -107,58 +105,29 @@ export class MissileSystem {
 
     const hullAswm = getAuthoritativeShipHullProfile(p.shipClass);
     const launchers = hullAswm?.fixedSeaSkimmerLaunchers;
-    let pose: { x: number; z: number; headingRad: number } | null = null;
+    if (!launchers?.length) return; // No model-defined launchers means no hidden fallback weapon.
+    const launcher =
+      explicitSide !== undefined
+        ? pickFixedSeaSkimmerLauncherWithAmmoForForcedSide(
+            launchers,
+            row.aswmRemainingPort,
+            row.aswmRemainingStarboard,
+            explicitSide,
+          )
+        : pickFixedSeaSkimmerLauncherWithAmmo(
+            launchers,
+            row.aimX,
+            row.aimZ,
+            row.ship.x,
+            row.ship.z,
+            row.ship.headingRad,
+            row.aswmRemainingPort,
+            row.aswmRemainingStarboard,
+          );
+    if (!launcher) return;
 
-    if (launchers?.length) {
-      const launcher =
-        explicitSide !== undefined
-          ? pickFixedSeaSkimmerLauncherWithAmmoForForcedSide(
-              launchers,
-              row.aswmRemainingPort,
-              row.aswmRemainingStarboard,
-              explicitSide,
-            )
-          : pickFixedSeaSkimmerLauncherWithAmmo(
-              launchers,
-              row.aimX,
-              row.aimZ,
-              row.ship.x,
-              row.ship.z,
-              row.ship.headingRad,
-              row.aswmRemainingPort,
-              row.aswmRemainingStarboard,
-            );
-      if (!launcher) return;
-      consumeRound(row, launcher);
-      pose = spawnAswmFromFixedLauncher(row.ship.x, row.ship.z, row.ship.headingRad, launcher);
-    } else {
-      const side =
-        explicitSide !== undefined
-          ? pickAswmSideForFallbackFireForced(
-              row.aswmRemainingPort,
-              row.aswmRemainingStarboard,
-              explicitSide,
-            )
-          : pickAswmSideForFallbackFire(
-              row.aimX,
-              row.aimZ,
-              row.ship.x,
-              row.ship.z,
-              row.ship.headingRad,
-              row.aswmRemainingPort,
-              row.aswmRemainingStarboard,
-            );
-      if (!side) return;
-      if (side === "port") row.aswmRemainingPort--;
-      else row.aswmRemainingStarboard--;
-      pose = spawnAswmFromFireDirection(
-        row.ship.x,
-        row.ship.z,
-        row.aimX,
-        row.aimZ,
-        row.ship.headingRad,
-      );
-    }
+    const pose = spawnAswmFromFixedLauncher(row.ship.x, row.ship.z, row.ship.headingRad, launcher);
+    consumeRound(row, launcher);
 
     const totalLeft = row.aswmRemainingPort + row.aswmRemainingStarboard;
     if (totalLeft > 0) {
@@ -169,9 +138,10 @@ export class MissileSystem {
     }
 
     const missileId = this.nextMissileId++;
-    this.missiles.push({ missileId, ownerId: ownerSessionId, targetId: "", ...pose });
+    this.missiles.push({ missileId, ownerId: ownerSessionId, targetId: "", x: pose.x, z: pose.z, headingRad: pose.headingRad });
     this.missileSpawnedAt.set(missileId, now);
-    this.events.broadcast("aswmFired", { missileId, ownerId: ownerSessionId });
+    this.events.broadcast("aswmFired", { missileId, ownerId: ownerSessionId, launcherId: launcher.id,
+      fromX: pose.x, fromY: pose.y, fromZ: pose.z, headingRad: pose.headingRad });
   }
 
   step(dt: number, now: number): void {
@@ -244,7 +214,7 @@ export class MissileSystem {
           m.x,
           m.z,
           ASWM_ISLAND_COLLISION_RADIUS,
-          DEFAULT_MAP_ISLAND_POLYGONS,
+          this.getIslandPolygons(),
         ) ||
         circleIntersectsAnyWreckHitboxFootprintXZ(
           m.x,

@@ -1,0 +1,9 @@
+{
+  "pd": {
+    "name": "PD_RAM",
+    "triangles": 708,
+    "length": 2.814,
+    "glb": "C:\\Users\\Kleme\\AI-Projects\\BattleFleet-Arena\\client\\public\\assets\\projectiles\\pd_ram.glb",
+    "runtime": "C:\\Users\\Kleme\\AI-Projects\\BattleFleet-Arena\\client\\src\\game\\effects\\projectile-assets\\pd.json"
+  }
+}

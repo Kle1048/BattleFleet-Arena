@@ -1,29 +1,19 @@
 import assert from "node:assert/strict";
-import { resolveMountSlotsWithSocketRegistry } from "./shipVisualLayout";
-
-const reg = {
-  a: { position: { x: 1, y: 2, z: 3 } },
-};
-
-const out = resolveMountSlotsWithSocketRegistry("test", [{ id: "a", compatibleKinds: ["artillery"] }], reg);
-assert.equal(out[0].socket.position.z, 3);
-
-const out2 = resolveMountSlotsWithSocketRegistry(
-  "test",
-  [
-    {
-      id: "a",
-      compatibleKinds: ["artillery"],
-      socket: { position: { x: 0, y: 0, z: 9 } },
-    },
-  ],
-  { a: { position: { x: 1, y: 1, z: 1 } } },
-);
-assert.equal(out2[0].socket.position.z, 9, "Profil-Socket schlägt Registry");
-
-assert.throws(
-  () => resolveMountSlotsWithSocketRegistry("test", [{ id: "x", compatibleKinds: ["artillery"] }], {}),
-  /kein socket/,
-);
-
-console.log("shipMountSocketsResolve tests ok");
+import { loadShipProfile } from "./content/loadShipProfile";
+import { modelSpatialMetadata } from "./content/modelMetadata";
+import { mergeShipHullVisualProfile } from "./shipProfiles";
+import fac from "./data/ships/fac.json";
+const metadata = modelSpatialMetadata("gepard");
+const profile = loadShipProfile(fac, metadata, "fac");
+assert.deepEqual(profile.mountSlots[0].socket, metadata.sockets.main_fwd);
+assert.throws(() => loadShipProfile({
+  ...fac, mountSlots: fac.mountSlots.map(slot => ({ ...slot, socket: { position: { x: 7, y: 8, z: 9 } } })),
+}, metadata, "fac"), /spatial values/);
+assert.throws(() => loadShipProfile(fac, { ...metadata, sockets: {} }, "fac"), /missing model socket/);
+assert.throws(() => mergeShipHullVisualProfile(profile, {
+  mountSlots: [{ ...fac.mountSlots[0], socket: { position: { x: 7, y: 8, z: 9 } } }],
+} as never), /spatial values/);
+assert.throws(() => mergeShipHullVisualProfile(profile, { hullVisualScale: 2 } as never), /spatial values/);
+assert.throws(() => loadShipProfile(fac, { ...metadata, rails: {} }, "fac"), /missing model rail/);
+assert.throws(() => loadShipProfile(fac, { ...metadata, effects: {} }, "fac"), /missing wake marker/);
+console.log("Model sockets are authoritative; inline/patch overrides and missing markers fail closed");

@@ -7,14 +7,17 @@ import {
   normalizeShipClassId,
   type ShipClassId,
   type ShipHullVisualProfile,
+  type ShipHullProfileSource,
+  shipProfileSource,
 } from "@battlefleet/shared";
 import { resolveShipHullGltfUrl } from "./hullGltfUrls";
 
-const STORAGE_PATCH = "battlefleet_ship_profile_patch_v1";
+const STORAGE_PATCH = "battlefleet_ship_profile_patch_v2";
 const STORAGE_HITBOX = "battlefleet_show_ship_hitbox";
 const STORAGE_WRECK_COLLISION = "battlefleet_show_wreck_collision";
+const PROFILE_CLASSES: readonly string[] = [SHIP_CLASS_FAC, SHIP_CLASS_DESTROYER, SHIP_CLASS_CRUISER];
 
-export type HullProfilePatchMap = Partial<Record<ShipClassId, Partial<ShipHullVisualProfile>>>;
+export type HullProfilePatchMap = Partial<Record<ShipClassId, Partial<ShipHullProfileSource>>>;
 
 /** Vermeidet pro Frame localStorage + JSON.parse (Hot Path: `getEffectiveHullProfile` im Editor). */
 let hullProfilePatchCache: HullProfilePatchMap | null = null;
@@ -43,7 +46,8 @@ export function setHullProfileWorkbenchLivePreview(
   if (profile === null) {
     workbenchLivePreviewByClass.delete(id);
   } else {
-    workbenchLivePreviewByClass.set(id, profile);
+    const base = getAuthoritativeShipHullProfile(id)!;
+    workbenchLivePreviewByClass.set(id, mergeShipHullVisualProfile(base, shipProfileSource(profile)));
   }
   effectiveHullProfileByClass.delete(id);
 }
@@ -54,20 +58,40 @@ export function clearAllHullProfileWorkbenchLivePreviews(): void {
 }
 
 export function loadHullProfilePatch(): HullProfilePatchMap {
-  if (hullProfilePatchCache !== null) return hullProfilePatchCache;
+  if (hullProfilePatchCache !== null) return structuredClone(hullProfilePatchCache);
+  const valid: HullProfilePatchMap = {};
   try {
     const raw = localStorage.getItem(STORAGE_PATCH);
-    hullProfilePatchCache = raw ? (JSON.parse(raw) as HullProfilePatchMap) : {};
-    return hullProfilePatchCache;
+    const stored: unknown = raw ? JSON.parse(raw) : {};
+    if (!stored || typeof stored !== "object" || Array.isArray(stored)) throw new Error("Expected patch map");
+    for (const [id, patch] of Object.entries(stored)) {
+      try {
+        valid[id as ShipClassId] = validatedPatch(id, patch);
+      } catch {
+        // Preserve the stored draft for recovery, but never render unvalidated data.
+        console.warn("[ShipProfileEditor] Ungültiger gespeicherter Klassenentwurf ignoriert.");
+      }
+    }
   } catch {
-    hullProfilePatchCache = {};
-    return hullProfilePatchCache;
+    console.warn("[ShipProfileEditor] Gespeicherte Entwürfe konnten nicht geladen werden.");
   }
+  hullProfilePatchCache = valid;
+  return structuredClone(valid);
+}
+
+function validatedPatch(id: string, patch: unknown): ShipHullProfileSource {
+  if (!PROFILE_CLASSES.includes(id)) throw new Error("Unknown ship class");
+  if (!patch || typeof patch !== "object" || Array.isArray(patch)) throw new Error("Expected profile patch");
+  const base = getAuthoritativeShipHullProfile(id)!;
+  return shipProfileSource(mergeShipHullVisualProfile(base, patch as Partial<ShipHullProfileSource>));
 }
 
 export function saveHullProfilePatch(map: HullProfilePatchMap): void {
-  localStorage.setItem(STORAGE_PATCH, JSON.stringify(map));
-  hullProfilePatchCache = map;
+  if (!map || typeof map !== "object" || Array.isArray(map)) throw new Error("Expected patch map");
+  const valid: HullProfilePatchMap = {};
+  for (const [id, patch] of Object.entries(map)) valid[id as ShipClassId] = validatedPatch(id, patch);
+  localStorage.setItem(STORAGE_PATCH, JSON.stringify(valid));
+  hullProfilePatchCache = valid;
   effectiveHullProfileByClass.clear();
 }
 
@@ -77,13 +101,15 @@ export function saveHullProfilePatch(map: HullProfilePatchMap): void {
  */
 export function setHullProfilePatchForClass(
   shipClass: ShipClassId,
-  patch: Partial<ShipHullVisualProfile> | null,
+  patch: Partial<ShipHullProfileSource> | null,
 ): void {
+  if (!PROFILE_CLASSES.includes(shipClass)) throw new Error("Unknown ship class");
   const all = { ...loadHullProfilePatch() };
   if (patch === null || Object.keys(patch).length === 0) {
     delete all[shipClass];
   } else {
-    all[shipClass] = patch;
+    const base = getAuthoritativeShipHullProfile(shipClass)!;
+    all[shipClass] = shipProfileSource(mergeShipHullVisualProfile(base, patch));
   }
   saveHullProfilePatch(all);
 }
@@ -111,14 +137,16 @@ export function getEffectiveHullProfile(shipClass: unknown): ShipHullVisualProfi
 /** Spiel & Server: Rumpf-URL aus gebündeltem Profil (ohne Client-Patch). */
 export function resolveShipHullGltfUrlForClass(shipClass: ShipClassId): string {
   const p = getAuthoritativeHullProfile(shipClass);
-  const id = p?.hullGltfId ?? "s143a";
+  if (!p) throw new Error(`Missing ship profile: ${shipClass}`);
+  const id = p.hullGltfId;
   return resolveShipHullGltfUrl(id);
 }
 
 /** Workbench: `hullGltfId` inkl. Editor-Patch/Vorschau. */
 export function resolveShipHullGltfUrlForWorkbenchPreview(shipClass: ShipClassId): string {
   const p = getEffectiveHullProfile(shipClass);
-  const id = p?.hullGltfId ?? "s143a";
+  if (!p) throw new Error(`Missing ship profile: ${shipClass}`);
+  const id = p.hullGltfId;
   return resolveShipHullGltfUrl(id);
 }
 

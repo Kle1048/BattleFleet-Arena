@@ -1,0 +1,16 @@
+{
+  "ssm": {
+    "name": "SSM_Exocet_MM38.001",
+    "triangles": 476,
+    "length": 5.208,
+    "glb": "C:\\Users\\Kleme\\AI-Projects\\BattleFleet-Arena\\client\\public\\assets\\projectiles\\ssm_exocet_mm38.glb",
+    "runtime": "C:\\Users\\Kleme\\AI-Projects\\BattleFleet-Arena\\client\\src\\game\\effects\\projectile-assets\\ssm.json"
+  },
+  "sam": {
+    "name": "SAM_Sea_Sparrow.001",
+    "triangles": 524,
+    "length": 3.6550000000000002,
+    "glb": "C:\\Users\\Kleme\\AI-Projects\\BattleFleet-Arena\\client\\public\\assets\\projectiles\\sam_sea_sparrow.glb",
+    "runtime": "C:\\Users\\Kleme\\AI-Projects\\BattleFleet-Arena\\client\\src\\game\\effects\\projectile-assets\\sam.json"
+  }
+}

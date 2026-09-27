@@ -14,19 +14,19 @@ import type {
 import {
   flattenMountFireSectorUnions,
   getShipClassProfile,
-  inferMountTrainBaseYawFromBow,
   resolveEffectiveMountFireSector,
+  mountFireSectorArc,
   wrapPi,
 } from "@battlefleet/shared";
 import type { ShipVisual } from "../game/scene/shipVisual";
-import { getShipDebugTuning } from "../game/runtime/shipDebugTuning";
+import { disposeVisualResources } from "../game/scene/shipVisualResources";
 
 const NAME_ROOT = "workbenchShipMarkers";
 const NAME_HULL = "workbenchHullMarkers";
 
 /** Modell-Schwerpunkt (GLB-Meshes, ohne nachträglich angehängte Mount-/SSM-Gruppen) */
 const COLOR_MODEL_CENTER = 0x33e6aa;
-/** yaw-/Hitbox-Bezug: shipPivotLocalZ entlang +Z (Schiffskoordinaten) */
+/** Simulationsbezug am Modellursprung. */
 const COLOR_PIVOT = 0xff7722;
 /** Mount-Slots (drehbare Systeme etc.) */
 const COLOR_MOUNT_SLOT = 0xcc66ff;
@@ -47,9 +47,9 @@ const MOUNT_CENTER_FWD = 78;
 const MOUNT_SECTOR_ARC_RADIUS = 58;
 const MOUNT_SECTOR_ARC_SEGMENTS = 40;
 
-const SPHERE_R = 2.1;
+const SPHERE_R = 0.45;
 /** Halbe Länge der senkrechten Hilfslinie (+/−Y, Schiff hoch) — reicht durch typische Rumpfhöhen. */
-const PLUMB_HALF_LEN = 88;
+const PLUMB_HALF_LEN = 14;
 
 function makeMarkerSphere(color: number): THREE.Mesh {
   const geom = new THREE.SphereGeometry(SPHERE_R, 18, 14);
@@ -119,7 +119,7 @@ function hullMeshBoundingBoxWorld(hullModel: THREE.Group): THREE.Box3 {
 
 function removeByName(parent: THREE.Object3D, name: string): void {
   const o = parent.getObjectByName(name);
-  if (o) parent.remove(o);
+  if (o) disposeVisualResources(o);
 }
 
 /** Horizontale Einheitsrichtung: yaw vom Bug in Radiant, +Z = Bug (`forwardXZ`-Konvention). */
@@ -127,27 +127,26 @@ function bowDirXZ(yawFromBow: number): THREE.Vector3 {
   return new THREE.Vector3(Math.sin(yawFromBow), 0, Math.cos(yawFromBow));
 }
 
-function effectiveSectorCenterYaw(slot: MountSlotDefinition, sector: MountFireSector): number {
+function effectiveSectorCenterYaw(sector: MountFireSector): number {
   if (sector.kind === "symmetric") {
-    return sector.centerYawRadFromBow ?? inferMountTrainBaseYawFromBow(slot);
+    return sector.centerYawRadFromBow ?? 0;
   }
   if (sector.kind === "union") {
     const flat = flattenMountFireSectorUnions(sector);
-    if (flat.length === 0) return inferMountTrainBaseYawFromBow(slot);
+    if (flat.length === 0) return 0;
     let sx = 0;
     let sz = 0;
     for (const p of flat) {
-      const cy =
-        p.kind === "symmetric"
-          ? p.centerYawRadFromBow ?? inferMountTrainBaseYawFromBow(slot)
-          : wrapPi((p.minYawRadFromBow + p.maxYawRadFromBow) * 0.5);
+      const arc = mountFireSectorArc(p);
+      const cy = arc.start + arc.sweep / 2;
       sx += Math.sin(cy);
       sz += Math.cos(cy);
     }
     const n = flat.length;
     return Math.atan2(sx / n, sz / n);
   }
-  return wrapPi((sector.minYawRadFromBow + sector.maxYawRadFromBow) * 0.5);
+  const arc = mountFireSectorArc(sector);
+  return wrapPi(arc.start + arc.sweep / 2);
 }
 
 function makeHorizontalLine(
@@ -171,13 +170,12 @@ function makeHorizontalLine(
 /** Ein symmetrischer oder asymmetrischer Teilsektor — Drahtrahmen in die Socket-Gruppe. */
 function addWorkbenchPrimitiveSectorArc(
   g: THREE.Group,
-  slot: MountSlotDefinition,
   sector: PrimitiveMountFireSector,
   rayLen: number,
   R: number,
 ): void {
   if (sector.kind === "symmetric") {
-    const c = sector.centerYawRadFromBow ?? inferMountTrainBaseYawFromBow(slot);
+    const c = sector.centerYawRadFromBow ?? 0;
     const h = sector.halfAngleRadFromBow;
     const a0 = c - h;
     const a1 = c + h;
@@ -207,6 +205,7 @@ function addWorkbenchPrimitiveSectorArc(
   }
   const lo = sector.minYawRadFromBow;
   const hi = sector.maxYawRadFromBow;
+  const interval = mountFireSectorArc(sector);
   const dLo = bowDirXZ(lo);
   const dHi = bowDirXZ(hi);
   g.add(makeHorizontalLine(new THREE.Vector3(0, 0, 0), dLo.clone().multiplyScalar(rayLen), COLOR_MOUNT_SECTOR, 0.85));
@@ -214,7 +213,7 @@ function addWorkbenchPrimitiveSectorArc(
   const arcPts: THREE.Vector3[] = [];
   for (let i = 0; i <= MOUNT_SECTOR_ARC_SEGMENTS; i++) {
     const t = i / MOUNT_SECTOR_ARC_SEGMENTS;
-    const ang = wrapPi(lo + t * wrapPi(hi - lo));
+    const ang = interval.start + t * interval.sweep;
     arcPts.push(bowDirXZ(ang).multiplyScalar(R));
   }
   const arcGeom = new THREE.BufferGeometry().setFromPoints(arcPts);
@@ -244,7 +243,7 @@ function addMountCenterlineAndSector(
   g.name = `workbenchMountAim_${slot.id}`;
   g.position.set(p.x, p.y, p.z);
 
-  const centerYaw = effectiveSectorCenterYaw(slot, sector);
+  const centerYaw = effectiveSectorCenterYaw(sector);
   const dirC = bowDirXZ(centerYaw);
   g.add(
     makeHorizontalLine(
@@ -260,10 +259,10 @@ function addMountCenterlineAndSector(
 
   if (sector.kind === "union") {
     for (const sub of flattenMountFireSectorUnions(sector)) {
-      addWorkbenchPrimitiveSectorArc(g, slot, sub, rayLen, R);
+      addWorkbenchPrimitiveSectorArc(g, sub, rayLen, R);
     }
   } else {
-    addWorkbenchPrimitiveSectorArc(g, slot, sector, rayLen, R);
+    addWorkbenchPrimitiveSectorArc(g, sector, rayLen, R);
   }
 
   hullMarkers.add(g);
@@ -271,7 +270,7 @@ function addMountCenterlineAndSector(
 
 /**
  * Lokale Abstrahlrichtung wie `attachMountVisualsToHullModel`: zuerst `socket.eulerRad`,
- * sonst `launchYawRadFromBow` (XZ-Ebene, 0 = +Z Bug), sonst +Z.
+ * ohne Rotation gilt die kanonische Front +Z.
  */
 function ssmLaunchDirectionLocal(L: FixedSeaSkimmerLauncherSpec): THREE.Vector3 {
   const e = L.socket.eulerRad;
@@ -281,10 +280,7 @@ function ssmLaunchDirectionLocal(L: FixedSeaSkimmerLauncherSpec): THREE.Vector3 
       .applyQuaternion(new THREE.Quaternion().setFromEuler(euler))
       .normalize();
   }
-  if (L.launchYawRadFromBow !== undefined) {
-    const y = L.launchYawRadFromBow;
-    return new THREE.Vector3(Math.sin(y), 0, Math.cos(y)).normalize();
-  }
+
   return new THREE.Vector3(0, 0, 1);
 }
 
@@ -330,12 +326,9 @@ export function replaceWorkbenchShipMarkers(
   const root = new THREE.Group();
   root.name = NAME_ROOT;
 
-  const userPivot = getShipDebugTuning().shipPivotLocalZ;
-  const pivotZ =
-    (profile?.clientVisualTuningDefaults?.shipPivotLocalZ ?? userPivot) / vis.shipHullScale;
   const pivot = makeWorkbenchMarker(COLOR_PIVOT);
   pivot.name = "workbenchPivot";
-  pivot.position.set(0, 0, pivotZ);
+  pivot.position.set(0, 0, 0);
   root.add(pivot);
 
   if (vis.hullModel && profile) {

@@ -4,7 +4,6 @@ import { getAuthoritativeShipHullProfile } from "@battlefleet/shared";
 import { createShipHitboxWireframe } from "../scene/shipHitboxDebug";
 import { assignToOverlayLayer } from "./renderOverlayLayers";
 import { worldToRenderX, worldToRenderYaw } from "./renderCoords";
-import { getShipDebugTuningForVisualClass } from "./shipDebugTuning";
 import { isWreckCollisionDebugVisible } from "./shipProfileRuntime";
 
 const rootsByWreckId = new Map<string, THREE.Group>();
@@ -52,10 +51,8 @@ export function syncWreckCollisionDebugMeshes(
       }
 
       const yaw = worldToRenderYaw(w.headingRad);
-      const tune = getShipDebugTuningForVisualClass(w.shipClass);
-      const pivotDx = Math.sin(yaw) * tune.shipPivotLocalZ;
-      const pivotDz = Math.cos(yaw) * tune.shipPivotLocalZ;
-      root.position.set(worldToRenderX(w.anchorX) - pivotDx, 0, w.anchorZ - pivotDz);
+      root.position.set(worldToRenderX(w.anchorX), 0, w.anchorZ);
+      root.scale.set(-1, 1, 1);
       root.rotation.order = "YXZ";
       root.rotation.y = yaw;
     }

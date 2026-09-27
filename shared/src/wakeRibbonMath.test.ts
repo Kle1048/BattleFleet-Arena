@@ -26,6 +26,16 @@ assert.ok(tMid.x > 0.6 && tMid.z > 0.6);
 const t0 = spineTangentXZ(pts, 0);
 assert.ok(Math.abs(t0.x) < 1e-9 && t0.z > 0.99);
 
+const scratch = { x: 99, z: 99 };
+assert.equal(normalizeXZ(3, 4, scratch), scratch);
+assert.deepEqual(scratch, { x: 0.6, z: 0.8 });
+assert.equal(spineTangentXZ(pts, 1, scratch), scratch);
+assert.deepEqual(scratch, tMid);
+assert.equal(xzPerpendicularFromTangent(1, 0, scratch), scratch);
+assert.deepEqual(scratch, p);
+spineTangentXZ([], 0, scratch);
+assert.deepEqual(scratch, { x: 0, z: 1 });
+
 assert.equal(WAKE_RIBBON_REF_HALF_BEAM_X, 4);
 assert.equal(
   wakeRibbonBaseHalfWidthFromHitboxHalfBeamX(4),

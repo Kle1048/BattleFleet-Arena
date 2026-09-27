@@ -214,7 +214,7 @@ export function createInputHandlers(
   let lastCanvasPointerType: string | null = null;
 
   const onMove = (e: PointerEvent): void => {
-    if (disposed) return;
+    if (disposed || e.defaultPrevented) return;
     lastCanvasPointerType = e.pointerType;
     const rect = canvas.getBoundingClientRect();
     const x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
@@ -231,7 +231,7 @@ export function createInputHandlers(
   let rmbHeld = false;
   let mmbHeld = false;
   const onPointerDown = (e: PointerEvent): void => {
-    if (disposed) return;
+    if (disposed || e.defaultPrevented) return;
     if (e.target === canvas) {
       lastCanvasPointerType = e.pointerType;
     }
@@ -270,6 +270,7 @@ export function createInputHandlers(
   canvas.addEventListener("pointercancel", onPointerUp);
   window.addEventListener("pointerup", onPointerUp);
 
+  let lastGroundAim: { x: number; z: number } | null = null;
   function sample(): InputSample {
     if (disposed) return {
       throttle: 0, rudderInput: 0, aimWorldX: 0, aimWorldZ: 0,
@@ -315,8 +316,12 @@ export function createInputHandlers(
 
     const self = mobileAimEngagement?.self ?? null;
     const hitMove = getGroundPoint(mouseNdcX, mouseNdcY);
-    let aimWorldX = hitMove?.x ?? 0;
-    let aimWorldZ = hitMove?.z ?? 0;
+    // A low orbit camera can point above the horizon. Keep the last sea target,
+    // not world origin; before the first valid hit use the ship's bow direction.
+    if (hitMove) lastGroundAim = hitMove;
+    const groundAim = hitMove ?? lastGroundAim ?? (self ? defaultBowAimWorld(self) : null);
+    let aimWorldX = groundAim?.x ?? 0;
+    let aimWorldZ = groundAim?.z ?? 0;
 
     /** Aus fixem Bildschirm-Strahl; null wenn Pin fehlt oder Boden nicht getroffen. */
     let aimFromViewportPin: { x: number; z: number } | null = null;

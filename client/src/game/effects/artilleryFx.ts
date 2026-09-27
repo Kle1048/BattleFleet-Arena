@@ -3,18 +3,11 @@ import type { GameRenderer } from "../runtime/rendererContracts";
 import { createArtilleryShellMaterial } from "../runtime/materialLibrary";
 import { worldToRenderX } from "../runtime/renderCoords";
 import type { FxSystem } from "./fxSystem";
+import type { ArtilleryFired } from "../presentation/MatchPresentationEvent";
 
 export type ArtilleryMuzzleSeekCoords = { x: number; y: number; z: number };
 
-export type ArtyFiredMsg = {
-  shellId: number;
-  ownerId: string;
-  fromX: number;
-  fromZ: number;
-  toX: number;
-  toZ: number;
-  flightMs: number;
-};
+export type ArtyFiredMsg = ArtilleryFired;
 
 export type ArtyImpactKind = "water" | "hit" | "island";
 
@@ -33,6 +26,7 @@ type FlyingShell = {
   flightMs: number;
   ax: number;
   az: number;
+  ay: number;
   bx: number;
   bz: number;
 };
@@ -54,12 +48,12 @@ export function createArtilleryFx(scene: THREE.Scene, fx: FxSystem): {
   onFired: (msg: ArtyFiredMsg) => void;
   onImpact: (msg: ArtyImpactMsg, options?: ArtyImpactOptions) => void;
   getStats: () => { activeShells: number };
-  /** Nach `createVisualRuntime`: Mündung aus Mount-GLB (`bf_muzzle`), sonst Fallback Socket-XZ. */
-  setMuzzleSeekResolver: (fn: ((ownerId: string) => ArtilleryMuzzleSeekCoords | null) | null) => void;
+  /** Nach `createVisualRuntime`: Mündung aus Mount-GLB (`bf_muzzle`), sonst Fallback Server-Mündung. */
+  setMuzzleSeekResolver: (fn: ((ownerId: string, slotId: string) => ArtilleryMuzzleSeekCoords | null) | null) => void;
 } & GameRenderer<never> {
   const flying: FlyingShell[] = [];
   const shellMat = createArtilleryShellMaterial();
-  let resolveMuzzleSeek: ((ownerId: string) => ArtilleryMuzzleSeekCoords | null) | null = null;
+  let resolveMuzzleSeek: ((ownerId: string, slotId: string) => ArtilleryMuzzleSeekCoords | null) | null = null;
 
   function removeShellById(shellId: number): void {
     const idx = flying.findIndex((f) => f.shellId === shellId);
@@ -89,7 +83,7 @@ export function createArtilleryFx(scene: THREE.Scene, fx: FxSystem): {
       const x = f.ax + (f.bx - f.ax) * u;
       const z = f.az + (f.bz - f.az) * u;
       const arcH = Math.sin(u * Math.PI) * 22;
-      f.mesh.position.set(worldToRenderX(x), 10 + arcH, z);
+      f.mesh.position.set(worldToRenderX(x), f.ay * (1 - u) + arcH, z);
     }
   }
 
@@ -118,16 +112,17 @@ export function createArtilleryFx(scene: THREE.Scene, fx: FxSystem): {
       const dz = msg.toZ - msg.fromZ;
       const len = Math.hypot(dx, dz);
       const headingRad = len > 1e-6 ? Math.atan2(dx, dz) : 0;
-      const muzzle = resolveMuzzleSeek?.(msg.ownerId);
+      const muzzle = msg.slotId ? resolveMuzzleSeek?.(msg.ownerId, msg.slotId) : null;
       const mx = muzzle ? muzzle.x : msg.fromX;
       const mz = muzzle ? muzzle.z : msg.fromZ;
-      fx.spawnArtilleryMuzzle(mx, mz, headingRad, muzzle?.y);
+      const my = muzzle?.y ?? msg.fromY ?? 10;
+      fx.spawnArtilleryMuzzle(mx, mz, headingRad, my);
 
       const r = 1.75;
       /** Wenige Flächen — reicht für kleinen Tracer, günstiger als Kugel-Mesh. */
       const geo = new THREE.OctahedronGeometry(r, 0);
       const mesh = new THREE.Mesh(geo, shellMat.clone());
-      mesh.position.set(worldToRenderX(msg.fromX), 12, msg.fromZ);
+      mesh.position.set(worldToRenderX(mx), my, mz);
       mesh.castShadow = true;
       scene.add(mesh);
       flying.push({
@@ -135,8 +130,9 @@ export function createArtilleryFx(scene: THREE.Scene, fx: FxSystem): {
         mesh,
         start: performance.now(),
         flightMs: Math.max(80, msg.flightMs),
-        ax: msg.fromX,
-        az: msg.fromZ,
+        ax: mx,
+        ay: my,
+        az: mz,
         bx: msg.toX,
         bz: msg.toZ,
       });

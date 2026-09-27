@@ -1,0 +1,552 @@
+{
+  "cruiser": {
+    "contractVersion": 2,
+    "sourceSha256": "6bae752ab29159c04411b75b1e39f28fd717f9234ed95b17dcaba84fef5cf7e7",
+    "sockets": {
+      "ciws_fwd": {
+        "position": {
+          "x": 0,
+          "y": 6.919812739894406,
+          "z": 46.15038807606033
+        },
+        "eulerRad": {
+          "x": 0,
+          "y": 0,
+          "z": 0
+        }
+      },
+      "main_fwd": {
+        "position": {
+          "x": 0,
+          "y": 4.0076876545695255,
+          "z": 56.86643330109796
+        },
+        "eulerRad": {
+          "x": 0,
+          "y": 0,
+          "z": 0
+        }
+      },
+      "sam_aft": {
+        "position": {
+          "x": 0,
+          "y": 7.364460951367479,
+          "z": -60.99631564992384
+        },
+        "eulerRad": {
+          "x": -3.141592653589793,
+          "y": 0,
+          "z": -3.141592653589793
+        }
+      }
+    },
+    "rails": {
+      "ssm_rail_port": {
+        "position": {
+          "x": -4.250109880000964,
+          "y": 1.4167032933336545,
+          "z": 6.611282035557054
+        },
+        "eulerRad": {
+          "x": 0,
+          "y": -0.17453292519943298,
+          "z": 0
+        }
+      },
+      "ssm_rail_starboard": {
+        "position": {
+          "x": 4.250109880000964,
+          "y": 1.4167032933336545,
+          "z": 6.611282035557054
+        },
+        "eulerRad": {
+          "x": 0,
+          "y": 0.17453292519943298,
+          "z": 0
+        }
+      }
+    },
+    "effects": {
+      "wake": {
+        "position": {
+          "x": 0,
+          "y": 0,
+          "z": -88.85383085586786
+        },
+        "eulerRad": {
+          "x": 0,
+          "y": 0,
+          "z": 0
+        }
+      }
+    }
+  },
+  "cruiser_artillery": {
+    "contractVersion": 2,
+    "sourceSha256": "141b1de2f006ba69fbf0e737f8b774cb6e0662dd17e2c3b6c4b87daeca4f54ed",
+    "sockets": {},
+    "rails": {},
+    "effects": {
+      "muzzle": {
+        "position": {
+          "x": 0,
+          "y": 1.8765195608139038,
+          "z": 8.780136108398438
+        },
+        "eulerRad": {
+          "x": 0,
+          "y": 0,
+          "z": 0
+        }
+      },
+      "yaw": {
+        "position": {
+          "x": 0,
+          "y": 0,
+          "z": 0
+        },
+        "eulerRad": {
+          "x": 0,
+          "y": 0,
+          "z": 0
+        }
+      }
+    }
+  },
+  "cruiser_ciws": {
+    "contractVersion": 2,
+    "sourceSha256": "9de7d7716b4caf3066fb9e31afe32b1bc5494b63cfb85b25115961e4849be7c5",
+    "sockets": {},
+    "rails": {},
+    "effects": {
+      "muzzle": {
+        "position": {
+          "x": 0.13898149,
+          "y": 1.34,
+          "z": 2.12864558
+        },
+        "eulerRad": {
+          "x": 0,
+          "y": 0,
+          "z": 0
+        }
+      },
+      "yaw": {
+        "position": {
+          "x": 0,
+          "y": 0,
+          "z": 0
+        },
+        "eulerRad": {
+          "x": 0,
+          "y": 0,
+          "z": 0
+        }
+      }
+    }
+  },
+  "cruiser_sam": {
+    "contractVersion": 2,
+    "sourceSha256": "d2d3f5941277475e66fd6a882043c343823f47455b8917d8f051ecb44e9006ca",
+    "sockets": {},
+    "rails": {},
+    "effects": {
+      "muzzle": {
+        "position": {
+          "x": 0,
+          "y": 3.6,
+          "z": 2.90904987
+        },
+        "eulerRad": {
+          "x": 0,
+          "y": 0,
+          "z": 0
+        }
+      },
+      "yaw": {
+        "position": {
+          "x": 0,
+          "y": 0,
+          "z": 0
+        },
+        "eulerRad": {
+          "x": 0,
+          "y": 0,
+          "z": 0
+        }
+      }
+    }
+  },
+  "cruiser_ssm": {
+    "contractVersion": 2,
+    "sourceSha256": "381c20dec1999174bdb9fe8049685d013d84314c6fa220182f68232bd99c18cd",
+    "sockets": {},
+    "rails": {},
+    "effects": {
+      "muzzle": {
+        "position": {
+          "x": 0,
+          "y": 0,
+          "z": 2.0999999046325684
+        },
+        "eulerRad": {
+          "x": 0,
+          "y": 0,
+          "z": 0
+        }
+      }
+    }
+  },
+  "gepard": {
+    "contractVersion": 2,
+    "sourceSha256": "a69102976f83e1c432400ce4b3568d80d4f316b04caef138464d0b694cc1f5ea",
+    "sockets": {
+      "ciws_aft": {
+        "position": {
+          "x": 0,
+          "y": 2.231324023803075,
+          "z": -24.32940317524804
+        },
+        "eulerRad": {
+          "x": -3.141592653589793,
+          "y": 8.742278367890315e-8,
+          "z": -3.141592653589793
+        }
+      },
+      "main_fwd": {
+        "position": {
+          "x": 0,
+          "y": 3.4566508136855227,
+          "z": 17.973541666666666
+        },
+        "eulerRad": {
+          "x": 0,
+          "y": 0,
+          "z": 0
+        }
+      }
+    },
+    "rails": {
+      "ssm_rail_port": {
+        "position": {
+          "x": 0,
+          "y": 2.2830490648084214,
+          "z": -18.963389683829412
+        },
+        "eulerRad": {
+          "x": 0,
+          "y": -0.7853981830119013,
+          "z": 0
+        }
+      },
+      "ssm_rail_starboard": {
+        "position": {
+          "x": 0,
+          "y": 2.35896215862698,
+          "z": -11.044611508581372
+        },
+        "eulerRad": {
+          "x": 0,
+          "y": 0.7853981830119013,
+          "z": 0
+        }
+      }
+    },
+    "effects": {
+      "wake": {
+        "position": {
+          "x": 0,
+          "y": 0,
+          "z": -30.007999205059473
+        },
+        "eulerRad": {
+          "x": 0,
+          "y": 0,
+          "z": 0
+        }
+      }
+    }
+  },
+  "gepard_artillery": {
+    "contractVersion": 2,
+    "sourceSha256": "14a49c0732ce8c40ce877eb4d3c2575d114fdcaa3eecb16bca1dc131314a182d",
+    "sockets": {},
+    "rails": {},
+    "effects": {
+      "muzzle": {
+        "position": {
+          "x": 0,
+          "y": 1.9901138541102408,
+          "z": 5.001333532068464
+        },
+        "eulerRad": {
+          "x": 0,
+          "y": 0,
+          "z": 0
+        }
+      },
+      "yaw": {
+        "position": {
+          "x": 0,
+          "y": 0,
+          "z": 0
+        },
+        "eulerRad": {
+          "x": 0,
+          "y": 0,
+          "z": 0
+        }
+      }
+    }
+  },
+  "gepard_exocet": {
+    "contractVersion": 2,
+    "sourceSha256": "035eaeac6bfacfef8746653a57be9b1f327ec742cc847a26c1a00034df3dd28d",
+    "sockets": {},
+    "rails": {},
+    "effects": {
+      "muzzle": {
+        "position": {
+          "x": 0,
+          "y": 1.4899805009033944,
+          "z": 2.8340889186991585
+        },
+        "eulerRad": {
+          "x": 0,
+          "y": 0,
+          "z": 0
+        }
+      }
+    }
+  },
+  "gepard_pdms": {
+    "contractVersion": 2,
+    "sourceSha256": "77f839a28a511b63b4cd773f28a50ce98282c2794e0c6cc915b9c032a8c494f2",
+    "sockets": {},
+    "rails": {},
+    "effects": {
+      "muzzle": {
+        "position": {
+          "x": 0,
+          "y": 2.167244364950392,
+          "z": 1.3336888590786191
+        },
+        "eulerRad": {
+          "x": 0,
+          "y": 0,
+          "z": 0
+        }
+      },
+      "yaw": {
+        "position": {
+          "x": 0,
+          "y": 0,
+          "z": 0
+        },
+        "eulerRad": {
+          "x": 0,
+          "y": 0,
+          "z": 0
+        }
+      }
+    }
+  },
+  "spruance": {
+    "contractVersion": 2,
+    "sourceSha256": "6aa8b7f5b1730a265b70793d2efc6a471b15ce23ea14abd36676062f7a75d749",
+    "sockets": {
+      "ciws_fwd": {
+        "position": {
+          "x": -4.752475380828093,
+          "y": 8.38672102504368,
+          "z": 12.58008153756552
+        },
+        "eulerRad": {
+          "x": 0,
+          "y": 0,
+          "z": 0
+        }
+      },
+      "main_fwd": {
+        "position": {
+          "x": 0,
+          "y": 5.456610286937041,
+          "z": 44.030285381479324
+        },
+        "eulerRad": {
+          "x": 0,
+          "y": 0,
+          "z": 0
+        }
+      },
+      "sam_aft": {
+        "position": {
+          "x": 0,
+          "y": 4.150889401666356,
+          "z": -46.12696563774025
+        },
+        "eulerRad": {
+          "x": -3.141592653589793,
+          "y": 8.742278367890314e-8,
+          "z": -3.141592653589793
+        }
+      }
+    },
+    "rails": {
+      "ssm_rail_port": {
+        "position": {
+          "x": -3.2847989348387676,
+          "y": 7.827606156737429,
+          "z": -1.04834012813046
+        },
+        "eulerRad": {
+          "x": 0,
+          "y": -1.5707961575502394,
+          "z": 0
+        }
+      },
+      "ssm_rail_starboard": {
+        "position": {
+          "x": 3.2847989348387676,
+          "y": 7.827606156737429,
+          "z": -1.04834012813046
+        },
+        "eulerRad": {
+          "x": 0,
+          "y": 1.5707959896201085,
+          "z": 0
+        }
+      }
+    },
+    "effects": {
+      "wake": {
+        "position": {
+          "x": 0,
+          "y": 0,
+          "z": -59.99999893357327
+        },
+        "eulerRad": {
+          "x": 0,
+          "y": 0,
+          "z": 0
+        }
+      }
+    }
+  },
+  "spruance_harpoon": {
+    "contractVersion": 2,
+    "sourceSha256": "4b1e0a0207f39f0ae2969173291ddda558900edb5b5bd2a577005d81502f514a",
+    "sockets": {},
+    "rails": {},
+    "effects": {
+      "muzzle": {
+        "position": {
+          "x": 0,
+          "y": 2.0267909810372267,
+          "z": 1.6983110542275146
+        },
+        "eulerRad": {
+          "x": 0,
+          "y": 0,
+          "z": 0
+        }
+      }
+    }
+  },
+  "spruance_mk45": {
+    "contractVersion": 2,
+    "sourceSha256": "61965d3e3e92eac46cb9bf3a53a794cdff7af6e958c1e5ab1b1373fcc3609c37",
+    "sockets": {},
+    "rails": {},
+    "effects": {
+      "muzzle": {
+        "position": {
+          "x": 0,
+          "y": 1.8380897713040778,
+          "z": 5.381479191099688
+        },
+        "eulerRad": {
+          "x": 0,
+          "y": 0,
+          "z": 0
+        }
+      },
+      "yaw": {
+        "position": {
+          "x": 0,
+          "y": 0,
+          "z": 0
+        },
+        "eulerRad": {
+          "x": 0,
+          "y": 0,
+          "z": 0
+        }
+      }
+    }
+  },
+  "spruance_phalanx": {
+    "contractVersion": 2,
+    "sourceSha256": "5aa84aefb818f354e66a9b0c0c18d83bd5c14e9a09ad400016b55b6e89789072",
+    "sockets": {},
+    "rails": {},
+    "effects": {
+      "muzzle": {
+        "position": {
+          "x": 0,
+          "y": 1.083284765742307,
+          "z": 1.991846176796204
+        },
+        "eulerRad": {
+          "x": 0,
+          "y": 0,
+          "z": 0
+        }
+      },
+      "yaw": {
+        "position": {
+          "x": 0,
+          "y": 0,
+          "z": 0
+        },
+        "eulerRad": {
+          "x": 0,
+          "y": 0,
+          "z": 0
+        }
+      }
+    }
+  },
+  "spruance_seasparrow": {
+    "contractVersion": 2,
+    "sourceSha256": "8b16ad7bd30c492bce14bb075fab3a3ddbcdb16b3f2618dd1f678b2b0ff66f7f",
+    "sockets": {},
+    "rails": {},
+    "effects": {
+      "muzzle": {
+        "position": {
+          "x": 0,
+          "y": 1.9289458290948795,
+          "z": 1.258008120430717
+        },
+        "eulerRad": {
+          "x": 0,
+          "y": 0,
+          "z": 0
+        }
+      },
+      "yaw": {
+        "position": {
+          "x": 0,
+          "y": 0,
+          "z": 0
+        },
+        "eulerRad": {
+          "x": 0,
+          "y": 0,
+          "z": 0
+        }
+      }
+    }
+  }
+}

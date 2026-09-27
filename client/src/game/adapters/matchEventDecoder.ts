@@ -22,8 +22,13 @@ function airDefense(payload: Record<string, unknown>): AirDefenseNotice | null {
   const layer = typeof payload.layer === "string" ? payload.layer.toLowerCase() : "";
   if (x === null || z === null || payload.weapon !== "aswm" ||
     (layer !== "sam" && layer !== "pd" && layer !== "ciws")) return null;
+  const hasMount = [payload.slotId, payload.fromX, payload.fromY, payload.fromZ].some(v => v !== undefined);
+  if (hasMount && (typeof payload.slotId !== "string" || !payload.slotId || !finite(payload.fromX) ||
+    !finite(payload.fromY) || !finite(payload.fromZ))) return null;
   return {
     x, z, layer,
+    ...(hasMount ? { slotId: payload.slotId as string, fromX: payload.fromX as number,
+      fromY: payload.fromY as number, fromZ: payload.fromZ as number } : {}),
     defenderX: compatibleNumber(payload.defenderX), defenderZ: compatibleNumber(payload.defenderZ),
     defenderId: typeof payload.defenderId === "string" ? payload.defenderId : null,
     missileId: compatibleNumber(payload.id) ?? compatibleNumber(payload.missileId),
@@ -45,7 +50,10 @@ export function decodeMatchEvent(type: unknown, raw: unknown): MatchPresentation
       const { shellId, ownerId, fromX, fromZ, toX, toZ, flightMs } = payload;
       if (!finite(shellId) || typeof ownerId !== "string" || !finite(fromX) || !finite(fromZ) ||
         !finite(toX) || !finite(toZ) || !finite(flightMs)) return null;
-      return { type, payload: { shellId, ownerId, fromX, fromZ, toX, toZ, flightMs } };
+      const hasMount = payload.slotId !== undefined || payload.fromY !== undefined;
+      if (hasMount && (typeof payload.slotId !== "string" || !payload.slotId || !finite(payload.fromY))) return null;
+      return { type, payload: { shellId, ownerId, fromX, fromZ, toX, toZ, flightMs,
+        ...(hasMount ? { slotId: payload.slotId as string, fromY: payload.fromY as number } : {}) } };
     }
     case "artyImpact": {
       const { shellId, x, z } = payload;
@@ -53,7 +61,15 @@ export function decodeMatchEvent(type: unknown, raw: unknown): MatchPresentation
       const kind = payload.kind === "water" || payload.kind === "hit" || payload.kind === "island" ? payload.kind : undefined;
       return { type, payload: { shellId, x, z, kind } };
     }
-    case "aswmFired":
+    case "aswmFired": {
+      if (typeof payload.ownerId !== "string") return null;
+      const keys = ["missileId", "launcherId", "fromX", "fromY", "fromZ", "headingRad"] as const;
+      if (!keys.some(key => payload[key] !== undefined)) return { type, payload: { ownerId: payload.ownerId } };
+      const { missileId, launcherId, fromX, fromY, fromZ, headingRad } = payload;
+      if (typeof launcherId !== "string" || !launcherId || !finite(missileId) || !finite(fromX) ||
+        !finite(fromY) || !finite(fromZ) || !finite(headingRad)) return null;
+      return { type, payload: { ownerId: payload.ownerId, missileId, launcherId, fromX, fromY, fromZ, headingRad } };
+    }
     case "torpedoFired":
       return typeof payload.ownerId === "string" ? { type, payload: { ownerId: payload.ownerId } } : null;
     case "aswmImpact":

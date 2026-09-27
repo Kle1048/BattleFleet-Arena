@@ -5,6 +5,7 @@ import { testParticipants } from "../simulation/testParticipants.js";
 import { SchemaPublisher } from "./SchemaPublisher.js";
 
 const source = new SimulationState(), wire = new BattleState();
+source.islandsEnabled = false;
 const publisher = new SchemaPublisher(wire);
 const fixture = testParticipants("a", "b");
 for (const p of fixture.players.values()) source.participants.add(p, fixture.simulations.get(p.id)!);
@@ -22,7 +23,9 @@ assert.deepEqual(wire.torpedoList.at(0)!.toJSON(), source.torpedoList[0]);
 assert.deepEqual(wire.wreckList.at(0)!.toJSON(), source.wreckList[0]);
 const incremental = new BattleState();
 incremental.decode(wire.encodeAll());
+assert.equal(incremental.islandsEnabled, false);
 wire.discardAllChanges();
+source.islandsEnabled = true;
 // Every copied field is exercised, not only the ones changed by the combat fixture.
 for (const key of Object.keys(a) as (keyof typeof a)[]) {
   if (key === "id") continue;
@@ -33,6 +36,7 @@ publisher.publish(source);
 assert.equal(wire.playerList.at(0), wireA, "existing schema object remains stable");
 assert.deepEqual(wireA.toJSON(), a);
 incremental.decode(wire.encode());
+assert.equal(incremental.islandsEnabled, true);
 assert.deepEqual(incremental.toJSON(), wire.toJSON(), "changed scalar fields survive delta encoding");
 wire.discardAllChanges();
 const authoritativeHp = a.hp;

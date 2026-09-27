@@ -29,6 +29,7 @@ import { createIslandGltfInstance, loadIslandGltfTemplate } from "./islandGltfVi
 import { createAsyncAssetCache, fetchAssetBytes } from "../runtime/asyncAssetCache";
 import { disposeVisualResources } from "./shipVisualResources";
 import { ownWaterReflectionTarget } from "./waterReflectionOwner";
+import { resetThirdPersonCamera, updateThirdPersonCamera } from "../runtime/thirdPersonCamera";
 
 export type { LightingPresetId } from "./lightingPresets";
 
@@ -56,7 +57,7 @@ export const SHIP_CAMERA_PIVOT_LOCAL_Z = SHIP_BOW_Z - SHIP_LENGTH / 6;
 
 export type GameSceneBundle = {
   dispose: () => void;
-  /** Optional assets have settled; normal startup deliberately does not wait for this. */
+  /** Assets requested so far have settled; read after enabling islands to include them. */
   assetsReady: Promise<void>;
   scene: THREE.Scene;
   camera: THREE.PerspectiveCamera;
@@ -71,6 +72,7 @@ export type GameSceneBundle = {
   applyEnvironmentTuning: (patch: Partial<EnvironmentTuning>) => void;
   /** Rote AO-Linie — `half` = `room.state.operationalAreaHalfExtent` (Server). */
   setOperationalAreaHalfExtent: (halfExtent: number) => void;
+  setIslandsEnabled: (enabled: boolean) => void;
 };
 
 function applyFog(
@@ -221,7 +223,11 @@ export function artilleryFxCullRadiusSq(
   return r * r;
 }
 
-export async function createGameScene(options: { environmentTuning?: Readonly<EnvironmentTuning> } = {}): Promise<GameSceneBundle> {
+export async function createGameScene(options: {
+  environmentTuning?: Readonly<EnvironmentTuning>;
+  /** Explicit opt-in for tools; gameplay enables terrain from the authoritative round state. */
+  islandsEnabled?: boolean;
+} = {}): Promise<GameSceneBundle> {
   let disposed = false;
   const normalCache = createAsyncAssetCache({
     async load(url: string, signal) {
@@ -341,29 +347,42 @@ export async function createGameScene(options: { environmentTuning?: Readonly<En
   assetJobs.push(normalCache.load(`${import.meta.env?.BASE_URL ?? "/"}textures/waternormals.jpg`).then((texture) => {
     if (texture && !disposed) (water.material as THREE.ShaderMaterial).uniforms.normalSampler!.value = texture;
   }));
-  let islandIdx = 0;
-  for (const is of DEFAULT_MAP_ISLANDS) {
-    const glbIsland = createIslandGltfInstance(islandIdx, is.radius);
-    const island = glbIsland ?? createIslandMesh(is.radius);
-    island.position.set(worldToRenderX(is.x), 0, is.z);
-    island.name = `island_${is.id}`;
-    scene.add(island);
-    const index = islandIdx;
-    assetJobs.push(loadIslandGltfTemplate(index).then(() => {
-      if (disposed || glbIsland) return;
-      const replacement = createIslandGltfInstance(index, is.radius);
-      if (!replacement) return;
-      replacement.position.copy(island.position);
-      replacement.name = island.name;
-      scene.add(replacement);
-      disposeVisualResources(island);
-    }));
-    islandIdx += 1;
-  }
-
-  const islandCollisionPolygonGroup = createIslandCollisionPolygonOverlay();
+  const islandRoot = new THREE.Group();
+  islandRoot.name = "mapIslands";
+  islandRoot.visible = false;
+  scene.add(islandRoot);
+  // Keep the debug handle stable, but allocate no terrain/overlay geometry or GLBs
+  // until a round actually needs islands. Retain once loaded for later rounds.
+  const islandCollisionPolygonGroup = new THREE.Group();
+  islandCollisionPolygonGroup.name = "island_collision_polygons";
   islandCollisionPolygonGroup.visible = false;
-  scene.add(islandCollisionPolygonGroup);
+  islandRoot.add(islandCollisionPolygonGroup);
+  let islandsInitialized = false;
+  const setIslandsEnabled = (enabled: boolean): void => {
+    if (disposed) return;
+    islandRoot.visible = enabled;
+    if (!enabled || islandsInitialized) return;
+    islandsInitialized = true;
+    populateIslandCollisionPolygonOverlay(islandCollisionPolygonGroup);
+    DEFAULT_MAP_ISLANDS.forEach((is, index) => {
+      const glbIsland = createIslandGltfInstance(index, is.radius);
+      const island = glbIsland ?? createIslandMesh(is.radius);
+      island.position.set(worldToRenderX(is.x), 0, is.z);
+      island.name = `island_${is.id}`;
+      islandRoot.add(island);
+      if (glbIsland) return;
+      assetJobs.push(loadIslandGltfTemplate(index).then(() => {
+        if (disposed) return;
+        const replacement = createIslandGltfInstance(index, is.radius);
+        if (!replacement) return;
+        replacement.position.copy(island.position);
+        replacement.name = island.name;
+        islandRoot.add(replacement);
+        disposeVisualResources(island);
+      }));
+    });
+  };
+  setIslandsEnabled(options.islandsEnabled ?? false);
 
   const ambient = new THREE.AmbientLight(0xffffff, 0.5);
   const sun = new THREE.DirectionalLight(0xffffff, 1);
@@ -390,7 +409,7 @@ export async function createGameScene(options: { environmentTuning?: Readonly<En
   };
 
   return {
-    assetsReady: Promise.all(assetJobs).then(() => {}),
+    get assetsReady() { return Promise.all(assetJobs).then(() => {}); },
     dispose() {
       if (disposed) return;
       disposed = true;
@@ -412,13 +431,12 @@ export async function createGameScene(options: { environmentTuning?: Readonly<En
     getEnvironmentTuning,
     applyEnvironmentTuning,
     setOperationalAreaHalfExtent,
+    setIslandsEnabled,
   };
 }
 
 /** `DEFAULT_MAP_ISLAND_POLYGONS` in Render-XZ (wie AO-Rand / Insel-GLBs). */
-function createIslandCollisionPolygonOverlay(): THREE.Group {
-  const group = new THREE.Group();
-  group.name = "island_collision_polygons";
+function populateIslandCollisionPolygonOverlay(group: THREE.Group): void {
   const y = 0.26;
   const mat = new THREE.LineBasicMaterial({
     color: 0x33ddff,
@@ -437,7 +455,6 @@ function createIslandCollisionPolygonOverlay(): THREE.Group {
     line.name = `island_collision_${poly.id}`;
     group.add(line);
   }
-  return group;
 }
 
 function createIslandMesh(radius: number): THREE.Group {
@@ -495,6 +512,7 @@ let headUpSmoothedHeadingRad: number | null = null;
 
 export function resetFollowCameraSmoothing(): void {
   headUpSmoothedHeadingRad = null;
+  resetThirdPersonCamera();
 }
 
 /**
@@ -509,6 +527,11 @@ export function updateFollowCamera(
   shipHeading: number,
   dtMs: number,
 ): void {
+  if (getFollowCameraTuning().mode === "thirdPerson") {
+    updateThirdPersonCamera(camera, shipX, shipZ, shipHeading);
+    return;
+  }
+  resetThirdPersonCamera();
   const { pitchDeg, northUp, heightAbovePivot: h, headUpYawLagSec } = getFollowCameraTuning();
   const fwdX = Math.sin(shipHeading);
   const fwdZ = Math.cos(shipHeading);

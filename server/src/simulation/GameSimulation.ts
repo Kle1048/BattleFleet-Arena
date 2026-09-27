@@ -4,6 +4,7 @@ import type { InputCommand as InputPayload, GameEventSink, PlayerValues } from "
 import type { SimulationEnvironment } from "./SimulationEnvironment.js";
 import type { SimulationSettings, MatchPlayerResult } from "./SimulationSettings.js";
 import { SimulationState } from "./SimulationState.js";
+import { DEFAULT_MAP_ISLAND_POLYGONS } from "@battlefleet/shared/rules";
 import { createParticipant } from "./createParticipant.js";
 import { resetMagazine } from "./systems/magazine.js";
 import { BotSystem } from "./systems/BotSystem.js";
@@ -15,6 +16,8 @@ import { ArtillerySystem } from "./systems/ArtillerySystem.js";
 import { MissileSystem } from "./systems/MissileSystem.js";
 import { MineSystem } from "./systems/MineSystem.js";
 import { AirDefenseSystem } from "./systems/AirDefenseSystem.js";
+
+const NO_ISLANDS: typeof DEFAULT_MAP_ISLAND_POLYGONS = [];
 
 function clampUnit(n: number): number {
   return Math.max(-1, Math.min(1, n));
@@ -28,6 +31,7 @@ function clampRange(n: number, min: number, max: number): number {
 export class GameSimulation {
   readonly state = new SimulationState();
   readonly participants = this.state.participants;
+  private readonly getIslandPolygons = () => this.state.islandsEnabled ? DEFAULT_MAP_ISLAND_POLYGONS : NO_ISLANDS;
   private readonly progression = new ProgressionSystem(this.participants, {
     intervalMs: () => this.settings.getPassiveXpIntervalMs(),
     base: () => this.settings.getPassiveXpBase(),
@@ -43,9 +47,9 @@ export class GameSimulation {
     grantKill: (player) => this.progression.grantKill(player),
     clearOwnedShells: (id) => this.artillery.removeOwner(id),
     addWreck: (values) => { this.state.wreckList.push(values); },
-  }, () => this.environment.random());
+  }, () => this.environment.random(), this.getIslandPolygons);
   private readonly movement = new MovementSystem(this.participants, this.life,
-    (id, kind) => this.events.send(id, "collisionContact", { kind }));
+    (id, kind) => this.events.send(id, "collisionContact", { kind }), this.getIslandPolygons);
 
   readonly bots: BotSystem;
   private artillery!: ArtillerySystem;
@@ -71,16 +75,17 @@ export class GameSimulation {
   }
 
   start(): void {
+    this.state.islandsEnabled = this.settings.getIslandsEnabled();
     this.syncOperationalAreaHalfExtent();
     this.defense = new AirDefenseSystem(this.participants, this.environment, this.events, () => this.settings.getSamCooldownMs());
     this.mines = new MineSystem(this.participants, this.state.torpedoList, this.state.wreckList,
       this.life, this.environment, this.events,
-      () => this.isMatchCombatActive(), () => this.getOperationalHalfExtent());
+      () => this.isMatchCombatActive(), () => this.getOperationalHalfExtent(), this.getIslandPolygons);
     this.missiles = new MissileSystem(this.participants, this.state.missileList, this.state.wreckList,
       this.life, this.defense, this.environment, this.events,
-      () => this.isMatchCombatActive(), () => this.getOperationalHalfExtent());
+      () => this.isMatchCombatActive(), () => this.getOperationalHalfExtent(), this.getIslandPolygons);
     this.artillery = new ArtillerySystem(this.participants, this.life, this.environment, this.events,
-      () => this.isMatchCombatActive(), (x, z) => this.mines.disarmAt(x, z));
+      () => this.isMatchCombatActive(), (x, z) => this.mines.disarmAt(x, z), this.getIslandPolygons);
     this.match = new MatchSystem(this.state, this.nextMatchId);
     this.match.start(this.environment.nowMs(), this.settings.getMatchDurationMs(), false);
     this.progression.resetClock(this.environment.nowMs());
@@ -100,7 +105,7 @@ export class GameSimulation {
   join(sessionId: string, displayName: string): void {
     if (this.participants.players.has(sessionId)) throw new Error("Participant already joined");
     const { player, simulation } = createParticipant(sessionId, displayName, this.state.playerList,
-      this.settings.getOperationalAreaHalfExtent(this.state.playerList.length + 1), this.environment.random);
+      this.settings.getOperationalAreaHalfExtent(this.state.playerList.length + 1), this.environment.random, this.getIslandPolygons());
     this.participants.add(player, simulation);
     this.syncOperationalAreaHalfExtent();
   }
@@ -228,7 +233,7 @@ export class GameSimulation {
     const players = this.buildBotVisiblePlayerList();
     const missiles = this.buildBotMissileList();
     const torpedoes = this.buildBotTorpedoList();
-    this.bots.tick(now, players, missiles, torpedoes, this.getOperationalHalfExtent());
+    this.bots.tick(now, players, missiles, torpedoes, this.getOperationalHalfExtent(), this.state.islandsEnabled);
   }
 
   remove(sessionId: string): void {
@@ -284,6 +289,7 @@ export class GameSimulation {
 
   reset(now: number, force = false): void {
     if (!this.match.canRestart(force)) return;
+    this.state.islandsEnabled = this.settings.getIslandsEnabled();
 
     this.artillery.clear();
     this.missiles.clear();

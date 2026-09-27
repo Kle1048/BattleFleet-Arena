@@ -43,7 +43,7 @@ try {
   const before = getAdminConfig();
   for (const [route, method, body] of [
     ["status", "GET", undefined],
-    ["config", "PATCH", { matchDurationSec: 120 }],
+    ["config", "PATCH", { matchDurationSec: 120, islandsEnabled: false }],
     ["leaderboard/reset", "POST", { confirm: "RESET" }],
     ["round/restart", "POST", { confirm: "RESTART" }],
     ["future-endpoint", "POST", {}],
@@ -83,11 +83,19 @@ try {
     assert.equal(res.status, 200);
     assert((await res.json() as { config: unknown }).config);
   }
+  const invalidIslandPatch = await fetch(`${base}/api/admin/config`, {
+    method: "PATCH", headers: { ...auth, "content-type": "application/json" },
+    body: JSON.stringify({ islandsEnabled: "false", expectedRevision: 0 }),
+  });
+  assert.equal(invalidIslandPatch.status, 400);
+  await invalidIslandPatch.arrayBuffer();
+  assert.equal(getAdminConfig().islandsEnabled, false);
   const patch = await fetch(`${base}/api/admin/config`, {
     method: "PATCH", headers: { ...auth, "content-type": "application/json" },
-    body: JSON.stringify({ matchDurationSec: 120, expectedRevision: 0 }),
+    body: JSON.stringify({ matchDurationSec: 120, islandsEnabled: true, expectedRevision: 0 }),
   });
   assert.equal(patch.status, 200);
+  assert.equal(getAdminConfig().islandsEnabled, true);
   await patch.arrayBuffer();
   assert.equal(JSON.parse(readFileSync(path.join(dataDir, "admin-config.json"), "utf8")).config.matchDurationSec, 120);
   for (const [expectedRevision, status] of [[undefined, 428], [0, 409]] as const) {

@@ -1,4 +1,4 @@
-import type { ShipDebugTuning } from "./shipDebugTuning";
+import { DEFAULT_SHIP_DEBUG_TUNING, type ShipDebugTuning } from "./shipDebugTuning";
 
 const SHIP_STORAGE_KEY = "bfa.shipDebugTuning.v2";
 
@@ -8,12 +8,11 @@ export function loadPersistedShipTuning(): Partial<ShipDebugTuning> {
     if (!raw) return {};
     const parsed = JSON.parse(raw) as Partial<ShipDebugTuning>;
     if (!parsed || typeof parsed !== "object") return {};
-    // Old absolute wake positions are not offsets relative to the stern.
-    if (typeof parsed.wakeSpawnLocalZ === "number" && parsed.wakeSpawnLocalZ < -35) {
-      const { wakeSpawnLocalZ: _drop, ...rest } = parsed;
-      return rest;
-    }
-    return parsed;
+    return Object.fromEntries(Object.entries(parsed).filter(([key, value]) => {
+      if (!Object.hasOwn(DEFAULT_SHIP_DEBUG_TUNING, key)) return false;
+      const expected = DEFAULT_SHIP_DEBUG_TUNING[key as keyof ShipDebugTuning];
+      return typeof value === typeof expected && (typeof value !== "number" || Number.isFinite(value));
+    }));
   } catch { return {}; }
 }
 

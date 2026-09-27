@@ -4,14 +4,11 @@ import {
   ASWM_ACQUIRE_HALF_ANGLE_RAD,
   ASWM_ACQUIRE_CONE_LENGTH,
   pickAswmAcquisitionTarget,
-  pickAswmSideForFallbackFire,
-  pickAswmSideForFallbackFireForced,
   pickFixedSeaSkimmerLauncher,
   pickFixedSeaSkimmerLauncherWithAmmo,
   pickFixedSeaSkimmerLauncherWithAmmoForForcedSide,
   shipLocalToWorldXZ,
   spawnAswmFromFixedLauncher,
-  spawnAswmFromFireDirection,
   stepAswmMissile,
   isAswmMissileClosingOnWorldPoint,
 } from "./aswm";
@@ -69,16 +66,6 @@ import type { FixedSeaSkimmerLauncherSpec } from "./shipVisualLayout";
 assert.ok(ASWM_ACQUIRE_HALF_ANGLE_RAD > 0.5 && ASWM_ACQUIRE_HALF_ANGLE_RAD < 0.55);
 
 {
-  const p = spawnAswmFromFireDirection(0, 0, 0, 100, 0);
-  assert.ok(p.z > 15 && Math.abs(p.x) < 1e-5);
-}
-
-{
-  const p = spawnAswmFromFireDirection(0, 0, 100, 0, 0);
-  assert.ok(p.x > 15 && Math.abs(p.z) < 1);
-}
-
-{
   let x = 0;
   let z = 0;
   let headingRad = 0;
@@ -96,14 +83,12 @@ assert.ok(ASWM_ACQUIRE_HALF_ANGLE_RAD > 0.5 && ASWM_ACQUIRE_HALF_ANGLE_RAD < 0.5
     {
       id: "p",
       side: "port",
-      socket: { position: { x: -2, y: 0, z: 5 } },
-      launchYawRadFromBow: -Math.PI / 4,
+      socket: { position: { x: -2, y: 0, z: 5 }, eulerRad: { x: 0, y: -Math.PI / 4, z: 0 } },
     },
     {
       id: "s",
       side: "starboard",
-      socket: { position: { x: 2, y: 0, z: 5 } },
-      launchYawRadFromBow: Math.PI / 4,
+      socket: { position: { x: 2, y: 0, z: 5 }, eulerRad: { x: 0, y: Math.PI / 4, z: 0 } },
     },
   ];
   const h = 0;
@@ -118,14 +103,12 @@ assert.ok(ASWM_ACQUIRE_HALF_ANGLE_RAD > 0.5 && ASWM_ACQUIRE_HALF_ANGLE_RAD < 0.5
     {
       id: "p",
       side: "port",
-      socket: { position: { x: -2, y: 0, z: 5 } },
-      launchYawRadFromBow: -Math.PI / 4,
+      socket: { position: { x: -2, y: 0, z: 5 }, eulerRad: { x: 0, y: -Math.PI / 4, z: 0 } },
     },
     {
       id: "s",
       side: "starboard",
-      socket: { position: { x: 2, y: 0, z: 5 } },
-      launchYawRadFromBow: Math.PI / 4,
+      socket: { position: { x: 2, y: 0, z: 5 }, eulerRad: { x: 0, y: Math.PI / 4, z: 0 } },
     },
   ];
   const h = 0;
@@ -135,19 +118,6 @@ assert.ok(ASWM_ACQUIRE_HALF_ANGLE_RAD > 0.5 && ASWM_ACQUIRE_HALF_ANGLE_RAD < 0.5
   assert.equal(onlySb?.side, "starboard");
   const empty = pickFixedSeaSkimmerLauncherWithAmmo(paired, 50, 100, 0, 0, h, 0, 0);
   assert.equal(empty, null);
-}
-
-{
-  const side = pickAswmSideForFallbackFire(50, 100, 0, 0, 0, 0, 1);
-  assert.equal(side, "starboard");
-  assert.equal(pickAswmSideForFallbackFire(50, 100, 0, 0, 0, 1, 0), "port");
-  assert.equal(pickAswmSideForFallbackFire(50, 100, 0, 0, 0, 0, 0), null);
-}
-
-{
-  assert.equal(pickAswmSideForFallbackFireForced(1, 0, "port"), "port");
-  assert.equal(pickAswmSideForFallbackFireForced(0, 1, "port"), "starboard");
-  assert.equal(pickAswmSideForFallbackFireForced(0, 0, "port"), null);
 }
 
 {
@@ -171,6 +141,7 @@ assert.ok(ASWM_ACQUIRE_HALF_ANGLE_RAD > 0.5 && ASWM_ACQUIRE_HALF_ANGLE_RAD < 0.5
   const L: FixedSeaSkimmerLauncherSpec = {
     id: "t",
     side: "starboard",
+    equipment: { weaponId: "ssm", modelId: "gepard_exocet" },
     socket: { position: { x: 2, y: 0, z: 0 }, eulerRad: { x: 0, y: Math.PI / 4, z: 0 } },
   };
   const p = spawnAswmFromFixedLauncher(0, 0, 0, L);

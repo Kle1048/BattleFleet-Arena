@@ -1,0 +1,47 @@
+[
+  {
+    "part": "hull",
+    "triangles": 8756,
+    "texture_resolution": 1024,
+    "maps": [
+      "basecolor"
+    ],
+    "rust_patches": 0
+  },
+  {
+    "part": "artillery",
+    "triangles": 276,
+    "texture_resolution": 256,
+    "maps": [
+      "basecolor"
+    ],
+    "rust_patches": 0
+  },
+  {
+    "part": "ciws",
+    "triangles": 160,
+    "texture_resolution": 256,
+    "maps": [
+      "basecolor"
+    ],
+    "rust_patches": 0
+  },
+  {
+    "part": "sam",
+    "triangles": 164,
+    "texture_resolution": 256,
+    "maps": [
+      "basecolor"
+    ],
+    "rust_patches": 0
+  },
+  {
+    "part": "ssm",
+    "triangles": 248,
+    "texture_resolution": 256,
+    "maps": [
+      "basecolor"
+    ],
+    "rust_patches": 0
+  }
+]

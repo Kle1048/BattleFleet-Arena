@@ -270,8 +270,6 @@ export const en = {
       "FFA — win: highest score (passive + combat; center ×5). Kills count. \"Continue\": leave the room and reconnect.",
     /** matchEndHud.ts — score table `aria-label`. */
     tableAria: "Scoreboard",
-    /** matchEndHud.ts — all-time table `aria-label`. */
-    overallTableAria: "Overall leaderboard",
     /** matchEndHud.ts — table header: placement column. */
     colPlace: "#",
     /** matchEndHud.ts — table header: player name. */
@@ -286,18 +284,6 @@ export const en = {
     colScore: "Score",
     /** matchEndHud.ts — primary action button. */
     continue: "Continue",
-    /** matchEndHud.ts — section title below match result. */
-    overallTitle: "Top 10 overall",
-    /** matchEndHud.ts — loading text while API request runs. */
-    overallLoading: "Loading overall leaderboard...",
-    /** matchEndHud.ts — API failed or timed out. */
-    overallUnavailable: "Overall leaderboard unavailable right now.",
-    /** matchEndHud.ts — API succeeded but no stored rows yet. */
-    overallEmpty: "No overall entries yet.",
-    /** matchEndHud.ts — overall table header: wins total. */
-    colOverallWins: "Wins",
-    /** matchEndHud.ts — overall table header: played matches total. */
-    colOverallMatches: "Matches",
   },
 
   /** sessionLoadBackdrop.ts + main.ts — full-screen art under lobby / load. */

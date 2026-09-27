@@ -14,11 +14,9 @@ import {
   isAswmMissileClosingOnWorldPoint,
   getShipClassProfile,
   getAuthoritativeShipHullProfile,
-  hullProvidesAirDefenseCiwsLayer,
-  hullProvidesAirDefensePdLayer,
-  hullProvidesAirDefenseSamLayer,
   minDistSqPointToShipHitboxFootprintXZ,
-  missileBearingInHardkillLayerMountSector,
+  pickHardkillMountForTarget,
+  mountSlotMuzzleWorld,
 } from "@battlefleet/shared/rules";
 import type { GameEventSink, MissileValues } from "@battlefleet/shared/protocol";
 import type { CombatParticipants, ReadSequence } from "../CombatTypes.js";
@@ -206,54 +204,20 @@ export class AirDefenseSystem {
           tgt.x,
           tgt.z,
         );
-        const samAllowed =
-          samClosingOnDefender &&
-          defRow.radarActive &&
-          hullProvidesAirDefenseSamLayer(defenderHull) &&
-          missileBearingInHardkillLayerMountSector(
-            defenderHull,
-            adClassArc,
-            "sam",
-            tgt.x,
-            tgt.z,
-            tgt.headingRad,
-            m.x,
-            m.z,
-          );
-        const pdAllowed =
-          m.targetId === adDefenderId &&
-          hullProvidesAirDefensePdLayer(defenderHull) &&
-          missileBearingInHardkillLayerMountSector(
-            defenderHull,
-            adClassArc,
-            "pd",
-            tgt.x,
-            tgt.z,
-            tgt.headingRad,
-            m.x,
-            m.z,
-          );
-        const ciwsAllowed =
-          hullProvidesAirDefenseCiwsLayer(defenderHull) &&
-          missileBearingInHardkillLayerMountSector(
-            defenderHull,
-            adClassArc,
-            "ciws",
-            tgt.x,
-            tgt.z,
-            tgt.headingRad,
-            m.x,
-            m.z,
-          );
+        const eligibleMount = (layer: AirDefenseHardkillLayer) =>
+          pickHardkillMountForTarget(defenderHull, adClassArc, layer, tgt.x, tgt.z, tgt.headingRad, m.x, m.z);
+        const samMount = samClosingOnDefender && defRow.radarActive ? eligibleMount("sam") : null;
+        const pdMount = m.targetId === adDefenderId ? eligibleMount("pd") : null;
+        const ciwsMount = eligibleMount("ciws");
         const adInput = {
           distSq,
           nowMs: now,
           samNextAtMs: defRow.adSamNextAtMs,
           pdNextAtMs: defRow.adPdNextAtMs,
           ciwsNextAtMs: defRow.adCiwsNextAtMs,
-          samAllowed,
-          pdAllowed,
-          ciwsAllowed,
+          samAllowed: samMount !== null,
+          pdAllowed: pdMount !== null,
+          ciwsAllowed: ciwsMount !== null,
         };
 
         let airDefenseConsumed = false;
@@ -318,9 +282,11 @@ export class AirDefenseSystem {
         if (!airDefenseConsumed) {
           const layer = pickHardkillEngagementLayer(adInput);
           if (layer != null) {
-            const distCenterM = Math.hypot(m.x - tgt.x, m.z - tgt.z);
+            const mount = (layer === "sam" ? samMount : layer === "pd" ? pdMount : ciwsMount)!;
+            const muzzle = mountSlotMuzzleWorld(defenderHull!, mount.id, tgt.x, tgt.z, tgt.headingRad, m);
+            const distanceM = Math.hypot(m.x - muzzle.x, m.z - muzzle.z);
             const rollReadyAtMs =
-              layer === "ciws" ? now : now + computeSamPdInterceptTravelMs(distCenterM);
+              layer === "ciws" ? now : now + computeSamPdInterceptTravelMs(distanceM);
             const samCooldownReservedAtFire = layer === "sam";
             if (samCooldownReservedAtFire) {
               // Direkt beim Feuer: globalen SAM-Takt reservieren (verhindert mehrere SAM-Starts im selben Tick).
@@ -333,6 +299,7 @@ export class AirDefenseSystem {
               samCooldownReservedAtFire,
             });
             this.events.broadcast("airDefenseFire", {
+              slotId: mount.id, fromX: muzzle.x, fromY: muzzle.y, fromZ: muzzle.z,
               weapon: "aswm",
               id: m.missileId,
               defenderId: adDefenderId,

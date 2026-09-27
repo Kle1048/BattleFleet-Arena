@@ -46,10 +46,12 @@ export function wakeRibbonSternLocalZOrFallback(
   return z != null ? z : fallbackSternZ;
 }
 
-export function normalizeXZ(dx: number, dz: number): { x: number; z: number } {
+/** Optional output object lets render loops reuse scratch storage. */
+export function normalizeXZ(dx: number, dz: number, out = { x: 0, z: 1 }): { x: number; z: number } {
   const len = Math.hypot(dx, dz);
-  if (len < 1e-9) return { x: 0, z: 1 };
-  return { x: dx / len, z: dz / len };
+  out.x = len < 1e-9 ? 0 : dx / len;
+  out.z = len < 1e-9 ? 1 : dz / len;
+  return out;
 }
 
 /**
@@ -58,31 +60,32 @@ export function normalizeXZ(dx: number, dz: number): { x: number; z: number } {
 export function spineTangentXZ(
   pts: ReadonlyArray<{ x: number; z: number }>,
   i: number,
+  out = { x: 0, z: 1 },
 ): { x: number; z: number } {
   const n = pts.length;
-  if (n < 2) return { x: 0, z: 1 };
+  if (n < 2) return normalizeXZ(0, 0, out);
   const p0 = pts[0];
   const p1 = pts[1];
-  if (!p0 || !p1) return { x: 0, z: 1 };
+  if (!p0 || !p1) return normalizeXZ(0, 0, out);
   if (i <= 0) {
-    return normalizeXZ(p1.x - p0.x, p1.z - p0.z);
+    return normalizeXZ(p1.x - p0.x, p1.z - p0.z, out);
   }
   const plast = pts[n - 1];
   const pprev = pts[n - 2];
   if (i >= n - 1) {
-    if (!plast || !pprev) return { x: 0, z: 1 };
-    return normalizeXZ(plast.x - pprev.x, plast.z - pprev.z);
+    if (!plast || !pprev) return normalizeXZ(0, 0, out);
+    return normalizeXZ(plast.x - pprev.x, plast.z - pprev.z, out);
   }
   const a = pts[i - 1];
   const b = pts[i + 1];
-  if (!a || !b) return { x: 0, z: 1 };
-  return normalizeXZ(b.x - a.x, b.z - a.z);
+  if (!a || !b) return normalizeXZ(0, 0, out);
+  return normalizeXZ(b.x - a.x, b.z - a.z, out);
 }
 
 /**
  * Einheitlicher Normalenvektor in der XZ-Ebene zur Tangente (rechtsdrehend um +Y: „links“ vom Kurs).
  * Entspricht `normalize(cross(up, tangent))` mit `up = (0,1,0)` und Tangente `(tx,0,tz)`.
  */
-export function xzPerpendicularFromTangent(tx: number, tz: number): { x: number; z: number } {
-  return normalizeXZ(-tz, tx);
+export function xzPerpendicularFromTangent(tx: number, tz: number, out = { x: 0, z: 1 }): { x: number; z: number } {
+  return normalizeXZ(-tz, tx, out);
 }

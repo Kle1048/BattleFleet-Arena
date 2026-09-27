@@ -36,6 +36,7 @@ export class MineSystem {
     private readonly events: GameEventSink,
     private readonly isMatchCombatActive: () => boolean,
     private readonly getOperationalHalfExtent: () => number,
+    private readonly getIslandPolygons = () => DEFAULT_MAP_ISLAND_POLYGONS,
   ) {}
 
   clear(): void {
@@ -158,7 +159,7 @@ export class MineSystem {
           t.x,
           t.z,
           TORPEDO_ISLAND_COLLISION_RADIUS,
-          DEFAULT_MAP_ISLAND_POLYGONS,
+          this.getIslandPolygons(),
         ) ||
         circleIntersectsAnyWreckHitboxFootprintXZ(
           t.x,

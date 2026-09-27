@@ -1,0 +1,72 @@
+[
+  {
+    "modelId": "gepard",
+    "file": "gepard_source.glb",
+    "metresPerUnit": 1.0419444444444443
+  },
+  {
+    "modelId": "gepard_artillery",
+    "file": "gepard_artillery_source.glb",
+    "metresPerUnit": 1.0419444444444443
+  },
+  {
+    "modelId": "gepard_pdms",
+    "file": "gepard_pdms_source.glb",
+    "metresPerUnit": 1.0419444444444443
+  },
+  {
+    "modelId": "gepard_exocet",
+    "file": "gepard_exocet_source.glb",
+    "metresPerUnit": 1.0419444444444443
+  },
+  {
+    "modelId": "spruance",
+    "file": "spruance_source.glb",
+    "metresPerUnit": 0.6988934187536401
+  },
+  {
+    "modelId": "spruance_mk45",
+    "file": "spruance_mk45_source.glb",
+    "metresPerUnit": 0.6988934187536401
+  },
+  {
+    "modelId": "spruance_phalanx",
+    "file": "spruance_phalanx_source.glb",
+    "metresPerUnit": 0.6988934187536401
+  },
+  {
+    "modelId": "spruance_seasparrow",
+    "file": "spruance_seasparrow_source.glb",
+    "metresPerUnit": 0.6988934187536401
+  },
+  {
+    "modelId": "spruance_harpoon",
+    "file": "spruance_harpoon_source.glb",
+    "metresPerUnit": 0.6988934187536401
+  },
+  {
+    "modelId": "cruiser",
+    "file": "cruiser_source.glb",
+    "metresPerUnit": 0.9136881720430108
+  },
+  {
+    "modelId": "cruiser_artillery",
+    "file": "cruiser_artillery_source.glb",
+    "metresPerUnit": 0.9136881720430108
+  },
+  {
+    "modelId": "cruiser_ciws",
+    "file": "cruiser_ciws_source.glb",
+    "metresPerUnit": 0.9136881720430108
+  },
+  {
+    "modelId": "cruiser_sam",
+    "file": "cruiser_sam_source.glb",
+    "metresPerUnit": 0.9136881720430108
+  },
+  {
+    "modelId": "cruiser_ssm",
+    "file": "cruiser_ssm_source.glb",
+    "metresPerUnit": 0.9136881720430108
+  }
+]

@@ -7,13 +7,13 @@ type AirDefenseEvent = {
 };
 
 export interface GameEventMap {
-  artyFired: { shellId: number; ownerId: string; fromX: number; fromZ: number; toX: number; toZ: number; flightMs: number };
+  artyFired: { shellId: number; ownerId: string; slotId: string; fromX: number; fromY: number; fromZ: number; toX: number; toZ: number; flightMs: number };
   artyImpact: { shellId: number; x: number; z: number; kind: "water" | "hit" | "island" };
-  aswmFired: { missileId: number; ownerId: string };
+  aswmFired: { missileId: number; ownerId: string; launcherId: string; fromX: number; fromY: number; fromZ: number; headingRad: number };
   aswmImpact: Impact & { missileId: number };
   torpedoFired: { torpedoId: number; ownerId: string };
   torpedoImpact: Impact & { torpedoId: number };
-  airDefenseFire: AirDefenseEvent;
+  airDefenseFire: AirDefenseEvent & { slotId: string; fromX: number; fromY: number; fromZ: number };
   airDefenseIntercept: AirDefenseEvent;
   collisionContact: { kind: "island" | "ship" };
   missileLockOn: Empty;

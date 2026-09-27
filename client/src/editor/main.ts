@@ -14,7 +14,7 @@ import {
   type ShipHullVisualProfile,
 } from "@battlefleet/shared";
 import { createGameScene } from "../game/scene/createGameScene";
-import { createShipVisual, setShipVisualLifeState, type ShipVisual } from "../game/scene/shipVisual";
+import { createShipVisual, disposeShipVisual, setShipVisualLifeState, type ShipVisual } from "../game/scene/shipVisual";
 import { loadShipHullGltfSource, getShipHullGltfSourceForUrl } from "../game/scene/shipGltfHull";
 import {
   resolveShipHullGltfUrlForWorkbenchPreview,
@@ -55,6 +55,7 @@ async function boot(): Promise<void> {
 
   bindRendererResize(camera, renderer, appRoot);
 
+  camera.up.set(0, 1, 0);
   const controls = new OrbitControls(camera, renderer.domElement);
   controls.enableDamping = true;
   controls.dampingFactor = 0.08;
@@ -75,6 +76,7 @@ async function boot(): Promise<void> {
   }
 
   let vis: ShipVisual | null = null;
+  let framedModel: string | undefined;
 
   /** Rumpf-GLB nachladen, falls noch nicht im Cache (z. B. neues hullGltfId in der Live-Vorschau). */
   function mountShipWorkbench(shipClassId: ShipClassId): void {
@@ -97,12 +99,13 @@ async function boot(): Promise<void> {
 
   function mountShip(shipClassId: ShipClassId): void {
     if (vis) {
-      scene.remove(vis.group);
+      disposeShipVisual(vis);
       vis = null;
     }
     const hullSrc = getHullGltfTemplate(shipClassId);
     const next = createShipVisual({
       isLocal: true,
+      profile: getEffectiveHullProfile(shipClassId),
       shipClassId,
       hullGltfSource: hullSrc,
       getMountGltfTemplate,
@@ -111,6 +114,18 @@ async function boot(): Promise<void> {
     next.group.rotation.y = 0;
     setShipVisualLifeState(next, PlayerLifeState.Alive, true);
     scene.add(next.group);
+    const modelId = getEffectiveHullProfile(shipClassId)?.hullGltfId;
+    if (next.hullModel && modelId !== framedModel) {
+      // Bounds only frame the camera; they never normalize or reposition model geometry.
+      const sphere = new THREE.Box3().setFromObject(next.hullModel).getBoundingSphere(new THREE.Sphere());
+      const halfFov = THREE.MathUtils.degToRad(camera.fov / 2);
+      const limitingFov = Math.min(halfFov, Math.atan(Math.tan(halfFov) * camera.aspect));
+      const distance = Math.max(controls.minDistance, sphere.radius * 1.25 / Math.sin(limitingFov));
+      controls.target.copy(sphere.center);
+      camera.position.copy(new THREE.Vector3(0.9, 0.85, 1.2).normalize().multiplyScalar(distance).add(sphere.center));
+      controls.update();
+      framedModel = modelId;
+    }
     replaceWorkbenchShipMarkers(next, getEffectiveHullProfile(shipClassId));
     vis = next;
   }

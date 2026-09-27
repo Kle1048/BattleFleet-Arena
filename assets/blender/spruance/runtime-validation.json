@@ -1,54 +1,59 @@
 {
   "passed": true,
-  "assembledTriangles": 9500,
-  "hullDimensions": [
-    16.81999969482422,
-    48.30000019073486,
-    171.6999969482422
-  ],
-  "worldLength": 119.99999786714658,
-  "wakeWorldZ": -60,
-  "drawCalls": 6,
+  "contractVersion": 2,
+  "assembledTriangles": 9588,
   "checks": [
-    "actual game loader and mount attachment",
-    "embedded PNG textures and UVs",
-    "three independent rotating weapons; two visual-only aft mounts",
-    "eight Harpoon canisters",
-    "muzzle empties",
-    "exact socket agreement",
-    "metre-scale reconstruction",
-    "unchanged loadout / CIWS and SAM defense / sectors / movement / magazine / collision box"
+    "all catalog GLB hashes and generated markers",
+    "clean colour-only texture budget",
+    "UVs",
+    "assembled triangle budget"
   ],
+  "runtimeVerification": "npm test (modelRuntime.contract.test.ts)",
   "files": [
     {
-      "file": "client/public/assets/ships/hull_spruance.glb",
-      "triangles": 7500,
-      "bytes": 10069316,
-      "meshBatches": 1
+      "modelId": "spruance",
+      "triangles": 7858,
+      "bytes": 637616,
+      "embeddedImages": 1,
+      "images": 1,
+      "maxTextureSize": 1024,
+      "textureBytesRgba8WithMips": 5592404
     },
     {
-      "file": "client/public/assets/systems/mount_spruance_mk45.glb",
-      "triangles": 196,
-      "bytes": 1367508,
-      "meshBatches": 1
+      "modelId": "spruance_mk45",
+      "triangles": 246,
+      "bytes": 21072,
+      "embeddedImages": 1,
+      "images": 1,
+      "maxTextureSize": 256,
+      "textureBytesRgba8WithMips": 349524
     },
     {
-      "file": "client/public/assets/systems/mount_spruance_phalanx.glb",
+      "modelId": "spruance_phalanx",
       "triangles": 264,
-      "bytes": 1492792,
-      "meshBatches": 1
+      "bytes": 25188,
+      "embeddedImages": 1,
+      "images": 1,
+      "maxTextureSize": 256,
+      "textureBytesRgba8WithMips": 349524
     },
     {
-      "file": "client/public/assets/systems/mount_spruance_seasparrow.glb",
+      "modelId": "spruance_seasparrow",
       "triangles": 372,
-      "bytes": 1645800,
-      "meshBatches": 1
+      "bytes": 35416,
+      "embeddedImages": 1,
+      "images": 1,
+      "maxTextureSize": 256,
+      "textureBytesRgba8WithMips": 349524
     },
     {
-      "file": "client/public/assets/systems/mount_spruance_harpoon.glb",
-      "triangles": 584,
-      "bytes": 1644504,
-      "meshBatches": 1
+      "modelId": "spruance_harpoon",
+      "triangles": 424,
+      "bytes": 37404,
+      "embeddedImages": 1,
+      "images": 1,
+      "maxTextureSize": 256,
+      "textureBytesRgba8WithMips": 349524
     }
   ]
 }

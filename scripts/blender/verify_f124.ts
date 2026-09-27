@@ -1,13 +1,11 @@
-/** Geometry checks use the real BattleFleet loaders/attachment functions.
- * Textures are checked as embedded PNG payloads; Blender reimport checks appearance.
+/** Offline geometry audit of the archived V1 F124 prototype.
+ * Not a V2 runtime/attachment acceptance test. Migrate/register it before activation.
  */
 import fs from 'node:fs';
 import assert from 'node:assert/strict';
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
-import { clonePreparedShipHull } from '../../client/src/game/scene/shipGltfHull';
-import { attachMountVisualsToHullModel } from '../../client/src/game/scene/shipMountVisuals';
-import { readMarkedSocketTransformsFromHullGltf } from '../../client/src/game/scene/shipSocketGltf';
+import { extractModelMetadata } from "../models/extractModelMetadata";
 
 const root=process.cwd();
 const out=`${root}/assets/blender/f124`;
@@ -70,14 +68,14 @@ async function main() {
   assert(Math.abs(size.x-17.4)<.01,'Beam / +X starboard axis');
   const profile=JSON.parse(fs.readFileSync(`${out}/f124.profile.json`,'utf8'));
   const registry=JSON.parse(fs.readFileSync(`${out}/f124.mountSockets.json`,'utf8'));
-  const markers=readMarkedSocketTransformsFromHullGltf(src);
+  const markers=extractModelMetadata(fs.readFileSync(`${pub}/ships/hull_f124.glb`));
   for(const slot of profile.mountSlots) {
-    assert(markers.sockets.has(slot.id));
-    const p=markers.sockets.get(slot.id)!.position;
+    assert(Object.hasOwn(markers.sockets, slot.id));
+    const p=markers.sockets[slot.id]!.position;
     for(const a of ['x','y','z'] as const) assert(Math.abs(p[a]-registry[slot.id].position[a])<1e-4);
   }
   for(const rail of profile.fixedSeaSkimmerLaunchers) {
-    const marker=markers.rails.get(rail.id); assert(marker,rail.id+' rail marker missing');
+    const marker=markers.rails[rail.id]; assert(marker,rail.id+' rail marker missing');
     for(const a of ['x','y','z'] as const) assert(Math.abs(marker.position[a]-rail.socket.position[a])<1e-4);
     const e=marker.eulerRad ?? {x:0,y:0,z:0};
     const actual=new THREE.Quaternion().setFromEuler(new THREE.Euler(e.x,e.y,e.z));
@@ -89,33 +87,13 @@ async function main() {
   assert(gunSlot.socket.position.z>ramSlot.socket.position.z && ramSlot.socket.position.z>41,
     'Reference layout requires RAM between gun and VLS');
   const templates:Record<string,THREE.Group>={};
-  const metric:Record<string,THREE.Group>={};
   for(const key of ['76mm','ram','harpoon']) {
     templates['visual_f124_'+key]=await load(`${pub}/systems/mount_f124_${key}.glb`);
     assert(templates['visual_f124_'+key].getObjectByName('bf_muzzle'));
-    metric['visual_f124_'+key]=await load(`${out}/mount_f124_${key}_metric.glb`,false);
-  }
-  const prepared=clonePreparedShipHull(src);
-  const attachment=attachMountVisualsToHullModel(prepared,profile,id=>templates[id]);
-  assert.equal(attachment.rotatingMountTrains.length,3);
-  prepared.scale.multiplyScalar(profile.hullVisualScale);
-  prepared.position.y+=profile.clientVisualTuningDefaults.gltfHullYOffset;
-  prepared.updateMatrixWorld(true);
-  assert(Math.abs(prepared.scale.x-1)<1e-5);
-  assert(Math.abs(prepared.position.y)<1e-5);
-  for(const slot of profile.mountSlots) {
-    const anchor=prepared.getObjectByName('mount_'+slot.id)!; assert(anchor);
-    const expected=metric[slot.defaultVisualId].clone(true);
-    expected.position.copy(new THREE.Vector3(...(['x','y','z'].map(a=>slot.socket.position[a]) as [number,number,number])));
-    expected.updateMatrixWorld(true);
-    const actualBox=new THREE.Box3().setFromObject(anchor);
-    const expectedBox=new THREE.Box3().setFromObject(expected);
-    assert(actualBox.min.distanceTo(expectedBox.min)<.001,slot.id+' base/size mismatch');
-    assert(actualBox.max.distanceTo(expectedBox.max)<.001,slot.id+' top/size mismatch');
   }
   const assembledTriangles=reports[0].triangles+reports[1].triangles+2*reports[2].triangles+2*reports[3].triangles;
   assert(assembledTriangles<=10000,'Low-poly prototype budget exceeded');
-  fs.writeFileSync(`${out}/export-validation.json`,JSON.stringify({status:'pass',hullMetres:size.toArray(),assembledTriangles,checks:['single scene','embedded PNGs','UV coordinates','exact socket names and JSON agreement','rail positions and orientations','forward RAM ahead of VLS','separate open port and starboard funnels verified by GLB raycasts','unobstructed central passage','raised transverse VLS','bf_muzzle per mount','real BattleFleet prepare and mount attachment scales','assembled triangle budget <= 10000'],files:reports},null,2));
+  fs.writeFileSync(`${out}/export-validation.json`,JSON.stringify({status:'pass',scope:'archived V1 geometry only; not V2 runtime acceptance',hullMetres:size.toArray(),assembledTriangles,checks:['single scene','embedded PNGs','UV coordinates','exact socket names and JSON agreement','rail positions and orientations','forward RAM ahead of VLS','separate open port and starboard funnels verified by GLB raycasts','unobstructed central passage','raised transverse VLS','bf_muzzle per mount','assembled triangle budget <= 10000'],files:reports},null,2));
   console.log(JSON.stringify({status:'pass',hullMetres:size.toArray(),files:reports.map(({nodes,...r})=>r)},null,2));
 }
 main().catch(e=>{console.error(e);process.exitCode=1});

@@ -3,7 +3,7 @@
   "parts": [
     {
       "part": "mk45",
-      "triangles": 196,
+      "triangles": 246,
       "texture_resolution": 1024,
       "rust_patches": 0,
       "maps": [
@@ -36,7 +36,7 @@
     },
     {
       "part": "harpoon",
-      "triangles": 584,
+      "triangles": 424,
       "texture_resolution": 1024,
       "rust_patches": 0,
       "maps": [
@@ -47,7 +47,7 @@
     },
     {
       "part": "hull",
-      "triangles": 7500,
+      "triangles": 7858,
       "texture_resolution": 4096,
       "rust_patches": 12,
       "maps": [

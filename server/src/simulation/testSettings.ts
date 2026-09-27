@@ -2,6 +2,7 @@ import type { SimulationSettings } from "./SimulationSettings.js";
 
 /** Controlled settings for headless tests, independent of environment and local admin files. */
 export const testSettings: SimulationSettings = {
+  getIslandsEnabled: () => true,
   getMatchDurationMs: () => 300000,
   getMinRoomPlayers: () => 1,
   getOobDestroyAfterMs: () => 10000,

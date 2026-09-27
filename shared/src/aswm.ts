@@ -1,12 +1,11 @@
 /**
  * Task 7 — Anti-Schiff-Lenkflugkörper (MVP): Start von **festen Rails** (`fixedSeaSkimmerLaunchers`),
- * sonst Fallback Feuerrichtung = Schiff→Aim;
  * **Suchkegel ±30°** um die **aktuelle Flugrichtung** — nur Ziele im Kegel werden angeflogen.
  */
 
 import { forwardXZ, isInForwardArc } from "./artillery";
 import { PlayerLifeState } from "./playerLife";
-import type { FixedSeaSkimmerLauncherSpec } from "./shipVisualLayout";
+import { socketYawRadFromBow, type FixedSeaSkimmerLauncherSpec } from "./shipVisualLayout";
 
 /** Horizontale Geschwindigkeit (XZ, Einheiten/s). */
 export const ASWM_SPEED = 190;
@@ -32,9 +31,6 @@ export const ASWM_SEEKER_ARM_DELAY_MS = 500;
 export const ASWM_MAGIC_RELOAD_MS = 20_000;
 /** Länge des Suchkegels (m): nur Ziele innerhalb dieser Entfernung zur Rakete. */
 export const ASWM_ACQUIRE_CONE_LENGTH = 300;
-export const ASWM_SPAWN_FORWARD = 22;
-/** Startpunkt entlang der Rail-Abstrahlrichtung (nach Weltposition des Sockets). */
-export const ASWM_SPAWN_FROM_RAIL = 12;
 
 /**
  * Halber Öffnungswinkel des Suchkegels um die Blick-/Flugrichtung (±30°).
@@ -89,37 +85,9 @@ export function pickAswmAcquisitionTarget(
   return bestId;
 }
 
-/**
- * Start in **Feuerrichtung** (Schiff → Aim). Bei Aim ≈ Schiff: `fallbackHeadingRad` (Bug).
- */
-export function spawnAswmFromFireDirection(
-  shipX: number,
-  shipZ: number,
-  aimX: number,
-  aimZ: number,
-  fallbackHeadingRad: number,
-): { x: number; z: number; headingRad: number } {
-  let dx = aimX - shipX;
-  let dz = aimZ - shipZ;
-  const len = Math.hypot(dx, dz);
-  let headingRad: number;
-  if (len < 1e-3) {
-    headingRad = fallbackHeadingRad;
-  } else {
-    headingRad = Math.atan2(dx, dz);
-  }
-  const f = forwardXZ(headingRad);
-  return {
-    x: shipX + f.x * ASWM_SPAWN_FORWARD,
-    z: shipZ + f.z * ASWM_SPAWN_FORWARD,
-    headingRad,
-  };
-}
-
 /** Horizontaler Yaw relativ zum Bug, siehe `FixedSeaSkimmerLauncherSpec`. */
 export function launcherYawRadFromBow(L: FixedSeaSkimmerLauncherSpec): number {
-  if (L.launchYawRadFromBow !== undefined) return L.launchYawRadFromBow;
-  return L.socket.eulerRad?.y ?? 0;
+  return socketYawRadFromBow(L.socket);
 }
 
 /** Schiffslokal (+X Steuerbord, +Z Bug) → Welt-XZ (Y ignoriert). */
@@ -263,68 +231,15 @@ export function pickFixedSeaSkimmerLauncherWithAmmoForForcedSide(
   return null;
 }
 
-/** Ohne feste Rails: feste Seite (Softkey); Fallback auf andere Munition. */
-export function pickAswmSideForFallbackFireForced(
-  ammoPort: number,
-  ammoStarboard: number,
-  forced: "port" | "starboard",
-): "port" | "starboard" | null {
-  if (ammoPort + ammoStarboard <= 0) return null;
-  const forcedAmmo = forced === "port" ? ammoPort : ammoStarboard;
-  const otherAmmo = forced === "port" ? ammoStarboard : ammoPort;
-  if (forcedAmmo > 0) return forced;
-  if (otherAmmo > 0) return forced === "port" ? "starboard" : "port";
-  return null;
-}
-
-/** Ohne feste Rails: Seite nach Aim (wie Port/Steuerbord-Rails); nur bei Restmunition. */
-export function pickAswmSideForFallbackFire(
-  aimX: number,
-  aimZ: number,
-  shipX: number,
-  shipZ: number,
-  headingRad: number,
-  ammoPort: number,
-  ammoStarboard: number,
-): "port" | "starboard" | null {
-  if (ammoPort + ammoStarboard <= 0) return null;
-  const adx = aimX - shipX;
-  const adz = aimZ - shipZ;
-  const len = Math.hypot(adx, adz);
-  let preferStarboard = true;
-  if (len > 1e-3) {
-    const ax = adx / len;
-    const az = adz / len;
-    const sbx = Math.cos(headingRad);
-    const sbz = -Math.sin(headingRad);
-    preferStarboard = ax * sbx + az * sbz >= 0;
-  }
-  const want: "port" | "starboard" = preferStarboard ? "starboard" : "port";
-  const other: "port" | "starboard" = preferStarboard ? "port" : "starboard";
-  const wantAmmo = want === "port" ? ammoPort : ammoStarboard;
-  const otherAmmo = want === "port" ? ammoStarboard : ammoPort;
-  if (wantAmmo > 0) return want;
-  if (otherAmmo > 0) return other;
-  return null;
-}
-
-/** Startpose an einer festen Rail: Weltposition Socket + Abstrahlrichtung `heading + yawFromBow`. */
+/** Fixed launch originates at the weapon model's muzzle, not a hand-authored clearance offset. */
 export function spawnAswmFromFixedLauncher(
   shipX: number,
   shipZ: number,
   headingRad: number,
   launcher: FixedSeaSkimmerLauncherSpec,
-): { x: number; z: number; headingRad: number } {
-  const p = launcher.socket.position;
-  const { x: wx, z: wz } = shipLocalToWorldXZ(shipX, shipZ, headingRad, p.x, p.z);
-  const yawFromBow = launcherYawRadFromBow(launcher);
-  const missileHeading = headingRad + yawFromBow;
-  const f = forwardXZ(missileHeading);
-  return {
-    x: wx + f.x * ASWM_SPAWN_FROM_RAIL,
-    z: wz + f.z * ASWM_SPAWN_FROM_RAIL,
-    headingRad: missileHeading,
-  };
+): { x: number; y: number; z: number; headingRad: number } {
+  if (!launcher.equipment) throw new Error(`Unoccupied launcher: ${launcher.id}`);
+  return mountedMuzzleWorld(launcher.socket, launcher.equipment.modelId, shipX, shipZ, headingRad);
 }
 
 /**
@@ -379,3 +294,4 @@ export function stepAswmMissile(
     headingRad: h,
   };
 }
+import { mountedMuzzleWorld } from "./mountedWeaponPose";

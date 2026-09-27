@@ -1,7 +1,7 @@
 import { ARTILLERY_SPLASH_RADIUS, ASWM_HIT_RADIUS, PlayerLifeState } from "@battlefleet/shared/rules";
 import type { PlayerView } from "./BattleReadModel";
 import type {
-  AirDefenseLayer, AirDefenseNotice, AirDefenseOutput, ArtilleryFired, ArtilleryImpact, MatchPresentationEvent,
+  AirDefenseLayer, AirDefenseNotice, AirDefenseOutput, ArtilleryFired, ArtilleryImpact, MatchPresentationEvent, MissileFired,
 } from "./MatchPresentationEvent";
 
 type PlayerPosition = Pick<PlayerView, "id" | "x" | "z" | "lifeState">;
@@ -14,7 +14,7 @@ export interface MatchEventPresenterOptions {
     onFired(message: ArtilleryFired): void;
     onImpact(message: ArtilleryImpact, options: { skipSplash: boolean }): void;
   };
-  missileFx: ImpactOutput;
+  missileFx: ImpactOutput & { onFired?(message: MissileFired): void };
   torpedoFx: ImpactOutput;
   airDefense: AirDefenseOutput;
   shouldRenderArtyFiredClientVfx(fromX: number, fromZ: number, toX: number, toZ: number): boolean;
@@ -32,7 +32,7 @@ export interface MatchEventPresenterOptions {
   onAswmMagazineReloaded?(): void;
   onSoftkillResult?(success: boolean): void;
   /** Muzzle position is already in world XZ; only its height is a render-space quantity. */
-  getPdmsMuzzleSeek?(defenderId: string): { x: number; y: number; z: number } | null;
+  getAirDefenseMuzzleSeek?(defenderId: string, slotId: string, layer: AirDefenseLayer): { x: number; y: number; z: number } | null;
   appendAirDefenseComms?(entry: { text: string; kind: "info" }): void;
   formatPlayerLabel?(id: string): string;
 }
@@ -60,7 +60,7 @@ export function createMatchEventPresenter(options: MatchEventPresenterOptions) {
       options.airDefense.intercept(x, z, layer);
       return;
     }
-    let fromX = notice.defenderX, fromZ = notice.defenderZ;
+    let fromX = notice.fromX ?? notice.defenderX, fromZ = notice.fromZ ?? notice.defenderZ;
     if (fromX === null || fromZ === null) {
       if (!notice.defenderId) return;
       const position = options.findPlayerBySessionId(notice.defenderId);
@@ -68,17 +68,17 @@ export function createMatchEventPresenter(options: MatchEventPresenterOptions) {
       fromX = position.x;
       fromZ = position.z;
     }
-    let pdLaunchY: number | undefined;
-    if (layer === "pd" && notice.defenderId) {
-      const muzzle = options.getPdmsMuzzleSeek?.(notice.defenderId);
+    let launchY = notice.fromY;
+    if (notice.slotId && notice.defenderId) {
+      const muzzle = options.getAirDefenseMuzzleSeek?.(notice.defenderId, notice.slotId, layer);
       if (muzzle) {
-        fromX = muzzle.x; fromZ = muzzle.z; pdLaunchY = muzzle.y;
+        fromX = muzzle.x; fromZ = muzzle.z; launchY = muzzle.y;
       }
     }
     options.appendAirDefenseComms?.({ text: `LW: ${layerLabel(layer)} Feuer — ${defenderName}${targetLabel}`, kind: "info" });
     options.onAirDefenseSound?.({ phase: "fire", layer, worldX: fromX, worldZ: fromZ });
     options.airDefense.fire({
-      layer, fromX, fromZ, toX: x, toZ: z, pdLaunchY,
+      layer, fromX, fromZ, toX: x, toZ: z, launchY,
       trackedMissileId: layer !== "ciws" && notice.missileId !== null ? notice.missileId : undefined,
     });
   }
@@ -114,6 +114,7 @@ export function createMatchEventPresenter(options: MatchEventPresenterOptions) {
         return;
       }
       case "aswmFired":
+        if (event.payload.launcherId !== undefined) options.missileFx.onFired?.(event.payload as MissileFired);
         if (event.payload.ownerId === options.mySessionId) options.onMissileFireByLocalPlayer();
         return;
       case "torpedoFired":

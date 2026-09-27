@@ -19,7 +19,11 @@ export * from "../progression";
 export * from "../shipClass";
 export * from "../displayName";
 export * from "../shipVisualLayout";
-export * from "../mountWeaponRange";
+export * from "../weaponSystems";
+export * from "../content/models";
+export * from "../content/modelMetadata";
+export * from "../content/shipProfileSource";
+export { loadShipProfile } from "../content/loadShipProfile";
 export * from "../shipProfileEditorJson";
 export * from "../shipProfiles";
 export * from "../shipHitboxCollision";
@@ -43,3 +47,4 @@ export type {
   TacticalContext,
 } from "../bot/types";
 
+export * from "../mountedWeaponPose";

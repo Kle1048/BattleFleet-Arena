@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 import * as THREE from "three";
 import { createFxSystem } from "./fxSystem";
+import type { ParticleVisual } from "./particleBillboards";
 
 const previous = Object.getOwnPropertyDescriptor(globalThis, "document");
 Object.defineProperty(globalThis, "document", { configurable: true, value: { createElement: () => ({
@@ -28,7 +29,7 @@ try {
     peak = Math.max(peak, fx.getStats().activeParticles);
     fx.update(dt);
     const stats = fx.getStats(); peak = Math.max(peak, stats.activeParticles);
-    const sprites = scene.children as THREE.Sprite[];
+    const sprites = scene.getObjectByName("particle_billboards")!.userData.particles as readonly ParticleVisual[];
     hash.update(JSON.stringify([stats, sprites.map(sprite => {
       const material = sprite.material;
       if (!textures.has(material.map!)) textures.set(material.map!, textures.size);

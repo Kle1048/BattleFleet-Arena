@@ -10,7 +10,7 @@ import { createShipWakeRibbonSystem } from "../game/scene/shipWakeRibbon";
 import { advanceIfPoseChanged, createInterpolationBuffer } from "../game/network/remoteInterpolation";
 import { createFrameRuntimeState, runFrameRuntimeStep } from "../game/runtime/frameRuntime";
 import { createCameraCullRuntimeState } from "../game/runtime/cameraCullRuntime";
-import { getPdmsMuzzleSeekCoords, getPrimaryArtilleryMuzzleSeekCoords } from "../game/scene/shipMountVisuals";
+import { getAirDefenseMuzzleSeekCoords, getPrimaryArtilleryMuzzleSeekCoords } from "../game/scene/shipMountVisuals";
 import { createCombatFixture, FIXTURE_STEP_MS, FIXTURE_SEED, seededRandom } from "./fixture";
 import { withFixtureClock } from "./fixtureClock";
 import { pruneVisualRollSmoothed } from "../game/scene/shipVisualRoll";
@@ -31,11 +31,12 @@ export function createReplay(options: {
   const pool = createFxSystem(options.scene, { random: seededRandom(FIXTURE_SEED), now: () => replayNow });
   const artillery = createArtilleryFx(options.scene, pool);
   const missiles = createMissileFx(options.scene, pool);
+  let seenMissileIds = new Set<number>();
   const torpedoes = createTorpedoFx(options.scene, pool);
   const wakes = createShipWakeRibbonSystem(options.scene);
   withFixtureClock(0, random, () => ships.sync(fixture.players));
   const visuals = ships.getVisuals() as Map<string, ShipVisual>;
-  artillery.setMuzzleSeekResolver(id => getPrimaryArtilleryMuzzleSeekCoords(visuals.get(id)));
+  artillery.setMuzzleSeekResolver((id, slotId) => getPrimaryArtilleryMuzzleSeekCoords(visuals.get(id), slotId));
   const remoteInterp = new Map(fixture.players.slice(1).map(p => [p.id, createInterpolationBuffer(p, 0)]));
   let fxCpuMs = 0;
   let inputs = 0, hudUpdates = 0, deaths = 0;
@@ -57,7 +58,12 @@ export function createReplay(options: {
     shortSessionIdForMessage: id => id, playerDisplayLabel: p => p.id,
     fx: {
       artilleryFx: { update: (now, dt) => measureFx(() => artillery.update(now, dt)) },
-      missileFx: { sync: data => measureFx(() => missiles.sync(data)), update: (now, dt) => measureFx(() => missiles.update(now, dt)) },
+      missileFx: { sync: data => measureFx(() => {
+        for (const m of data ?? []) if (!seenMissileIds.has(m.missileId)) missiles.onFired({
+          missileId: m.missileId, ownerId: "fixture", launcherId: "fixture", fromX: m.x, fromY: 3.3, fromZ: m.z, headingRad: m.headingRad,
+        });
+        missiles.sync(data); seenMissileIds = new Set(Array.from(data ?? [], m => m.missileId));
+      }), update: (now, dt) => measureFx(() => missiles.update(now, dt)) },
       torpedoFx: { sync: data => measureFx(() => torpedoes.sync(data)), update: (now, dt) => measureFx(() => torpedoes.update(now, dt)) },
       shipDamageSmokeTick: (x, z, heading, severity) => measureFx(() => pool.spawnShipDamageSmokeTick(x, z, heading, severity)),
     },
@@ -99,7 +105,7 @@ export function createReplay(options: {
           if (frame % 180 === 0) pool.spawnSoftkillChaffCloud(0, 0, 0);
           // Exercise the actual launch-smoke recipe without the legacy AD rAF scheduler.
           if (frame % 120 === 0) {
-            const muzzle = getPdmsMuzzleSeekCoords(visuals.get("fixture-0"));
+            const muzzle = getAirDefenseMuzzleSeekCoords(visuals.get("fixture-0"), "ciws_aft", "pd");
             pool.spawnMissileLaunchSmoke(muzzle?.x ?? 0, muzzle?.z ?? 0, Math.PI * 0.25);
           }
         });

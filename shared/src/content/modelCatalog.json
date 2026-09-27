@@ -1,0 +1,16 @@
+{
+  "gepard": { "file": "ships/hull_gepard.glb", "kind": "hull" },
+  "spruance": { "file": "ships/hull_spruance.glb", "kind": "hull" },
+  "cruiser": { "file": "ships/hull_cruiser.glb", "kind": "hull" },
+  "gepard_artillery": { "file": "systems/mount_gepard_artillery.glb", "kind": "mount", "yaw": true },
+  "gepard_pdms": { "file": "systems/mount_gepard_pdms.glb", "kind": "mount", "yaw": true },
+  "gepard_exocet": { "file": "systems/mount_gepard_exocet.glb", "kind": "mount" },
+  "spruance_mk45": { "file": "systems/mount_spruance_mk45.glb", "kind": "mount", "yaw": true },
+  "spruance_phalanx": { "file": "systems/mount_spruance_phalanx.glb", "kind": "mount", "yaw": true },
+  "spruance_seasparrow": { "file": "systems/mount_spruance_seasparrow.glb", "kind": "mount", "yaw": true },
+  "spruance_harpoon": { "file": "systems/mount_spruance_harpoon.glb", "kind": "mount" },
+  "cruiser_artillery": { "file": "systems/mount_artillery_turret.glb", "kind": "mount", "yaw": true },
+  "cruiser_ciws": { "file": "systems/mount_ciws_rotating.glb", "kind": "mount", "yaw": true },
+  "cruiser_sam": { "file": "systems/mount_sam_box.glb", "kind": "mount", "yaw": true },
+  "cruiser_ssm": { "file": "systems/mount_ssm_canister.glb", "kind": "mount" }
+}

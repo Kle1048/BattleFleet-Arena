@@ -10,3 +10,6 @@ dist-benchmark/
 .cursor/
 # Runtime data (default location depends on the server process working directory).
 server-data/
+# Regenerable clean-material migration staging and recoverable local originals.
+assets/blender/clean/*_source.glb
+assets/blender/clean/previous-runtime/

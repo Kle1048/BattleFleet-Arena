@@ -13,7 +13,9 @@ if stage=='init':
         if area.type=='VIEW_3D':area.spaces.active.shading.type='SOLID'
     ns={'ENABLE_WEATHERING':True}
     source=(root/'scripts/blender/create_gepard_asset.py').read_text(encoding='utf-8')
-    prefix=source.split('# Explicit opt-in while the bake pipeline')[0]
+    marker='# Clean colour bake is the default'
+    assert source.count(marker)==1, 'Geometry preparation boundary changed'
+    prefix=source.split(marker,1)[0]
     exec(compile(prefix,'gepard_geometry_prepare','exec'),ns)
     exec(compile((root/'scripts/blender/gepard_weathering_materials.py').read_text(encoding='utf-8'),'weathering_materials','exec'),ns)
     bpy.app.driver_namespace['gepard_weathering_build']=ns

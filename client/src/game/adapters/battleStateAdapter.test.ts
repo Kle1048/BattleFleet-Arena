@@ -8,6 +8,8 @@ const onStateChange = Object.assign((callback: () => void) => { callbacks.add(ca
   remove(callback: () => void) { callbacks.delete(callback); },
 });
 const wire = new BattleState();
+assert.equal(wire.islandsEnabled, false, "no speculative island load before the first server snapshot");
+wire.islandsEnabled = true;
 const player = new PlayerState(); player.id = "a";
 wire.playerList.push(player);
 const missile = new MissileState(); missile.missileId = 7;
@@ -23,6 +25,7 @@ const room = { state: new BattleState(), onStateChange,
 room.state.decode(wire.encodeAll()); wire.discardAllChanges();
 const source = createBattleStateAdapter(room, () => now);
 const model = source.model;
+assert.equal(model.islandsEnabled, true, "explicit server opt-in survives the full snapshot");
 const listIdentity = model.playerList;
 const a = model.playersById.get("a")!;
 assert.equal(callbacks.size, 1);
@@ -57,6 +60,7 @@ for (const entity of [player, missile, torpedo, wreck]) {
   }
 }
 wire.matchPhase = "ended"; wire.matchRemainingSec = 23; wire.operationalAreaHalfExtent = 1500;
+wire.islandsEnabled = false;
 patch();
 assert.equal(model.playerList, listIdentity);
 assert.equal(model.playersById.get("a"), a, "surviving entity identity is stable");
@@ -65,6 +69,7 @@ assert.deepEqual(model.missileList[0], missile.toJSON());
 assert.deepEqual(model.torpedoList[0], torpedo.toJSON());
 assert.deepEqual(model.wreckList[0], wreck.toJSON());
 assert.equal(model.matchPhase, "ended"); assert.equal(model.operationalAreaHalfExtent, 1500);
+assert.equal(model.islandsEnabled, false);
 assert.deepEqual(notifications, ["state:150:23"]);
 const hp = a.hp;
 room.state.playerList.at(0)!.hp = -1;

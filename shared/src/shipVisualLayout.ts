@@ -1,6 +1,6 @@
 import type { ShipClassId } from "./shipClass";
 import type { ShipHullMovementDefinition } from "./shipMovement";
-import { weaponEngagementRangeWorldForMountVisualId } from "./mountWeaponRange";
+import { weaponSystem, type MountedWeapon, type WeaponSystemId } from "./weaponSystems";
 
 /**
  * Rumpf-lokales Koordinatensystem (wie im Client / Blender-Export üblich):
@@ -84,13 +84,6 @@ export type MountSlotDefinition = {
   id: string;
   socket: ShipSocketTransform;
   compatibleKinds: MountVisualKind[];
-  /** Optional: Standard-Visual, wenn kein Loadout gesetzt */
-  defaultVisualId?: string;
-  /**
-   * Optional: Basis-Yaw des Mount-GLB relativ zur **Spiel-Bug-Richtung** (+Z), überschreibt
-   * `inferMountTrainBaseYawFromBow` (sonst: Socket-Z negativ → π, sonst 0).
-   */
-  trainBaseYawRadFromBow?: number;
   /**
    * Feuersektor nur für **drehbare** Systeme relevant (`artillery`, `ciws`, `sam_launcher`).
    * Fehlt der Eintrag → Server/Client können auf `defaultRotatingMountFireSector` des Profils
@@ -99,54 +92,27 @@ export type MountSlotDefinition = {
   fireSector?: MountFireSector;
 };
 
-/**
- * Autorierung eines Mount-Slots im Profil-JSON: **`socket` optional**, wenn die Lage aus
- * `data/ships/mountSockets/<profileId>.json` (oder später GLB-`SOCKET_*`) kommt.
- * Spiel/Server nutzen immer {@link MountSlotDefinition} nach {@link resolveMountSlotsWithSocketRegistry}.
- */
-export type MountSlotDefinitionInput = Omit<MountSlotDefinition, "socket"> & {
-  socket?: ShipSocketTransform;
-};
+/** Nicht-räumliche Slot-Regeln. Der Loader ergänzt ausschließlich erzeugte GLB-Socket-Daten. */
+export type MountSlotDefinitionInput = Omit<MountSlotDefinition, "socket">;
 
-/**
- * Fest eingebaute Seezielflugkörper (z. B. Exocet-Kiste, Harpoon-Canister):
- * **kein** mitdrehendes Geschütz — die **Richtung** ist im Modell / am Socket fest.
- *
- * **Blender:** pro Startposition ein **Empty** (oder nur ein benanntes Objekt), das die
- * **Abstrahlrichtung** vorgibt (lokal typisch entlang **+Z** oder +X je nach Export;
- * einmal im Team festlegen und bei allen Rails gleich halten).
- *
- * **Port / Steuerbord:** für symmetrische Boote oft **zwei** Einträge (`side` port/starboard),
- * gespiegelte `position.x` und ggf. gespiegelter Yaw — oder ein Eintrag + Spiegelung im Code.
- *
- * **Gameplay / Aim:** Es gibt weiterhin **einen** Schiffs-Zielvektor. Die Simulation entscheidet,
- * ob und von welchem Launcher gefeuert wird (Bogen, Cooldown, Munition). Die **Flugrichtung**
- * des Flugkörpers kann sein:
- * - **realistisch:** entlang der festen Rail-Achse im Weltkoordinatensystem
- *   (`shipQuat * railLocalForward`), und nur der passende (z. B. zielseitige) Launcher feuert; oder
- * - **arcade:** visuell feste Röhre, Abgangsvektor aber in Richtung Ziel interpoliert — reine
- *   Client-/Design-Entscheidung (nicht in diesem Typ festgeschrieben).
- */
+/** Feste Seezielflugkörper: Pose und +Z-Startrichtung stammen ausschließlich aus dem Rail-/Waffenmodell. */
 export type FixedSeaSkimmerLauncherSpec = {
   id: string;
   side: "port" | "starboard" | "centerline";
-  /** Client: GLB am Socket (`assetCatalog` / `MOUNT_VISUAL_*`); optional bis Simulation festliegt. */
-  visualId?: string;
+  /** Waffensystem und Modell. Ohne Belegung keine Waffenfunktion. */
+  equipment?: MountedWeapon;
   socket: ShipSocketTransform;
-  /**
-   * Feste horizontale Abstrahlrichtung relativ zum Bug: Winkel in **Radiant** in der XZ-Ebene,
-   * 0 = Bug (+Z), π/2 = nach Steuerbord (+X), −π/2 = Backbord.
-   * Beispiele: Exocet seitlich ~45° → ca. ±π/4; Harpoon quer ~90° → ca. ±π/2 (je nach Seite).
-   * Alternativ nur über `socket.eulerRad` definieren — **eine** der beiden Konventionen pro Projekt nutzen.
-   */
-  launchYawRadFromBow?: number;
 };
 
 /**
- * Loadout: welcher **visuelle** Steckplatz (`MountSlotDefinition.id`) welches Asset nutzt.
- * Keys = Slot-IDs, Values = Asset-IDs (Client-`assetCatalog` / GLB-Name).
+ * Einziger Ort für die Slot-Belegung: Waffensystem und austauschbares Modell.
+ * Ein nicht belegter Slot besitzt keine Waffenfunktion.
  */
-export type ShipMountLoadout = Record<string, string>;
+export type ShipMountLoadout = Record<string, MountedWeapon>;
+
+export function equippedMount(slot: MountSlotDefinition, profile: ShipHullVisualProfile): MountedWeapon | undefined {
+  return profile.defaultLoadout?.[slot.id];
+}
 
 /**
  * Einfache axis-aligned Bounding Box im **Schiffskoordinatensystem** (wie Socket-Positionen:
@@ -165,15 +131,12 @@ export type ShipCollisionHitbox = {
  * Gesamtbeschreibung eines sichtbaren Schiffsaufbaus für **eine** Rumpf-/Klassen-Variante.
  */
 export type ShipHullVisualProfile = {
+  /** Derived exclusively from the hull GLB, never authored in profile JSON. */
+  modelEffects?: Readonly<Record<string, ShipSocketTransform>>;
   /** Stabile Profil-ID (Dateiname / Lookup), z. B. `"fac"`. */
   profileId: string;
   /** Referenz auf Rumpf-GLB / Skin — wird clientseitig per `hullGltfId` zu einer URL aufgelöst. */
   hullGltfId: string;
-  /**
-   * Zusätzlicher Faktor auf den skalierten Rumpf nach `clonePreparedShipHull` (1 = Standard).
-   * Nur Client-Darstellung; nicht in der Server-Simulation.
-   */
-  hullVisualScale?: number;
   /** Einfache Hitbox (AABB); optional für Gameplay, im Client als Drahtrahmen darstellbar. */
   collisionHitbox?: ShipCollisionHitbox;
   /** Schiffsklasse, für die dieses Profil gilt. */
@@ -202,31 +165,8 @@ export type ShipHullVisualProfile = {
    * Nach leerem Magazin: Dauer bis Magic Reload (ms). Ohne Eintrag: `ASWM_MAGIC_RELOAD_MS` (shared/aswm).
    */
   aswmMagicReloadMs?: number;
-  /** Optional: Standard-Belegung der Slots (Slot-ID → Visual-Asset-ID) */
+  /** Standard-Belegung der Slots (Slot-ID → Waffensystem + Modell). */
   defaultLoadout?: ShipMountLoadout;
-  /**
-   * Optional: Sinnvolle Defaults für Client-Rumpf-Darstellung (Debug-Tuning).
-   * Überschreiben für dieses Profil nur die genannten Felder gegenüber dem globalen Panel.
-   */
-  clientVisualTuningDefaults?: {
-    spriteScale?: number;
-    /** Zusatz zu GLB-Rumpf-Y (Schiff hoch/tief). */
-    gltfHullYOffset?: number;
-    /** Optional: Zusatzverschiebung des Rumpf-GLB in Schiffslokal +X (Steuerbord). */
-    gltfHullOffsetX?: number;
-    /** Optional: Zusatzverschiebung entlang +Z (Bug). */
-    gltfHullOffsetZ?: number;
-    /**
-     * Optional: Längs-Offset des sichtbaren Rumpf-Drehpunkts vs. Simulationspunkt entlang +Z (Schiffslokal),
-     * gleiche Semantik wie `ShipDebugTuning.shipPivotLocalZ` — überschreibt den globalen Debug-Wert für dieses Profil.
-     */
-    shipPivotLocalZ?: number;
-    /**
-     * Optional: Zusatz zum Heck der Hitbox für die Wake (Schiffslokal +Z Bug); gleiche Semantik wie
-     * `ShipDebugTuning.wakeSpawnLocalZ`.
-     */
-    wakeSpawnLocalZ?: number;
-  };
 };
 
 /** Effektiver Horizontalbogen: Slot → Profil-Default → Klassen-`artilleryArcHalfAngleRad`. */
@@ -243,36 +183,13 @@ export function resolveEffectiveMountFireSector(
   };
 }
 
-/**
- * Verbindet Profil-`mountSlots` (Feuersektoren, Loadout, …) mit Positionsdaten aus einem Registry
- * (z. B. `mountSockets/fac.json` — manuell oder aus Blender/glTF-Export generiert).
- * Priorität: explizites `slot.socket` im Profil, sonst `socketRegistry[slot.id]`.
- */
-export function resolveMountSlotsWithSocketRegistry(
-  profileId: string,
-  slots: readonly MountSlotDefinitionInput[],
-  socketRegistry: Readonly<Partial<Record<string, ShipSocketTransform>>>,
-): MountSlotDefinition[] {
-  return slots.map((s) => {
-    const socket = s.socket ?? socketRegistry[s.id];
-    if (!socket?.position) {
-      throw new Error(
-        `[${profileId}] Mount "${s.id}": kein socket — im Profil setzen oder in mountSockets/${profileId}.json.`,
-      );
-    }
-    return { ...s, socket };
-  });
-}
-
-/** Primär-Artillerie: Slot erlaubt `artillery` und Loadout zeigt auf ein Artillerie-GLB. */
+/** Primär-Artillerie folgt dem Waffensystem; der Modellname ist irrelevant. */
 export function slotEquippedWithPrimaryArtillery(
   slot: MountSlotDefinition,
   profile: ShipHullVisualProfile,
 ): boolean {
   if (!slot.compatibleKinds.includes("artillery")) return false;
-  const vid = profile.defaultLoadout?.[slot.id] ?? slot.defaultVisualId ?? "";
-  if (!vid) return false;
-  return vid === "visual_artillery" || /(^|_)artillery$/i.test(vid);
+  return equippedMount(slot, profile)?.weaponId === "artillery";
 }
 
 export type PrimaryArtilleryMountConfig = {
@@ -282,40 +199,37 @@ export type PrimaryArtilleryMountConfig = {
 };
 
 /**
- * Hardkill-Schicht **SAM** (äußerer Ring): nur mit `visual_sam` am Slot + Suchrad (siehe BattleRoom).
+ * Hardkill-Schicht **SAM** (äußerer Ring): SAM im Loadout + Suchrad (siehe BattleRoom).
  */
 export function hullProvidesAirDefenseSamLayer(hull: ShipHullVisualProfile | undefined): boolean {
   if (!hull?.mountSlots?.length) return false;
-  const loadout = hull.defaultLoadout ?? {};
   for (const slot of hull.mountSlots) {
-    const vid = loadout[slot.id] ?? slot.defaultVisualId ?? "";
-    if (vid === "visual_sam") return true;
+    const equipment = equippedMount(slot, hull);
+    if (equipment && weaponSystem(equipment.weaponId).airDefenseLayer === "sam") return true;
   }
   return false;
 }
 
 /**
- * Hardkill-Schicht **PD** (mittlerer Ring): `visual_pdms` (Point Defense / PDMS) im Default-Loadout.
+ * Hardkill-Schicht **PD** (mittlerer Ring): PDMS im Loadout.
  */
 export function hullProvidesAirDefensePdLayer(hull: ShipHullVisualProfile | undefined): boolean {
   if (!hull?.mountSlots?.length) return false;
-  const loadout = hull.defaultLoadout ?? {};
   for (const slot of hull.mountSlots) {
-    const vid = loadout[slot.id] ?? slot.defaultVisualId ?? "";
-    if (vid === "visual_pdms") return true;
+    const equipment = equippedMount(slot, hull);
+    if (equipment && weaponSystem(equipment.weaponId).airDefenseLayer === "pd") return true;
   }
   return false;
 }
 
 /**
- * Hardkill-Schicht **CIWS** (innerster Ring): `visual_ciws` im Default-Loadout.
+ * Hardkill-Schicht **CIWS** (innerster Ring): CIWS im Loadout.
  */
 export function hullProvidesAirDefenseCiwsLayer(hull: ShipHullVisualProfile | undefined): boolean {
   if (!hull?.mountSlots?.length) return false;
-  const loadout = hull.defaultLoadout ?? {};
   for (const slot of hull.mountSlots) {
-    const vid = loadout[slot.id] ?? slot.defaultVisualId ?? "";
-    if (vid === "visual_ciws") return true;
+    const equipment = equippedMount(slot, hull);
+    if (equipment && weaponSystem(equipment.weaponId).airDefenseLayer === "ciws") return true;
   }
   return false;
 }
@@ -340,36 +254,22 @@ export function listPrimaryArtilleryMountConfigs(
 }
 
 /**
- * Mount-`compatibleKinds`, die eine **Train-Yaw**-Gruppe und Feuerbogen-Logik bekommen
- * (Client: `attachMountVisualsToHullModel`; Shared: `listRotatingMountWeaponGuideConfigs`).
- */
-export const ROTATING_WEAPON_GUIDE_KINDS: readonly MountVisualKind[] = [
-  "artillery",
-  "ciws",
-  "sam_launcher",
-  "pdms",
-];
-
-export function slotHasRotatingWeaponGuide(slot: MountSlotDefinition): boolean {
-  return slot.compatibleKinds.some((k) => ROTATING_WEAPON_GUIDE_KINDS.includes(k));
-}
-
-/**
  * Daten für einen Mount-Feuerbogen ohne Three.js — gleiche Semantik wie
  * `ClientRotatingMountTrainBinding.weaponGuide` nach `attachMountVisualsToHullModel` (Client).
  */
 export type RotatingMountWeaponGuideConfig = {
   slotId: string;
-  /** Aktuelles Loadout am Slot (`defaultLoadout` / `defaultVisualId`), z. B. `visual_sam`. */
-  visualId: string;
-  /** Horizontale Waffen-Reichweite (m), aus `weaponEngagementRangeWorldForMountVisualId(visualId)`. */
+  /** Waffenregeln und Modellkennung bleiben getrennt. */
+  weaponId: WeaponSystemId;
+  modelId: string;
+  /** Horizontale Waffen-Reichweite (m) aus dem Waffensystem. */
   engagementRangeWorld: number;
   socket: { x: number; y: number; z: number };
   sector: MountFireSector;
 };
 
 /**
- * Alle `mountSlots`, deren `compatibleKinds` `ROTATING_WEAPON_GUIDE_KINDS` schneiden.
+ * Alle tatsächlich mit einem drehbaren Waffensystem belegten Slots.
  *
  * Nutzung: Tests, Editor-Hilfen, Vorschau **ohne** GLB. Der laufende Client baut dieselben Felder
  * beim Mounten in `weaponGuide` pro `ClientRotatingMountTrainBinding`.
@@ -381,12 +281,12 @@ export function listRotatingMountWeaponGuideConfigs(
   if (!hull?.mountSlots?.length) return [];
   const out: RotatingMountWeaponGuideConfig[] = [];
   for (const slot of hull.mountSlots) {
-    if (!slotHasRotatingWeaponGuide(slot)) continue;
-    const vid = (hull.defaultLoadout?.[slot.id] ?? slot.defaultVisualId ?? "").trim();
+    const equipment = equippedMount(slot, hull);
+    if (!equipment || !weaponSystem(equipment.weaponId).rotating) continue;
     out.push({
       slotId: slot.id,
-      visualId: vid,
-      engagementRangeWorld: weaponEngagementRangeWorldForMountVisualId(vid),
+      ...equipment,
+      engagementRangeWorld: weaponSystem(equipment.weaponId).engagementRange,
       socket: {
         x: slot.socket.position.x,
         y: slot.socket.position.y,
@@ -398,14 +298,11 @@ export function listRotatingMountWeaponGuideConfigs(
   return out;
 }
 
-/**
- * Basis-Geschützrichtung im Schiff (Radiant): Bug = 0, Heck = π — heuristisch aus Socket-Z.
- * Für Client-Train-Rotation relativ zur Bug-Achse.
- */
-export function inferMountTrainBaseYawFromBow(slot: MountSlotDefinition): number {
-  const o = slot.trainBaseYawRadFromBow;
-  if (typeof o === "number" && Number.isFinite(o)) return o;
-  return slot.socket.position.z < 0 ? Math.PI : 0;
+/** Heading of a marker's local +Z after XYZ Euler rotation (not simply Euler.y). */
+export function socketYawRadFromBow(socket: ShipSocketTransform): number {
+  const e = socket.eulerRad;
+  if (!e) return 0;
+  return Math.atan2(Math.sin(e.y), Math.cos(e.x) * Math.cos(e.y));
 }
 
 /** Erster `mountSlots`-Eintrag mit Artillerie — Socket in Schiffslokal (+Z Bug). */
@@ -414,7 +311,7 @@ export function getPrimaryArtilleryMountSocketLocal(
 ): { x: number; y: number; z: number } | null {
   if (!profile?.mountSlots?.length) return null;
   for (const slot of profile.mountSlots) {
-    if (slot.compatibleKinds.includes("artillery")) {
+    if (slotEquippedWithPrimaryArtillery(slot, profile)) {
       const p = slot.socket.position;
       return { x: p.x, y: p.y, z: p.z };
     }

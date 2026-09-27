@@ -20,6 +20,7 @@ export interface BattleReadModel {
   readonly matchPhase: string;
   readonly matchRemainingSec: number;
   readonly operationalAreaHalfExtent: number;
+  readonly islandsEnabled: boolean;
   readonly stateSyncCount: number;
 }
 

@@ -1,5 +1,5 @@
 import type * as THREE from "three";
-import { normalizeShipClassId, SHIP_CLASS_FAC } from "@battlefleet/shared";
+import { getAuthoritativeShipHullProfile, normalizeShipClassId, SHIP_CLASS_FAC } from "@battlefleet/shared";
 import type { ShipClassId } from "@battlefleet/shared";
 import { createShipVisual, disposeShipVisual, type ShipVisual } from "../../scene/shipVisual";
 import type { GameRenderer } from "../../runtime/rendererContracts";
@@ -33,6 +33,7 @@ export function createShipRenderer(
     const template = options?.getHullGltfTemplate?.(cid);
     const vis = createShipVisual({
       isLocal: sessionId === mySessionId,
+      profile: getAuthoritativeShipHullProfile(cid),
       shipClassId: cid,
       hullGltfSource: template ?? undefined,
       getMountGltfTemplate: options?.getMountGltfTemplate,
@@ -58,7 +59,11 @@ export function createShipRenderer(
       if (disposed || visuals.get(sessionId) !== initial) return;
       const replacement = buildVisual(sessionId, cid);
       replacement.group.position.copy(initial.group.position);
-      replacement.group.quaternion.copy(initial.group.quaternion);
+      // Preserve Euler axes/order too: subsequent frames own yaw separately
+      // from cosmetic pitch/roll, so an equivalent decomposition is not enough.
+      replacement.group.rotation.copy(initial.group.rotation);
+      replacement.modelMotion.position.copy(initial.modelMotion.position);
+      replacement.modelMotion.rotation.copy(initial.modelMotion.rotation);
       replacement.group.visible = initial.group.visible;
       disposeShipVisual(initial);
     }).catch((error: unknown) => console.warn("[BattleFleet] Ship assets unavailable", error));

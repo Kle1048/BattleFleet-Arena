@@ -1,8 +1,9 @@
 import * as THREE from "three";
 import { ParticlePool } from "./ParticlePool";
+import { createParticleBillboards, type ParticleVisual } from "./particleBillboards";
 
 type Particle = {
-  sprite: THREE.Sprite;
+  sprite: ParticleVisual;
   textureKey: TextureKey;
   active: boolean;
   ageMs: number;
@@ -56,22 +57,6 @@ function makeRingTexture(): THREE.CanvasTexture {
   ]);
 }
 
-function createSpriteMaterial(
-  texture: THREE.Texture,
-  opts: { blending: THREE.Blending; depthTest: boolean },
-): THREE.SpriteMaterial {
-  return new THREE.SpriteMaterial({
-    map: texture,
-    transparent: true,
-    depthWrite: false,
-    depthTest: opts.depthTest,
-    fog: false,
-    blending: opts.blending,
-    opacity: 1,
-    color: 0xffffff,
-  });
-}
-
 type TextureKey = "soft" | "smoke" | "ring" | "flashAdd";
 
 /** Sprite rendering/kinematics only; recipes and scheduling stay in fxSystem. */
@@ -88,25 +73,25 @@ export function createSpriteParticleBackend(scene: THREE.Scene, random: () => nu
   ]);
   const texRing = makeRingTexture();
 
-  const matSoft = createSpriteMaterial(texSoft, { blending: THREE.NormalBlending, depthTest: true });
-  const matSmoke = createSpriteMaterial(texSmoke, { blending: THREE.NormalBlending, depthTest: true });
-  const matRing = createSpriteMaterial(texRing, { blending: THREE.NormalBlending, depthTest: false });
-  const matFlashAdd = createSpriteMaterial(texSoft, { blending: THREE.AdditiveBlending, depthTest: false });
-
-  const materials = [matSoft, matSmoke, matRing, matFlashAdd] as const;
+  const visuals: ParticleVisual[] = [];
+  const billboards = createParticleBillboards(scene, MAX_ACTIVE_PARTICLES, [texSoft, texSmoke, texRing], visuals);
 
   let disposed = false;
   const tmpColor = new THREE.Color();
   const pool = new ParticlePool(MAX_ACTIVE_PARTICLES, ["soft", "smoke", "ring", "flashAdd"],
     key => createParticle(key as TextureKey), particle => { particle.sprite.visible = false; },
-    particle => { scene.remove(particle.sprite); particle.sprite.material.dispose(); });
+    () => {});
 
   function createParticle(textureKey: TextureKey): Particle {
-    // Partikel besitzen jeweils ein eigenes Material, damit Farbe/Alpha nicht gegenseitig überschrieben werden.
-    const sprite = new THREE.Sprite(matFor(textureKey).clone());
-    sprite.visible = false;
-    sprite.renderOrder = 11;
-    scene.add(sprite);
+    // Preserve pooled visual state without allocating Sprite matrices/materials.
+    const sprite: ParticleVisual = {
+      visible: false, renderOrder: 11, position: new THREE.Vector3(), scale: new THREE.Vector3(1, 1, 1),
+      material: { map: textureKey === "smoke" ? texSmoke : textureKey === "ring" ? texRing : texSoft,
+        color: new THREE.Color(0xffffff), opacity: 1, rotation: 0,
+        blending: textureKey === "flashAdd" ? THREE.AdditiveBlending : THREE.NormalBlending,
+        depthTest: textureKey === "soft" || textureKey === "smoke" },
+    };
+    visuals.push(sprite);
     const p: Particle = {
       sprite,
       textureKey,
@@ -128,19 +113,6 @@ export function createSpriteParticleBackend(scene: THREE.Scene, random: () => nu
       alphaLerpPow: 1,
     };
     return p;
-  }
-
-  function matFor(key: TextureKey): THREE.SpriteMaterial {
-    switch (key) {
-      case "smoke":
-        return matSmoke;
-      case "ring":
-        return matRing;
-      case "flashAdd":
-        return matFlashAdd;
-      default:
-        return matSoft;
-    }
   }
 
   function emit(options: {
@@ -216,7 +188,7 @@ export function createSpriteParticleBackend(scene: THREE.Scene, random: () => nu
     if (disposed) return;
     disposed = true;
     pool.dispose();
-    for (const material of materials) material.dispose();
+    billboards.dispose(); visuals.length = 0;
     texSoft.dispose(); texSmoke.dispose(); texRing.dispose();
   }
   return { emit, update, dispose, getStats: () => pool.stats() };

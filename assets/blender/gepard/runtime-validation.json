@@ -1,48 +1,50 @@
 {
   "passed": true,
+  "contractVersion": 2,
   "assembledTriangles": 8398,
-  "hullDimensions": [
-    7.800000190734863,
-    19.450000047683716,
-    57.599998474121094
-  ],
-  "worldLength": 60.015998410118954,
-  "wakeWorldZ": -30.008,
-  "drawCalls": 5,
   "checks": [
-    "actual game loader and mount attachment",
-    "embedded PNG textures and UVs",
-    "two independent rotating weapons",
-    "four Exocet canisters",
-    "muzzle empties",
-    "exact socket agreement",
-    "metre-scale reconstruction",
-    "unchanged loadout / PD defense / sectors / movement / magazine / collision box"
+    "all catalog GLB hashes and generated markers",
+    "clean colour-only texture budget",
+    "UVs",
+    "assembled triangle budget"
   ],
+  "runtimeVerification": "npm test (modelRuntime.contract.test.ts)",
   "files": [
     {
-      "file": "client/public/assets/ships/hull_gepard.glb",
+      "modelId": "gepard",
       "triangles": 5390,
-      "bytes": 11019104,
-      "meshBatches": 1
+      "bytes": 444716,
+      "embeddedImages": 1,
+      "images": 1,
+      "maxTextureSize": 1024,
+      "textureBytesRgba8WithMips": 5592404
     },
     {
-      "file": "client/public/assets/systems/mount_gepard_artillery.glb",
+      "modelId": "gepard_artillery",
       "triangles": 388,
-      "bytes": 1323736,
-      "meshBatches": 1
+      "bytes": 27324,
+      "embeddedImages": 1,
+      "images": 1,
+      "maxTextureSize": 256,
+      "textureBytesRgba8WithMips": 349524
     },
     {
-      "file": "client/public/assets/systems/mount_gepard_pdms.glb",
+      "modelId": "gepard_pdms",
       "triangles": 748,
-      "bytes": 1518408,
-      "meshBatches": 1
+      "bytes": 56600,
+      "embeddedImages": 1,
+      "images": 1,
+      "maxTextureSize": 256,
+      "textureBytesRgba8WithMips": 349524
     },
     {
-      "file": "client/public/assets/systems/mount_gepard_exocet.glb",
+      "modelId": "gepard_exocet",
       "triangles": 936,
-      "bytes": 1638716,
-      "meshBatches": 1
+      "bytes": 76452,
+      "embeddedImages": 1,
+      "images": 1,
+      "maxTextureSize": 256,
+      "textureBytesRgba8WithMips": 349524
     }
   ]
 }

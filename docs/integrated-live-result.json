@@ -1,0 +1,3640 @@
+{
+  "scenario": "11-ws-autopilots-5-server-bots",
+  "production": true,
+  "dataDirectory": "C:\\Users\\Kleme\\AppData\\Local\\Temp\\bfa-live-bench-DNw3nL",
+  "sentInputs": 29792,
+  "patchCount": 2918,
+  "pingMs": {
+    "count": 177,
+    "p50": 0.7260000000023865,
+    "p95": 3.5019000000029337,
+    "max": 6.074800000002142
+  },
+  "patchIntervalMs": {
+    "count": 2917,
+    "p50": 62.559499999999844,
+    "p95": 65.9513999999981,
+    "max": 99.2097000000067
+  },
+  "rounds": [
+    {
+      "round": 1,
+      "events": {
+        "pong": 57,
+        "artyFired": 201,
+        "artyImpact": 199,
+        "aswmFired": 61,
+        "missileLockOn": 4,
+        "softkillResult": 4,
+        "airDefenseFire": 27,
+        "aswmImpact": 33,
+        "airDefenseIntercept": 3,
+        "matchEnded": 1
+      },
+      "end": {
+        "type": "sample",
+        "id": 13,
+        "rooms": [
+          {
+            "roomId": "yNtIOPYpE",
+            "clients": 11,
+            "bots": 5,
+            "matchPhase": "ended",
+            "matchRemainingSec": 0,
+            "tickMs": {
+              "samples": 200,
+              "mean": 1.6664355000000433,
+              "p95": 2.70339999999851,
+              "max": 3.3193000000028405
+            }
+          }
+        ],
+        "memory": {
+          "rss": 92844032,
+          "heapTotal": 39534592,
+          "heapUsed": 16409192,
+          "external": 3955144,
+          "arrayBuffers": 86044
+        },
+        "forcedGc": true,
+        "eventLoopMs": {
+          "p95": 18.219007,
+          "max": 18.890751
+        },
+        "cpuPercentOneCore": 3.285760642194506,
+        "storage": {
+          "config": {
+            "queue": {
+              "pending": 0,
+              "capacity": 128,
+              "committed": 0,
+              "failed": 0,
+              "rejected": 0,
+              "lastError": null,
+              "accepting": true
+            },
+            "file": {
+              "bytes": 0,
+              "maxBytes": 16777216,
+              "serializationMs": 0,
+              "commitMs": 0,
+              "directorySync": "not-attempted",
+              "orphanCount": 0
+            }
+          },
+          "leaderboard": {
+            "queue": {
+              "pending": 0,
+              "capacity": 128,
+              "committed": 1,
+              "failed": 0,
+              "rejected": 0,
+              "lastError": null,
+              "accepting": true
+            },
+            "file": {
+              "bytes": 1694,
+              "maxBytes": 16777216,
+              "serializationMs": 0.01449999999749707,
+              "commitMs": 3.986400000001595,
+              "directorySync": "unavailable",
+              "orphanCount": 0
+            },
+            "retries": 0
+          },
+          "matches": {
+            "pending": [],
+            "recent": [
+              {
+                "matchId": "20cf1462-266b-45a5-910e-b7e5ce82c1c0",
+                "state": "committed"
+              }
+            ],
+            "rejected": 0
+          }
+        }
+      },
+      "players": [
+        {
+          "shipClass": "fac",
+          "kills": 1,
+          "score": 164
+        },
+        {
+          "shipClass": "fac",
+          "kills": 2,
+          "score": 332
+        },
+        {
+          "shipClass": "fac",
+          "kills": 0,
+          "score": 52
+        },
+        {
+          "shipClass": "fac",
+          "kills": 0,
+          "score": 52
+        },
+        {
+          "shipClass": "fac",
+          "kills": 0,
+          "score": 84
+        },
+        {
+          "shipClass": "fac",
+          "kills": 1,
+          "score": 220
+        },
+        {
+          "shipClass": "cruiser",
+          "kills": 5,
+          "score": 652
+        },
+        {
+          "shipClass": "fac",
+          "kills": 0,
+          "score": 48
+        },
+        {
+          "shipClass": "fac",
+          "kills": 0,
+          "score": 68
+        },
+        {
+          "shipClass": "fac",
+          "kills": 1,
+          "score": 152
+        },
+        {
+          "shipClass": "fac",
+          "kills": 0,
+          "score": 84
+        },
+        {
+          "shipClass": "fac",
+          "kills": 1,
+          "score": 164
+        },
+        {
+          "shipClass": "fac",
+          "kills": 0,
+          "score": 52
+        },
+        {
+          "shipClass": "fac",
+          "kills": 1,
+          "score": 204
+        },
+        {
+          "shipClass": "fac",
+          "kills": 1,
+          "score": 172
+        },
+        {
+          "shipClass": "fac",
+          "kills": 0,
+          "score": 52
+        }
+      ]
+    },
+    {
+      "round": 2,
+      "events": {
+        "pong": 117,
+        "artyFired": 414,
+        "artyImpact": 410,
+        "aswmFired": 120,
+        "missileLockOn": 4,
+        "softkillResult": 6,
+        "airDefenseFire": 53,
+        "aswmImpact": 55,
+        "airDefenseIntercept": 11,
+        "matchEnded": 2,
+        "matchRestarted": 1
+      },
+      "end": {
+        "type": "sample",
+        "id": 26,
+        "rooms": [
+          {
+            "roomId": "yNtIOPYpE",
+            "clients": 11,
+            "bots": 5,
+            "matchPhase": "ended",
+            "matchRemainingSec": 0,
+            "tickMs": {
+              "samples": 200,
+              "mean": 1.2491095000006316,
+              "p95": 2.146500000002561,
+              "max": 2.7682000000058906
+            }
+          }
+        ],
+        "memory": {
+          "rss": 109613056,
+          "heapTotal": 54214656,
+          "heapUsed": 16615008,
+          "external": 3990213,
+          "arrayBuffers": 87009
+        },
+        "forcedGc": true,
+        "eventLoopMs": {
+          "p95": 18.595839,
+          "max": 20.119551
+        },
+        "cpuPercentOneCore": 2.7555615412475687,
+        "storage": {
+          "config": {
+            "queue": {
+              "pending": 0,
+              "capacity": 128,
+              "committed": 0,
+              "failed": 0,
+              "rejected": 0,
+              "lastError": null,
+              "accepting": true
+            },
+            "file": {
+              "bytes": 0,
+              "maxBytes": 16777216,
+              "serializationMs": 0,
+              "commitMs": 0,
+              "directorySync": "not-attempted",
+              "orphanCount": 0
+            }
+          },
+          "leaderboard": {
+            "queue": {
+              "pending": 0,
+              "capacity": 128,
+              "committed": 2,
+              "failed": 0,
+              "rejected": 0,
+              "lastError": null,
+              "accepting": true
+            },
+            "file": {
+              "bytes": 1887,
+              "maxBytes": 16777216,
+              "serializationMs": 0.020099999994272366,
+              "commitMs": 9.435899999996764,
+              "directorySync": "unavailable",
+              "orphanCount": 0
+            },
+            "retries": 0
+          },
+          "matches": {
+            "pending": [],
+            "recent": [
+              {
+                "matchId": "20cf1462-266b-45a5-910e-b7e5ce82c1c0",
+                "state": "committed"
+              },
+              {
+                "matchId": "057f69a7-e3e2-462c-a673-8f8d011fe8d2",
+                "state": "committed"
+              }
+            ],
+            "rejected": 0
+          }
+        }
+      },
+      "players": [
+        {
+          "shipClass": "fac",
+          "kills": 0,
+          "score": 52
+        },
+        {
+          "shipClass": "destroyer",
+          "kills": 2,
+          "score": 272
+        },
+        {
+          "shipClass": "fac",
+          "kills": 0,
+          "score": 56
+        },
+        {
+          "shipClass": "fac",
+          "kills": 0,
+          "score": 52
+        },
+        {
+          "shipClass": "fac",
+          "kills": 0,
+          "score": 52
+        },
+        {
+          "shipClass": "fac",
+          "kills": 1,
+          "score": 152
+        },
+        {
+          "shipClass": "fac",
+          "kills": 0,
+          "score": 52
+        },
+        {
+          "shipClass": "fac",
+          "kills": 0,
+          "score": 48
+        },
+        {
+          "shipClass": "destroyer",
+          "kills": 2,
+          "score": 256
+        },
+        {
+          "shipClass": "fac",
+          "kills": 1,
+          "score": 172
+        },
+        {
+          "shipClass": "fac",
+          "kills": 1,
+          "score": 172
+        },
+        {
+          "shipClass": "fac",
+          "kills": 1,
+          "score": 172
+        },
+        {
+          "shipClass": "fac",
+          "kills": 0,
+          "score": 52
+        },
+        {
+          "shipClass": "fac",
+          "kills": 1,
+          "score": 156
+        },
+        {
+          "shipClass": "fac",
+          "kills": 1,
+          "score": 188
+        },
+        {
+          "shipClass": "fac",
+          "kills": 1,
+          "score": 152
+        }
+      ]
+    },
+    {
+      "round": 3,
+      "events": {
+        "pong": 177,
+        "artyFired": 583,
+        "artyImpact": 577,
+        "aswmFired": 175,
+        "missileLockOn": 5,
+        "softkillResult": 7,
+        "airDefenseFire": 71,
+        "aswmImpact": 76,
+        "airDefenseIntercept": 16,
+        "matchEnded": 3,
+        "matchRestarted": 2
+      },
+      "end": {
+        "type": "sample",
+        "id": 39,
+        "rooms": [
+          {
+            "roomId": "yNtIOPYpE",
+            "clients": 11,
+            "bots": 5,
+            "matchPhase": "ended",
+            "matchRemainingSec": 0,
+            "tickMs": {
+              "samples": 200,
+              "mean": 1.358544000000693,
+              "p95": 2.239800000010291,
+              "max": 2.7643999999854714
+            }
+          }
+        ],
+        "memory": {
+          "rss": 109838336,
+          "heapTotal": 56049664,
+          "heapUsed": 16728872,
+          "external": 4018823,
+          "arrayBuffers": 87227
+        },
+        "forcedGc": true,
+        "eventLoopMs": {
+          "p95": 18.202623,
+          "max": 18.939903
+        },
+        "cpuPercentOneCore": 1.1737669541466371,
+        "storage": {
+          "config": {
+            "queue": {
+              "pending": 0,
+              "capacity": 128,
+              "committed": 0,
+              "failed": 0,
+              "rejected": 0,
+              "lastError": null,
+              "accepting": true
+            },
+            "file": {
+              "bytes": 0,
+              "maxBytes": 16777216,
+              "serializationMs": 0,
+              "commitMs": 0,
+              "directorySync": "not-attempted",
+              "orphanCount": 0
+            }
+          },
+          "leaderboard": {
+            "queue": {
+              "pending": 0,
+              "capacity": 128,
+              "committed": 3,
+              "failed": 0,
+              "rejected": 0,
+              "lastError": null,
+              "accepting": true
+            },
+            "file": {
+              "bytes": 1929,
+              "maxBytes": 16777216,
+              "serializationMs": 0.01920000000973232,
+              "commitMs": 6.643700000015087,
+              "directorySync": "unavailable",
+              "orphanCount": 0
+            },
+            "retries": 0
+          },
+          "matches": {
+            "pending": [],
+            "recent": [
+              {
+                "matchId": "20cf1462-266b-45a5-910e-b7e5ce82c1c0",
+                "state": "committed"
+              },
+              {
+                "matchId": "057f69a7-e3e2-462c-a673-8f8d011fe8d2",
+                "state": "committed"
+              },
+              {
+                "matchId": "6ba16f36-f121-433f-b61e-9d17eaf069d1",
+                "state": "committed"
+              }
+            ],
+            "rejected": 0
+          }
+        }
+      },
+      "players": [
+        {
+          "shipClass": "fac",
+          "kills": 0,
+          "score": 48
+        },
+        {
+          "shipClass": "fac",
+          "kills": 1,
+          "score": 148
+        },
+        {
+          "shipClass": "fac",
+          "kills": 1,
+          "score": 152
+        },
+        {
+          "shipClass": "fac",
+          "kills": 0,
+          "score": 52
+        },
+        {
+          "shipClass": "fac",
+          "kills": 0,
+          "score": 52
+        },
+        {
+          "shipClass": "fac",
+          "kills": 1,
+          "score": 152
+        },
+        {
+          "shipClass": "fac",
+          "kills": 1,
+          "score": 156
+        },
+        {
+          "shipClass": "fac",
+          "kills": 0,
+          "score": 52
+        },
+        {
+          "shipClass": "fac",
+          "kills": 0,
+          "score": 52
+        },
+        {
+          "shipClass": "destroyer",
+          "kills": 2,
+          "score": 256
+        },
+        {
+          "shipClass": "fac",
+          "kills": 0,
+          "score": 88
+        },
+        {
+          "shipClass": "fac",
+          "kills": 1,
+          "score": 172
+        },
+        {
+          "shipClass": "fac",
+          "kills": 0,
+          "score": 56
+        },
+        {
+          "shipClass": "fac",
+          "kills": 1,
+          "score": 148
+        },
+        {
+          "shipClass": "destroyer",
+          "kills": 2,
+          "score": 272
+        },
+        {
+          "shipClass": "fac",
+          "kills": 0,
+          "score": 72
+        }
+      ]
+    }
+  ],
+  "samples": [
+    {
+      "type": "sample",
+      "id": 1,
+      "rooms": [
+        {
+          "roomId": "yNtIOPYpE",
+          "clients": 11,
+          "bots": 5,
+          "matchPhase": "running",
+          "matchRemainingSec": 58,
+          "tickMs": {
+            "samples": 45,
+            "mean": 1.0053222222222278,
+            "p95": 1.7244999999998072,
+            "max": 3.73720000000003
+          }
+        }
+      ],
+      "memory": {
+        "rss": 82907136,
+        "heapTotal": 33243136,
+        "heapUsed": 17056568,
+        "external": 3843091,
+        "arrayBuffers": 88749
+      },
+      "forcedGc": false,
+      "eventLoopMs": {
+        "p95": 18.382847,
+        "max": 202.244095
+      },
+      "cpuPercentOneCore": 19.199654565958937,
+      "storage": {
+        "config": {
+          "queue": {
+            "pending": 0,
+            "capacity": 128,
+            "committed": 0,
+            "failed": 0,
+            "rejected": 0,
+            "lastError": null,
+            "accepting": true
+          },
+          "file": {
+            "bytes": 0,
+            "maxBytes": 16777216,
+            "serializationMs": 0,
+            "commitMs": 0,
+            "directorySync": "not-attempted",
+            "orphanCount": 0
+          }
+        },
+        "leaderboard": {
+          "queue": {
+            "pending": 0,
+            "capacity": 128,
+            "committed": 0,
+            "failed": 0,
+            "rejected": 0,
+            "lastError": null,
+            "accepting": true
+          },
+          "file": {
+            "bytes": 0,
+            "maxBytes": 16777216,
+            "serializationMs": 0,
+            "commitMs": 0,
+            "directorySync": "not-attempted",
+            "orphanCount": 0
+          },
+          "retries": 0
+        },
+        "matches": {
+          "pending": [],
+          "recent": [],
+          "rejected": 0
+        }
+      }
+    },
+    {
+      "type": "sample",
+      "id": 2,
+      "rooms": [
+        {
+          "roomId": "yNtIOPYpE",
+          "clients": 11,
+          "bots": 5,
+          "matchPhase": "running",
+          "matchRemainingSec": 53,
+          "tickMs": {
+            "samples": 126,
+            "mean": 0.9983079365078857,
+            "p95": 1.5670000000000073,
+            "max": 3.73720000000003
+          }
+        }
+      ],
+      "memory": {
+        "rss": 84791296,
+        "heapTotal": 33767424,
+        "heapUsed": 22254464,
+        "external": 3913230,
+        "arrayBuffers": 158848
+      },
+      "forcedGc": false,
+      "eventLoopMs": {
+        "p95": 18.169855,
+        "max": 19.103743
+      },
+      "cpuPercentOneCore": 13.617486198192811,
+      "storage": {
+        "config": {
+          "queue": {
+            "pending": 0,
+            "capacity": 128,
+            "committed": 0,
+            "failed": 0,
+            "rejected": 0,
+            "lastError": null,
+            "accepting": true
+          },
+          "file": {
+            "bytes": 0,
+            "maxBytes": 16777216,
+            "serializationMs": 0,
+            "commitMs": 0,
+            "directorySync": "not-attempted",
+            "orphanCount": 0
+          }
+        },
+        "leaderboard": {
+          "queue": {
+            "pending": 0,
+            "capacity": 128,
+            "committed": 0,
+            "failed": 0,
+            "rejected": 0,
+            "lastError": null,
+            "accepting": true
+          },
+          "file": {
+            "bytes": 0,
+            "maxBytes": 16777216,
+            "serializationMs": 0,
+            "commitMs": 0,
+            "directorySync": "not-attempted",
+            "orphanCount": 0
+          },
+          "retries": 0
+        },
+        "matches": {
+          "pending": [],
+          "recent": [],
+          "rejected": 0
+        }
+      }
+    },
+    {
+      "type": "sample",
+      "id": 3,
+      "rooms": [
+        {
+          "roomId": "yNtIOPYpE",
+          "clients": 11,
+          "bots": 5,
+          "matchPhase": "running",
+          "matchRemainingSec": 48,
+          "tickMs": {
+            "samples": 200,
+            "mean": 0.9661129999999867,
+            "p95": 1.5568999999995867,
+            "max": 1.8222000000000662
+          }
+        }
+      ],
+      "memory": {
+        "rss": 85147648,
+        "heapTotal": 34291712,
+        "heapUsed": 16146776,
+        "external": 3844000,
+        "arrayBuffers": 89618
+      },
+      "forcedGc": false,
+      "eventLoopMs": {
+        "p95": 17.825791,
+        "max": 19.005439
+      },
+      "cpuPercentOneCore": 5.254353473829874,
+      "storage": {
+        "config": {
+          "queue": {
+            "pending": 0,
+            "capacity": 128,
+            "committed": 0,
+            "failed": 0,
+            "rejected": 0,
+            "lastError": null,
+            "accepting": true
+          },
+          "file": {
+            "bytes": 0,
+            "maxBytes": 16777216,
+            "serializationMs": 0,
+            "commitMs": 0,
+            "directorySync": "not-attempted",
+            "orphanCount": 0
+          }
+        },
+        "leaderboard": {
+          "queue": {
+            "pending": 0,
+            "capacity": 128,
+            "committed": 0,
+            "failed": 0,
+            "rejected": 0,
+            "lastError": null,
+            "accepting": true
+          },
+          "file": {
+            "bytes": 0,
+            "maxBytes": 16777216,
+            "serializationMs": 0,
+            "commitMs": 0,
+            "directorySync": "not-attempted",
+            "orphanCount": 0
+          },
+          "retries": 0
+        },
+        "matches": {
+          "pending": [],
+          "recent": [],
+          "rejected": 0
+        }
+      }
+    },
+    {
+      "type": "sample",
+      "id": 4,
+      "rooms": [
+        {
+          "roomId": "yNtIOPYpE",
+          "clients": 11,
+          "bots": 5,
+          "matchPhase": "running",
+          "matchRemainingSec": 43,
+          "tickMs": {
+            "samples": 200,
+            "mean": 0.9145845000000554,
+            "p95": 1.4950000000008004,
+            "max": 1.676100000000588
+          }
+        }
+      ],
+      "memory": {
+        "rss": 85852160,
+        "heapTotal": 34291712,
+        "heapUsed": 16548680,
+        "external": 3844876,
+        "arrayBuffers": 90494
+      },
+      "forcedGc": false,
+      "eventLoopMs": {
+        "p95": 17.596415,
+        "max": 18.513919
+      },
+      "cpuPercentOneCore": 2.781364026612489,
+      "storage": {
+        "config": {
+          "queue": {
+            "pending": 0,
+            "capacity": 128,
+            "committed": 0,
+            "failed": 0,
+            "rejected": 0,
+            "lastError": null,
+            "accepting": true
+          },
+          "file": {
+            "bytes": 0,
+            "maxBytes": 16777216,
+            "serializationMs": 0,
+            "commitMs": 0,
+            "directorySync": "not-attempted",
+            "orphanCount": 0
+          }
+        },
+        "leaderboard": {
+          "queue": {
+            "pending": 0,
+            "capacity": 128,
+            "committed": 0,
+            "failed": 0,
+            "rejected": 0,
+            "lastError": null,
+            "accepting": true
+          },
+          "file": {
+            "bytes": 0,
+            "maxBytes": 16777216,
+            "serializationMs": 0,
+            "commitMs": 0,
+            "directorySync": "not-attempted",
+            "orphanCount": 0
+          },
+          "retries": 0
+        },
+        "matches": {
+          "pending": [],
+          "recent": [],
+          "rejected": 0
+        }
+      }
+    },
+    {
+      "type": "sample",
+      "id": 5,
+      "rooms": [
+        {
+          "roomId": "yNtIOPYpE",
+          "clients": 11,
+          "bots": 5,
+          "matchPhase": "running",
+          "matchRemainingSec": 38,
+          "tickMs": {
+            "samples": 200,
+            "mean": 1.001702000000123,
+            "p95": 1.7645999999986088,
+            "max": 4.29399999999805
+          }
+        }
+      ],
+      "memory": {
+        "rss": 86544384,
+        "heapTotal": 34553856,
+        "heapUsed": 20090416,
+        "external": 3877561,
+        "arrayBuffers": 123179
+      },
+      "forcedGc": false,
+      "eventLoopMs": {
+        "p95": 18.055167,
+        "max": 20.316159
+      },
+      "cpuPercentOneCore": 8.100983912383748,
+      "storage": {
+        "config": {
+          "queue": {
+            "pending": 0,
+            "capacity": 128,
+            "committed": 0,
+            "failed": 0,
+            "rejected": 0,
+            "lastError": null,
+            "accepting": true
+          },
+          "file": {
+            "bytes": 0,
+            "maxBytes": 16777216,
+            "serializationMs": 0,
+            "commitMs": 0,
+            "directorySync": "not-attempted",
+            "orphanCount": 0
+          }
+        },
+        "leaderboard": {
+          "queue": {
+            "pending": 0,
+            "capacity": 128,
+            "committed": 0,
+            "failed": 0,
+            "rejected": 0,
+            "lastError": null,
+            "accepting": true
+          },
+          "file": {
+            "bytes": 0,
+            "maxBytes": 16777216,
+            "serializationMs": 0,
+            "commitMs": 0,
+            "directorySync": "not-attempted",
+            "orphanCount": 0
+          },
+          "retries": 0
+        },
+        "matches": {
+          "pending": [],
+          "recent": [],
+          "rejected": 0
+        }
+      }
+    },
+    {
+      "type": "sample",
+      "id": 6,
+      "rooms": [
+        {
+          "roomId": "yNtIOPYpE",
+          "clients": 11,
+          "bots": 5,
+          "matchPhase": "running",
+          "matchRemainingSec": 32,
+          "tickMs": {
+            "samples": 200,
+            "mean": 1.192627500000226,
+            "p95": 2.3372999999992317,
+            "max": 4.29399999999805
+          }
+        }
+      ],
+      "memory": {
+        "rss": 87396352,
+        "heapTotal": 36126720,
+        "heapUsed": 22868440,
+        "external": 3914840,
+        "arrayBuffers": 160458
+      },
+      "forcedGc": false,
+      "eventLoopMs": {
+        "p95": 18.137087,
+        "max": 19.693567
+      },
+      "cpuPercentOneCore": 1.5561707310760087,
+      "storage": {
+        "config": {
+          "queue": {
+            "pending": 0,
+            "capacity": 128,
+            "committed": 0,
+            "failed": 0,
+            "rejected": 0,
+            "lastError": null,
+            "accepting": true
+          },
+          "file": {
+            "bytes": 0,
+            "maxBytes": 16777216,
+            "serializationMs": 0,
+            "commitMs": 0,
+            "directorySync": "not-attempted",
+            "orphanCount": 0
+          }
+        },
+        "leaderboard": {
+          "queue": {
+            "pending": 0,
+            "capacity": 128,
+            "committed": 0,
+            "failed": 0,
+            "rejected": 0,
+            "lastError": null,
+            "accepting": true
+          },
+          "file": {
+            "bytes": 0,
+            "maxBytes": 16777216,
+            "serializationMs": 0,
+            "commitMs": 0,
+            "directorySync": "not-attempted",
+            "orphanCount": 0
+          },
+          "retries": 0
+        },
+        "matches": {
+          "pending": [],
+          "recent": [],
+          "rejected": 0
+        }
+      }
+    },
+    {
+      "type": "sample",
+      "id": 7,
+      "rooms": [
+        {
+          "roomId": "yNtIOPYpE",
+          "clients": 11,
+          "bots": 5,
+          "matchPhase": "running",
+          "matchRemainingSec": 27,
+          "tickMs": {
+            "samples": 200,
+            "mean": 1.488762500000248,
+            "p95": 2.604400000000169,
+            "max": 4.416900000000169
+          }
+        }
+      ],
+      "memory": {
+        "rss": 88563712,
+        "heapTotal": 36651008,
+        "heapUsed": 19546184,
+        "external": 3870308,
+        "arrayBuffers": 115926
+      },
+      "forcedGc": false,
+      "eventLoopMs": {
+        "p95": 18.431999,
+        "max": 20.398079
+      },
+      "cpuPercentOneCore": 9.4917395532696,
+      "storage": {
+        "config": {
+          "queue": {
+            "pending": 0,
+            "capacity": 128,
+            "committed": 0,
+            "failed": 0,
+            "rejected": 0,
+            "lastError": null,
+            "accepting": true
+          },
+          "file": {
+            "bytes": 0,
+            "maxBytes": 16777216,
+            "serializationMs": 0,
+            "commitMs": 0,
+            "directorySync": "not-attempted",
+            "orphanCount": 0
+          }
+        },
+        "leaderboard": {
+          "queue": {
+            "pending": 0,
+            "capacity": 128,
+            "committed": 0,
+            "failed": 0,
+            "rejected": 0,
+            "lastError": null,
+            "accepting": true
+          },
+          "file": {
+            "bytes": 0,
+            "maxBytes": 16777216,
+            "serializationMs": 0,
+            "commitMs": 0,
+            "directorySync": "not-attempted",
+            "orphanCount": 0
+          },
+          "retries": 0
+        },
+        "matches": {
+          "pending": [],
+          "recent": [],
+          "rejected": 0
+        }
+      }
+    },
+    {
+      "type": "sample",
+      "id": 8,
+      "rooms": [
+        {
+          "roomId": "yNtIOPYpE",
+          "clients": 11,
+          "bots": 5,
+          "matchPhase": "running",
+          "matchRemainingSec": 22,
+          "tickMs": {
+            "samples": 200,
+            "mean": 1.5934915000000547,
+            "p95": 2.77730000000156,
+            "max": 4.416900000000169
+          }
+        }
+      ],
+      "memory": {
+        "rss": 88870912,
+        "heapTotal": 37699584,
+        "heapUsed": 23939456,
+        "external": 3963895,
+        "arrayBuffers": 209513
+      },
+      "forcedGc": false,
+      "eventLoopMs": {
+        "p95": 18.481151,
+        "max": 20.201471
+      },
+      "cpuPercentOneCore": 9.883786400051958,
+      "storage": {
+        "config": {
+          "queue": {
+            "pending": 0,
+            "capacity": 128,
+            "committed": 0,
+            "failed": 0,
+            "rejected": 0,
+            "lastError": null,
+            "accepting": true
+          },
+          "file": {
+            "bytes": 0,
+            "maxBytes": 16777216,
+            "serializationMs": 0,
+            "commitMs": 0,
+            "directorySync": "not-attempted",
+            "orphanCount": 0
+          }
+        },
+        "leaderboard": {
+          "queue": {
+            "pending": 0,
+            "capacity": 128,
+            "committed": 0,
+            "failed": 0,
+            "rejected": 0,
+            "lastError": null,
+            "accepting": true
+          },
+          "file": {
+            "bytes": 0,
+            "maxBytes": 16777216,
+            "serializationMs": 0,
+            "commitMs": 0,
+            "directorySync": "not-attempted",
+            "orphanCount": 0
+          },
+          "retries": 0
+        },
+        "matches": {
+          "pending": [],
+          "recent": [],
+          "rejected": 0
+        }
+      }
+    },
+    {
+      "type": "sample",
+      "id": 9,
+      "rooms": [
+        {
+          "roomId": "yNtIOPYpE",
+          "clients": 11,
+          "bots": 5,
+          "matchPhase": "running",
+          "matchRemainingSec": 17,
+          "tickMs": {
+            "samples": 200,
+            "mean": 1.6976794999998492,
+            "p95": 2.8096999999979744,
+            "max": 4.7902999999932945
+          }
+        }
+      ],
+      "memory": {
+        "rss": 90132480,
+        "heapTotal": 38223872,
+        "heapUsed": 25349104,
+        "external": 3978243,
+        "arrayBuffers": 223861
+      },
+      "forcedGc": false,
+      "eventLoopMs": {
+        "p95": 18.399231,
+        "max": 21.970943
+      },
+      "cpuPercentOneCore": 12.271921672388428,
+      "storage": {
+        "config": {
+          "queue": {
+            "pending": 0,
+            "capacity": 128,
+            "committed": 0,
+            "failed": 0,
+            "rejected": 0,
+            "lastError": null,
+            "accepting": true
+          },
+          "file": {
+            "bytes": 0,
+            "maxBytes": 16777216,
+            "serializationMs": 0,
+            "commitMs": 0,
+            "directorySync": "not-attempted",
+            "orphanCount": 0
+          }
+        },
+        "leaderboard": {
+          "queue": {
+            "pending": 0,
+            "capacity": 128,
+            "committed": 0,
+            "failed": 0,
+            "rejected": 0,
+            "lastError": null,
+            "accepting": true
+          },
+          "file": {
+            "bytes": 0,
+            "maxBytes": 16777216,
+            "serializationMs": 0,
+            "commitMs": 0,
+            "directorySync": "not-attempted",
+            "orphanCount": 0
+          },
+          "retries": 0
+        },
+        "matches": {
+          "pending": [],
+          "recent": [],
+          "rejected": 0
+        }
+      }
+    },
+    {
+      "type": "sample",
+      "id": 10,
+      "rooms": [
+        {
+          "roomId": "yNtIOPYpE",
+          "clients": 11,
+          "bots": 5,
+          "matchPhase": "running",
+          "matchRemainingSec": 12,
+          "tickMs": {
+            "samples": 200,
+            "mean": 1.739430999999713,
+            "p95": 2.834100000000035,
+            "max": 4.7902999999932945
+          }
+        }
+      ],
+      "memory": {
+        "rss": 91140096,
+        "heapTotal": 39010304,
+        "heapUsed": 25021776,
+        "external": 3940528,
+        "arrayBuffers": 186146
+      },
+      "forcedGc": false,
+      "eventLoopMs": {
+        "p95": 18.661375,
+        "max": 20.479999
+      },
+      "cpuPercentOneCore": 11.061329007264614,
+      "storage": {
+        "config": {
+          "queue": {
+            "pending": 0,
+            "capacity": 128,
+            "committed": 0,
+            "failed": 0,
+            "rejected": 0,
+            "lastError": null,
+            "accepting": true
+          },
+          "file": {
+            "bytes": 0,
+            "maxBytes": 16777216,
+            "serializationMs": 0,
+            "commitMs": 0,
+            "directorySync": "not-attempted",
+            "orphanCount": 0
+          }
+        },
+        "leaderboard": {
+          "queue": {
+            "pending": 0,
+            "capacity": 128,
+            "committed": 0,
+            "failed": 0,
+            "rejected": 0,
+            "lastError": null,
+            "accepting": true
+          },
+          "file": {
+            "bytes": 0,
+            "maxBytes": 16777216,
+            "serializationMs": 0,
+            "commitMs": 0,
+            "directorySync": "not-attempted",
+            "orphanCount": 0
+          },
+          "retries": 0
+        },
+        "matches": {
+          "pending": [],
+          "recent": [],
+          "rejected": 0
+        }
+      }
+    },
+    {
+      "type": "sample",
+      "id": 11,
+      "rooms": [
+        {
+          "roomId": "yNtIOPYpE",
+          "clients": 11,
+          "bots": 5,
+          "matchPhase": "running",
+          "matchRemainingSec": 7,
+          "tickMs": {
+            "samples": 200,
+            "mean": 1.7655689999998867,
+            "p95": 2.845400000005611,
+            "max": 4.7902999999932945
+          }
+        }
+      ],
+      "memory": {
+        "rss": 92200960,
+        "heapTotal": 39796736,
+        "heapUsed": 25501752,
+        "external": 3950364,
+        "arrayBuffers": 195982
+      },
+      "forcedGc": false,
+      "eventLoopMs": {
+        "p95": 18.350079,
+        "max": 20.021247
+      },
+      "cpuPercentOneCore": 8.43204082802162,
+      "storage": {
+        "config": {
+          "queue": {
+            "pending": 0,
+            "capacity": 128,
+            "committed": 0,
+            "failed": 0,
+            "rejected": 0,
+            "lastError": null,
+            "accepting": true
+          },
+          "file": {
+            "bytes": 0,
+            "maxBytes": 16777216,
+            "serializationMs": 0,
+            "commitMs": 0,
+            "directorySync": "not-attempted",
+            "orphanCount": 0
+          }
+        },
+        "leaderboard": {
+          "queue": {
+            "pending": 0,
+            "capacity": 128,
+            "committed": 0,
+            "failed": 0,
+            "rejected": 0,
+            "lastError": null,
+            "accepting": true
+          },
+          "file": {
+            "bytes": 0,
+            "maxBytes": 16777216,
+            "serializationMs": 0,
+            "commitMs": 0,
+            "directorySync": "not-attempted",
+            "orphanCount": 0
+          },
+          "retries": 0
+        },
+        "matches": {
+          "pending": [],
+          "recent": [],
+          "rejected": 0
+        }
+      }
+    },
+    {
+      "type": "sample",
+      "id": 12,
+      "rooms": [
+        {
+          "roomId": "yNtIOPYpE",
+          "clients": 11,
+          "bots": 5,
+          "matchPhase": "running",
+          "matchRemainingSec": 2,
+          "tickMs": {
+            "samples": 200,
+            "mean": 1.7131135000001814,
+            "p95": 2.762399999999616,
+            "max": 3.3193000000028405
+          }
+        }
+      ],
+      "memory": {
+        "rss": 92323840,
+        "heapTotal": 40321024,
+        "heapUsed": 27307896,
+        "external": 3961019,
+        "arrayBuffers": 206637
+      },
+      "forcedGc": false,
+      "eventLoopMs": {
+        "p95": 18.563071,
+        "max": 19.841023
+      },
+      "cpuPercentOneCore": 8.14214708418609,
+      "storage": {
+        "config": {
+          "queue": {
+            "pending": 0,
+            "capacity": 128,
+            "committed": 0,
+            "failed": 0,
+            "rejected": 0,
+            "lastError": null,
+            "accepting": true
+          },
+          "file": {
+            "bytes": 0,
+            "maxBytes": 16777216,
+            "serializationMs": 0,
+            "commitMs": 0,
+            "directorySync": "not-attempted",
+            "orphanCount": 0
+          }
+        },
+        "leaderboard": {
+          "queue": {
+            "pending": 0,
+            "capacity": 128,
+            "committed": 0,
+            "failed": 0,
+            "rejected": 0,
+            "lastError": null,
+            "accepting": true
+          },
+          "file": {
+            "bytes": 0,
+            "maxBytes": 16777216,
+            "serializationMs": 0,
+            "commitMs": 0,
+            "directorySync": "not-attempted",
+            "orphanCount": 0
+          },
+          "retries": 0
+        },
+        "matches": {
+          "pending": [],
+          "recent": [],
+          "rejected": 0
+        }
+      }
+    },
+    {
+      "type": "sample",
+      "id": 14,
+      "rooms": [
+        {
+          "roomId": "yNtIOPYpE",
+          "clients": 11,
+          "bots": 5,
+          "matchPhase": "running",
+          "matchRemainingSec": 57,
+          "tickMs": {
+            "samples": 200,
+            "mean": 1.5157404999998834,
+            "p95": 2.4778999999980442,
+            "max": 3.0693000000028405
+          }
+        }
+      ],
+      "memory": {
+        "rss": 92680192,
+        "heapTotal": 39534592,
+        "heapUsed": 19299088,
+        "external": 3891795,
+        "arrayBuffers": 137413
+      },
+      "forcedGc": false,
+      "eventLoopMs": {
+        "p95": 18.006015,
+        "max": 21.331967
+      },
+      "cpuPercentOneCore": 1.4967910233557034,
+      "storage": {
+        "config": {
+          "queue": {
+            "pending": 0,
+            "capacity": 128,
+            "committed": 0,
+            "failed": 0,
+            "rejected": 0,
+            "lastError": null,
+            "accepting": true
+          },
+          "file": {
+            "bytes": 0,
+            "maxBytes": 16777216,
+            "serializationMs": 0,
+            "commitMs": 0,
+            "directorySync": "not-attempted",
+            "orphanCount": 0
+          }
+        },
+        "leaderboard": {
+          "queue": {
+            "pending": 0,
+            "capacity": 128,
+            "committed": 1,
+            "failed": 0,
+            "rejected": 0,
+            "lastError": null,
+            "accepting": true
+          },
+          "file": {
+            "bytes": 1694,
+            "maxBytes": 16777216,
+            "serializationMs": 0.01449999999749707,
+            "commitMs": 3.986400000001595,
+            "directorySync": "unavailable",
+            "orphanCount": 0
+          },
+          "retries": 0
+        },
+        "matches": {
+          "pending": [],
+          "recent": [
+            {
+              "matchId": "20cf1462-266b-45a5-910e-b7e5ce82c1c0",
+              "state": "committed"
+            }
+          ],
+          "rejected": 0
+        }
+      }
+    },
+    {
+      "type": "sample",
+      "id": 15,
+      "rooms": [
+        {
+          "roomId": "yNtIOPYpE",
+          "clients": 11,
+          "bots": 5,
+          "matchPhase": "running",
+          "matchRemainingSec": 52,
+          "tickMs": {
+            "samples": 200,
+            "mean": 1.3330470000001151,
+            "p95": 2.31600000000617,
+            "max": 2.8580000000074506
+          }
+        }
+      ],
+      "memory": {
+        "rss": 103514112,
+        "heapTotal": 52903936,
+        "heapUsed": 24868936,
+        "external": 3967842,
+        "arrayBuffers": 213460
+      },
+      "forcedGc": false,
+      "eventLoopMs": {
+        "p95": 17.809407,
+        "max": 19.890175
+      },
+      "cpuPercentOneCore": 7.116214099567091,
+      "storage": {
+        "config": {
+          "queue": {
+            "pending": 0,
+            "capacity": 128,
+            "committed": 0,
+            "failed": 0,
+            "rejected": 0,
+            "lastError": null,
+            "accepting": true
+          },
+          "file": {
+            "bytes": 0,
+            "maxBytes": 16777216,
+            "serializationMs": 0,
+            "commitMs": 0,
+            "directorySync": "not-attempted",
+            "orphanCount": 0
+          }
+        },
+        "leaderboard": {
+          "queue": {
+            "pending": 0,
+            "capacity": 128,
+            "committed": 1,
+            "failed": 0,
+            "rejected": 0,
+            "lastError": null,
+            "accepting": true
+          },
+          "file": {
+            "bytes": 1694,
+            "maxBytes": 16777216,
+            "serializationMs": 0.01449999999749707,
+            "commitMs": 3.986400000001595,
+            "directorySync": "unavailable",
+            "orphanCount": 0
+          },
+          "retries": 0
+        },
+        "matches": {
+          "pending": [],
+          "recent": [
+            {
+              "matchId": "20cf1462-266b-45a5-910e-b7e5ce82c1c0",
+              "state": "committed"
+            }
+          ],
+          "rejected": 0
+        }
+      }
+    },
+    {
+      "type": "sample",
+      "id": 16,
+      "rooms": [
+        {
+          "roomId": "yNtIOPYpE",
+          "clients": 11,
+          "bots": 5,
+          "matchPhase": "running",
+          "matchRemainingSec": 47,
+          "tickMs": {
+            "samples": 200,
+            "mean": 1.1495770000008998,
+            "p95": 1.7967999999964377,
+            "max": 2.8580000000074506
+          }
+        }
+      ],
+      "memory": {
+        "rss": 105086976,
+        "heapTotal": 53166080,
+        "heapUsed": 27098704,
+        "external": 3968669,
+        "arrayBuffers": 214287
+      },
+      "forcedGc": false,
+      "eventLoopMs": {
+        "p95": 17.711103,
+        "max": 19.234815
+      },
+      "cpuPercentOneCore": 3.740067534479052,
+      "storage": {
+        "config": {
+          "queue": {
+            "pending": 0,
+            "capacity": 128,
+            "committed": 0,
+            "failed": 0,
+            "rejected": 0,
+            "lastError": null,
+            "accepting": true
+          },
+          "file": {
+            "bytes": 0,
+            "maxBytes": 16777216,
+            "serializationMs": 0,
+            "commitMs": 0,
+            "directorySync": "not-attempted",
+            "orphanCount": 0
+          }
+        },
+        "leaderboard": {
+          "queue": {
+            "pending": 0,
+            "capacity": 128,
+            "committed": 1,
+            "failed": 0,
+            "rejected": 0,
+            "lastError": null,
+            "accepting": true
+          },
+          "file": {
+            "bytes": 1694,
+            "maxBytes": 16777216,
+            "serializationMs": 0.01449999999749707,
+            "commitMs": 3.986400000001595,
+            "directorySync": "unavailable",
+            "orphanCount": 0
+          },
+          "retries": 0
+        },
+        "matches": {
+          "pending": [],
+          "recent": [
+            {
+              "matchId": "20cf1462-266b-45a5-910e-b7e5ce82c1c0",
+              "state": "committed"
+            }
+          ],
+          "rejected": 0
+        }
+      }
+    },
+    {
+      "type": "sample",
+      "id": 17,
+      "rooms": [
+        {
+          "roomId": "yNtIOPYpE",
+          "clients": 11,
+          "bots": 5,
+          "matchPhase": "running",
+          "matchRemainingSec": 42,
+          "tickMs": {
+            "samples": 200,
+            "mean": 1.0628585000013118,
+            "p95": 1.8291000000026543,
+            "max": 2.2239000000117812
+          }
+        }
+      ],
+      "memory": {
+        "rss": 105533440,
+        "heapTotal": 54476800,
+        "heapUsed": 19653000,
+        "external": 3871522,
+        "arrayBuffers": 117140
+      },
+      "forcedGc": false,
+      "eventLoopMs": {
+        "p95": 17.760255,
+        "max": 19.431423
+      },
+      "cpuPercentOneCore": 6.807325189972986,
+      "storage": {
+        "config": {
+          "queue": {
+            "pending": 0,
+            "capacity": 128,
+            "committed": 0,
+            "failed": 0,
+            "rejected": 0,
+            "lastError": null,
+            "accepting": true
+          },
+          "file": {
+            "bytes": 0,
+            "maxBytes": 16777216,
+            "serializationMs": 0,
+            "commitMs": 0,
+            "directorySync": "not-attempted",
+            "orphanCount": 0
+          }
+        },
+        "leaderboard": {
+          "queue": {
+            "pending": 0,
+            "capacity": 128,
+            "committed": 1,
+            "failed": 0,
+            "rejected": 0,
+            "lastError": null,
+            "accepting": true
+          },
+          "file": {
+            "bytes": 1694,
+            "maxBytes": 16777216,
+            "serializationMs": 0.01449999999749707,
+            "commitMs": 3.986400000001595,
+            "directorySync": "unavailable",
+            "orphanCount": 0
+          },
+          "retries": 0
+        },
+        "matches": {
+          "pending": [],
+          "recent": [
+            {
+              "matchId": "20cf1462-266b-45a5-910e-b7e5ce82c1c0",
+              "state": "committed"
+            }
+          ],
+          "rejected": 0
+        }
+      }
+    },
+    {
+      "type": "sample",
+      "id": 18,
+      "rooms": [
+        {
+          "roomId": "yNtIOPYpE",
+          "clients": 11,
+          "bots": 5,
+          "matchPhase": "running",
+          "matchRemainingSec": 37,
+          "tickMs": {
+            "samples": 200,
+            "mean": 0.9591320000007545,
+            "p95": 1.7245999999868218,
+            "max": 2.2239000000117812
+          }
+        }
+      ],
+      "memory": {
+        "rss": 105799680,
+        "heapTotal": 54738944,
+        "heapUsed": 22576440,
+        "external": 3901124,
+        "arrayBuffers": 146742
+      },
+      "forcedGc": false,
+      "eventLoopMs": {
+        "p95": 17.809407,
+        "max": 21.053439
+      },
+      "cpuPercentOneCore": 7.166498197556042,
+      "storage": {
+        "config": {
+          "queue": {
+            "pending": 0,
+            "capacity": 128,
+            "committed": 0,
+            "failed": 0,
+            "rejected": 0,
+            "lastError": null,
+            "accepting": true
+          },
+          "file": {
+            "bytes": 0,
+            "maxBytes": 16777216,
+            "serializationMs": 0,
+            "commitMs": 0,
+            "directorySync": "not-attempted",
+            "orphanCount": 0
+          }
+        },
+        "leaderboard": {
+          "queue": {
+            "pending": 0,
+            "capacity": 128,
+            "committed": 1,
+            "failed": 0,
+            "rejected": 0,
+            "lastError": null,
+            "accepting": true
+          },
+          "file": {
+            "bytes": 1694,
+            "maxBytes": 16777216,
+            "serializationMs": 0.01449999999749707,
+            "commitMs": 3.986400000001595,
+            "directorySync": "unavailable",
+            "orphanCount": 0
+          },
+          "retries": 0
+        },
+        "matches": {
+          "pending": [],
+          "recent": [
+            {
+              "matchId": "20cf1462-266b-45a5-910e-b7e5ce82c1c0",
+              "state": "committed"
+            }
+          ],
+          "rejected": 0
+        }
+      }
+    },
+    {
+      "type": "sample",
+      "id": 19,
+      "rooms": [
+        {
+          "roomId": "yNtIOPYpE",
+          "clients": 11,
+          "bots": 5,
+          "matchPhase": "running",
+          "matchRemainingSec": 32,
+          "tickMs": {
+            "samples": 200,
+            "mean": 0.8811930000007123,
+            "p95": 1.519799999994575,
+            "max": 1.9011000000027707
+          }
+        }
+      ],
+      "memory": {
+        "rss": 105705472,
+        "heapTotal": 55787520,
+        "heapUsed": 21312136,
+        "external": 3879690,
+        "arrayBuffers": 125308
+      },
+      "forcedGc": false,
+      "eventLoopMs": {
+        "p95": 17.940479,
+        "max": 19.103743
+      },
+      "cpuPercentOneCore": 4.95686492347994,
+      "storage": {
+        "config": {
+          "queue": {
+            "pending": 0,
+            "capacity": 128,
+            "committed": 0,
+            "failed": 0,
+            "rejected": 0,
+            "lastError": null,
+            "accepting": true
+          },
+          "file": {
+            "bytes": 0,
+            "maxBytes": 16777216,
+            "serializationMs": 0,
+            "commitMs": 0,
+            "directorySync": "not-attempted",
+            "orphanCount": 0
+          }
+        },
+        "leaderboard": {
+          "queue": {
+            "pending": 0,
+            "capacity": 128,
+            "committed": 1,
+            "failed": 0,
+            "rejected": 0,
+            "lastError": null,
+            "accepting": true
+          },
+          "file": {
+            "bytes": 1694,
+            "maxBytes": 16777216,
+            "serializationMs": 0.01449999999749707,
+            "commitMs": 3.986400000001595,
+            "directorySync": "unavailable",
+            "orphanCount": 0
+          },
+          "retries": 0
+        },
+        "matches": {
+          "pending": [],
+          "recent": [
+            {
+              "matchId": "20cf1462-266b-45a5-910e-b7e5ce82c1c0",
+              "state": "committed"
+            }
+          ],
+          "rejected": 0
+        }
+      }
+    },
+    {
+      "type": "sample",
+      "id": 20,
+      "rooms": [
+        {
+          "roomId": "yNtIOPYpE",
+          "clients": 11,
+          "bots": 5,
+          "matchPhase": "running",
+          "matchRemainingSec": 27,
+          "tickMs": {
+            "samples": 200,
+            "mean": 0.8958115000007819,
+            "p95": 1.463000000003376,
+            "max": 1.8902999999991152
+          }
+        }
+      ],
+      "memory": {
+        "rss": 105857024,
+        "heapTotal": 56573952,
+        "heapUsed": 32775144,
+        "external": 3999151,
+        "arrayBuffers": 244769
+      },
+      "forcedGc": false,
+      "eventLoopMs": {
+        "p95": 17.743871,
+        "max": 18.841599
+      },
+      "cpuPercentOneCore": 2.4901992378764994,
+      "storage": {
+        "config": {
+          "queue": {
+            "pending": 0,
+            "capacity": 128,
+            "committed": 0,
+            "failed": 0,
+            "rejected": 0,
+            "lastError": null,
+            "accepting": true
+          },
+          "file": {
+            "bytes": 0,
+            "maxBytes": 16777216,
+            "serializationMs": 0,
+            "commitMs": 0,
+            "directorySync": "not-attempted",
+            "orphanCount": 0
+          }
+        },
+        "leaderboard": {
+          "queue": {
+            "pending": 0,
+            "capacity": 128,
+            "committed": 1,
+            "failed": 0,
+            "rejected": 0,
+            "lastError": null,
+            "accepting": true
+          },
+          "file": {
+            "bytes": 1694,
+            "maxBytes": 16777216,
+            "serializationMs": 0.01449999999749707,
+            "commitMs": 3.986400000001595,
+            "directorySync": "unavailable",
+            "orphanCount": 0
+          },
+          "retries": 0
+        },
+        "matches": {
+          "pending": [],
+          "recent": [
+            {
+              "matchId": "20cf1462-266b-45a5-910e-b7e5ce82c1c0",
+              "state": "committed"
+            }
+          ],
+          "rejected": 0
+        }
+      }
+    },
+    {
+      "type": "sample",
+      "id": 21,
+      "rooms": [
+        {
+          "roomId": "yNtIOPYpE",
+          "clients": 11,
+          "bots": 5,
+          "matchPhase": "running",
+          "matchRemainingSec": 22,
+          "tickMs": {
+            "samples": 200,
+            "mean": 0.9601205000002665,
+            "p95": 1.659299999999348,
+            "max": 2.3932000000058906
+          }
+        }
+      ],
+      "memory": {
+        "rss": 106229760,
+        "heapTotal": 57098240,
+        "heapUsed": 33145432,
+        "external": 4057002,
+        "arrayBuffers": 302620
+      },
+      "forcedGc": false,
+      "eventLoopMs": {
+        "p95": 17.940479,
+        "max": 19.234815
+      },
+      "cpuPercentOneCore": 3.103573653651842,
+      "storage": {
+        "config": {
+          "queue": {
+            "pending": 0,
+            "capacity": 128,
+            "committed": 0,
+            "failed": 0,
+            "rejected": 0,
+            "lastError": null,
+            "accepting": true
+          },
+          "file": {
+            "bytes": 0,
+            "maxBytes": 16777216,
+            "serializationMs": 0,
+            "commitMs": 0,
+            "directorySync": "not-attempted",
+            "orphanCount": 0
+          }
+        },
+        "leaderboard": {
+          "queue": {
+            "pending": 0,
+            "capacity": 128,
+            "committed": 1,
+            "failed": 0,
+            "rejected": 0,
+            "lastError": null,
+            "accepting": true
+          },
+          "file": {
+            "bytes": 1694,
+            "maxBytes": 16777216,
+            "serializationMs": 0.01449999999749707,
+            "commitMs": 3.986400000001595,
+            "directorySync": "unavailable",
+            "orphanCount": 0
+          },
+          "retries": 0
+        },
+        "matches": {
+          "pending": [],
+          "recent": [
+            {
+              "matchId": "20cf1462-266b-45a5-910e-b7e5ce82c1c0",
+              "state": "committed"
+            }
+          ],
+          "rejected": 0
+        }
+      }
+    },
+    {
+      "type": "sample",
+      "id": 22,
+      "rooms": [
+        {
+          "roomId": "yNtIOPYpE",
+          "clients": 11,
+          "bots": 5,
+          "matchPhase": "running",
+          "matchRemainingSec": 17,
+          "tickMs": {
+            "samples": 200,
+            "mean": 1.0458160000001226,
+            "p95": 1.8739999999961583,
+            "max": 2.3932000000058906
+          }
+        }
+      ],
+      "memory": {
+        "rss": 107528192,
+        "heapTotal": 58671104,
+        "heapUsed": 34214880,
+        "external": 4076689,
+        "arrayBuffers": 322307
+      },
+      "forcedGc": false,
+      "eventLoopMs": {
+        "p95": 18.317311,
+        "max": 19.496959
+      },
+      "cpuPercentOneCore": 4.656271280150446,
+      "storage": {
+        "config": {
+          "queue": {
+            "pending": 0,
+            "capacity": 128,
+            "committed": 0,
+            "failed": 0,
+            "rejected": 0,
+            "lastError": null,
+            "accepting": true
+          },
+          "file": {
+            "bytes": 0,
+            "maxBytes": 16777216,
+            "serializationMs": 0,
+            "commitMs": 0,
+            "directorySync": "not-attempted",
+            "orphanCount": 0
+          }
+        },
+        "leaderboard": {
+          "queue": {
+            "pending": 0,
+            "capacity": 128,
+            "committed": 1,
+            "failed": 0,
+            "rejected": 0,
+            "lastError": null,
+            "accepting": true
+          },
+          "file": {
+            "bytes": 1694,
+            "maxBytes": 16777216,
+            "serializationMs": 0.01449999999749707,
+            "commitMs": 3.986400000001595,
+            "directorySync": "unavailable",
+            "orphanCount": 0
+          },
+          "retries": 0
+        },
+        "matches": {
+          "pending": [],
+          "recent": [
+            {
+              "matchId": "20cf1462-266b-45a5-910e-b7e5ce82c1c0",
+              "state": "committed"
+            }
+          ],
+          "rejected": 0
+        }
+      }
+    },
+    {
+      "type": "sample",
+      "id": 23,
+      "rooms": [
+        {
+          "roomId": "yNtIOPYpE",
+          "clients": 11,
+          "bots": 5,
+          "matchPhase": "running",
+          "matchRemainingSec": 12,
+          "tickMs": {
+            "samples": 200,
+            "mean": 1.079997500000245,
+            "p95": 1.8726999999926193,
+            "max": 2.3932000000058906
+          }
+        }
+      ],
+      "memory": {
+        "rss": 108331008,
+        "heapTotal": 59719680,
+        "heapUsed": 33399544,
+        "external": 4019784,
+        "arrayBuffers": 265402
+      },
+      "forcedGc": false,
+      "eventLoopMs": {
+        "p95": 18.186239,
+        "max": 19.021823
+      },
+      "cpuPercentOneCore": 12.257219639868739,
+      "storage": {
+        "config": {
+          "queue": {
+            "pending": 0,
+            "capacity": 128,
+            "committed": 0,
+            "failed": 0,
+            "rejected": 0,
+            "lastError": null,
+            "accepting": true
+          },
+          "file": {
+            "bytes": 0,
+            "maxBytes": 16777216,
+            "serializationMs": 0,
+            "commitMs": 0,
+            "directorySync": "not-attempted",
+            "orphanCount": 0
+          }
+        },
+        "leaderboard": {
+          "queue": {
+            "pending": 0,
+            "capacity": 128,
+            "committed": 1,
+            "failed": 0,
+            "rejected": 0,
+            "lastError": null,
+            "accepting": true
+          },
+          "file": {
+            "bytes": 1694,
+            "maxBytes": 16777216,
+            "serializationMs": 0.01449999999749707,
+            "commitMs": 3.986400000001595,
+            "directorySync": "unavailable",
+            "orphanCount": 0
+          },
+          "retries": 0
+        },
+        "matches": {
+          "pending": [],
+          "recent": [
+            {
+              "matchId": "20cf1462-266b-45a5-910e-b7e5ce82c1c0",
+              "state": "committed"
+            }
+          ],
+          "rejected": 0
+        }
+      }
+    },
+    {
+      "type": "sample",
+      "id": 24,
+      "rooms": [
+        {
+          "roomId": "yNtIOPYpE",
+          "clients": 11,
+          "bots": 5,
+          "matchPhase": "running",
+          "matchRemainingSec": 7,
+          "tickMs": {
+            "samples": 200,
+            "mean": 1.1452345000006607,
+            "p95": 2.006999999997788,
+            "max": 2.527799999996205
+          }
+        }
+      ],
+      "memory": {
+        "rss": 109346816,
+        "heapTotal": 59457536,
+        "heapUsed": 21047280,
+        "external": 3918085,
+        "arrayBuffers": 163703
+      },
+      "forcedGc": false,
+      "eventLoopMs": {
+        "p95": 18.464767,
+        "max": 22.888447
+      },
+      "cpuPercentOneCore": 5.545065646374594,
+      "storage": {
+        "config": {
+          "queue": {
+            "pending": 0,
+            "capacity": 128,
+            "committed": 0,
+            "failed": 0,
+            "rejected": 0,
+            "lastError": null,
+            "accepting": true
+          },
+          "file": {
+            "bytes": 0,
+            "maxBytes": 16777216,
+            "serializationMs": 0,
+            "commitMs": 0,
+            "directorySync": "not-attempted",
+            "orphanCount": 0
+          }
+        },
+        "leaderboard": {
+          "queue": {
+            "pending": 0,
+            "capacity": 128,
+            "committed": 1,
+            "failed": 0,
+            "rejected": 0,
+            "lastError": null,
+            "accepting": true
+          },
+          "file": {
+            "bytes": 1694,
+            "maxBytes": 16777216,
+            "serializationMs": 0.01449999999749707,
+            "commitMs": 3.986400000001595,
+            "directorySync": "unavailable",
+            "orphanCount": 0
+          },
+          "retries": 0
+        },
+        "matches": {
+          "pending": [],
+          "recent": [
+            {
+              "matchId": "20cf1462-266b-45a5-910e-b7e5ce82c1c0",
+              "state": "committed"
+            }
+          ],
+          "rejected": 0
+        }
+      }
+    },
+    {
+      "type": "sample",
+      "id": 25,
+      "rooms": [
+        {
+          "roomId": "yNtIOPYpE",
+          "clients": 11,
+          "bots": 5,
+          "matchPhase": "running",
+          "matchRemainingSec": 2,
+          "tickMs": {
+            "samples": 200,
+            "mean": 1.235127000000648,
+            "p95": 2.120999999999185,
+            "max": 2.527799999996205
+          }
+        }
+      ],
+      "memory": {
+        "rss": 109367296,
+        "heapTotal": 59457536,
+        "heapUsed": 23958240,
+        "external": 3945400,
+        "arrayBuffers": 191018
+      },
+      "forcedGc": false,
+      "eventLoopMs": {
+        "p95": 18.431999,
+        "max": 19.660799
+      },
+      "cpuPercentOneCore": 3.4303560342595203,
+      "storage": {
+        "config": {
+          "queue": {
+            "pending": 0,
+            "capacity": 128,
+            "committed": 0,
+            "failed": 0,
+            "rejected": 0,
+            "lastError": null,
+            "accepting": true
+          },
+          "file": {
+            "bytes": 0,
+            "maxBytes": 16777216,
+            "serializationMs": 0,
+            "commitMs": 0,
+            "directorySync": "not-attempted",
+            "orphanCount": 0
+          }
+        },
+        "leaderboard": {
+          "queue": {
+            "pending": 0,
+            "capacity": 128,
+            "committed": 1,
+            "failed": 0,
+            "rejected": 0,
+            "lastError": null,
+            "accepting": true
+          },
+          "file": {
+            "bytes": 1694,
+            "maxBytes": 16777216,
+            "serializationMs": 0.01449999999749707,
+            "commitMs": 3.986400000001595,
+            "directorySync": "unavailable",
+            "orphanCount": 0
+          },
+          "retries": 0
+        },
+        "matches": {
+          "pending": [],
+          "recent": [
+            {
+              "matchId": "20cf1462-266b-45a5-910e-b7e5ce82c1c0",
+              "state": "committed"
+            }
+          ],
+          "rejected": 0
+        }
+      }
+    },
+    {
+      "type": "sample",
+      "id": 27,
+      "rooms": [
+        {
+          "roomId": "yNtIOPYpE",
+          "clients": 11,
+          "bots": 5,
+          "matchPhase": "running",
+          "matchRemainingSec": 57,
+          "tickMs": {
+            "samples": 200,
+            "mean": 1.193539000000237,
+            "p95": 2.0833999999886146,
+            "max": 2.7682000000058906
+          }
+        }
+      ],
+      "memory": {
+        "rss": 109371392,
+        "heapTotal": 54214656,
+        "heapUsed": 19068480,
+        "external": 3881755,
+        "arrayBuffers": 127373
+      },
+      "forcedGc": false,
+      "eventLoopMs": {
+        "p95": 18.169855,
+        "max": 20.217855
+      },
+      "cpuPercentOneCore": 4.728306332263752,
+      "storage": {
+        "config": {
+          "queue": {
+            "pending": 0,
+            "capacity": 128,
+            "committed": 0,
+            "failed": 0,
+            "rejected": 0,
+            "lastError": null,
+            "accepting": true
+          },
+          "file": {
+            "bytes": 0,
+            "maxBytes": 16777216,
+            "serializationMs": 0,
+            "commitMs": 0,
+            "directorySync": "not-attempted",
+            "orphanCount": 0
+          }
+        },
+        "leaderboard": {
+          "queue": {
+            "pending": 0,
+            "capacity": 128,
+            "committed": 2,
+            "failed": 0,
+            "rejected": 0,
+            "lastError": null,
+            "accepting": true
+          },
+          "file": {
+            "bytes": 1887,
+            "maxBytes": 16777216,
+            "serializationMs": 0.020099999994272366,
+            "commitMs": 9.435899999996764,
+            "directorySync": "unavailable",
+            "orphanCount": 0
+          },
+          "retries": 0
+        },
+        "matches": {
+          "pending": [],
+          "recent": [
+            {
+              "matchId": "20cf1462-266b-45a5-910e-b7e5ce82c1c0",
+              "state": "committed"
+            },
+            {
+              "matchId": "057f69a7-e3e2-462c-a673-8f8d011fe8d2",
+              "state": "committed"
+            }
+          ],
+          "rejected": 0
+        }
+      }
+    },
+    {
+      "type": "sample",
+      "id": 28,
+      "rooms": [
+        {
+          "roomId": "yNtIOPYpE",
+          "clients": 11,
+          "bots": 5,
+          "matchPhase": "running",
+          "matchRemainingSec": 52,
+          "tickMs": {
+            "samples": 200,
+            "mean": 1.0397875000003842,
+            "p95": 1.8650000000052387,
+            "max": 2.7682000000058906
+          }
+        }
+      ],
+      "memory": {
+        "rss": 109744128,
+        "heapTotal": 54214656,
+        "heapUsed": 27936016,
+        "external": 3996962,
+        "arrayBuffers": 242580
+      },
+      "forcedGc": false,
+      "eventLoopMs": {
+        "p95": 17.924095,
+        "max": 18.644991
+      },
+      "cpuPercentOneCore": 6.178483193430177,
+      "storage": {
+        "config": {
+          "queue": {
+            "pending": 0,
+            "capacity": 128,
+            "committed": 0,
+            "failed": 0,
+            "rejected": 0,
+            "lastError": null,
+            "accepting": true
+          },
+          "file": {
+            "bytes": 0,
+            "maxBytes": 16777216,
+            "serializationMs": 0,
+            "commitMs": 0,
+            "directorySync": "not-attempted",
+            "orphanCount": 0
+          }
+        },
+        "leaderboard": {
+          "queue": {
+            "pending": 0,
+            "capacity": 128,
+            "committed": 2,
+            "failed": 0,
+            "rejected": 0,
+            "lastError": null,
+            "accepting": true
+          },
+          "file": {
+            "bytes": 1887,
+            "maxBytes": 16777216,
+            "serializationMs": 0.020099999994272366,
+            "commitMs": 9.435899999996764,
+            "directorySync": "unavailable",
+            "orphanCount": 0
+          },
+          "retries": 0
+        },
+        "matches": {
+          "pending": [],
+          "recent": [
+            {
+              "matchId": "20cf1462-266b-45a5-910e-b7e5ce82c1c0",
+              "state": "committed"
+            },
+            {
+              "matchId": "057f69a7-e3e2-462c-a673-8f8d011fe8d2",
+              "state": "committed"
+            }
+          ],
+          "rejected": 0
+        }
+      }
+    },
+    {
+      "type": "sample",
+      "id": 29,
+      "rooms": [
+        {
+          "roomId": "yNtIOPYpE",
+          "clients": 11,
+          "bots": 5,
+          "matchPhase": "running",
+          "matchRemainingSec": 47,
+          "tickMs": {
+            "samples": 200,
+            "mean": 0.9750139999995736,
+            "p95": 1.7078000000037719,
+            "max": 2.0702999999921303
+          }
+        }
+      ],
+      "memory": {
+        "rss": 109416448,
+        "heapTotal": 54214656,
+        "heapUsed": 30898496,
+        "external": 4016740,
+        "arrayBuffers": 262358
+      },
+      "forcedGc": false,
+      "eventLoopMs": {
+        "p95": 18.153471,
+        "max": 19.218431
+      },
+      "cpuPercentOneCore": 10.200645107774568,
+      "storage": {
+        "config": {
+          "queue": {
+            "pending": 0,
+            "capacity": 128,
+            "committed": 0,
+            "failed": 0,
+            "rejected": 0,
+            "lastError": null,
+            "accepting": true
+          },
+          "file": {
+            "bytes": 0,
+            "maxBytes": 16777216,
+            "serializationMs": 0,
+            "commitMs": 0,
+            "directorySync": "not-attempted",
+            "orphanCount": 0
+          }
+        },
+        "leaderboard": {
+          "queue": {
+            "pending": 0,
+            "capacity": 128,
+            "committed": 2,
+            "failed": 0,
+            "rejected": 0,
+            "lastError": null,
+            "accepting": true
+          },
+          "file": {
+            "bytes": 1887,
+            "maxBytes": 16777216,
+            "serializationMs": 0.020099999994272366,
+            "commitMs": 9.435899999996764,
+            "directorySync": "unavailable",
+            "orphanCount": 0
+          },
+          "retries": 0
+        },
+        "matches": {
+          "pending": [],
+          "recent": [
+            {
+              "matchId": "20cf1462-266b-45a5-910e-b7e5ce82c1c0",
+              "state": "committed"
+            },
+            {
+              "matchId": "057f69a7-e3e2-462c-a673-8f8d011fe8d2",
+              "state": "committed"
+            }
+          ],
+          "rejected": 0
+        }
+      }
+    },
+    {
+      "type": "sample",
+      "id": 30,
+      "rooms": [
+        {
+          "roomId": "yNtIOPYpE",
+          "clients": 11,
+          "bots": 5,
+          "matchPhase": "running",
+          "matchRemainingSec": 42,
+          "tickMs": {
+            "samples": 200,
+            "mean": 0.9090804999996908,
+            "p95": 1.571300000010524,
+            "max": 2.1418000000121538
+          }
+        }
+      ],
+      "memory": {
+        "rss": 109613056,
+        "heapTotal": 54476800,
+        "heapUsed": 30268144,
+        "external": 3995997,
+        "arrayBuffers": 241615
+      },
+      "forcedGc": false,
+      "eventLoopMs": {
+        "p95": 17.563647,
+        "max": 19.628031
+      },
+      "cpuPercentOneCore": 6.213523307294359,
+      "storage": {
+        "config": {
+          "queue": {
+            "pending": 0,
+            "capacity": 128,
+            "committed": 0,
+            "failed": 0,
+            "rejected": 0,
+            "lastError": null,
+            "accepting": true
+          },
+          "file": {
+            "bytes": 0,
+            "maxBytes": 16777216,
+            "serializationMs": 0,
+            "commitMs": 0,
+            "directorySync": "not-attempted",
+            "orphanCount": 0
+          }
+        },
+        "leaderboard": {
+          "queue": {
+            "pending": 0,
+            "capacity": 128,
+            "committed": 2,
+            "failed": 0,
+            "rejected": 0,
+            "lastError": null,
+            "accepting": true
+          },
+          "file": {
+            "bytes": 1887,
+            "maxBytes": 16777216,
+            "serializationMs": 0.020099999994272366,
+            "commitMs": 9.435899999996764,
+            "directorySync": "unavailable",
+            "orphanCount": 0
+          },
+          "retries": 0
+        },
+        "matches": {
+          "pending": [],
+          "recent": [
+            {
+              "matchId": "20cf1462-266b-45a5-910e-b7e5ce82c1c0",
+              "state": "committed"
+            },
+            {
+              "matchId": "057f69a7-e3e2-462c-a673-8f8d011fe8d2",
+              "state": "committed"
+            }
+          ],
+          "rejected": 0
+        }
+      }
+    },
+    {
+      "type": "sample",
+      "id": 31,
+      "rooms": [
+        {
+          "roomId": "yNtIOPYpE",
+          "clients": 11,
+          "bots": 5,
+          "matchPhase": "running",
+          "matchRemainingSec": 37,
+          "tickMs": {
+            "samples": 200,
+            "mean": 0.855186499999254,
+            "p95": 1.510599999979604,
+            "max": 2.1418000000121538
+          }
+        }
+      ],
+      "memory": {
+        "rss": 109518848,
+        "heapTotal": 55525376,
+        "heapUsed": 25332696,
+        "external": 3913899,
+        "arrayBuffers": 159517
+      },
+      "forcedGc": false,
+      "eventLoopMs": {
+        "p95": 17.727487,
+        "max": 18.497535
+      },
+      "cpuPercentOneCore": 8.369884473380342,
+      "storage": {
+        "config": {
+          "queue": {
+            "pending": 0,
+            "capacity": 128,
+            "committed": 0,
+            "failed": 0,
+            "rejected": 0,
+            "lastError": null,
+            "accepting": true
+          },
+          "file": {
+            "bytes": 0,
+            "maxBytes": 16777216,
+            "serializationMs": 0,
+            "commitMs": 0,
+            "directorySync": "not-attempted",
+            "orphanCount": 0
+          }
+        },
+        "leaderboard": {
+          "queue": {
+            "pending": 0,
+            "capacity": 128,
+            "committed": 2,
+            "failed": 0,
+            "rejected": 0,
+            "lastError": null,
+            "accepting": true
+          },
+          "file": {
+            "bytes": 1887,
+            "maxBytes": 16777216,
+            "serializationMs": 0.020099999994272366,
+            "commitMs": 9.435899999996764,
+            "directorySync": "unavailable",
+            "orphanCount": 0
+          },
+          "retries": 0
+        },
+        "matches": {
+          "pending": [],
+          "recent": [
+            {
+              "matchId": "20cf1462-266b-45a5-910e-b7e5ce82c1c0",
+              "state": "committed"
+            },
+            {
+              "matchId": "057f69a7-e3e2-462c-a673-8f8d011fe8d2",
+              "state": "committed"
+            }
+          ],
+          "rejected": 0
+        }
+      }
+    },
+    {
+      "type": "sample",
+      "id": 32,
+      "rooms": [
+        {
+          "roomId": "yNtIOPYpE",
+          "clients": 11,
+          "bots": 5,
+          "matchPhase": "running",
+          "matchRemainingSec": 32,
+          "tickMs": {
+            "samples": 200,
+            "mean": 0.8033554999998888,
+            "p95": 1.2379000000073574,
+            "max": 2.0345999999844935
+          }
+        }
+      ],
+      "memory": {
+        "rss": 108687360,
+        "heapTotal": 56836096,
+        "heapUsed": 25109224,
+        "external": 3919964,
+        "arrayBuffers": 165582
+      },
+      "forcedGc": false,
+      "eventLoopMs": {
+        "p95": 17.874943,
+        "max": 18.726911
+      },
+      "cpuPercentOneCore": 2.161888862529711,
+      "storage": {
+        "config": {
+          "queue": {
+            "pending": 0,
+            "capacity": 128,
+            "committed": 0,
+            "failed": 0,
+            "rejected": 0,
+            "lastError": null,
+            "accepting": true
+          },
+          "file": {
+            "bytes": 0,
+            "maxBytes": 16777216,
+            "serializationMs": 0,
+            "commitMs": 0,
+            "directorySync": "not-attempted",
+            "orphanCount": 0
+          }
+        },
+        "leaderboard": {
+          "queue": {
+            "pending": 0,
+            "capacity": 128,
+            "committed": 2,
+            "failed": 0,
+            "rejected": 0,
+            "lastError": null,
+            "accepting": true
+          },
+          "file": {
+            "bytes": 1887,
+            "maxBytes": 16777216,
+            "serializationMs": 0.020099999994272366,
+            "commitMs": 9.435899999996764,
+            "directorySync": "unavailable",
+            "orphanCount": 0
+          },
+          "retries": 0
+        },
+        "matches": {
+          "pending": [],
+          "recent": [
+            {
+              "matchId": "20cf1462-266b-45a5-910e-b7e5ce82c1c0",
+              "state": "committed"
+            },
+            {
+              "matchId": "057f69a7-e3e2-462c-a673-8f8d011fe8d2",
+              "state": "committed"
+            }
+          ],
+          "rejected": 0
+        }
+      }
+    },
+    {
+      "type": "sample",
+      "id": 33,
+      "rooms": [
+        {
+          "roomId": "yNtIOPYpE",
+          "clients": 11,
+          "bots": 5,
+          "matchPhase": "running",
+          "matchRemainingSec": 27,
+          "tickMs": {
+            "samples": 200,
+            "mean": 0.8497124999990047,
+            "p95": 1.3647000000055414,
+            "max": 2.0345999999844935
+          }
+        }
+      ],
+      "memory": {
+        "rss": 109314048,
+        "heapTotal": 57360384,
+        "heapUsed": 23976224,
+        "external": 3890196,
+        "arrayBuffers": 135814
+      },
+      "forcedGc": false,
+      "eventLoopMs": {
+        "p95": 17.874943,
+        "max": 18.907135
+      },
+      "cpuPercentOneCore": 4.350939466173905,
+      "storage": {
+        "config": {
+          "queue": {
+            "pending": 0,
+            "capacity": 128,
+            "committed": 0,
+            "failed": 0,
+            "rejected": 0,
+            "lastError": null,
+            "accepting": true
+          },
+          "file": {
+            "bytes": 0,
+            "maxBytes": 16777216,
+            "serializationMs": 0,
+            "commitMs": 0,
+            "directorySync": "not-attempted",
+            "orphanCount": 0
+          }
+        },
+        "leaderboard": {
+          "queue": {
+            "pending": 0,
+            "capacity": 128,
+            "committed": 2,
+            "failed": 0,
+            "rejected": 0,
+            "lastError": null,
+            "accepting": true
+          },
+          "file": {
+            "bytes": 1887,
+            "maxBytes": 16777216,
+            "serializationMs": 0.020099999994272366,
+            "commitMs": 9.435899999996764,
+            "directorySync": "unavailable",
+            "orphanCount": 0
+          },
+          "retries": 0
+        },
+        "matches": {
+          "pending": [],
+          "recent": [
+            {
+              "matchId": "20cf1462-266b-45a5-910e-b7e5ce82c1c0",
+              "state": "committed"
+            },
+            {
+              "matchId": "057f69a7-e3e2-462c-a673-8f8d011fe8d2",
+              "state": "committed"
+            }
+          ],
+          "rejected": 0
+        }
+      }
+    },
+    {
+      "type": "sample",
+      "id": 34,
+      "rooms": [
+        {
+          "roomId": "yNtIOPYpE",
+          "clients": 11,
+          "bots": 5,
+          "matchPhase": "running",
+          "matchRemainingSec": 22,
+          "tickMs": {
+            "samples": 200,
+            "mean": 0.8906720000004862,
+            "p95": 1.4587000000174157,
+            "max": 1.9676000000035856
+          }
+        }
+      ],
+      "memory": {
+        "rss": 108785664,
+        "heapTotal": 57622528,
+        "heapUsed": 30341712,
+        "external": 3985651,
+        "arrayBuffers": 231269
+      },
+      "forcedGc": false,
+      "eventLoopMs": {
+        "p95": 17.891327,
+        "max": 19.267583
+      },
+      "cpuPercentOneCore": 4.020262913370222,
+      "storage": {
+        "config": {
+          "queue": {
+            "pending": 0,
+            "capacity": 128,
+            "committed": 0,
+            "failed": 0,
+            "rejected": 0,
+            "lastError": null,
+            "accepting": true
+          },
+          "file": {
+            "bytes": 0,
+            "maxBytes": 16777216,
+            "serializationMs": 0,
+            "commitMs": 0,
+            "directorySync": "not-attempted",
+            "orphanCount": 0
+          }
+        },
+        "leaderboard": {
+          "queue": {
+            "pending": 0,
+            "capacity": 128,
+            "committed": 2,
+            "failed": 0,
+            "rejected": 0,
+            "lastError": null,
+            "accepting": true
+          },
+          "file": {
+            "bytes": 1887,
+            "maxBytes": 16777216,
+            "serializationMs": 0.020099999994272366,
+            "commitMs": 9.435899999996764,
+            "directorySync": "unavailable",
+            "orphanCount": 0
+          },
+          "retries": 0
+        },
+        "matches": {
+          "pending": [],
+          "recent": [
+            {
+              "matchId": "20cf1462-266b-45a5-910e-b7e5ce82c1c0",
+              "state": "committed"
+            },
+            {
+              "matchId": "057f69a7-e3e2-462c-a673-8f8d011fe8d2",
+              "state": "committed"
+            }
+          ],
+          "rejected": 0
+        }
+      }
+    },
+    {
+      "type": "sample",
+      "id": 35,
+      "rooms": [
+        {
+          "roomId": "yNtIOPYpE",
+          "clients": 11,
+          "bots": 5,
+          "matchPhase": "running",
+          "matchRemainingSec": 17,
+          "tickMs": {
+            "samples": 200,
+            "mean": 0.9998520000001008,
+            "p95": 1.8035999999847263,
+            "max": 2.254000000015367
+          }
+        }
+      ],
+      "memory": {
+        "rss": 109240320,
+        "heapTotal": 58933248,
+        "heapUsed": 26518888,
+        "external": 3932676,
+        "arrayBuffers": 178294
+      },
+      "forcedGc": false,
+      "eventLoopMs": {
+        "p95": 18.202623,
+        "max": 19.267583
+      },
+      "cpuPercentOneCore": 4.631312354508732,
+      "storage": {
+        "config": {
+          "queue": {
+            "pending": 0,
+            "capacity": 128,
+            "committed": 0,
+            "failed": 0,
+            "rejected": 0,
+            "lastError": null,
+            "accepting": true
+          },
+          "file": {
+            "bytes": 0,
+            "maxBytes": 16777216,
+            "serializationMs": 0,
+            "commitMs": 0,
+            "directorySync": "not-attempted",
+            "orphanCount": 0
+          }
+        },
+        "leaderboard": {
+          "queue": {
+            "pending": 0,
+            "capacity": 128,
+            "committed": 2,
+            "failed": 0,
+            "rejected": 0,
+            "lastError": null,
+            "accepting": true
+          },
+          "file": {
+            "bytes": 1887,
+            "maxBytes": 16777216,
+            "serializationMs": 0.020099999994272366,
+            "commitMs": 9.435899999996764,
+            "directorySync": "unavailable",
+            "orphanCount": 0
+          },
+          "retries": 0
+        },
+        "matches": {
+          "pending": [],
+          "recent": [
+            {
+              "matchId": "20cf1462-266b-45a5-910e-b7e5ce82c1c0",
+              "state": "committed"
+            },
+            {
+              "matchId": "057f69a7-e3e2-462c-a673-8f8d011fe8d2",
+              "state": "committed"
+            }
+          ],
+          "rejected": 0
+        }
+      }
+    },
+    {
+      "type": "sample",
+      "id": 36,
+      "rooms": [
+        {
+          "roomId": "yNtIOPYpE",
+          "clients": 11,
+          "bots": 5,
+          "matchPhase": "running",
+          "matchRemainingSec": 12,
+          "tickMs": {
+            "samples": 200,
+            "mean": 1.1395615000005637,
+            "p95": 2.044999999983702,
+            "max": 2.311199999996461
+          }
+        }
+      ],
+      "memory": {
+        "rss": 109457408,
+        "heapTotal": 59981824,
+        "heapUsed": 27320864,
+        "external": 3932058,
+        "arrayBuffers": 177676
+      },
+      "forcedGc": false,
+      "eventLoopMs": {
+        "p95": 18.595839,
+        "max": 19.644415
+      },
+      "cpuPercentOneCore": 6.786148514919234,
+      "storage": {
+        "config": {
+          "queue": {
+            "pending": 0,
+            "capacity": 128,
+            "committed": 0,
+            "failed": 0,
+            "rejected": 0,
+            "lastError": null,
+            "accepting": true
+          },
+          "file": {
+            "bytes": 0,
+            "maxBytes": 16777216,
+            "serializationMs": 0,
+            "commitMs": 0,
+            "directorySync": "not-attempted",
+            "orphanCount": 0
+          }
+        },
+        "leaderboard": {
+          "queue": {
+            "pending": 0,
+            "capacity": 128,
+            "committed": 2,
+            "failed": 0,
+            "rejected": 0,
+            "lastError": null,
+            "accepting": true
+          },
+          "file": {
+            "bytes": 1887,
+            "maxBytes": 16777216,
+            "serializationMs": 0.020099999994272366,
+            "commitMs": 9.435899999996764,
+            "directorySync": "unavailable",
+            "orphanCount": 0
+          },
+          "retries": 0
+        },
+        "matches": {
+          "pending": [],
+          "recent": [
+            {
+              "matchId": "20cf1462-266b-45a5-910e-b7e5ce82c1c0",
+              "state": "committed"
+            },
+            {
+              "matchId": "057f69a7-e3e2-462c-a673-8f8d011fe8d2",
+              "state": "committed"
+            }
+          ],
+          "rejected": 0
+        }
+      }
+    },
+    {
+      "type": "sample",
+      "id": 37,
+      "rooms": [
+        {
+          "roomId": "yNtIOPYpE",
+          "clients": 11,
+          "bots": 5,
+          "matchPhase": "running",
+          "matchRemainingSec": 7,
+          "tickMs": {
+            "samples": 200,
+            "mean": 1.2308980000011798,
+            "p95": 2.168499999999767,
+            "max": 2.5727999999944586
+          }
+        }
+      ],
+      "memory": {
+        "rss": 109584384,
+        "heapTotal": 59981824,
+        "heapUsed": 20119168,
+        "external": 3889492,
+        "arrayBuffers": 135110
+      },
+      "forcedGc": false,
+      "eventLoopMs": {
+        "p95": 18.284543,
+        "max": 19.841023
+      },
+      "cpuPercentOneCore": 8.559684426960667,
+      "storage": {
+        "config": {
+          "queue": {
+            "pending": 0,
+            "capacity": 128,
+            "committed": 0,
+            "failed": 0,
+            "rejected": 0,
+            "lastError": null,
+            "accepting": true
+          },
+          "file": {
+            "bytes": 0,
+            "maxBytes": 16777216,
+            "serializationMs": 0,
+            "commitMs": 0,
+            "directorySync": "not-attempted",
+            "orphanCount": 0
+          }
+        },
+        "leaderboard": {
+          "queue": {
+            "pending": 0,
+            "capacity": 128,
+            "committed": 2,
+            "failed": 0,
+            "rejected": 0,
+            "lastError": null,
+            "accepting": true
+          },
+          "file": {
+            "bytes": 1887,
+            "maxBytes": 16777216,
+            "serializationMs": 0.020099999994272366,
+            "commitMs": 9.435899999996764,
+            "directorySync": "unavailable",
+            "orphanCount": 0
+          },
+          "retries": 0
+        },
+        "matches": {
+          "pending": [],
+          "recent": [
+            {
+              "matchId": "20cf1462-266b-45a5-910e-b7e5ce82c1c0",
+              "state": "committed"
+            },
+            {
+              "matchId": "057f69a7-e3e2-462c-a673-8f8d011fe8d2",
+              "state": "committed"
+            }
+          ],
+          "rejected": 0
+        }
+      }
+    },
+    {
+      "type": "sample",
+      "id": 38,
+      "rooms": [
+        {
+          "roomId": "yNtIOPYpE",
+          "clients": 11,
+          "bots": 5,
+          "matchPhase": "running",
+          "matchRemainingSec": 2,
+          "tickMs": {
+            "samples": 200,
+            "mean": 1.363430000001099,
+            "p95": 2.2335000000020955,
+            "max": 2.7643999999854714
+          }
+        }
+      ],
+      "memory": {
+        "rss": 109617152,
+        "heapTotal": 59981824,
+        "heapUsed": 24254528,
+        "external": 3918133,
+        "arrayBuffers": 163751
+      },
+      "forcedGc": false,
+      "eventLoopMs": {
+        "p95": 18.448383,
+        "max": 19.693567
+      },
+      "cpuPercentOneCore": 5.19130548403636,
+      "storage": {
+        "config": {
+          "queue": {
+            "pending": 0,
+            "capacity": 128,
+            "committed": 0,
+            "failed": 0,
+            "rejected": 0,
+            "lastError": null,
+            "accepting": true
+          },
+          "file": {
+            "bytes": 0,
+            "maxBytes": 16777216,
+            "serializationMs": 0,
+            "commitMs": 0,
+            "directorySync": "not-attempted",
+            "orphanCount": 0
+          }
+        },
+        "leaderboard": {
+          "queue": {
+            "pending": 0,
+            "capacity": 128,
+            "committed": 2,
+            "failed": 0,
+            "rejected": 0,
+            "lastError": null,
+            "accepting": true
+          },
+          "file": {
+            "bytes": 1887,
+            "maxBytes": 16777216,
+            "serializationMs": 0.020099999994272366,
+            "commitMs": 9.435899999996764,
+            "directorySync": "unavailable",
+            "orphanCount": 0
+          },
+          "retries": 0
+        },
+        "matches": {
+          "pending": [],
+          "recent": [
+            {
+              "matchId": "20cf1462-266b-45a5-910e-b7e5ce82c1c0",
+              "state": "committed"
+            },
+            {
+              "matchId": "057f69a7-e3e2-462c-a673-8f8d011fe8d2",
+              "state": "committed"
+            }
+          ],
+          "rejected": 0
+        }
+      }
+    }
+  ],
+  "afterLeave": {
+    "type": "sample",
+    "id": 40,
+    "rooms": [],
+    "memory": {
+      "rss": 109953024,
+      "heapTotal": 52641792,
+      "heapUsed": 16391440,
+      "external": 3841810,
+      "arrayBuffers": 84378
+    },
+    "forcedGc": true,
+    "eventLoopMs": {
+      "p95": 16.605183,
+      "max": 24.952831
+    },
+    "cpuPercentOneCore": 7.637055777922174,
+    "storage": {
+      "config": {
+        "queue": {
+          "pending": 0,
+          "capacity": 128,
+          "committed": 0,
+          "failed": 0,
+          "rejected": 0,
+          "lastError": null,
+          "accepting": true
+        },
+        "file": {
+          "bytes": 0,
+          "maxBytes": 16777216,
+          "serializationMs": 0,
+          "commitMs": 0,
+          "directorySync": "not-attempted",
+          "orphanCount": 0
+        }
+      },
+      "leaderboard": {
+        "queue": {
+          "pending": 0,
+          "capacity": 128,
+          "committed": 3,
+          "failed": 0,
+          "rejected": 0,
+          "lastError": null,
+          "accepting": true
+        },
+        "file": {
+          "bytes": 1929,
+          "maxBytes": 16777216,
+          "serializationMs": 0.01920000000973232,
+          "commitMs": 6.643700000015087,
+          "directorySync": "unavailable",
+          "orphanCount": 0
+        },
+        "retries": 0
+      },
+      "matches": {
+        "pending": [],
+        "recent": [
+          {
+            "matchId": "20cf1462-266b-45a5-910e-b7e5ce82c1c0",
+            "state": "committed"
+          },
+          {
+            "matchId": "057f69a7-e3e2-462c-a673-8f8d011fe8d2",
+            "state": "committed"
+          },
+          {
+            "matchId": "6ba16f36-f121-433f-b61e-9d17eaf069d1",
+            "state": "committed"
+          }
+        ],
+        "rejected": 0
+      }
+    }
+  },
+  "errors": [],
+  "limitations": [
+    "loopback only",
+    "same-machine server and 11 client brains",
+    "no browser rendering in this run",
+    "live RNG, not a golden replay",
+    "tick metrics exclude message handlers and encoding",
+    "forced GC only at round ends",
+    "3 minutes is not a long-duration soak"
+  ]
+}

@@ -1,0 +1,59 @@
+{
+  "passed": true,
+  "contractVersion": 2,
+  "assembledTriangles": 9852,
+  "checks": [
+    "all catalog GLB hashes and generated markers",
+    "clean colour-only texture budget",
+    "UVs",
+    "assembled triangle budget"
+  ],
+  "runtimeVerification": "npm test (modelRuntime.contract.test.ts)",
+  "files": [
+    {
+      "modelId": "cruiser",
+      "triangles": 8756,
+      "bytes": 685200,
+      "embeddedImages": 1,
+      "images": 1,
+      "maxTextureSize": 1024,
+      "textureBytesRgba8WithMips": 5592404
+    },
+    {
+      "modelId": "cruiser_artillery",
+      "triangles": 276,
+      "bytes": 25148,
+      "embeddedImages": 1,
+      "images": 1,
+      "maxTextureSize": 256,
+      "textureBytesRgba8WithMips": 349524
+    },
+    {
+      "modelId": "cruiser_ciws",
+      "triangles": 160,
+      "bytes": 16868,
+      "embeddedImages": 1,
+      "images": 1,
+      "maxTextureSize": 256,
+      "textureBytesRgba8WithMips": 349524
+    },
+    {
+      "modelId": "cruiser_sam",
+      "triangles": 164,
+      "bytes": 18508,
+      "embeddedImages": 1,
+      "images": 1,
+      "maxTextureSize": 256,
+      "textureBytesRgba8WithMips": 349524
+    },
+    {
+      "modelId": "cruiser_ssm",
+      "triangles": 248,
+      "bytes": 25108,
+      "embeddedImages": 1,
+      "images": 1,
+      "maxTextureSize": 256,
+      "textureBytesRgba8WithMips": 349524
+    }
+  ]
+}

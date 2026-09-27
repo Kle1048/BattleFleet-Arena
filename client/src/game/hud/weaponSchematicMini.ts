@@ -3,40 +3,16 @@ import type {
   MountSlotDefinition,
   ShipHullVisualProfile,
 } from "@battlefleet/shared";
+import { equippedMount, weaponSystem, launcherYawRadFromBow } from "@battlefleet/shared";
 
 const svgNs = "http://www.w3.org/2000/svg";
 
-/**
- * Nur für die **Mini-Draufsicht** (Farbe des Punktes + ggf. Train-Strich).
- * Entspricht den Slot-`defaultVisualId`-Strings aus `defaultLoadout` / Profil-JSON —
- * dieselben Keys wie in `mountGltfUrls.ts` (`MOUNT_VISUAL_GLB_BY_ID`).
- */
+/** Mini-Draufsicht: Farbe folgt ausschließlich dem Waffensystem. */
 type MountKind = "artillery" | "ciws" | "sam" | "pd" | "torpedo" | "ssm" | "generic";
 
-/** Vorgabe-Farbe pro eingetragenem Standard-Visual (explizit, keine Heuristik). */
-const SCHEMATIC_KIND_BY_DEFAULT_VISUAL_ID: Partial<Record<string, MountKind>> = {
-  visual_artillery: "artillery",
-  visual_ciws: "ciws",
-  visual_sam: "sam",
-  /** PDMS — AD-Hardkill-Schicht PD (nicht CIWS, eigene Farbe `--pd`). */
-  visual_pdms: "pd",
-  visual_torpedo: "torpedo",
-};
-
-function classifyFromSlot(s: MountSlotDefinition, loadout: Record<string, string> | undefined): MountKind {
-  const vid = (loadout?.[s.id] ?? s.defaultVisualId ?? "").trim();
-  const fromPreset = SCHEMATIC_KIND_BY_DEFAULT_VISUAL_ID[vid];
-  if (fromPreset) return fromPreset;
-
-  /** Kein `defaultVisualId` in der JSON-Vorgabe: grobe Zuordnung über `compatibleKinds`. */
-  const kinds = s.compatibleKinds;
-  if (kinds.includes("artillery")) return "artillery";
-  if (kinds.includes("ciws")) return "ciws";
-  if (kinds.includes("pdms")) return "pd";
-  if (kinds.includes("sam_launcher")) return "sam";
-  if (vid.includes("torpedo")) return "torpedo";
-  if (vid.includes("ssm")) return "ssm";
-  return "generic";
+function classifyFromSlot(s: MountSlotDefinition, profile: ShipHullVisualProfile): MountKind {
+  const id = equippedMount(s, profile)?.weaponId;
+  return id === "pdms" ? "pd" : id ?? "generic";
 }
 
 function kindClass(k: MountKind): string {
@@ -68,8 +44,6 @@ export function renderWeaponSchematic(
 ): void {
   host.replaceChildren();
   if (!profile) return;
-
-  const loadout = profile.defaultLoadout;
 
   const svg = document.createElementNS(svgNs, "svg");
   svg.setAttribute("viewBox", "-52 -58 104 116");
@@ -110,7 +84,7 @@ export function renderWeaponSchematic(
   svg.appendChild(hull);
 
   for (const s of profile.mountSlots ?? []) {
-    const k = classifyFromSlot(s, loadout);
+    const k = classifyFromSlot(s, profile);
     const mx = (s.socket.position.x - midX) * scale;
     const my = -s.socket.position.z * scale;
     const g = document.createElementNS(svgNs, "g");
@@ -120,12 +94,8 @@ export function renderWeaponSchematic(
     dot.setAttribute("class", `cockpit-schematic-mount ${kindClass(k)}`);
     g.appendChild(dot);
 
-    const kinds = s.compatibleKinds;
-    const rotating =
-      kinds.includes("artillery") ||
-      kinds.includes("ciws") ||
-      kinds.includes("sam_launcher") ||
-      kinds.includes("pdms");
+    const equipment = equippedMount(s, profile);
+    const rotating = equipment && weaponSystem(equipment.weaponId).rotating;
     if (rotating) {
       const line = document.createElementNS(svgNs, "line");
       line.setAttribute("class", "cockpit-schematic-train");
@@ -164,7 +134,5 @@ export function renderWeaponSchematic(
 }
 
 function launcherYawFromSpec(L: FixedSeaSkimmerLauncherSpec): number {
-  return typeof L.launchYawRadFromBow === "number"
-    ? L.launchYawRadFromBow
-    : 0;
+  return launcherYawRadFromBow(L);
 }

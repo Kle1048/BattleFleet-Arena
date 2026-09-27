@@ -6,17 +6,12 @@ import {
   normalizeShipClassId,
   spineTangentXZ,
   wakeRibbonBaseHalfWidthFromHitboxHalfBeamX,
-  wakeRibbonSternLocalZOrFallback,
   xzPerpendicularFromTangent,
 } from "@battlefleet/shared";
 import { getAuthoritativeHullProfile } from "../runtime/shipProfileRuntime";
-import { getShipDebugTuningForVisualClass } from "../runtime/shipDebugTuning";
-import { SHIP_STERN_Z } from "./createGameScene";
 import type { ShipVisual } from "./shipVisual";
 
 const WAKE_Y = 0.06;
-/** Lokales Y am Heck (Wasserlinie), Emission unter dem Transom. */
-const WAKE_SPAWN_LOCAL_Y = 0.03;
 const DEFAULT_MIN_SAMPLE_DIST = 2.15;
 const DEFAULT_MAX_SAMPLES = 96;
 const DEFAULT_MIN_SPEED = 1.2;
@@ -27,25 +22,6 @@ export function wakeRibbonBaseHalfWidthWorld(shipClass: string | undefined): num
   const hull = getAuthoritativeHullProfile(normalizeShipClassId(shipClass));
   const hx = hull?.collisionHitbox?.halfExtents.x;
   return wakeRibbonBaseHalfWidthFromHitboxHalfBeamX(typeof hx === "number" ? hx : NaN);
-}
-
-/** Heck der Hitbox in Schiffslokal (+Z Bug) plus Debug-Δ `wakeSpawnLocalZ`; Fallback `SHIP_STERN_Z`. */
-export function wakeRibbonSternAnchorLocalZ(
-  shipClass: string | undefined,
-  wakeSpawnLocalZDelta: number,
-): number {
-  const hull = getAuthoritativeHullProfile(normalizeShipClassId(shipClass));
-  const hb = hull?.collisionHitbox;
-  const base = wakeRibbonSternLocalZOrFallback(
-    hb
-      ? {
-          center: { z: hb.center.z },
-          halfExtents: { z: hb.halfExtents.z },
-        }
-      : undefined,
-    SHIP_STERN_Z,
-  );
-  return base + wakeSpawnLocalZDelta;
 }
 
 /** Re-Export für Aufrufer, die nur das Client-Modul importieren. */
@@ -144,8 +120,6 @@ type SingleWake = {
     vis: ShipVisual;
     speed: number;
     lifeState: string | undefined;
-    /** Lokales Z am Heck (Hitbox-Ende + Debug-Δ), gleiche Basis wie `wakeRibbonSternAnchorLocalZ`. */
-    sternAnchorLocalZ: number;
     /** Halbe Bandbreite in Welt-XZ zur Tangente (aus Hitbox-Skalierung). */
     baseHalfWidthWorld: number;
     /** false: außerhalb LOD — Spur leeren, kein Sampling. */
@@ -160,51 +134,76 @@ function createSingleShipWakeRibbon(
   sessionId: string,
 ): SingleWake {
   const geom = new THREE.BufferGeometry();
+  const pos = new Float32Array(DEFAULT_MAX_SAMPLES * 6);
+  const uv = new Float32Array(DEFAULT_MAX_SAMPLES * 4);
+  const indices = new Uint16Array((DEFAULT_MAX_SAMPLES - 1) * 6);
+  for (let i = 0; i < DEFAULT_MAX_SAMPLES - 1; i++) {
+    const a = i * 2, j = i * 6;
+    indices[j] = a; indices[j + 1] = a + 1; indices[j + 2] = a + 2;
+    indices[j + 3] = a + 1; indices[j + 4] = a + 3; indices[j + 5] = a + 2;
+  }
+  const position = new THREE.BufferAttribute(pos, 3).setUsage(THREE.DynamicDrawUsage);
+  const ribbonUv = new THREE.BufferAttribute(uv, 2).setUsage(THREE.DynamicDrawUsage);
+  geom.setAttribute("position", position);
+  geom.setAttribute("ribbonUv", ribbonUv);
+  geom.setIndex(new THREE.BufferAttribute(indices, 1));
+  geom.setDrawRange(0, 0);
+  // Three uses the sphere center for transparent sorting even without frustum culling.
+  // Maintain it from the active vertices, not the unused tail of the fixed-capacity buffer.
+  const bounds = new THREE.Sphere();
+  geom.boundingSphere = bounds;
   const mesh = new THREE.Mesh(geom, sharedMaterial);
   mesh.name = `shipWakeRibbon_${sessionId}`;
   mesh.frustumCulled = false;
   mesh.renderOrder = 2;
+  mesh.visible = false;
   scene.add(mesh);
 
-  const samples: { x: number; z: number }[] = [];
+  const ring = Array.from({ length: DEFAULT_MAX_SAMPLES }, () => ({ x: 0, z: 0 }));
+  // Reused ordered references let the shared tangent helper consume the circular history.
+  const samples = ring.slice();
+  let start = 0, count = 0, uvCount = 0;
+  let renderedWidth = NaN;
+  const widthScales = new Float64Array(DEFAULT_MAX_SAMPLES);
+  const tangent = { x: 0, z: 1 }, perpendicular = { x: 0, z: 1 };
   const sternLocal = new THREE.Vector3();
   const sternWorld = new THREE.Vector3();
 
   function clearTrail(): void {
-    samples.length = 0;
-    geom.setAttribute("position", new THREE.BufferAttribute(new Float32Array(0), 3));
-    geom.setAttribute("ribbonUv", new THREE.BufferAttribute(new Float32Array(0), 2));
-    geom.setIndex(null);
-    geom.computeBoundingSphere();
-    mesh.visible = false;
-  }
-
-  function hideRibbonKeepSamples(): void {
-    geom.setAttribute("position", new THREE.BufferAttribute(new Float32Array(0), 3));
-    geom.setAttribute("ribbonUv", new THREE.BufferAttribute(new Float32Array(0), 2));
-    geom.setIndex(null);
+    count = 0;
+    start = 0;
+    geom.setDrawRange(0, 0);
     mesh.visible = false;
   }
 
   function rebuildGeometry(baseHalfWidthWorld: number): void {
-    const n = samples.length;
+    const n = count;
     if (n < 2) {
-      hideRibbonKeepSamples();
       return;
     }
 
-    const vCount = n * 2;
-    const pos = new Float32Array(vCount * 3);
-    const uv = new Float32Array(vCount * 2);
-    const idx: number[] = [];
+    samples.length = n;
+    for (let i = 0; i < n; i++) samples[i] = ring[(start + i) % DEFAULT_MAX_SAMPLES]!;
+    if (uvCount !== n) {
+      for (let i = 0; i < n; i++) {
+        const uAlong = i / (n - 1);
+        widthScales[i] = 0.16 + 0.84 * Math.pow(uAlong, 0.52);
+        uv[i * 4] = uv[i * 4 + 2] = uAlong;
+        uv[i * 4 + 1] = 0;
+        uv[i * 4 + 3] = 1;
+      }
+      ribbonUv.clearUpdateRanges();
+      ribbonUv.addUpdateRange(0, n * 4);
+      ribbonUv.needsUpdate = true;
+      uvCount = n;
+    }
+    let minX = Infinity, minZ = Infinity, maxX = -Infinity, maxZ = -Infinity;
 
     for (let i = 0; i < n; i += 1) {
       const sp = samples[i]!;
-      const t = spineTangentXZ(samples, i);
-      const p = xzPerpendicularFromTangent(t.x, t.z);
-      const uAlong = i / (n - 1);
-      const widthScale = 0.16 + 0.84 * Math.pow(uAlong, 0.52);
-      const half = baseHalfWidthWorld * widthScale;
+      const t = spineTangentXZ(samples, i, tangent);
+      const p = xzPerpendicularFromTangent(t.x, t.z, perpendicular);
+      const half = baseHalfWidthWorld * widthScales[i]!;
       const { x: sx, z: sz } = sp;
       const pi = i * 2;
       pos[pi * 3 + 0] = sx + p.x * half;
@@ -213,30 +212,25 @@ function createSingleShipWakeRibbon(
       pos[(pi + 1) * 3 + 0] = sx - p.x * half;
       pos[(pi + 1) * 3 + 1] = WAKE_Y;
       pos[(pi + 1) * 3 + 2] = sz - p.z * half;
-      uv[pi * 2 + 0] = uAlong;
-      uv[pi * 2 + 1] = 0.0;
-      uv[(pi + 1) * 2 + 0] = uAlong;
-      uv[(pi + 1) * 2 + 1] = 1.0;
+      minX = Math.min(minX, pos[pi * 3]!, pos[(pi + 1) * 3]!);
+      maxX = Math.max(maxX, pos[pi * 3]!, pos[(pi + 1) * 3]!);
+      minZ = Math.min(minZ, pos[pi * 3 + 2]!, pos[(pi + 1) * 3 + 2]!);
+      maxZ = Math.max(maxZ, pos[pi * 3 + 2]!, pos[(pi + 1) * 3 + 2]!);
     }
 
-    for (let i = 0; i < n - 1; i += 1) {
-      const a = i * 2;
-      const b = a + 1;
-      const c = a + 2;
-      const d = a + 3;
-      idx.push(a, b, c, b, d, c);
-    }
-
-    geom.setAttribute("position", new THREE.BufferAttribute(pos, 3));
-    geom.setAttribute("ribbonUv", new THREE.BufferAttribute(uv, 2));
-    geom.setIndex(idx);
-    geom.computeBoundingSphere();
+    bounds.center.set((minX + maxX) / 2, pos[1]!, (minZ + maxZ) / 2);
+    bounds.radius = Math.hypot(maxX - minX, maxZ - minZ) / 2;
+    position.clearUpdateRanges();
+    position.addUpdateRange(0, n * 6);
+    position.needsUpdate = true;
+    geom.setDrawRange(0, (n - 1) * 6);
+    renderedWidth = baseHalfWidthWorld;
     mesh.visible = true;
   }
 
   return {
     update(opts) {
-      const { vis, speed, lifeState, sternAnchorLocalZ, baseHalfWidthWorld, lodVisible } = opts;
+      const { vis, speed, lifeState, baseHalfWidthWorld, lodVisible } = opts;
       if (!lodVisible) {
         clearTrail();
         return;
@@ -251,22 +245,27 @@ function createSingleShipWakeRibbon(
       }
 
       vis.group.updateMatrixWorld(true);
-      sternLocal.set(0, WAKE_SPAWN_LOCAL_Y, sternAnchorLocalZ);
+      const wake = vis.profile?.modelEffects?.wake;
+      if (!wake) { clearTrail(); return; }
+      sternLocal.set(wake.position.x, wake.position.y, wake.position.z);
       sternWorld.copy(sternLocal).applyMatrix4(vis.group.matrixWorld);
 
       const nx = sternWorld.x;
       const nz = sternWorld.z;
 
-      const last = samples.length > 0 ? samples[samples.length - 1] : null;
+      const last = count > 0 ? ring[(start + count - 1) % DEFAULT_MAX_SAMPLES]! : null;
       const dist = last ? Math.hypot(nx - last.x, nz - last.z) : Infinity;
+      let changed = false;
       if (dist >= DEFAULT_MIN_SAMPLE_DIST || !last) {
-        samples.push({ x: nx, z: nz });
-        while (samples.length > DEFAULT_MAX_SAMPLES) {
-          samples.shift();
-        }
+        const sample = ring[(start + count) % DEFAULT_MAX_SAMPLES]!;
+        sample.x = nx;
+        sample.z = nz;
+        if (count < DEFAULT_MAX_SAMPLES) count++;
+        else start = (start + 1) % DEFAULT_MAX_SAMPLES;
+        changed = true;
       }
 
-      rebuildGeometry(baseHalfWidthWorld);
+      if (changed || renderedWidth !== baseHalfWidthWorld) rebuildGeometry(baseHalfWidthWorld);
     },
     dispose() {
       clearTrail();
@@ -302,9 +301,12 @@ export function createShipWakeRibbonSystem(scene: THREE.Scene): ShipWakeRibbonSy
   const sharedMaterial = createWakeRibbonShaderMaterial();
 
   const ribbons = new Map<string, SingleWake>();
+  const activeIds = new Set<string>();
+  let disposed = false;
 
   return {
     updateFromPlayers({ players, visuals, lodAnchorWorld, maxLodDistanceWorld, nowSeconds }) {
+      if (disposed) return;
       const u = sharedMaterial.uniforms;
       if (u.time && nowSeconds !== undefined) {
         u.time.value = nowSeconds;
@@ -312,11 +314,11 @@ export function createShipWakeRibbonSystem(scene: THREE.Scene): ShipWakeRibbonSy
       const maxD = maxLodDistanceWorld ?? DEFAULT_SHIP_WAKE_LOD_MAX_DIST_WORLD;
       const anchor = lodAnchorWorld;
 
-      const activeIds = new Set<string>();
+      activeIds.clear();
       for (const p of players) {
-        activeIds.add(p.id);
         const vis = visuals.get(p.id);
         if (!vis) continue;
+        activeIds.add(p.id);
 
         let ribbon = ribbons.get(p.id);
         if (!ribbon) {
@@ -328,34 +330,30 @@ export function createShipWakeRibbonSystem(scene: THREE.Scene): ShipWakeRibbonSy
           ? isWithinHorizontalDistanceSq(anchor.x, anchor.z, p.x, p.z, maxD)
           : true;
 
-        const tuning = getShipDebugTuningForVisualClass(p.shipClass);
         ribbon.update({
           vis,
           speed: p.speed,
           lifeState: p.lifeState,
-          sternAnchorLocalZ: wakeRibbonSternAnchorLocalZ(p.shipClass, tuning.wakeSpawnLocalZ),
           baseHalfWidthWorld: wakeRibbonBaseHalfWidthWorld(p.shipClass),
           lodVisible,
         });
       }
 
-      const deadRibbonIds: string[] = [];
-      for (const id of ribbons.keys()) {
-        if (!activeIds.has(id)) deadRibbonIds.push(id);
-      }
-      for (const id of deadRibbonIds) {
-        const ribbon = ribbons.get(id);
-        if (ribbon) {
+      for (const [id, ribbon] of ribbons) {
+        if (!activeIds.has(id)) {
           ribbon.dispose();
           ribbons.delete(id);
         }
       }
     },
     dispose() {
+      if (disposed) return;
+      disposed = true;
       for (const ribbon of ribbons.values()) {
         ribbon.dispose();
       }
       ribbons.clear();
+      activeIds.clear();
       sharedMaterial.dispose();
     },
   };

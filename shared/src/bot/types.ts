@@ -44,6 +44,7 @@ export type PerceptionSnapshot = {
   timestamp: number;
   /** Halbe AO-Kante (m) — gleiche Quelle wie `BattleState.operationalAreaHalfExtent`. */
   operationalHalfExtent: number;
+  islandsEnabled?: boolean;
   self: BotVisiblePlayer;
   enemies: BotVisiblePlayer[];
   missiles: BotVisibleMissile[];

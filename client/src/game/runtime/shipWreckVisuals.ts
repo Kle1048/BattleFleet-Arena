@@ -3,7 +3,7 @@ import type { WreckView } from "../presentation/BattleReadModel";
 import { applyShipVisualRuntimeTuning, setShipVisualLifeState, type ShipVisual } from "../scene/shipVisual";
 import { computeWreckVisualPose } from "../scene/shipWreckAnimation";
 import { worldToRenderX, worldToRenderYaw } from "./renderCoords";
-import { getShipDebugTuningForVisualClass, getShipDebugTuningGeneration } from "./shipDebugTuning";
+import { getShipDebugTuningGeneration } from "./shipDebugTuning";
 
 const WRECK_VIS_PREFIX = "wreck:";
 
@@ -53,21 +53,17 @@ export function applyPoseToWreckVisual(
     applyShipVisualRuntimeTuning(vis);
     vis.debugTuningGenApplied = tuningGen;
   }
-  const tune = getShipDebugTuningForVisualClass(w.shipClass);
   const elapsed = Math.max(0, wallNowMs - w.deathAtMs);
   const pose = computeWreckVisualPose(elapsed, w.variant as 0 | 1 | 2 | 3);
   const yaw = worldToRenderYaw(w.headingRad);
-  const pivotDx = Math.sin(yaw) * tune.shipPivotLocalZ;
-  const pivotDz = Math.cos(yaw) * tune.shipPivotLocalZ;
   vis.group.position.set(
-    worldToRenderX(w.anchorX) - pivotDx,
-    pose.sinkY,
-    w.anchorZ - pivotDz,
+    worldToRenderX(w.anchorX),
+    0,
+    w.anchorZ,
   );
-  vis.group.rotation.order = "YXZ";
-  vis.group.rotation.y = yaw;
-  vis.group.rotation.x = pose.pitchX;
-  vis.group.rotation.z = pose.rollZ;
+  vis.group.rotation.set(0, yaw, 0);
+  vis.modelMotion.position.y = pose.sinkY;
+  vis.modelMotion.rotation.set(pose.pitchX, 0, pose.rollZ, "YXZ");
   setShipVisualLifeState(vis, PlayerLifeState.AwaitingRespawn, false);
 }
 

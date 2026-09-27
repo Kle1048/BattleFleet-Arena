@@ -34,8 +34,8 @@ export type ShipClassProfile = {
   torpedoCooldownFactor: number;
   /** Zusätzlicher Faktor auf eingehenden Waffenschaden (× Progression). */
   incomingDamageTakenMul: number;
-  /** Client: Größe des Dreiecks-Rumpfs (~1 = Zerstörer). */
-  hullScale: number;
+  /** Gameplay factor for island-contact damage; unrelated to model dimensions. */
+  islandCollisionDamageMul: number;
 };
 
 const PROFILE_FAC: ShipClassProfile = {
@@ -52,7 +52,7 @@ const PROFILE_FAC: ShipClassProfile = {
   torpedoMaxPerOwner: TORPEDO_MAX_PER_OWNER,
   torpedoCooldownFactor: 0.92,
   incomingDamageTakenMul: 1.06,
-  hullScale: 0.62,
+  islandCollisionDamageMul: 0.62,
 };
 
 const PROFILE_DESTROYER: ShipClassProfile = {
@@ -68,7 +68,7 @@ const PROFILE_DESTROYER: ShipClassProfile = {
   torpedoMaxPerOwner: TORPEDO_MAX_PER_OWNER,
   torpedoCooldownFactor: 1,
   incomingDamageTakenMul: 1,
-  hullScale: 1,
+  islandCollisionDamageMul: 1,
 };
 
 const PROFILE_CRUISER: ShipClassProfile = {
@@ -84,7 +84,7 @@ const PROFILE_CRUISER: ShipClassProfile = {
   torpedoMaxPerOwner: TORPEDO_MAX_PER_OWNER,
   torpedoCooldownFactor: 1.08,
   incomingDamageTakenMul: 0.93,
-  hullScale: 1.22,
+  islandCollisionDamageMul: 1.22,
 };
 
 const byId: Record<ShipClassId, ShipClassProfile> = {

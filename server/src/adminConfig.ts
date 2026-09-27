@@ -11,6 +11,7 @@ export const updateAdminConfig = async (patch: AdminConfigPatch, expectedRevisio
 export const getMatchDurationMs = () => getAdminConfig().matchDurationSec * 1000;
 export const getMinRoomPlayers = () => getAdminConfig().minRoomPlayers;
 export const isMaintenanceMode = () => getAdminConfig().maintenanceMode;
+export const getIslandsEnabled = () => getAdminConfig().islandsEnabled;
 export function getOperationalAreaHalfExtent(participantCount: number): number {
   return getAdminConfig().operationalAreaHalfExtent || operationalHalfExtentFromParticipantCount(participantCount);
 }

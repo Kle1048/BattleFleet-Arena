@@ -67,10 +67,10 @@ export class BotSystem {
   }
 
   tick(nowMs: number, players: readonly BotVisiblePlayer[], missiles: readonly BotVisibleMissile[],
-    torpedoes: readonly BotVisibleTorpedo[], operationalHalfExtent: number): void {
+    torpedoes: readonly BotVisibleTorpedo[], operationalHalfExtent: number, islandsEnabled = true): void {
     // Every brain sees the same pre-movement projection, even if an earlier bot fires.
     for (const id of this.members) {
-      const input = this.brains.get(id)?.update(nowMs, players, id, missiles, torpedoes, operationalHalfExtent);
+      const input = this.brains.get(id)?.update(nowMs, players, id, missiles, torpedoes, operationalHalfExtent, islandsEnabled);
       if (!input) continue;
       this.ports.applyInput(id, {
         throttle: input.throttle, rudderInput: input.rudderInput,

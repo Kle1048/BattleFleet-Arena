@@ -21,7 +21,7 @@ export function createAirDefenseOutput(options: {
         return position ? { x: worldToRenderX(position.x), z: position.z } : null;
       };
       effects.fire(options.scene, request.layer, request.fromX, request.fromZ, request.toX, request.toZ,
-        request.pdLaunchY, trackedTarget, options.launchFx);
+        request.launchY, trackedTarget, options.launchFx);
     },
     intercept(x, z, layer) {
       effects.pulse(options.camera, options.mount, x, z, layer);

@@ -1,6 +1,7 @@
 import * as THREE from "three";
 import { createAnimationLifetime, type AnimationClock, type AnimationLifetime } from "../runtime/animationLifetime";
 import { renderToWorldX, worldToRenderX } from "../runtime/renderCoords";
+import { createProjectileBody } from "./projectileVisual";
 
 /**
  * VFX-Maßstab: bewusst **größer** als reale Meter — Ortho (~320 m Halbhöhe) + Schiff ~40 m;
@@ -12,8 +13,6 @@ const SAM_FLIGHT_MS = 780;
 const SAM_INTERCEPT_CLOSE_DIST = 8;
 /** Sicherheits-Timeout, falls das Ziel nicht erreicht wird. */
 const SAM_INTERCEPT_MAX_MS = SAM_FLIGHT_MS * 3;
-const SAM_CONE_R = 3.2;
-const SAM_CONE_H = 22;
 
 const CIWS_TRACER_COUNT = 16;
 const CIWS_BURST_SPREAD_MS = 320;
@@ -89,19 +88,12 @@ function interceptRingFlash(
   animation.frame(fade);
 }
 
-function buildSamInterceptMissile(): THREE.Group {
+function buildSamInterceptMissile(kind: "sam" | "pd"): THREE.Group {
   const group = new THREE.Group();
   group.frustumCulled = false;
-  const geo = new THREE.ConeGeometry(SAM_CONE_R, SAM_CONE_H, 10);
-  const mat = new THREE.MeshBasicMaterial({
-    color: 0xe8f8ff,
-    fog: false,
-    depthTest: false,
-  });
-  const body = new THREE.Mesh(geo, mat);
+  const body = createProjectileBody(kind);
   body.frustumCulled = false;
   body.renderOrder = AD_FX_RENDER_ORDER;
-  body.rotation.x = Math.PI / 2;
   body.position.y = 0;
   group.add(body);
   return group;
@@ -112,7 +104,7 @@ export type SamInterceptTrackedTargetXZ = () => { x: number; z: number } | null;
 
 /** Gleiche Hooks wie ASuM-Start/Schweif (`createFxSystem`). */
 export type AirDefenseSamLaunchFx = {
-  spawnMissileLaunchSmoke: (worldX: number, worldZ: number, headingRad: number) => void;
+  spawnMissileLaunchSmoke: (worldX: number, worldZ: number, headingRad: number, launchY?: number) => void;
   spawnMissileTrailStreamTick: (
     worldX: number,
     worldZ: number,
@@ -144,6 +136,7 @@ function emitSamInterceptTrailTick(
 function playSamIntercept(
   animation: AnimationLifetime,
   scene: THREE.Scene,
+  kind: "sam" | "pd",
   fromX: number,
   fromZ: number,
   toX: number,
@@ -176,10 +169,10 @@ function playSamIntercept(
   }
 
   const sy = launchY;
-  const ey = launchY;
+  const ey = FLIGHT_Y;
   const chordYaw = headingRadFromDelta(dx, dz);
 
-  const g = buildSamInterceptMissile();
+  const g = buildSamInterceptMissile(kind);
   g.position.set(sx, sy, sz);
   scene.add(g);
   const release = animation.own(() => disposeSamGroup(scene, g));
@@ -191,7 +184,7 @@ function playSamIntercept(
     const speed = len / (SAM_FLIGHT_MS * 0.001);
     let px = sx;
     let pz = sz;
-    const py = sy;
+    let py = sy;
     let tx = ex;
     let tz = ez;
     let lastNow = animation.now();
@@ -243,6 +236,7 @@ function playSamIntercept(
         pz += rdz * stepDist;
       }
 
+      py = sy + (ey - sy) * Math.min(1, (now - tStart) / SAM_FLIGHT_MS);
       g.position.set(px, py, pz);
       rdx = tx - px;
       rdz = tz - pz;
@@ -315,6 +309,7 @@ function playCiwsIntercept(
   toX: number,
   toZ: number,
   withEndBurst: boolean,
+  launchY: number = FLIGHT_Y,
 ): void {
   const dx = toX - fromX;
   const dz = toZ - fromZ;
@@ -333,9 +328,9 @@ function playCiwsIntercept(
   for (let i = 0; i < CIWS_TRACER_COUNT; i++) {
     const delay = (i / Math.max(1, CIWS_TRACER_COUNT - 1)) * CIWS_BURST_SPREAD_MS;
     const jitter = (Math.random() - 0.5) * 12;
-    const sx = fromX + px * jitter;
-    const sz = fromZ + pz * jitter;
-    const sy = FLIGHT_Y + (Math.random() - 0.5) * 1.2;
+    const sx = fromX;
+    const sz = fromZ;
+    const sy = launchY;
     const flightMs =
       CIWS_TRACER_FLIGHT_MS_MIN +
       Math.random() * (CIWS_TRACER_FLIGHT_MS_MAX - CIWS_TRACER_FLIGHT_MS_MIN);
@@ -367,9 +362,9 @@ function playCiwsIntercept(
       const release = animation.own(() => disposeMesh(scene, mesh));
 
       const t0 = animation.now();
-      const ex = toX;
-      const ez = toZ;
-      const ey = sy * 0.4;
+      const ex = toX + px * jitter;
+      const ez = toZ + pz * jitter;
+      const ey = FLIGHT_Y;
       const anim = (): void => {
         const u = Math.min(1, (animation.now() - t0) / flightMs);
         const m = u * u;
@@ -395,7 +390,7 @@ function playCiwsIntercept(
 
 /**
  * Server `airDefenseFire`: nur ausgehende FK / Tracer — **ohne** Einschlag-Ring.
- * `pdLaunchY`: optional Mündungs-Höhe (Three.js) für PDMS; sonst fester `FLIGHT_Y` wie SAM.
+ * `launchY`: Modell-Mündungshöhe für alle Abwehrschichten; alte Replay-Ereignisse nutzen `FLIGHT_Y`.
  */
 function playAirDefenseFire(
   animation: AnimationLifetime,
@@ -405,7 +400,7 @@ function playAirDefenseFire(
   fromZ: number,
   toX: number,
   toZ: number,
-  pdLaunchY?: number,
+  launchY?: number,
   getTrackedTargetXZ?: SamInterceptTrackedTargetXZ | null,
   launchFx?: AirDefenseSamLaunchFx | null,
 ): void {
@@ -414,14 +409,14 @@ function playAirDefenseFire(
     const rx1 = worldToRenderX(toX);
     if (layer === "sam" || layer === "pd") {
       const y =
-        layer === "pd" && Number.isFinite(pdLaunchY) ? (pdLaunchY as number) : FLIGHT_Y;
+        Number.isFinite(launchY) ? (launchY as number) : FLIGHT_Y;
       if (launchFx) {
         const launchHeading = Math.atan2(toX - fromX, toZ - fromZ);
-        launchFx.spawnMissileLaunchSmoke(fromX, fromZ, launchHeading);
+        launchFx.spawnMissileLaunchSmoke(fromX, fromZ, launchHeading, y);
       }
-      playSamIntercept(animation, scene, rx0, fromZ, rx1, toZ, false, y, getTrackedTargetXZ ?? null, launchFx ?? null);
+      playSamIntercept(animation, scene, layer, rx0, fromZ, rx1, toZ, false, y, getTrackedTargetXZ ?? null, launchFx ?? null);
     } else {
-      playCiwsIntercept(animation, scene, rx0, fromZ, rx1, toZ, false);
+      playCiwsIntercept(animation, scene, rx0, fromZ, rx1, toZ, false, launchY);
     }
   } catch (e) {
     console.warn("[airDefenseFx] playAirDefenseFire", e);

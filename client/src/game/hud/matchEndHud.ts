@@ -27,16 +27,6 @@ export type MatchEndScoreRow = {
 export type MatchEndHud = {
   dispose(): void;
   show: (rows: MatchEndScoreRow[], mySessionId: string) => void;
-  setOverallLeaderboard: (state: {
-    status: "loading" | "error" | "ready";
-    rows?: Array<{
-      displayName: string;
-      scoreTotal: number;
-      kills: number;
-      wins: number;
-      matches: number;
-    }>;
-  }) => void;
   hide: () => void;
 };
 
@@ -57,24 +47,11 @@ export function createMatchEndHud(onPlayAgain: () => void): MatchEndHud {
         </thead>
         <tbody class="match-end-tbody"></tbody>
       </table>
-      <section class="match-end-overall">
-        <h3 class="match-end-overall-title">${t("matchEnd.overallTitle")}</h3>
-        <p class="match-end-overall-status">${t("matchEnd.overallLoading")}</p>
-        <table class="match-end-overall-table" aria-label="${t("matchEnd.overallTableAria")}" hidden>
-          <thead>
-            <tr><th>${t("matchEnd.colPlace")}</th><th>${t("matchEnd.colPlayer")}</th><th>${t("matchEnd.colScore")}</th><th>${t("matchEnd.colKills")}</th><th>${t("matchEnd.colOverallWins")}</th><th>${t("matchEnd.colOverallMatches")}</th></tr>
-          </thead>
-          <tbody class="match-end-overall-tbody"></tbody>
-        </table>
-      </section>
       <button type="button" class="match-end-replay">${t("matchEnd.continue")}</button>
     </div>
   `;
 
   const tbody = root.querySelector(".match-end-tbody") as HTMLElement;
-  const overallStatus = root.querySelector(".match-end-overall-status") as HTMLElement;
-  const overallTable = root.querySelector(".match-end-overall-table") as HTMLTableElement;
-  const overallTbody = root.querySelector(".match-end-overall-tbody") as HTMLElement;
   const replayBtn = root.querySelector(".match-end-replay") as HTMLButtonElement;
 
   let disposed = false;
@@ -106,48 +83,12 @@ export function createMatchEndHud(onPlayAgain: () => void): MatchEndHud {
         tr.innerHTML = `<td>${idx + 1}</td><td>${escapeHtml(label)}</td><td>${escapeHtml(r.shipClass)}</td><td>${rankEn}</td><td>${r.kills}</td><td>${r.score}</td>`;
         tbody.appendChild(tr);
       });
-      overallStatus.textContent = t("matchEnd.overallLoading");
-      overallTable.hidden = true;
-      overallTbody.textContent = "";
       root.hidden = false;
-    },
-    setOverallLeaderboard(state): void {
-      if (disposed) return;
-      if (state.status === "loading") {
-        overallStatus.textContent = t("matchEnd.overallLoading");
-        overallTable.hidden = true;
-        overallTbody.textContent = "";
-        return;
-      }
-      if (state.status === "error") {
-        overallStatus.textContent = t("matchEnd.overallUnavailable");
-        overallTable.hidden = true;
-        overallTbody.textContent = "";
-        return;
-      }
-      const rows = Array.isArray(state.rows) ? state.rows : [];
-      if (rows.length < 1) {
-        overallStatus.textContent = t("matchEnd.overallEmpty");
-        overallTable.hidden = true;
-        overallTbody.textContent = "";
-        return;
-      }
-      overallStatus.textContent = "";
-      overallTable.hidden = false;
-      overallTbody.textContent = "";
-      rows.forEach((r, idx) => {
-        const tr = document.createElement("tr");
-        tr.innerHTML = `<td>${idx + 1}</td><td>${escapeHtml(r.displayName || "—")}</td><td>${Math.floor(r.scoreTotal)}</td><td>${Math.floor(r.kills)}</td><td>${Math.floor(r.wins)}</td><td>${Math.floor(r.matches)}</td>`;
-        overallTbody.appendChild(tr);
-      });
     },
     hide(): void {
       if (disposed) return;
       root.hidden = true;
       tbody.textContent = "";
-      overallTbody.textContent = "";
-      overallStatus.textContent = t("matchEnd.overallLoading");
-      overallTable.hidden = true;
     },
   };
 }

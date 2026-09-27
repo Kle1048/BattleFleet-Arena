@@ -1,5 +1,9 @@
 # Client and server hotpaths (review points 10 and 11)
 
+Current update: input transport is now capped at 20 Hz, not render cadence.
+See [network load limits](NETWORK-LOAD-LIMITS.md) for pacing, latching and server
+admission budgets. The measurements below document the earlier optimization stage.
+
 ## Client
 
 - Cockpit model/radar calculations run at most every 50 ms (nominal 20 Hz), not

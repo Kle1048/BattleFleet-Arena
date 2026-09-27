@@ -218,6 +218,7 @@ export function createSessionFrame(options: {
       botMissileScratch,
       botTorpedoScratch,
       operationalHalf,
+      model.islandsEnabled,
     );
     const samp = botInput ?? humanInput;
 

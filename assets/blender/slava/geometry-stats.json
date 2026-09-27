@@ -1,0 +1,10 @@
+{
+  "assembled_triangles": 9852,
+  "parts": {
+    "SLAVA_HULL.003": 8756,
+    "SLAVA_TEMPLATE_artillery.003": 276,
+    "SLAVA_TEMPLATE_ciws.003": 160,
+    "SLAVA_TEMPLATE_sam.003": 164,
+    "SLAVA_TEMPLATE_ssm.003": 248
+  }
+}

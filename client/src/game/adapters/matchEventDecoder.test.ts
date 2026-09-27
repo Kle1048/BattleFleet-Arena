@@ -4,6 +4,16 @@ import { decodeMatchEvent, decodePong } from "./matchEventDecoder";
 const shot = { shellId: 3, ownerId: "me", fromX: 1, fromZ: 2, toX: 3, toZ: 4, flightMs: 800 };
 assert.deepEqual(decodeMatchEvent("artyFired", shot), { type: "artyFired", payload: shot });
 const decoded = decodeMatchEvent("artyFired", shot);
+const modelShot = { ...shot, slotId: "main_aft", fromY: 7 };
+const launch = { ownerId: "me", missileId: 1, launcherId: "port", fromX: 3, fromY: 5, fromZ: 7, headingRad: .5 };
+assert.deepEqual(decodeMatchEvent("aswmFired", launch), { type: "aswmFired", payload: launch });
+for (const key of ["missileId", "fromX", "fromY", "fromZ", "headingRad"]) {
+  for (const bad of [undefined, NaN, Infinity, "3", {}]) assert.equal(decodeMatchEvent("aswmFired", { ...launch, [key]: bad }), null);
+}
+assert.deepEqual(decodeMatchEvent("artyFired", modelShot), { type: "artyFired", payload: modelShot });
+for (const invalid of [{ fromY: NaN }, { fromY: "7" }, { slotId: "" }, { slotId: {} }, { fromY: undefined }]) {
+  assert.equal(decodeMatchEvent("artyFired", { ...modelShot, ...invalid }), null);
+}
 shot.fromX = 999;
 assert(decoded?.type === "artyFired"); assert.equal(decoded.payload.fromX, 1, "event values are owned, not borrowed");
 for (const field of ["shellId", "fromX", "fromZ", "toX", "toZ", "flightMs"]) {
@@ -20,6 +30,14 @@ for (const type of ["aswmImpact", "torpedoImpact", "artyImpact"]) {
 }
 const defense = { x: "12", z: "34", weapon: "aswm", layer: "PD", defenderX: "7", defenderZ: "8", defenderId: "def", id: "42" };
 const expected = { x: 12, z: 34, layer: "pd", defenderX: 7, defenderZ: 8, defenderId: "def", missileId: 42 };
+const modelDefense = { ...defense, slotId: "pd_aft", fromX: 1, fromY: 2, fromZ: 3 };
+assert.deepEqual(decodeMatchEvent("airDefenseFire", modelDefense),
+  { type: "airDefenseFire", payload: { ...expected, slotId: "pd_aft", fromX: 1, fromY: 2, fromZ: 3 } });
+for (const key of ["fromX", "fromY", "fromZ", "slotId"]) {
+  for (const bad of [undefined, null, {}, Infinity, ""]) {
+    assert.equal(decodeMatchEvent("airDefenseFire", { ...modelDefense, [key]: bad }), null);
+  }
+}
 for (const type of ["airDefenseFire", "airDefenseIntercept"]) {
   assert.deepEqual(decodeMatchEvent(type, defense), { type, payload: expected });
   assert.deepEqual(decodeMatchEvent(type, { ...defense, id: "invalid", missileId: "43" }),

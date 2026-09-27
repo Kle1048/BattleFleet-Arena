@@ -32,6 +32,7 @@ export class LifeSystem {
     private readonly settings: LifeSettings,
     private readonly ports: LifePorts,
     private readonly random: () => number,
+    private readonly getIslandPolygons = () => DEFAULT_MAP_ISLAND_POLYGONS,
   ) {}
 
   /**
@@ -132,14 +133,14 @@ export class LifeSystem {
       const spawnPick =
         tryPickRespawnPosition(
           spawnHalf,
-          DEFAULT_MAP_ISLAND_POLYGONS,
+          this.getIslandPolygons(),
           placed,
           MIN_RESPAWN_SEPARATION,
           this.random,
         ) ??
         pickRimSpawnDeterministic(
           spawnHalf,
-          DEFAULT_MAP_ISLAND_POLYGONS,
+          this.getIslandPolygons(),
           placed,
           MIN_RESPAWN_SEPARATION,
           angleSeed,
@@ -237,14 +238,14 @@ export class LifeSystem {
     const spawn =
       tryPickRespawnPosition(
         respawnHalf,
-        DEFAULT_MAP_ISLAND_POLYGONS,
+        this.getIslandPolygons(),
         others,
         MIN_RESPAWN_SEPARATION,
         this.random,
       ) ??
       pickRimSpawnDeterministic(
         respawnHalf,
-        DEFAULT_MAP_ISLAND_POLYGONS,
+        this.getIslandPolygons(),
         others,
         MIN_RESPAWN_SEPARATION,
         this.participantIndex(sessionId) * 2.5132741228718345 +

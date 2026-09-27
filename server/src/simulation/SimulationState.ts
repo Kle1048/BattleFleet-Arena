@@ -17,6 +17,7 @@ export class SimulationState implements MatchValues {
   readonly torpedoList = new EntityList<TorpedoValues>();
   readonly wreckList = new EntityList<WreckValues>();
   matchPhase: string = MATCH_PHASE_RUNNING;
+  islandsEnabled = true;
   matchRemainingSec = MATCH_DURATION_SEC;
   operationalAreaHalfExtent = operationalHalfExtentFromParticipantCount(0);
 }

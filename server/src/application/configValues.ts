@@ -16,6 +16,8 @@ export type AdminConfig = {
   matchDurationSec: number;
   minRoomPlayers: number;
   maintenanceMode: boolean;
+  /** Applied at room creation / round restart, never halfway through a round. */
+  islandsEnabled: boolean;
   operationalAreaHalfExtent: number;
   passiveXpIntervalMs: number;
   passiveXpBase: number;
@@ -33,6 +35,7 @@ export function defaultConfig(matchDurationSec = MATCH_DURATION_SEC, minRoomPlay
     matchDurationSec: clampMatchDurationSec(matchDurationSec),
     minRoomPlayers: clampMinRoomPlayers(minRoomPlayers),
     maintenanceMode: false,
+    islandsEnabled: false,
     operationalAreaHalfExtent: 0,
     passiveXpIntervalMs: MATCH_PASSIVE_XP_INTERVAL_MS,
     passiveXpBase: MATCH_PASSIVE_XP_BASE,
@@ -81,6 +84,7 @@ export function normalizeConfig(next: AdminConfigPatch, config: Readonly<AdminCo
     matchDurationSec: Number.isFinite(duration)
       ? clampMatchDurationSec(duration)
       : config.matchDurationSec,
+    islandsEnabled: typeof next.islandsEnabled === "boolean" ? next.islandsEnabled : config.islandsEnabled,
     minRoomPlayers: Number.isFinite(minPlayers)
       ? clampMinRoomPlayers(minPlayers)
       : config.minRoomPlayers,

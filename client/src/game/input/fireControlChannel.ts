@@ -7,7 +7,6 @@ import {
 } from "@battlefleet/shared";
 import type { InputSample } from "./keyboardMouse";
 import { worldToRenderX } from "../runtime/renderCoords";
-import { getShipDebugTuningForVisualClass } from "../runtime/shipDebugTuning";
 
 type PlayerRow = {
   id: string;
@@ -89,13 +88,9 @@ export function createFireControlChannel(options: {
   const updateFireControlRing = (me: PlayerRow, target: PlayerRow): void => {
     const hull = getAuthoritativeShipHullProfile(target.shipClass);
     const h = target.headingRad;
-    /** Wie `frameWorld`: `collisionHitbox` sitzt unter `ShipVisual.group` — Ursprung = Sim minus Pivot entlang Fahrtachse. */
-    const pivotZ = getShipDebugTuningForVisualClass(target.shipClass).shipPivotLocalZ;
-    const refX = target.x - Math.sin(h) * pivotZ;
-    const refZ = target.z - Math.cos(h) * pivotZ;
     const { cx, cz, radius } = shipHitboxFootprintCircumcircleWorldXZ(
-      refX,
-      refZ,
+      target.x,
+      target.z,
       h,
       hull?.collisionHitbox,
     );
@@ -174,7 +169,7 @@ export function createFireControlChannel(options: {
   };
 
   const onPointerDown = (e: PointerEvent): void => {
-    if (disposed) return;
+    if (disposed || e.defaultPrevented) return;
     if (e.button !== 0) return;
     const rect = canvas.getBoundingClientRect();
     const ndcX = ((e.clientX - rect.left) / rect.width) * 2 - 1;

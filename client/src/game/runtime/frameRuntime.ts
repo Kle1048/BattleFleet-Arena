@@ -1,4 +1,5 @@
 import type * as THREE from "three";
+import { PlayerLifeState } from "@battlefleet/shared/rules";
 import type { InputSample } from "../input/keyboardMouse";
 import type { ShipVisual } from "../scene/shipVisual";
 import type { createInterpolationBuffer } from "../network/remoteInterpolation";
@@ -28,6 +29,7 @@ export function createFrameRuntimeState(initialHudLevel = 1): FrameRuntimeState 
     aimLineSectorDebug: "",
     lastInputDedupKey: null,
     lastInputDedupAtMs: 0,
+    pendingInput: null,
     lastTelegraphThrottleIndex: -1,
     lastTelegraphRudderIndex: -1,
     musicSmoothedTierF: 0,
@@ -123,6 +125,9 @@ export function runFrameRuntimeStep<
   const adPlayerSnapshots = adPlayerSnapshotsScratch;
 
   const me = playersById.get(mySessionId);
+  if (!me || matchEnded || me.lifeState === PlayerLifeState.AwaitingRespawn || !visuals.has(mySessionId)) {
+    state.pendingInput = null;
+  }
   updateLocalFrameFeedback({ me, matchEnded, state, gameAudio, gameMessageHud });
   updateFrameAudio({ me, mySessionId, playerList, inputSample, matchEnded, cfgMaxSpeed, dtMs, gameAudio, state });
   updateFrameWorld({ now, dtMs, camera, mySessionId, playersById, me, visuals, remoteInterp,

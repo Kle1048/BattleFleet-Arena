@@ -1,6 +1,7 @@
 import { createServer, type IncomingMessage } from "node:http";
 import express from "express";
-import { WebSocketTransport } from "@colyseus/ws-transport";
+import { LimitedTransport } from "./limitedTransport.js";
+import { RequestBudget, requestLimitMiddleware, MAX_SOCKET_CONNECTIONS } from "./loadLimits.js";
 import { isAllowedOrigin, OriginCheckedServer, publicOriginMiddleware, readAllowedOrigins } from "./serverSecurity.js";
 import { BattleRoom } from "./rooms/BattleRoom.js";
 import { registerAdminPanel } from "./adminPanel.js";
@@ -20,12 +21,14 @@ app.use((_req, res, next) => {
 });
 app.disable("x-powered-by");
 const allowedOrigins = readAllowedOrigins();
+const requestBudget = new RequestBudget();
 registerAdminPanel(app, {
   activeRoomSummaries: () => BattleRoom.activeRoomSummaries(),
   restartActiveRounds: () => BattleRoom.restartActiveRounds(),
 });
 app.use(publicOriginMiddleware(allowedOrigins));
-app.use(express.json());
+app.use(requestLimitMiddleware(requestBudget));
+app.use(express.json({ limit: "4kb" }));
 
 app.get("/api/leaderboard", (req, res) => {
   const rawLimit = typeof req.query.limit === "string" ? Number.parseInt(req.query.limit, 10) : NaN;
@@ -42,13 +45,17 @@ app.get("/api/leaderboard", (req, res) => {
 });
 
 const server = createServer(app);
+server.maxConnections = MAX_SOCKET_CONNECTIONS + 128;
+server.headersTimeout = 10_000;
+server.requestTimeout = 10_000;
+server.keepAliveTimeout = 5000;
 const gameServer = new OriginCheckedServer({
   gracefullyShutdown: false,
-  transport: new WebSocketTransport({
+  transport: new LimitedTransport({
     server,
-    verifyClient: (info: { req: IncomingMessage }) => isAllowedOrigin(info.req.headers.origin, allowedOrigins),
+    verifyClient: (info: { req: IncomingMessage }) => isAllowedOrigin(info.req.headers.origin, allowedOrigins) && requestBudget.allow(info.req),
   }),
-}, allowedOrigins);
+}, allowedOrigins, requestBudget);
 
 gameServer.define("battle", BattleRoom);
 

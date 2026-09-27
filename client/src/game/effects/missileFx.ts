@@ -1,11 +1,11 @@
 import * as THREE from "three";
 import { ASWM_SPEED } from "@battlefleet/shared";
-import { createMissileBodyMaterial } from "../runtime/materialLibrary";
+import { createProjectileBody } from "./projectileVisual";
 import { worldToRenderX, worldToRenderYaw } from "../runtime/renderCoords";
 import type { FxSystem } from "./fxSystem";
+import type { MissileFired } from "../presentation/MatchPresentationEvent";
 
 const BODY_Y = 2.8;
-const MISSILE_CONE_HEIGHT = 12;
 
 /** Max. Vorlauf der sichtbaren Pose hinter dem letzten Sync (verhindert Sprünge / Flackern). */
 const MAX_EXTRAPOLATE_SEC = 0.14;
@@ -29,7 +29,11 @@ type Entry = {
   velZ: number;
   lastSyncMs: number;
   trailSuppressUntilMs: number;
+  launch?: Launch;
 };
+type Launch = { x: number; y: number; z: number; at: number };
+type MuzzleResolver = (ownerId: string, launcherId: string) => { x: number; y: number; z: number } | null;
+const LAUNCH_BLEND_MS = 250;
 
 /**
  * ASuM: Körper aus repliziertem State; Einschlag über gemeinsames Partikel-FX.
@@ -42,8 +46,14 @@ export function createMissileFx(scene: THREE.Scene, fx: FxSystem): {
   dispose: () => void;
   flashImpact: (x: number, z: number, kind: string) => void;
   getStats: () => { activeMissiles: number };
+  onFired: (message: MissileFired) => void;
+  setMuzzleSeekResolver: (resolver: MuzzleResolver) => void;
 } {
   const byId = new Map<number, Entry>();
+  // Wire events may precede the state patch. Bounded and short-lived, never a projectile authority.
+  const pendingLaunches = new Map<number, Launch>();
+  let resolveMuzzle: MuzzleResolver | undefined;
+  let disposed = false;
 
   function removeMissileEntry(id: number): void {
     const e = byId.get(id);
@@ -59,10 +69,7 @@ export function createMissileFx(scene: THREE.Scene, fx: FxSystem): {
     if (e) return e;
 
     const group = new THREE.Group();
-    const geo = new THREE.ConeGeometry(3.5, MISSILE_CONE_HEIGHT, 6);
-    const mat = createMissileBodyMaterial();
-    const body = new THREE.Mesh(geo, mat);
-    body.rotation.x = Math.PI / 2;
+    const body = createProjectileBody("ssm");
     body.position.y = BODY_Y;
     group.add(body);
 
@@ -83,9 +90,11 @@ export function createMissileFx(scene: THREE.Scene, fx: FxSystem): {
   }
 
   function sync(missiles: Iterable<MissilePose> | null): void {
+    if (disposed) return;
     syncKeepIds.clear();
     const now = performance.now();
     if (missiles === null) {
+      pendingLaunches.clear();
       for (const id of Array.from(byId.keys())) {
         removeMissileEntry(id);
       }
@@ -95,6 +104,8 @@ export function createMissileFx(scene: THREE.Scene, fx: FxSystem): {
       syncKeepIds.add(m.missileId);
       const isNew = !byId.has(m.missileId);
       const e = ensure(m.missileId);
+      const launch = pendingLaunches.get(m.missileId);
+      if (launch) { e.launch = launch; pendingLaunches.delete(m.missileId); }
 
       if (!isNew && e.lastSyncMs > 0) {
         const dtSec = (now - e.lastSyncMs) * 0.001;
@@ -122,7 +133,8 @@ export function createMissileFx(scene: THREE.Scene, fx: FxSystem): {
       e.lastSyncMs = now;
 
       if (isNew) {
-        fx.spawnMissileLaunchSmoke(m.x, m.z, m.headingRad);
+        const start = e.launch ?? { x: m.x, y: BODY_Y, z: m.z };
+        e.group.position.set(worldToRenderX(start.x), start.y - BODY_Y, start.z);
       }
     }
     for (const id of byId.keys()) {
@@ -133,12 +145,22 @@ export function createMissileFx(scene: THREE.Scene, fx: FxSystem): {
   }
 
   function update(nowMs: number, dtMs: number): void {
+    if (disposed) return;
+    for (const [id, launch] of pendingLaunches) if (nowMs - launch.at > 1000) pendingLaunches.delete(id);
     const dt = Math.max(0, Math.min(dtMs, 80));
     for (const e of byId.values()) {
       const ago = Math.min(MAX_EXTRAPOLATE_SEC, Math.max(0, (nowMs - e.lastSyncMs) * 0.001));
-      const ex = e.syncWorldX + e.velX * ago;
-      const ez = e.syncWorldZ + e.velZ * ago;
-      e.group.position.set(worldToRenderX(ex), 0, ez);
+      let ex = e.syncWorldX + e.velX * ago;
+      let ez = e.syncWorldZ + e.velZ * ago;
+      let y = BODY_Y;
+      if (e.launch) {
+        const u = Math.min(1, Math.max(0, (nowMs - e.launch.at) / LAUNCH_BLEND_MS));
+        ex = e.launch.x + (ex - e.launch.x) * u;
+        ez = e.launch.z + (ez - e.launch.z) * u;
+        y = e.launch.y + (BODY_Y - e.launch.y) * u;
+        if (u === 1) e.launch = undefined;
+      }
+      e.group.position.set(worldToRenderX(ex), y - BODY_Y, ez);
       e.group.rotation.y = worldToRenderYaw(e.headingRad);
 
       if (nowMs < e.trailSuppressUntilMs) continue;
@@ -148,6 +170,10 @@ export function createMissileFx(scene: THREE.Scene, fx: FxSystem): {
   }
 
   function dispose(): void {
+    if (disposed) return;
+    disposed = true;
+    pendingLaunches.clear();
+    resolveMuzzle = undefined;
     for (const id of Array.from(byId.keys())) {
       removeMissileEntry(id);
     }
@@ -157,10 +183,25 @@ export function createMissileFx(scene: THREE.Scene, fx: FxSystem): {
     sync,
     update,
     dispose,
+    setMuzzleSeekResolver(resolver) { if (!disposed) resolveMuzzle = resolver; },
+    onFired(message) {
+      if (disposed) return;
+      const origin = resolveMuzzle?.(message.ownerId, message.launcherId) ??
+        { x: message.fromX, y: message.fromY, z: message.fromZ };
+      fx.spawnMissileLaunchSmoke(origin.x, origin.z, message.headingRad, origin.y);
+      const launch = { ...origin, at: performance.now() };
+      const entry = byId.get(message.missileId);
+      if (entry) entry.launch = launch;
+      else {
+        if (pendingLaunches.size >= 256) pendingLaunches.delete(pendingLaunches.keys().next().value!);
+        pendingLaunches.set(message.missileId, launch);
+      }
+    },
     getStats() {
       return { activeMissiles: byId.size };
     },
     flashImpact(x, z, kind) {
+      if (disposed) return;
       fx.spawnMissileImpact(x, z, kind);
     },
   };

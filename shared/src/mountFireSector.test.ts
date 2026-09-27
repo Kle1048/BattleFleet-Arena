@@ -4,6 +4,7 @@ import {
   ARTILLERY_ARC_HALF_ANGLE_RAD,
   clampYawToMountSector,
   isYawWithinMountFireSector,
+  mountFireSectorArc,
   tryComputeArtillerySalvo,
 } from "./artillery";
 import type { MountFireSector } from "./shipVisualLayout";
@@ -84,4 +85,14 @@ import type { MountFireSector } from "./shipVisualLayout";
   assert.ok(Math.abs(cMid - Math.PI / 4) < 0.05 || Math.abs(cMid + Math.PI / 4) < 0.05);
 }
 
+for (const sector of [
+  { kind: "asymmetric", minYawRadFromBow: -2.5, maxYawRadFromBow: 2.5 },
+  { kind: "asymmetric", minYawRadFromBow: 2.5, maxYawRadFromBow: -2.5 },
+  { kind: "asymmetric", minYawRadFromBow: -Math.PI, maxYawRadFromBow: Math.PI },
+  { kind: "symmetric", halfAngleRadFromBow: 2, centerYawRadFromBow: Math.PI },
+] as const) {
+  const arc = mountFireSectorArc(sector);
+  for (let i = 0; i <= 64; i++) assert(isYawWithinMountFireSector(arc.start + arc.sweep * i / 64, sector));
+}
+assert.equal(mountFireSectorArc({ kind: "asymmetric", minYawRadFromBow: -2.5, maxYawRadFromBow: 2.5 }).sweep, 5);
 console.log("mountFireSector tests ok");

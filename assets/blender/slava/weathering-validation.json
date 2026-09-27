@@ -1,0 +1,64 @@
+{
+  "passed": true,
+  "parts": [
+    {
+      "part": "artillery",
+      "triangles": 276,
+      "texture_resolution": 1024,
+      "rust_patches": 0,
+      "maps": [
+        "basecolor",
+        "roughness",
+        "normal"
+      ]
+    },
+    {
+      "part": "ciws",
+      "triangles": 160,
+      "texture_resolution": 1024,
+      "rust_patches": 0,
+      "maps": [
+        "basecolor",
+        "roughness",
+        "normal"
+      ]
+    },
+    {
+      "part": "sam",
+      "triangles": 164,
+      "texture_resolution": 1024,
+      "rust_patches": 0,
+      "maps": [
+        "basecolor",
+        "roughness",
+        "normal"
+      ]
+    },
+    {
+      "part": "ssm",
+      "triangles": 248,
+      "texture_resolution": 1024,
+      "rust_patches": 0,
+      "maps": [
+        "basecolor",
+        "roughness",
+        "normal"
+      ]
+    },
+    {
+      "part": "hull",
+      "triangles": 8756,
+      "texture_resolution": 4096,
+      "rust_patches": 12,
+      "maps": [
+        "basecolor",
+        "roughness",
+        "normal"
+      ]
+    }
+  ],
+  "no_added_triangles": true,
+  "source": "F124 existing weathered atlas and alpha runoff",
+  "atlas_blend": 0.4,
+  "rust_opacity": 0.55
+}

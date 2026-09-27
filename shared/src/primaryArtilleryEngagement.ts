@@ -3,7 +3,7 @@
  * servernah feuern könnte — gleiche Geometrie wie `BattleRoom.tryPrimaryFire`, deterministisches RNG.
  */
 
-import { shipLocalToWorldXZ } from "./aswm";
+import { mountSlotMuzzleWorld } from "./mountedWeaponPose";
 import { ARTILLERY_MAX_RANGE, ARTILLERY_MIN_RANGE, tryComputeArtillerySalvo } from "./artillery";
 import { getShipClassProfile, normalizeShipClassId, type ShipClassId } from "./shipClass";
 import { getAuthoritativeShipHullProfile } from "./shipProfiles";
@@ -29,7 +29,7 @@ export function canPrimaryArtilleryEngageAimAtWorldPoint(
   const hull = getAuthoritativeShipHullProfile(cid);
   const mounts = listPrimaryArtilleryMountConfigs(hull, classProf.artilleryArcHalfAngleRad);
   for (const m of mounts) {
-    const w = shipLocalToWorldXZ(shipX, shipZ, headingRad, m.socket.x, m.socket.z);
+    const w = mountSlotMuzzleWorld(hull!, m.slotId, shipX, shipZ, headingRad, { x: aimWorldX, z: aimWorldZ });
     const distToAim = Math.hypot(aimWorldX - w.x, aimWorldZ - w.z);
     if (distToAim < ARTILLERY_MIN_RANGE - 1e-6 || distToAim > ARTILLERY_MAX_RANGE + 1e-6) {
       continue;

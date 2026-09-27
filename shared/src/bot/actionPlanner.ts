@@ -74,6 +74,8 @@ function applyIslandAvoidance(
 
 export function planAction(input: ActionPlanningInput): BotInputCommand {
   const { snapshot, context, intent } = input;
+  const avoidIslands: typeof applyIslandAvoidance = snapshot.islandsEnabled === false
+    ? (_self, rudder) => clamp(rudder, -1, 1) : applyIslandAvoidance;
   const self = snapshot.self;
   const target = snapshot.enemies.find((q) => q.id === context.bestTargetId) ?? null;
   const aimWorldX = target?.x ?? self.x + Math.sin(self.headingRad) * 120;
@@ -99,7 +101,7 @@ export function planAction(input: ActionPlanningInput): BotInputCommand {
 
   if (intent === "EVADE_MISSILES") {
     const throttle = 1;
-    const rudderInput = applyIslandAvoidance(self, yawErr >= 0 ? -1 : 1, throttle);
+    const rudderInput = avoidIslands(self, yawErr >= 0 ? -1 : 1, throttle);
     return {
       throttle,
       rudderInput,
@@ -113,7 +115,7 @@ export function planAction(input: ActionPlanningInput): BotInputCommand {
   }
   if (intent === "RETREAT") {
     const throttle = -0.5;
-    const rudderInput = applyIslandAvoidance(self, yawErr >= 0 ? -0.7 : 0.7, throttle);
+    const rudderInput = avoidIslands(self, yawErr >= 0 ? -0.7 : 0.7, throttle);
     return {
       throttle,
       rudderInput,
@@ -127,7 +129,7 @@ export function planAction(input: ActionPlanningInput): BotInputCommand {
   }
   if (intent === "ATTACK" || intent === "FINISH_TARGET") {
     const throttle = 0.85;
-    const rudderInput = applyIslandAvoidance(self, rudderTrack, throttle);
+    const rudderInput = avoidIslands(self, rudderTrack, throttle);
     return {
       throttle,
       rudderInput,
@@ -148,7 +150,7 @@ export function planAction(input: ActionPlanningInput): BotInputCommand {
     const throttle = 0.82;
     return {
       throttle,
-      rudderInput: applyIslandAvoidance(self, rudderCenter, throttle),
+      rudderInput: avoidIslands(self, rudderCenter, throttle),
       aimWorldX: aimCx,
       aimWorldZ: aimCz,
       primaryFire: false,
@@ -159,7 +161,7 @@ export function planAction(input: ActionPlanningInput): BotInputCommand {
   }
   if (intent === "HOLD_ARC") {
     const throttle = 0.45;
-    const rudderInput = applyIslandAvoidance(self, rudderTrack, throttle);
+    const rudderInput = avoidIslands(self, rudderTrack, throttle);
     return {
       throttle,
       rudderInput,
@@ -173,7 +175,7 @@ export function planAction(input: ActionPlanningInput): BotInputCommand {
   }
   if (intent === "CHASE") {
     const throttle = 1;
-    const rudderInput = applyIslandAvoidance(self, rudderTrack, throttle);
+    const rudderInput = avoidIslands(self, rudderTrack, throttle);
     return {
       throttle,
       rudderInput,
@@ -186,7 +188,7 @@ export function planAction(input: ActionPlanningInput): BotInputCommand {
     };
   }
   const throttle = 0.4;
-  const rudderInput = applyIslandAvoidance(
+  const rudderInput = avoidIslands(
     self,
     Math.sin(snapshot.timestamp / Math.max(1, snapshot.operationalHalfExtent)),
     throttle,

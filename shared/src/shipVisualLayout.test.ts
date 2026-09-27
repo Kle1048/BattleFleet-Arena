@@ -7,7 +7,6 @@ import {
   hullProvidesAirDefensePdLayer,
   hullProvidesAirDefenseSamLayer,
   listRotatingMountWeaponGuideConfigs,
-  ROTATING_WEAPON_GUIDE_KINDS,
   type ShipHullVisualProfile,
 } from "./shipVisualLayout";
 
@@ -16,6 +15,7 @@ import {
     profileId: "t",
     shipClassId: "fac",
     hullGltfId: "fac",
+    defaultLoadout: { main: { weaponId: "artillery", modelId: "test_model" } },
     mountSlots: [
       {
         id: "ciws",
@@ -41,19 +41,18 @@ import {
 }
 
 {
-  assert.equal(ROTATING_WEAPON_GUIDE_KINDS.length, 4);
   const fac = SHIP_HULL_PROFILE_BY_CLASS[SHIP_CLASS_FAC];
   const arc = getShipClassProfile(SHIP_CLASS_FAC).artilleryArcHalfAngleRad;
   const guides = listRotatingMountWeaponGuideConfigs(fac, arc);
-  assert.equal(guides.length, fac.mountSlots.filter((s) => s.compatibleKinds.some((k) => ROTATING_WEAPON_GUIDE_KINDS.includes(k))).length);
-  assert.equal(fac.defaultLoadout?.ciws_aft, "visual_pdms");
+  assert.equal(guides.length, 2);
+  assert.equal(fac.defaultLoadout?.ciws_aft.weaponId, "pdms");
   assert.equal(hullProvidesAirDefenseSamLayer(fac), false);
   assert.equal(hullProvidesAirDefensePdLayer(fac), true);
   assert.equal(hullProvidesAirDefenseCiwsLayer(fac), false);
   assert.equal(
     hullProvidesAirDefensePdLayer({
       ...fac,
-      defaultLoadout: { ...fac.defaultLoadout, ciws_aft: "visual_artillery" },
+      defaultLoadout: { ...fac.defaultLoadout, ciws_aft: { weaponId: "artillery", modelId: "test_model" } },
     }),
     false,
   );
@@ -61,7 +60,7 @@ import {
 
 {
   const dd = SHIP_HULL_PROFILE_BY_CLASS[SHIP_CLASS_DESTROYER];
-  assert.equal(dd.defaultLoadout?.ciws_fwd, "visual_ciws");
+  assert.equal(dd.defaultLoadout?.ciws_fwd.weaponId, "ciws");
   assert.equal(hullProvidesAirDefenseCiwsLayer(dd), true);
 }
 

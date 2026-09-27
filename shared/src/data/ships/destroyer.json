@@ -2,18 +2,17 @@
   "profileId": "destroyer",
   "labelDe": "Spruance-Klasse",
   "hullGltfId": "spruance",
-  "hullVisualScale": 0.012,
-  "clientVisualTuningDefaults": {
-    "gltfHullYOffset": -512.5218404193362,
-    "spriteScale": 1,
-    "gltfHullOffsetX": 0,
-    "gltfHullOffsetZ": 0,
-    "shipPivotLocalZ": 0,
-    "wakeSpawnLocalZ": 0
-  },
   "collisionHitbox": {
-    "center": { "x": 0, "y": 0, "z": 0 },
-    "halfExtents": { "x": 6, "y": 7.5, "z": 60 }
+    "center": {
+      "x": 0,
+      "y": 0,
+      "z": 0
+    },
+    "halfExtents": {
+      "x": 6,
+      "y": 7.5,
+      "z": 60
+    }
   },
   "shipClassId": "destroyer",
   "movement": {
@@ -28,8 +27,9 @@
   "mountSlots": [
     {
       "id": "main_fwd",
-      "compatibleKinds": ["artillery"],
-      "defaultVisualId": "visual_artillery",
+      "compatibleKinds": [
+        "artillery"
+      ],
       "fireSector": {
         "kind": "symmetric",
         "halfAngleRadFromBow": 2.0943951023931953
@@ -37,8 +37,9 @@
     },
     {
       "id": "ciws_fwd",
-      "compatibleKinds": ["ciws"],
-      "defaultVisualId": "visual_ciws",
+      "compatibleKinds": [
+        "ciws"
+      ],
       "fireSector": {
         "kind": "symmetric",
         "halfAngleRadFromBow": 2.6179938779914944
@@ -46,8 +47,9 @@
     },
     {
       "id": "sam_aft",
-      "compatibleKinds": ["sam_launcher"],
-      "defaultVisualId": "visual_sam",
+      "compatibleKinds": [
+        "sam_launcher"
+      ],
       "fireSector": {
         "kind": "symmetric",
         "halfAngleRadFromBow": 2.0943951023931953,
@@ -59,29 +61,37 @@
     {
       "id": "ssm_rail_port",
       "side": "port",
-      "visualId": "visual_ssm",
-      "launchYawRadFromBow": -1.5707963267948966,
-      "socket": {
-        "position": { "x": -4.7, "y": 11.2, "z": -1.5 },
-        "eulerRad": { "x": 0, "y": -1.5707963267948966, "z": 0 }
+      "equipment": {
+        "weaponId": "ssm",
+        "modelId": "spruance_harpoon"
       }
     },
     {
       "id": "ssm_rail_starboard",
       "side": "starboard",
-      "visualId": "visual_ssm",
-      "launchYawRadFromBow": 1.5707963267948966,
-      "socket": {
-        "position": { "x": 4.7, "y": 11.2, "z": -1.5 },
-        "eulerRad": { "x": 0, "y": 1.5707963267948966, "z": 0 }
+      "equipment": {
+        "weaponId": "ssm",
+        "modelId": "spruance_harpoon"
       }
     }
   ],
-  "aswmMagazine": { "port": 4, "starboard": 4 },
+  "aswmMagazine": {
+    "port": 4,
+    "starboard": 4
+  },
   "aswmMagicReloadMs": 30000,
   "defaultLoadout": {
-    "main_fwd": "visual_artillery",
-    "ciws_fwd": "visual_ciws",
-    "sam_aft": "visual_sam"
+    "main_fwd": {
+      "weaponId": "artillery",
+      "modelId": "spruance_mk45"
+    },
+    "ciws_fwd": {
+      "weaponId": "ciws",
+      "modelId": "spruance_phalanx"
+    },
+    "sam_aft": {
+      "weaponId": "sam",
+      "modelId": "spruance_seasparrow"
+    }
   }
 }

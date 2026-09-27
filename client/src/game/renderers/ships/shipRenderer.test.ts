@@ -8,6 +8,9 @@ const geometry = new THREE.BoxGeometry(4, 2, 12);
 const texture = new THREE.Texture();
 const material = new THREE.MeshStandardMaterial({ map: texture });
 template.add(new THREE.Mesh(geometry, [material, material]));
+const pivot = new THREE.Group(); pivot.name = "bf_yaw";
+const muzzle = new THREE.Object3D(); muzzle.name = "bf_muzzle"; muzzle.position.z = 6;
+pivot.add(muzzle); template.add(pivot);
 let templateDisposals = 0;
 for (const resource of [geometry, material, texture]) {
   resource.addEventListener("dispose", () => { templateDisposals++; });
@@ -65,12 +68,16 @@ const lazy = createShipRenderer(scene, "me", {
 lazy.ensureShip("me", "fac");
 const placeholder = lazy.getVisuals().get("me")!;
 placeholder.group.position.set(5, 6, 7);
+placeholder.group.rotation.set(0, -3 * Math.PI / 4, 0);
+placeholder.modelMotion.rotation.set(0.2, 0, 2, "YXZ");
 const verifyPlaceholder = trackOwned(placeholder.group);
 ready = true;
 pending.shift()!();
 await new Promise((resolve) => setTimeout(resolve, 0));
 assert.ok(lazy.getVisuals().get("me")!.hullModel);
 assert.deepEqual(lazy.getVisuals().get("me")!.group.position.toArray(), [5, 6, 7]);
+assert.deepEqual(lazy.getVisuals().get("me")!.group.rotation.toArray(), placeholder.group.rotation.toArray());
+assert.deepEqual(lazy.getVisuals().get("me")!.modelMotion.rotation.toArray(), placeholder.modelMotion.rotation.toArray());
 verifyPlaceholder();
 lazy.ensureShip("me", "destroyer");
 lazy.ensureShip("me", "cruiser");

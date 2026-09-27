@@ -255,6 +255,7 @@ defineTypes(ShipWreckState, {
 });
 
 export class BattleState extends Schema implements MatchValues {
+  declare islandsEnabled: boolean;
   declare playerList: ArraySchema<PlayerState>;
   declare missileList: ArraySchema<MissileState>;
   declare torpedoList: ArraySchema<TorpedoState>;
@@ -276,12 +277,14 @@ export class BattleState extends Schema implements MatchValues {
     this.torpedoList = new ArraySchema<TorpedoState>();
     this.wreckList = new ArraySchema<ShipWreckState>();
     this.matchPhase = MATCH_PHASE_RUNNING;
+    this.islandsEnabled = false;
     this.matchRemainingSec = MATCH_DURATION_SEC;
     this.operationalAreaHalfExtent = operationalHalfExtentFromParticipantCount(0);
   }
 }
 
 defineTypes(BattleState, {
+  islandsEnabled: "boolean",
   playerList: [PlayerState],
   missileList: [MissileState],
   torpedoList: [TorpedoState],

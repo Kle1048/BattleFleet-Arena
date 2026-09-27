@@ -1,0 +1,114 @@
+[
+  {
+    "modelId": "gepard",
+    "beforeBytes": 11019484,
+    "afterBytes": 444716,
+    "images": 1,
+    "maxTextureSize": 1024,
+    "textureBytesRgba8WithMips": 5592404
+  },
+  {
+    "modelId": "gepard_artillery",
+    "beforeBytes": 1323832,
+    "afterBytes": 27324,
+    "images": 1,
+    "maxTextureSize": 256,
+    "textureBytesRgba8WithMips": 349524
+  },
+  {
+    "modelId": "gepard_pdms",
+    "beforeBytes": 1518504,
+    "afterBytes": 56600,
+    "images": 1,
+    "maxTextureSize": 256,
+    "textureBytesRgba8WithMips": 349524
+  },
+  {
+    "modelId": "gepard_exocet",
+    "beforeBytes": 1638756,
+    "afterBytes": 76452,
+    "images": 1,
+    "maxTextureSize": 256,
+    "textureBytesRgba8WithMips": 349524
+  },
+  {
+    "modelId": "spruance",
+    "beforeBytes": 8531152,
+    "afterBytes": 637616,
+    "images": 1,
+    "maxTextureSize": 1024,
+    "textureBytesRgba8WithMips": 5592404
+  },
+  {
+    "modelId": "spruance_mk45",
+    "beforeBytes": 1411652,
+    "afterBytes": 21072,
+    "images": 1,
+    "maxTextureSize": 256,
+    "textureBytesRgba8WithMips": 349524
+  },
+  {
+    "modelId": "spruance_phalanx",
+    "beforeBytes": 1542324,
+    "afterBytes": 25188,
+    "images": 1,
+    "maxTextureSize": 256,
+    "textureBytesRgba8WithMips": 349524
+  },
+  {
+    "modelId": "spruance_seasparrow",
+    "beforeBytes": 1745376,
+    "afterBytes": 35416,
+    "images": 1,
+    "maxTextureSize": 256,
+    "textureBytesRgba8WithMips": 349524
+  },
+  {
+    "modelId": "spruance_harpoon",
+    "beforeBytes": 1701984,
+    "afterBytes": 37404,
+    "images": 1,
+    "maxTextureSize": 256,
+    "textureBytesRgba8WithMips": 349524
+  },
+  {
+    "modelId": "cruiser",
+    "beforeBytes": 8942016,
+    "afterBytes": 685200,
+    "images": 1,
+    "maxTextureSize": 1024,
+    "textureBytesRgba8WithMips": 5592404
+  },
+  {
+    "modelId": "cruiser_artillery",
+    "beforeBytes": 1544236,
+    "afterBytes": 25148,
+    "images": 1,
+    "maxTextureSize": 256,
+    "textureBytesRgba8WithMips": 349524
+  },
+  {
+    "modelId": "cruiser_ciws",
+    "beforeBytes": 1354852,
+    "afterBytes": 16868,
+    "images": 1,
+    "maxTextureSize": 256,
+    "textureBytesRgba8WithMips": 349524
+  },
+  {
+    "modelId": "cruiser_sam",
+    "beforeBytes": 1257948,
+    "afterBytes": 18508,
+    "images": 1,
+    "maxTextureSize": 256,
+    "textureBytesRgba8WithMips": 349524
+  },
+  {
+    "modelId": "cruiser_ssm",
+    "beforeBytes": 1376528,
+    "afterBytes": 25108,
+    "images": 1,
+    "maxTextureSize": 256,
+    "textureBytesRgba8WithMips": 349524
+  }
+]

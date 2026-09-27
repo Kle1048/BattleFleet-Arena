@@ -23,7 +23,12 @@ assert.throws(() => parseMountSlotsJson("{}"), ShipProfileJsonParseError);
 
 assert.throws(() => parseFixedSeaSkimmerLaunchersJson("null"), ShipProfileJsonParseError);
 
-assert.deepEqual(parseDefaultLoadoutJson('{"m1":"ciws"}'), { m1: "ciws" });
+assert.deepEqual(parseDefaultLoadoutJson('{"m1":{"weaponId":"ciws","modelId":"spruance_phalanx"}}'),
+  { m1: { weaponId: "ciws", modelId: "spruance_phalanx" } });
+for (const invalid of ['{"m1":"ciws"}', '{"m1":{"weaponId":"unknown","modelId":"spruance_phalanx"}}',
+  '{"m1":{"weaponId":"ciws","modelId":"spruance"}}', '{"m1":{"weaponId":"ciws","modelId":"constructor"}}']) {
+  assert.throws(() => parseDefaultLoadoutJson(invalid), ShipProfileJsonParseError);
+}
 
 assert.throws(() => parseDefaultLoadoutJson("[]"), ShipProfileJsonParseError);
 

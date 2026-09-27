@@ -16,7 +16,7 @@ s['assembled_triangles']=total;s['runtime_hull_id']='gepard'
 bpy.data.libraries.write(str(OUT/'gepard_p6122.blend'),{s},fake_user=True)
 with bpy.data.libraries.load(str(OUT/'gepard_p6122.blend'),link=False) as (available,unused):
     assert available.scenes==[s.name]
-    expected_images=12 if s.get('weathering') else 2
+    expected_images=4 if s.get('material_style') == 'clean-colour-v1' else 12 if s.get('weathering') else 2
     assert len(available.images)==expected_images,(len(available.images),expected_images)
 result={'scene':s.name,'saved_ship_triangles':total,'single_scene':True,'packed_texture_count':expected_images}
 (OUT/'saved-scene-validation.json').write_text(json.dumps(result,indent=2))

@@ -1,5 +1,6 @@
 /** Host-supplied live tuning; reading settings performs no I/O inside the simulation. */
 export interface SimulationSettings {
+  getIslandsEnabled(): boolean;
   getMatchDurationMs(): number;
   getMinRoomPlayers(): number;
   getOobDestroyAfterMs(): number;

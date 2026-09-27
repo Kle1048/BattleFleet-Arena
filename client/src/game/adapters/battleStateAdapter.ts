@@ -81,6 +81,7 @@ export function createBattleStateAdapter(room: StateRoom, now: () => number): Ba
     missileList: missiles.list, missilesById: missiles.byId,
     torpedoList: torpedoes.list, wreckList: wrecks.list,
     matchPhase: "running", matchRemainingSec: MATCH_DURATION_SEC,
+    islandsEnabled: false,
     operationalAreaHalfExtent: operationalHalfExtentFromParticipantCount(0), stateSyncCount: 0,
   };
   const observers = new Set<BattleStateObserver>();
@@ -94,6 +95,7 @@ export function createBattleStateAdapter(room: StateRoom, now: () => number): Ba
     torpedoes.sync(state.torpedoList ?? []);
     wrecks.sync(state.wreckList ?? []);
     model.matchPhase = typeof state.matchPhase === "string" ? state.matchPhase : "running";
+    model.islandsEnabled = state.islandsEnabled === true;
     model.matchRemainingSec = Number.isFinite(state.matchRemainingSec) ? state.matchRemainingSec : MATCH_DURATION_SEC;
     const extent = state.operationalAreaHalfExtent;
     model.operationalAreaHalfExtent = Number.isFinite(extent) && extent > 0

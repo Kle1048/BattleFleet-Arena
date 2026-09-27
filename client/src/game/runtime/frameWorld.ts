@@ -9,7 +9,7 @@ import { stepVisualRollSmoothed, visualRollRadFromRudderAndSpeed } from "../scen
 import { DEFAULT_INTERPOLATION_DELAY_MS, createInterpolationBuffer, sampleInterpolatedPose } from "../network/remoteInterpolation";
 import { updateLocalFollowCameraFromPlayer } from "./cameraCullRuntime";
 import { worldToRenderX, worldToRenderYaw } from "./renderCoords";
-import { getShipDebugTuningForVisualClass, getShipDebugTuningGeneration } from "./shipDebugTuning";
+import { getShipDebugTuningGeneration } from "./shipDebugTuning";
 
 export type FrameWorldState = Pick<FrameRuntimeState, "aimLineSectorDebug" | "lastDamageSmokeAtBySessionId">;
 
@@ -36,7 +36,6 @@ export function updateFrameWorld<TPlayer extends FramePlayer>(options: {
       applyShipVisualRuntimeTuning(vis);
       vis.debugTuningGenApplied = tuningGen;
     }
-    const tuning = getShipDebugTuningForVisualClass(p.shipClass);
 
     const isDeadVis = p.lifeState === PlayerLifeState.AwaitingRespawn;
     const deathMs = typeof p.deathAtMs === "number" && p.deathAtMs > 0 ? p.deathAtMs : 0;
@@ -57,12 +56,10 @@ export function updateFrameWorld<TPlayer extends FramePlayer>(options: {
     let rudderForRoll = p.rudder;
     if (sessionId === mySessionId) {
       const yaw = worldToRenderYaw(p.headingRad);
-      // Das sichtbare Sprite hat einen anderen Drehpunkt als die Simulationsposition.
-      // Darum wird hier ein lokaler Z-Offset in Weltkoordinaten umgerechnet.
-      const pivotDx = Math.sin(yaw) * tuning.shipPivotLocalZ;
-      const pivotDz = Math.cos(yaw) * tuning.shipPivotLocalZ;
-      vis.group.position.set(worldToRenderX(p.x) - pivotDx, wreckSinkY, p.z - pivotDz);
-      vis.group.rotation.y = yaw;
+      vis.group.position.set(worldToRenderX(p.x), 0, p.z);
+      // Own the complete logical pose: quaternion/Euler round-trips can leave
+      // equivalent 180-degree X/Z rotations when |yaw| exceeds 90 degrees.
+      vis.group.rotation.set(0, yaw, 0);
       rudderForRoll = p.rudder;
       aimLineSimX = inputSample.aimWorldX;
       aimLineSimZ = inputSample.aimWorldZ;
@@ -74,10 +71,8 @@ export function updateFrameWorld<TPlayer extends FramePlayer>(options: {
       }
       const r = sampleInterpolatedPose(buf, now, DEFAULT_INTERPOLATION_DELAY_MS);
       const yaw = worldToRenderYaw(r.headingRad);
-      const pivotDx = Math.sin(yaw) * tuning.shipPivotLocalZ;
-      const pivotDz = Math.cos(yaw) * tuning.shipPivotLocalZ;
-      vis.group.position.set(worldToRenderX(r.x) - pivotDx, wreckSinkY, r.z - pivotDz);
-      vis.group.rotation.y = yaw;
+      vis.group.position.set(worldToRenderX(r.x), 0, r.z);
+      vis.group.rotation.set(0, yaw, 0);
       rudderForRoll = r.rudder;
       aimLineSimX = r.aimX;
       aimLineSimZ = r.aimZ;
@@ -86,14 +81,12 @@ export function updateFrameWorld<TPlayer extends FramePlayer>(options: {
       shipLineHeadingRad = r.headingRad;
     }
 
+    vis.modelMotion.position.y = wreckSinkY;
     if (deathPose) {
-      vis.group.rotation.order = "YXZ";
-      vis.group.rotation.x = deathPose.pitchX;
-      vis.group.rotation.z = deathPose.rollZ;
+      vis.modelMotion.rotation.set(deathPose.pitchX, 0, deathPose.rollZ, "YXZ");
     } else {
-      vis.group.rotation.x = 0;
       const rollTarget = visualRollRadFromRudderAndSpeed(rudderForRoll, p.speed);
-      vis.group.rotation.z = stepVisualRollSmoothed(sessionId, rollTarget, dtMs / 1000);
+      vis.modelMotion.rotation.set(0, 0, stepVisualRollSmoothed(sessionId, rollTarget, dtMs / 1000), "YXZ");
     }
 
     /** LW-Mounts zur Rakete: solange Server „incoming“ meldet. */

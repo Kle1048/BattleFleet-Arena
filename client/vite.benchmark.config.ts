@@ -8,5 +8,6 @@ export default defineConfig({
   ...gameConfig,
   build: { outDir: "dist-benchmark", rollupOptions: { input: {
     main: path.resolve(fileURLToPath(new URL(".", import.meta.url)), "benchmark.html"),
+    particles: path.resolve(fileURLToPath(new URL(".", import.meta.url)), "particle-benchmark.html"),
   } } },
 });

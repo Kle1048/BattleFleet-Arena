@@ -7,13 +7,15 @@ from mathutils import Vector,Matrix
 ROOT=Path(r'C:\Users\Kleme\AI-Projects\BattleFleet-Arena')
 OUT=ROOT/'assets/blender/gepard'; PUB=ROOT/'client/public/assets'
 G=lambda p:Vector((p[0],-p[2],p[1]))
-LENGTH=57.6; PREPARE=10000/LENGTH; KEEL=1.95
+LENGTH=57.6; GAME_METRES_PER_UNIT=60.016/LENGTH; KEEL=1.95
 scene=bpy.data.scenes.new('Gepard_P6122_Asset'); bpy.context.window.scene=scene
+scene['bfa_model_id']='gepard'; scene['bfa_metres_per_unit']=GAME_METRES_PER_UNIT; scene['bfa_marker_contract']=2
 scene['reference']='User lines: side and top only; photos P6122; no below-deck arrangement'
 scene['asset_revision']=4 if globals().get('ENABLE_WEATHERING',False) else 3; scene.unit_settings.system='METRIC'
 def collection(name):
     c=bpy.data.collections.new(name); scene.collection.children.link(c); return c
 hull=collection('GEPARD_HULL'); helpers=collection('GEPARD_SOCKETS')
+hull['bfa_model_id']='gepard'; helpers['bfa_model_id']='gepard'
 weapons=collection('GEPARD_MOUNTS_PREVIEW'); studio=collection('GEPARD_PRESENTATION'); current=hull
 atlas=bpy.data.images.load(str(OUT/'textures/gepard_surface_basecolor.png'),check_existing=False); atlas.pack()
 rough=bpy.data.images.load(str(OUT/'textures/gepard_surface_roughness.png'),check_existing=False); rough.pack(); rough.colorspace_settings.name='Non-Color'
@@ -189,7 +191,7 @@ for x in (-1.7,1.7): taper('GEPARD_rudder',x,-27,-1.9,-.5,.13,.75,.16,1.0,6)
 templates={}
 def template(key):
     global current
-    c=collection('GEPARD_TEMPLATE_'+key); templates[key]=c; current=c
+    c=collection('GEPARD_TEMPLATE_'+key); c['bfa_model_id']='gepard_'+key; templates[key]=c; current=c
 template('artillery')
 lathe('OTO_base',0,0,[(0,1.12),(.54,1.12)],20,6)
 lathe('OTO_cupola',0,.54,[(0,1.38),(1.1,1.38),(1.70,1.10),(2.00,.68),(2.10,.08)],20,1)
@@ -235,8 +237,9 @@ def instance(key,p,yaw):
         if ob.type!='MESH': continue
         clone=ob.copy(); clone.data=ob.data.copy(); clone.name='ASSEMBLED_'+ob.name
         weapons.objects.link(clone); clone.matrix_world=mat@ob.matrix_world
-for sid,(p,yaw,key) in slots.items(): empty('SOCKET_'+sid,p); instance(key,p,yaw)
+for sid,(p,yaw,key) in slots.items(): empty('SOCKET_'+sid,p,yaw); instance(key,p,yaw)
 for sid,(p,yaw,key) in rails.items(): empty('RAIL_'+sid,p,yaw); instance(key,p,yaw)
+empty('bf_wake',(0,0,-LENGTH/2))
 
 bpy.context.view_layer.update()
 bounds={o.name:{'min':[min((o.matrix_world@Vector(v))[i] for v in o.bound_box) for i in range(3)],
@@ -252,11 +255,9 @@ def join(col):
     obs[0].name='MESH_'+col.name
 for c in [hull,*templates.values()]:join(c)
 
-# Explicit opt-in via create_gepard_weathered.py or the checkpointed stage
-# workflow. The regular geometry-only rebuild does not need a texture bake.
-if globals().get('ENABLE_WEATHERING',False):
-    exec(compile((ROOT/'scripts/blender/gepard_weathering_materials.py').read_text(encoding='utf-8'),'gepard_weathering_materials.py','exec'))
-    weather_gepard(hull,templates,weapons,slots,rails,instance)
+# Clean colour bake is the default for every runtime export.
+exec(compile((ROOT/'scripts/blender/gepard_weathering_materials.py').read_text(encoding='utf-8'),'gepard_weathering_materials.py','exec'))
+weather_gepard(hull,templates,weapons,slots,rails,instance)
 def tris(col):
     total=0
     for ob in col.objects:
@@ -266,41 +267,14 @@ stats={c.name:tris(c) for c in [hull,*templates.values()]}
 total=tris(hull)+tris(templates['artillery'])+tris(templates['pdms'])+2*tris(templates['exocet'])
 assert total<=10000,{'total':total,'parts':stats}
 (OUT/'geometry-stats.json').write_text(json.dumps({'assembled_triangles':total,'parts':stats},indent=2))
-def export(path,objects):
-    bpy.ops.object.select_all(action='DESELECT')
-    for ob in objects:ob.select_set(True)
-    bpy.context.view_layer.objects.active=next(o for o in objects if o.type=='MESH')
-    renamed=[]
-    for ob in objects:
-        desired=ob.get('export_name')
-        if desired and ob.name!=desired:
-            conflict=bpy.data.objects.get(desired)
-            if conflict:old=conflict.name; conflict.name='RESERVED_'+old; renamed.append((conflict,old))
-            old=ob.name; ob.name=desired; renamed.append((ob,old))
-    try:bpy.ops.export_scene.gltf(filepath=str(path),export_format='GLB',use_selection=True,use_active_scene=True,
-                                export_yup=True,export_apply=True,export_cameras=False,export_lights=False,export_extras=True)
-    finally:
-        for ob,old in reversed(renamed): ob.name=old
-export(PUB/'ships/hull_gepard.glb',list(hull.objects)+list(helpers.objects))
-for key,c in templates.items():
-    obs=list(c.objects); export(OUT/('mount_gepard_'+key+'_metric.glb'),obs)
-    saved={ob:ob.matrix_world.copy() for ob in obs}
-    # Standard game identities artillery/pdms apply an additional factor 100.
-    factor=PREPARE/(100 if key in ('artillery','pdms') else 1)
-    for ob in obs:ob.matrix_world=Matrix.Scale(factor,4)@ob.matrix_world
-    export(PUB/('systems/mount_gepard_'+key+'.glb'),obs)
-    for ob,mat in saved.items():ob.matrix_world=mat
+# The scene stays in author metres; conversion is baked into published GLBs only.
+exec(compile((ROOT/'scripts/blender/canonical_publish.py').read_text(encoding='utf-8'),'canonical_publish','exec'))
+publish_models(ROOT,OUT,export,
+    [('gepard',list(hull.objects)+list(helpers.objects))]+
+    [('gepard_'+key,list(c.objects)) for key,c in templates.items()],
+    GAME_METRES_PER_UNIT)
+for c in templates.values():
     c.hide_render=True;c.hide_viewport=True
-def socket(p,yaw=0):return {'position':dict(zip(('x','y','z'),p)),'eulerRad':{'x':0,'y':yaw,'z':0}}
-profile=json.loads((OUT/'backup/fac.json').read_text());profile['hullGltfId']='gepard'
-profile['labelDe']='Gepard-Klasse (Typ 143A)'
-# Retain FAC visual size: 10000 * 0.00968 * class hullScale 0.62 = 60.016.
-profile['clientVisualTuningDefaults'].update({'gltfHullYOffset':-KEEL*PREPARE,'gltfHullOffsetX':0,'gltfHullOffsetZ':0,'shipPivotLocalZ':0,'wakeSpawnLocalZ':-18.4})
-registry={sid:socket(p) for sid,(p,yaw,key) in slots.items()}
-for rail in profile['fixedSeaSkimmerLaunchers']:
-    p,yaw,key=rails[rail['id']];rail['socket']=socket(p,yaw);rail['launchYawRadFromBow']=yaw
-(OUT/'fac.profile.json').write_text(json.dumps(profile,indent=2))
-(OUT/'fac.mountSockets.json').write_text(json.dumps(registry,indent=2))
 current=studio
 water=bpy.data.materials.new('Gepard_Sea');water.diffuse_color=(.03,.10,.14,1);water.use_nodes=True
 wbs=water.node_tree.nodes.get('Principled BSDF');wbs.inputs['Base Color'].default_value=(.03,.10,.14,1);wbs.inputs['Roughness'].default_value=.43

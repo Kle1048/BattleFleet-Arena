@@ -73,7 +73,7 @@ export function registerAdminPanel(app: Express, controls: AdminPanelControls, t
     for (const key of Object.keys(getAdminConfig()) as (keyof AdminConfigPatch)[]) {
       const value: unknown = req.body[key];
       if (value === undefined) continue;
-      if (key === "maintenanceMode") {
+      if (key === "maintenanceMode" || key === "islandsEnabled") {
         if (typeof value !== "boolean") { res.status(400).json({ error: "Invalid config value" }); return; }
         patch[key] = value;
       } else {
@@ -203,6 +203,10 @@ function adminHtml(nonce: string): string {
       <label>Map half extent (0 = auto)
         <input id="operationalAreaHalfExtent" name="operationalAreaHalfExtent" type="number" min="0" max="4800" step="100" />
       </label>
+      <label class="checkbox">
+        <input id="islandsEnabled" name="islandsEnabled" type="checkbox" />
+        Islands + collisions (applies to new rooms / after Restart round)
+      </label>
       <label>Passive XP interval (ms)
         <input id="passiveXpIntervalMs" name="passiveXpIntervalMs" type="number" min="500" max="60000" step="100" />
       </label>
@@ -302,6 +306,7 @@ async function refresh() {
   $("matchDurationSec").value = status.config.matchDurationSec;
   $("minRoomPlayers").value = status.config.minRoomPlayers;
   $("maintenanceMode").checked = status.config.maintenanceMode;
+  $("islandsEnabled").checked = status.config.islandsEnabled;
   $("operationalAreaHalfExtent").value = status.config.operationalAreaHalfExtent;
   $("passiveXpIntervalMs").value = status.config.passiveXpIntervalMs;
   $("passiveXpBase").value = status.config.passiveXpBase;
@@ -328,6 +333,7 @@ $("configForm").addEventListener("submit", async (event) => {
         matchDurationSec: Number($("matchDurationSec").value),
         minRoomPlayers: Number($("minRoomPlayers").value),
         maintenanceMode: $("maintenanceMode").checked,
+        islandsEnabled: $("islandsEnabled").checked,
         operationalAreaHalfExtent: Number($("operationalAreaHalfExtent").value),
         passiveXpIntervalMs: Number($("passiveXpIntervalMs").value),
         passiveXpBase: Number($("passiveXpBase").value),

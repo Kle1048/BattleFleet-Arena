@@ -27,7 +27,6 @@ import { createVisualRuntime } from "../runtime/visualRuntime";
 import { createHudRuntime } from "../runtime/hudRuntime";
 import { createLifetime } from "../runtime/lifetime";
 
-import { fetchOverallLeaderboard } from "../adapters/leaderboardClient";
 
 import { resolveMountGltfUrl } from "../runtime/mountGltfUrls";
 import { resolveShipHullGltfUrlForClass } from "../runtime/shipProfileRuntime";
@@ -35,7 +34,7 @@ import type { ShipClassId } from "@battlefleet/shared";
 import { getShipHullGltfSourceForUrl } from "../scene/shipGltfHull";
 
 import { loadShipAssets } from "../runtime/shipAssetLoading";
-import { getPdmsMuzzleSeekCoords, getPrimaryArtilleryMuzzleSeekCoords } from "../scene/shipMountVisuals";
+import { getAirDefenseMuzzleSeekCoords, getPrimaryArtilleryMuzzleSeekCoords, getFixedLauncherMuzzleSeekCoords } from "../scene/shipMountVisuals";
 
 import { createLazyResource } from "../runtime/lazyResource";
 
@@ -75,6 +74,9 @@ export function createSessionPresentation(options: {
   const { scene, camera } = bundle;
   const { input, mobileAimEngagement, mobileHudActions } = options.controls;
   const model = stateSource.model;
+  bundle.setIslandsEnabled(model.islandsEnabled);
+  lifetime.defer(() => bundle.setIslandsEnabled(false));
+  lifetime.defer(stateSource.subscribe({ onState: () => bundle.setIslandsEnabled(model.islandsEnabled) }));
   const mySessionId = connection.mySessionId;
   const debugShipSwitchRef: { send?: (id: ShipClassId) => void } = { send: connection.setDebugShipClass };
   function dispose() { startup.abort(); lifetime.dispose(); }
@@ -152,7 +154,7 @@ export function createSessionPresentation(options: {
     window.addEventListener("keydown", onBotToggleKey);
     lifetime.defer(() => window.removeEventListener("keydown", onBotToggleKey));
     const cameraCullState = createCameraCullRuntimeState();
-    let resolvePdmsMuzzleSeek: ((defenderId: string) => { x: number; y: number; z: number } | null) | undefined;
+    let resolveAirDefenseMuzzleSeek: ((defenderId: string, slotId: string, layer: "sam" | "pd" | "ciws") => { x: number; y: number; z: number } | null) | undefined;
 
     const combatFeedback = createCombatFeedbackPresenter({
       mySessionId,
@@ -177,7 +179,7 @@ export function createSessionPresentation(options: {
         return missile ? { x: missile.x, z: missile.z } : null;
       },
       launchFx: {
-        spawnMissileLaunchSmoke: (x, z, heading) => fxSystem.spawnMissileLaunchSmoke(x, z, heading),
+        spawnMissileLaunchSmoke: (x, z, heading, y) => fxSystem.spawnMissileLaunchSmoke(x, z, heading, y),
         spawnMissileTrailStreamTick: (x, z, heading, count) => fxSystem.spawnMissileTrailStreamTick(x, z, heading, count),
       },
     });
@@ -206,7 +208,7 @@ export function createSessionPresentation(options: {
       onSoftkillResult: combatFeedback.onSoftkillResult,
       onWeaponHitAt: (x, z) => gameAudio.weaponHitAt(x, z),
       onFeelLocalWeaponThreat: combatFeedback.onFeelLocalWeaponThreat,
-      getPdmsMuzzleSeek: (defenderId) => resolvePdmsMuzzleSeek?.(defenderId) ?? null,
+      getAirDefenseMuzzleSeek: (defenderId, slotId, layer) => resolveAirDefenseMuzzleSeek?.(defenderId, slotId, layer) ?? null,
       appendAirDefenseComms: (e) => commsLog.append(e),
       formatPlayerLabel: (id) => {
         const p = model.playersById.get(id);
@@ -234,13 +236,13 @@ export function createSessionPresentation(options: {
       matchEndHud,
       mySessionId,
       joinedAt,
-      fetchOverallLeaderboard: signal => fetchOverallLeaderboard(options.serverUrl, signal),
     });
     lifetime.use(hudRuntime);
     const { visuals } = visualRuntime;
     const shipWakeRibbonSystem = lifetime.use(createShipWakeRibbonSystem(scene));
-    artilleryFx.setMuzzleSeekResolver((ownerId) => getPrimaryArtilleryMuzzleSeekCoords(visuals.get(ownerId)));
-    resolvePdmsMuzzleSeek = (defenderId) => getPdmsMuzzleSeekCoords(visuals.get(defenderId));
+    artilleryFx.setMuzzleSeekResolver((ownerId, slotId) => getPrimaryArtilleryMuzzleSeekCoords(visuals.get(ownerId), slotId));
+    missileFx.setMuzzleSeekResolver((ownerId, launcherId) => getFixedLauncherMuzzleSeekCoords(visuals.get(ownerId), launcherId));
+    resolveAirDefenseMuzzleSeek = (defenderId, slotId, layer) => getAirDefenseMuzzleSeekCoords(visuals.get(defenderId), slotId, layer);
     const fireControl = createFireControlChannel({
       scene,
       camera,

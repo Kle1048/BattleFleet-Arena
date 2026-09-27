@@ -1,0 +1,8 @@
+{
+  "style": "clean-colour-v1",
+  "hullTextureSize": 1024,
+  "mountTextureSize": 256,
+  "maxImagesPerModel": 1,
+  "roughness": 0.72,
+  "metallic": 0.045
+}

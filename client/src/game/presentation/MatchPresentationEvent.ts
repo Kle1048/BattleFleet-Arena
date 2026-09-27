@@ -1,11 +1,13 @@
 import type { GameEventMap } from "@battlefleet/shared/protocol";
 
-export type ArtilleryFired = GameEventMap["artyFired"];
+/** Old replay frames can omit mount identity; never guess a different mount for them. */
+export type ArtilleryFired = Omit<GameEventMap["artyFired"], "slotId" | "fromY"> & { slotId?: string; fromY?: number };
 export type ArtilleryImpact = Omit<GameEventMap["artyImpact"], "kind"> & {
   /** Older senders can omit an impact kind. Keep the existing FX fallback. */
   kind?: GameEventMap["artyImpact"]["kind"];
 };
 export type WeaponImpact = { x: number; z: number; kind: string };
+export type MissileFired = GameEventMap["aswmFired"];
 export type AirDefenseLayer = GameEventMap["airDefenseFire"]["layer"];
 export type AirDefenseNotice = {
   x: number;
@@ -15,13 +17,18 @@ export type AirDefenseNotice = {
   defenderZ: number | null;
   defenderId: string | null;
   missileId: number | null;
+  slotId?: string;
+  fromX?: number;
+  fromY?: number;
+  fromZ?: number;
 };
 
 /** Owned, normalized values, not Room callbacks. Match/life transitions come from the read model. */
 export type MatchPresentationEvent =
   | { type: "artyFired"; payload: ArtilleryFired }
   | { type: "artyImpact"; payload: ArtilleryImpact }
-  | { type: "aswmFired" | "torpedoFired"; payload: { ownerId: string } }
+  | { type: "aswmFired"; payload: { ownerId: string } & Partial<MissileFired> }
+  | { type: "torpedoFired"; payload: { ownerId: string } }
   | { type: "aswmImpact" | "torpedoImpact"; payload: WeaponImpact }
   | { type: "airDefenseFire" | "airDefenseIntercept"; payload: AirDefenseNotice }
   | { type: "collisionContact"; payload: GameEventMap["collisionContact"] }
@@ -35,7 +42,7 @@ export type AirDefenseFireRequest = {
   fromZ: number;
   toX: number;
   toZ: number;
-  pdLaunchY?: number;
+  launchY?: number;
   trackedMissileId?: number;
 };
 

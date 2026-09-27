@@ -90,6 +90,17 @@ export type PrimitiveMountFireSector = Extract<
   { kind: "symmetric" } | { kind: "asymmetric" }
 >;
 
+/** Directed arc matching the gameplay interval, never the shorter complementary arc. */
+export function mountFireSectorArc(sector: PrimitiveMountFireSector): { start: number; sweep: number } {
+  if (sector.kind === "symmetric") return {
+    start: (sector.centerYawRadFromBow ?? 0) - sector.halfAngleRadFromBow,
+    sweep: 2 * sector.halfAngleRadFromBow,
+  };
+  const start = wrapPi(sector.minYawRadFromBow);
+  const end = wrapPi(sector.maxYawRadFromBow);
+  return { start, sweep: end >= start ? end - start : end - start + 2 * Math.PI };
+}
+
 /**
  * Löst verschachtelte `union`-Knoten auf; leere Unions ergeben `[]`.
  */

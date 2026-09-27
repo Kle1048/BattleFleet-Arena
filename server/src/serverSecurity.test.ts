@@ -38,10 +38,12 @@ try {
       const denied = await fetch(base + route, { method, headers: { origin: "https://attacker.example" } });
       assert.equal(denied.status, 403);
       assert(!denied.headers.has("access-control-allow-origin"));
+      assert(!denied.headers.has("access-control-allow-credentials"));
       await denied.arrayBuffer();
       const accepted = await fetch(base + route, { method, headers: { origin: "https://game.example" } });
       assert(accepted.ok);
       assert.equal(accepted.headers.get("access-control-allow-origin"), "https://game.example");
+      if (route.startsWith("/matchmake/")) assert.equal(accepted.headers.get("access-control-allow-credentials"), "true");
       await accepted.arrayBuffer();
     }
   }
@@ -49,11 +51,23 @@ try {
     method: "POST", headers: { origin: "https://attacker.example", "content-type": "application/json" }, body: "{}",
   });
   assert.equal(deniedJoin.status, 403);
+  assert(!deniedJoin.headers.has("access-control-allow-origin"));
+  assert(!deniedJoin.headers.has("access-control-allow-credentials"));
   await deniedJoin.arrayBuffer();
   const join = await fetch(`${base}/matchmake/joinOrCreate/security_test`, {
     method: "POST", headers: { origin: "https://game.example", "content-type": "application/json" }, body: "{}",
   });
   const reservation = await join.json() as { room: { processId: string; roomId: string }; sessionId: string };
+  // Colyseus browser HTTP always uses withCredentials; Node fetch does not enforce CORS.
+  assert.equal(join.headers.get("access-control-allow-origin"), "https://game.example");
+  assert.equal(join.headers.get("access-control-allow-credentials"), "true");
+  const invalidJoin = await fetch(`${base}/matchmake/joinOrCreate/security_test`, {
+    method: "POST", headers: { origin: "https://game.example", "content-type": "application/json" }, body: "null",
+  });
+  assert.equal(invalidJoin.status, 400);
+  assert.equal(invalidJoin.headers.get("access-control-allow-origin"), "https://game.example");
+  assert.equal(invalidJoin.headers.get("access-control-allow-credentials"), "true");
+  await invalidJoin.arrayBuffer();
   assert(reservation.sessionId);
   const wsUrl = `${base.replace("http:", "ws:")}/${reservation.room.processId}/${reservation.room.roomId}?sessionId=${reservation.sessionId}`;
   const deniedSocket = new WebSocket(wsUrl, { origin: "https://attacker.example" });

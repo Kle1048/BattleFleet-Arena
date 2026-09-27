@@ -2,7 +2,8 @@ import { createHash, timingSafeEqual } from "node:crypto";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import type { RequestHandler } from "express";
 import cors from "cors";
-import { Server, type ServerOptions } from "@colyseus/core";
+import { Server, matchMaker, type ServerOptions } from "@colyseus/core";
+import { readMatchmakeBody, rejectOverload, RequestBudget } from "./loadLimits.js";
 
 export function createAdminGuard(rawToken: string | undefined): RequestHandler {
   const token = rawToken?.trim();
@@ -70,7 +71,8 @@ export function publicOriginMiddleware(allowed: ReadonlySet<string>): RequestHan
 
 /** Colyseus intercepts matchmaking before Express middleware. Guard that boundary too. */
 export class OriginCheckedServer extends Server {
-  constructor(options: ServerOptions, private readonly allowedOrigins: ReadonlySet<string>) {
+  constructor(options: ServerOptions, private readonly allowedOrigins: ReadonlySet<string>,
+    private readonly requestBudget = new RequestBudget()) {
     super(options);
   }
 
@@ -81,6 +83,42 @@ export class OriginCheckedServer extends Server {
       res.end(JSON.stringify({ error: "Origin not allowed." }));
       return;
     }
-    await super.handleMatchMakeRequest(req, res);
+    if (req.headers.origin) {
+      // Colyseus browser HTTP always uses withCredentials. Keep its response
+      // contract on our bounded POST/error paths, but only after the allowlist check.
+      res.setHeader("Access-Control-Allow-Origin", req.headers.origin);
+      res.setHeader("Access-Control-Allow-Credentials", "true");
+    }
+    if (!this.requestBudget.allow(req)) { rejectOverload(res); return; }
+    // The bundled Colyseus POST handler buffers bodies without a size limit.
+    // Keep its public controller/response contract, but bound reading before parse.
+    if (req.method === "GET" || req.method === "OPTIONS") { await super.handleMatchMakeRequest(req, res); return; }
+    if (req.method !== "POST") {
+      res.writeHead(405, { "Allow": "GET, POST, OPTIONS", "Connection": "close" }); res.end(); return;
+    }
+    const parts = /^\/matchmake\/([a-zA-Z0-9_-]+)\/([a-zA-Z0-9_-]+)\/?(?:\?.*)?$/.exec(req.url ?? "");
+    if (!parts || !matchMaker.controller.exposedMethods.includes(parts[1]!)) {
+      res.writeHead(404); res.end(); return;
+    }
+    if (matchMaker.isGracefullyShuttingDown) { res.writeHead(503); res.end(); return; }
+    let body: Record<string, unknown>;
+    try { body = await readMatchmakeBody(req); }
+    catch (error) {
+      const message = error instanceof Error ? error.message : "Invalid request";
+      const code = message === "Request body too large" ? 413 : message === "Request body timeout" ? 408 : 400;
+      res.writeHead(code, { "Content-Type": "application/json", "Connection": "close" });
+      res.end(JSON.stringify({ code, error: message })); return;
+    }
+    let result: unknown;
+    try {
+      result = await matchMaker.controller.invokeMethod(parts[1]!, parts[2]!, body, {
+        token: /^Bearer (.+)$/i.exec(req.headers.authorization ?? "")?.[1], request: req,
+      });
+    } catch (error) {
+      const failure = error as { code?: number; message?: string };
+      result = { code: failure.code ?? 500, error: failure.message ?? "Matchmaking failed" };
+    }
+    res.writeHead(200, { "Content-Type": "application/json", "Cache-Control": "no-store" });
+    res.end(JSON.stringify(result));
   }
 }

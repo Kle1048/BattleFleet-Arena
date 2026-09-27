@@ -1,35 +1,39 @@
 {
-  "description": "60 seconds, 11 moving humans and 5 bot brains; seed 42; approved Gepard/FAC content revision on 2026-09-27, after refactoring equivalence was verified against pre-gepard content",
-  "previousBaseline": "combat-baseline.pre-gepard.json",
-  "traceSha256": "454cc199cde58ca012ee8d2432049496ff36c2e4106734eb98a9d5cf97aa165b",
+  "formatVersion": 2,
+  "description": "60 seconds, 11 moving humans and 5 server bots; seed 42; canonical model metadata and explicit open water defaults; reviewed migration 2026-09-27",
+  "previousBaseline": "combat-baseline.pre-canonical.json",
+  "traceSha256": "c22be30914ff0046c23de94aaf143bf09e63dc1d407ab3bf617d472eb63a7ce7",
   "simulationContentSha256": {
-    "fac.json": "164200309b7a2d59eaa41c91588430f77d2e14d005c7ba81cbf2d4b4070ddfbc",
-    "mountSockets/fac.json": "feabb408488a15a6b98b9ebf8382a63edaf7a53e148100ec513827a063830c2f"
+    "ships/fac.json": "580bc1dd9e785751852a27a8239c7460ba79883bce201c3ceb06650b7c73f9a4",
+    "ships/destroyer.json": "11e606e1e47864eb9b148c2a36c904e2522f1cd565188fe6396d252b28c756c4",
+    "ships/cruiser.json": "bdeea6fa7a59f4700bc46dd3e8ee2b7ef98a6e44093386bc5afef85e5f556e30",
+    "modelCatalog.json": "8398ec4c7e70ae08b6b455e11a1816a5fd799f9b923bcf914a497e56885bb52b",
+    "modelSpatialMetadata": "ed497039bf1e5089b7e16ff030fd65553aa35667a6ec289cc8be0719b86c5503"
   },
   "events": {
-    "artyFired": 945,
-    "aswmFired": 193,
-    "softkillResult": 26,
-    "aswmImpact": 96,
-    "artyImpact": 926,
-    "missileLockOn": 31,
-    "airDefenseFire": 25,
-    "airDefenseIntercept": 10,
-    "collisionContact": 8,
+    "artyFired": 936,
+    "aswmFired": 188,
+    "softkillResult": 25,
+    "artyImpact": 922,
+    "aswmImpact": 89,
+    "missileLockOn": 29,
+    "airDefenseFire": 34,
+    "collisionContact": 4,
+    "airDefenseIntercept": 7,
     "aswmMagazineReloaded": 16
   },
   "referenceRunsMs": [
     {
-      "median": 1.177,
-      "p95": 1.7931
+      "median": 0.9712,
+      "p95": 1.4792
     },
     {
-      "median": 1.315,
-      "p95": 1.9588
+      "median": 0.9694,
+      "p95": 1.5068
     },
     {
-      "median": 1.1571,
-      "p95": 1.7663
+      "median": 1.0109,
+      "p95": 1.5882
     }
   ]
 }

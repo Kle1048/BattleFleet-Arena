@@ -76,4 +76,23 @@ assert.equal(frames.size, 0);
 effects.dispose();
 assert.equal(geometryDisposals, 62);
 assert.equal(materialDisposals, 62);
+for (const layer of ["sam", "pd", "ciws"] as const) {
+  const launchEffects = createAirDefenseFx(clock);
+  launchEffects.fire(scene, layer, 12, 14, 100, 120, 9);
+  if (layer === "ciws") advance(0);
+  assert.deepEqual(scene.children[0]!.position.toArray(), [-12, 9, 14], `${layer}: exact model muzzle origin`);
+  if (layer !== "ciws") {
+    assert.ok(scene.children[0]!.children[0]!.name.startsWith(layer === "pd" ? "PD_RAM" : "SAM_Sea_Sparrow"), `${layer}: dedicated projectile model`);
+  }
+  launchEffects.dispose();
+}
+// PD uses the new model on the live-target path as well; timing/lifetime stay shared.
+const pdEffects = createAirDefenseFx(clock);
+pdEffects.fire(scene, "pd", 12, 14, 100, 120, 9, () => ({x: -100, z: 120}));
+assert.ok(scene.children[0]!.children[0]!.name.startsWith("PD_RAM"));
+advance(80);
+assert.ok(scene.children[0]!.position.x < -12);
+pdEffects.dispose();
+assert.equal(scene.children.length, 0);
+assert.equal(frames.size, 0);
 console.log("Air-defense delayed tracers/frames/resources: 20 lifecycles, late callbacks and normal timing ok");

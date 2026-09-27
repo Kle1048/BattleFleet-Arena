@@ -4,6 +4,7 @@ import type { MobileHudActions } from "../input/mobileControls";
 import { createMobileMapAimReticle } from "../input/mobileMapAimReticle";
 import { renderToWorldX } from "../runtime/renderCoords";
 import { createLifetime } from "../runtime/lifetime";
+import { createCameraOrbitInput } from "../input/cameraOrbitInput";
 
 /** App-owned input binding. A new session starts with neutral keys/levers/aim;
  * lobby text entry never reaches the gameplay keyboard handlers. */
@@ -26,6 +27,7 @@ export function createGameInput(canvas: HTMLCanvasElement, camera: PerspectiveCa
       stopSession();
       const lifetime = active = createLifetime();
       try {
+        lifetime.use(createCameraOrbitInput(canvas));
         lifetime.use(createMobileMapAimReticle(canvas));
         const mobileAimEngagement: MobileAimEngagementRef = { self: null };
         const mobileHudActions: MobileHudActions = {};

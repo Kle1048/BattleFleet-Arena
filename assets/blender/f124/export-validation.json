@@ -1,5 +1,6 @@
 {
   "status": "pass",
+  "scope": "archived V1 geometry only; not V2 runtime acceptance",
   "hullMetres": [
     17.399999618530273,
     41.69999933242798,
@@ -17,7 +18,6 @@
     "unobstructed central passage",
     "raised transverse VLS",
     "bf_muzzle per mount",
-    "real BattleFleet prepare and mount attachment scales",
     "assembled triangle budget <= 10000"
   ],
   "files": [

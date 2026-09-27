@@ -1,0 +1,47 @@
+[
+  {
+    "part": "hull",
+    "triangles": 7858,
+    "texture_resolution": 1024,
+    "maps": [
+      "basecolor"
+    ],
+    "rust_patches": 0
+  },
+  {
+    "part": "mk45",
+    "triangles": 246,
+    "texture_resolution": 256,
+    "maps": [
+      "basecolor"
+    ],
+    "rust_patches": 0
+  },
+  {
+    "part": "phalanx",
+    "triangles": 264,
+    "texture_resolution": 256,
+    "maps": [
+      "basecolor"
+    ],
+    "rust_patches": 0
+  },
+  {
+    "part": "seasparrow",
+    "triangles": 372,
+    "texture_resolution": 256,
+    "maps": [
+      "basecolor"
+    ],
+    "rust_patches": 0
+  },
+  {
+    "part": "harpoon",
+    "triangles": 424,
+    "texture_resolution": 256,
+    "maps": [
+      "basecolor"
+    ],
+    "rust_patches": 0
+  }
+]

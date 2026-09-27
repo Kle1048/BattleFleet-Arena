@@ -1,5 +1,16 @@
 # Reproduzierbare Client-Messszene
 
+Aktuelle Messung nach Partikel-Instancing, ohne Inseln: siehe
+[integrierte Performance-Prüfung](INTEGRATED-PERFORMANCE.md). Sie enthält drei
+Produktions-Replays, getrennte GPU-Proben und einen echten WebSocket-/Bot-Test.
+Die älteren Reihen unten sind wegen anderer Assets/Umgebung kein direkter A/B-Vergleich.
+
+Aktualisierung Eingaberate: Der aktuelle Replay sendet 660 statt 1980 Inputs in
+2100 Frames (maximal 20 Hz). Alle anderen FX-/HUD-/Ressourcen-Referenzen bleiben
+unverändert. Die nachfolgenden historischen Messreihen verwendeten die frühere
+Eingaberate; neue Leistungswerte sind separat zu messen. Siehe
+[Netzwerk-Lastgrenzen](NETWORK-LOAD-LIMITS.md).
+
 Stand: 27.09.2026. **Vergleiche für Frame-Aufteilung und Partikelpool abgeschlossen.** Dieses Dokument trennt CPU-Replay, statische GPU-Probe, visuelle Kontrolle und Asset-Startup. Zwei-Client-/Lifecycle-Nachweise stehen im Arbeitsprotokoll. Messgrenzen und schwankende Desktop-Leistung sind keine Framerate-Garantie.
 
 ## Start und Isolation

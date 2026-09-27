@@ -7,7 +7,7 @@ import { resetMagazine } from "./systems/magazine.js";
 
 /** New joins begin alive (not spawn-protected); round reset and respawn have distinct contracts. */
 export function createParticipant(sessionId: string, displayName: string, players: readonly PlayerValues[],
-  operationalHalfExtent: number, random: () => number): { player: PlayerValues; simulation: ParticipantState } {
+  operationalHalfExtent: number, random: () => number, islandPolygons = DEFAULT_MAP_ISLAND_POLYGONS): { player: PlayerValues; simulation: ParticipantState } {
   const shipClass = SHIP_CLASS_FAC;
   const others: { x: number; z: number }[] = [];
   for (const q of players) {
@@ -19,14 +19,14 @@ export function createParticipant(sessionId: string, displayName: string, player
   const spawnPick =
     tryPickRespawnPosition(
       spawnHalf,
-      DEFAULT_MAP_ISLAND_POLYGONS,
+      islandPolygons,
       others,
       MIN_RESPAWN_SEPARATION,
       random,
     ) ??
     pickRimSpawnDeterministic(
       spawnHalf,
-      DEFAULT_MAP_ISLAND_POLYGONS,
+      islandPolygons,
       others,
       MIN_RESPAWN_SEPARATION,
       angleForFallback,

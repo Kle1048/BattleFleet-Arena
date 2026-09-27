@@ -15,10 +15,13 @@
 import { aimDirectionYawFromBowRad, isYawWithinMountFireSector } from "./artillery";
 import {
   resolveEffectiveMountFireSector,
+  equippedMount,
   type ShipHullVisualProfile,
+  type MountSlotDefinition,
 } from "./shipVisualLayout";
 
 import { AD_SAM_RANGE_SQ, AD_PD_RANGE_SQ, AD_CIWS_RANGE_SQ } from "./airDefenseRanges";
+import { weaponSystem } from "./weaponSystems";
 // Preserve existing imports while layout consumers use the lower-level data module.
 export * from "./airDefenseRanges";
 /**
@@ -67,17 +70,11 @@ export function computeSamPdInterceptTravelMs(distM: number): number {
 
 export type AirDefenseHardkillLayer = "sam" | "pd" | "ciws";
 
-const HARDKILL_LAYER_VISUAL: Record<AirDefenseHardkillLayer, string> = {
-  sam: "visual_sam",
-  pd: "visual_pdms",
-  ciws: "visual_ciws",
-};
-
 /**
  * Liegt die Anflugrichtung zur ASuM (Yaw vom Bug) im Feuersektor mindestens eines Mounts dieser Schicht?
  * Nur für die Schussentscheidung — nicht für den späteren Trefferwurf.
  */
-export function missileBearingInHardkillLayerMountSector(
+export function pickHardkillMountForTarget(
   hull: ShipHullVisualProfile | undefined,
   classArcHalfAngleRad: number,
   layer: AirDefenseHardkillLayer,
@@ -86,10 +83,8 @@ export function missileBearingInHardkillLayerMountSector(
   defenderHeadingRad: number,
   missileX: number,
   missileZ: number,
-): boolean {
-  if (!hull?.mountSlots?.length) return false;
-  const loadout = hull.defaultLoadout ?? {};
-  const want = HARDKILL_LAYER_VISUAL[layer];
+): MountSlotDefinition | null {
+  if (!hull?.mountSlots?.length) return null;
   const yaw = aimDirectionYawFromBowRad(
     defenderX,
     defenderZ,
@@ -97,14 +92,19 @@ export function missileBearingInHardkillLayerMountSector(
     missileX,
     missileZ,
   );
-  if (yaw == null) return true;
   for (const slot of hull.mountSlots) {
-    const vid = loadout[slot.id] ?? slot.defaultVisualId ?? "";
-    if (vid !== want) continue;
+    const equipment = equippedMount(slot, hull);
+    if (!equipment || weaponSystem(equipment.weaponId).airDefenseLayer !== layer) continue;
     const sector = resolveEffectiveMountFireSector(slot, hull, classArcHalfAngleRad);
-    if (isYawWithinMountFireSector(yaw, sector)) return true;
+    if (yaw === null || isYawWithinMountFireSector(yaw, sector)) return slot;
   }
-  return false;
+  return null;
+}
+
+export function missileBearingInHardkillLayerMountSector(
+  ...args: Parameters<typeof pickHardkillMountForTarget>
+): boolean {
+  return pickHardkillMountForTarget(...args) !== null;
 }
 
 export type HardkillAttemptInput = {

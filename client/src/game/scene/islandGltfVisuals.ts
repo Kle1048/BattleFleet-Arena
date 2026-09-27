@@ -1,5 +1,6 @@
 import * as THREE from "three";
 import { gltfAssetCache } from "./gltfAssetCache";
+import { cloneMeshMaterialsDeep } from "./shipGltfHull";
 
 const BASE_URL = import.meta.env?.BASE_URL ?? "/";
 
@@ -69,6 +70,8 @@ export function createIslandGltfInstance(islandIndex: number, radius: number): T
   const template = gltfAssetCache.get(url);
   if (!template) return null;
   const root = template.clone(true) as THREE.Group;
+  // Instances own materials; the cache owns shared geometry and textures.
+  cloneMeshMaterialsDeep(root);
   fitIslandToGameplayRadius(root, radius);
   if (islandIndex % ISLAND_GLB_URLS.length === SHALLOW_VARIANT_INDEX) {
     const shallowOrdinal = Math.floor(islandIndex / ISLAND_GLB_URLS.length);

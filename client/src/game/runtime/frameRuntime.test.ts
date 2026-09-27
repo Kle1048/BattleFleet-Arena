@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import * as THREE from "three";
-import { PlayerState, PlayerLifeState } from "@battlefleet/shared";
+import { PlayerState, PlayerLifeState, getAuthoritativeShipHullProfile } from "@battlefleet/shared";
 import { createFrameRuntimeState, runFrameRuntimeStep } from "./frameRuntime";
 import { createShipVisual, disposeShipVisual } from "../scene/shipVisual";
 import { createCameraCullRuntimeState } from "./cameraCullRuntime";
@@ -11,7 +11,7 @@ const me = new PlayerState();
 me.id = "me"; me.shipClass = "fac"; me.hp = me.maxHp = 100; me.lifeState = PlayerLifeState.Alive;
 const other = new PlayerState(); other.id = "other";
 const list = [me, other];
-const visual = createShipVisual({ isLocal: true, shipClassId: "fac" });
+const visual = createShipVisual({ isLocal: true, shipClassId: "fac", profile: getAuthoritativeShipHullProfile("fac") });
 let hud = 0;
 let sent = 0;
 let frames = 0;
@@ -34,12 +34,12 @@ const options = {
 };
 try {
   for (let i = 0; i < 120; i++) { options.now = i * 1000 / 120; runFrameRuntimeStep(options); }
-  assert.equal(hud, 20); assert.equal(sent, 120); assert.equal(frames, 120);
+  assert.equal(hud, 20); assert.equal(sent, 20); assert.equal(frames, 120);
   assert.equal(state.adPlayers[0], me); // no per-player snapshot copies
   assert.equal(state.playersById.get("me"), me);
   me.lifeState = PlayerLifeState.AwaitingRespawn;
   options.now += 1; runFrameRuntimeStep(options);
-  assert.equal(hud, 21); assert.equal(destroyed, 1); assert.equal(sent, 120);
+  assert.equal(hud, 21); assert.equal(destroyed, 1); assert.equal(sent, 20);
   me.lifeState = PlayerLifeState.SpawnProtected;
   options.now += 1; runFrameRuntimeStep(options);
   assert.equal(hud, 22);
@@ -55,4 +55,4 @@ try {
   if (originalWindow) Object.defineProperty(globalThis, "window", originalWindow);
   else Reflect.deleteProperty(globalThis, "window");
 }
-console.log("frame HUD cadence, urgent state and per-frame input regressions ok");
+console.log("frame HUD/input cadence, urgent state and per-frame rendering regressions ok");

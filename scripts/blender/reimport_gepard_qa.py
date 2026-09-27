@@ -13,16 +13,8 @@ def load(path,transform):
     for o in obs:
         if o.parent not in obs:o.matrix_world=transform@o.matrix_world
     return obs
-load(PUB/'ships/hull_gepard.glb',Matrix.Identity(4))
-G=lambda p:Vector((p['x'],-p['z'],p['y']))
-profile=json.loads((OUT/'fac.profile.json').read_text());sockets=json.loads((OUT/'fac.mountSockets.json').read_text())
-for slot in profile['mountSlots']:
-    key='artillery' if slot['id']=='main_fwd' else 'pdms';p=sockets[slot['id']]['position']
-    transform=Matrix.Translation(G(p))@Matrix.Rotation(slot['trainBaseYawRadFromBow'],4,'Z')@Matrix.Scale(57.6/100,4)
-    load(PUB/('systems/mount_gepard_'+key+'.glb'),transform)
-for rail in profile['fixedSeaSkimmerLaunchers']:
-    transform=Matrix.Translation(G(rail['socket']['position']))@Matrix.Rotation(rail['launchYawRadFromBow'],4,'Z')@Matrix.Scale(57.6/10000,4)
-    load(PUB/'systems/mount_gepard_exocet.glb',transform)
+exec(compile((ROOT/'scripts/blender/canonical_roundtrip.py').read_text(encoding='utf-8'),'canonical_roundtrip','exec'))
+assemble_runtime_ship(ROOT,'fac',load)
 qa.render.engine='BLENDER_EEVEE';qa.view_settings.view_transform='AgX'
 qa.render.resolution_x=1500;qa.render.resolution_y=950;qa.render.resolution_percentage=100
 qa.render.image_settings.file_format='PNG';qa.render.filepath=str(OUT/'gepard_glb_roundtrip.png')

@@ -1,0 +1,19 @@
+{
+  "passed": true,
+  "scene": "Slava_Reference_Asset.003",
+  "assembled_triangles": 9852,
+  "packed_images": 15,
+  "roundtrip": [
+    {
+      "previous_asset": true,
+      "triangles": 5578,
+      "render": "C:\\Users\\Kleme\\AI-Projects\\BattleFleet-Arena\\assets\\blender\\slava\\slava_before.png"
+    },
+    {
+      "previous_asset": false,
+      "triangles": 9852,
+      "render": "C:\\Users\\Kleme\\AI-Projects\\BattleFleet-Arena\\assets\\blender\\slava\\slava_glb_roundtrip.png"
+    }
+  ],
+  "source_includes_hidden_templates": true
+}

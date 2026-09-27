@@ -19,10 +19,11 @@ for o in s.objects:
     for m in o.data.materials:
         for n in m.node_tree.nodes:
             if n.type=='TEX_IMAGE' and n.image:images.add(n.image)
-assert count==9500 and len(images)==15
+expected=json.loads((OUT/'geometry-stats.json').read_text())['assembled_triangles']
+assert count==expected and count<=10000 and len(images)==5
 assert all(i.packed_file for i in images)
 bpy.data.libraries.write(str(OUT/'spruance_dd963.blend'),{s},fake_user=True)
 with bpy.data.libraries.load(str(OUT/'spruance_dd963.blend'),link=False) as (available,unused):
-    assert available.scenes==[s.name] and len(available.images)==15
-result={'passed':True,'scene':s.name,'triangles':count,'packed_textures':15,'single_saved_scene':True,'static_aft_weapons':True}
+    assert available.scenes==[s.name] and len(available.images)==5
+result={'passed':True,'scene':s.name,'triangles':count,'packed_textures':5,'single_saved_scene':True,'static_aft_weapons':True}
 (OUT/'saved-scene-validation.json').write_text(json.dumps(result,indent=2))

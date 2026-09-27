@@ -24,7 +24,7 @@ export function createFxSystem(scene: THREE.Scene, environment: {
   spawnArtilleryImpact: (preset: FxPreset, worldX: number, worldZ: number, intensity?: number) => void;
   spawnMissileImpact: (worldX: number, worldZ: number, kind: string) => void;
   /** ASuM-Start: kleiner Rauchschwall + kurze Glut (Seekarten-heading). */
-  spawnMissileLaunchSmoke: (worldX: number, worldZ: number, headingRad: number) => void;
+  spawnMissileLaunchSmoke: (worldX: number, worldZ: number, headingRad: number, launchY?: number) => void;
   /**
    * Artillerie: Muzzleflash + kleine Rauchwolke am Rohr; `headingRad` = Schussrichtung atan2(Δx,Δz).
    * Optional `baseWorldY`: Mündungshöhe (Three.js-Y); sonst feste Deck-Höhe wie zuvor.
@@ -350,7 +350,7 @@ export function createFxSystem(scene: THREE.Scene, environment: {
     spawnWeaponImpact("missile", normalizeImpactKind(kind), worldToRenderX(worldX), worldZ);
   }
 
-  function spawnMissileLaunchSmoke(worldX: number, worldZ: number, headingRad: number): void {
+  function spawnMissileLaunchSmoke(worldX: number, worldZ: number, headingRad: number, launchY = 3.3): void {
     if (!Number.isFinite(worldX) || !Number.isFinite(worldZ) || !Number.isFinite(headingRad)) return;
     const sinH = Math.sin(headingRad);
     const cosH = Math.cos(headingRad);
@@ -371,7 +371,7 @@ export function createFxSystem(scene: THREE.Scene, environment: {
         emit({
           texture: "smoke",
           x: px,
-          y: randRange(2.0, 4.6),
+          y: launchY + randRange(-1.3, 1.3),
           z: oz,
           vx,
           vy: randRange(4, 10),
@@ -395,7 +395,7 @@ export function createFxSystem(scene: THREE.Scene, environment: {
           emit({
             texture: "flashAdd",
             x: worldToRenderX(ox),
-            y: randRange(2.4, 4.2),
+            y: launchY + randRange(-0.9, 0.9),
             z: oz,
             vx: sinH * randRange(6, 14) * 0.25,
             vy: randRange(5, 12),

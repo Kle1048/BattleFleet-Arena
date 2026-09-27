@@ -13,16 +13,8 @@ def load(path,transform):
     for o in obs:
         if o.parent not in obs:o.matrix_world=transform@o.matrix_world
     return obs
-load(PUB/'ships/hull_spruance.glb',Matrix.Identity(4))
-G=lambda p:Vector((p['x'],-p['z'],p['y']))
-profile=json.loads((OUT/'destroyer.profile.json').read_text());sockets=json.loads((OUT/'destroyer.mountSockets.json').read_text())
-for slot in profile['mountSlots']:
-    key={'main_fwd':'mk45','ciws_fwd':'phalanx','sam_aft':'seasparrow'}[slot['id']];p=sockets[slot['id']]['position']
-    transform=Matrix.Translation(G(p))@Matrix.Rotation(slot.get('trainBaseYawRadFromBow',math.pi if p['z']<0 else 0),4,'Z')@Matrix.Scale(171.7/100,4)
-    load(PUB/('systems/mount_spruance_'+key+'.glb'),transform)
-for rail in profile['fixedSeaSkimmerLaunchers']:
-    transform=Matrix.Translation(G(rail['socket']['position']))@Matrix.Rotation(rail['launchYawRadFromBow'],4,'Z')@Matrix.Scale(171.7/10000,4)
-    load(PUB/'systems/mount_spruance_harpoon.glb',transform)
+exec(compile((ROOT/'scripts/blender/canonical_roundtrip.py').read_text(encoding='utf-8'),'canonical_roundtrip','exec'))
+assemble_runtime_ship(ROOT,'destroyer',load)
 qa.render.engine='BLENDER_EEVEE';qa.view_settings.view_transform='AgX'
 qa.render.resolution_x=1500;qa.render.resolution_y=950;qa.render.resolution_percentage=100
 qa.render.image_settings.file_format='PNG';qa.render.filepath=str(OUT/'spruance_glb_roundtrip.png')

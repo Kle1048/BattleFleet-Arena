@@ -24,16 +24,6 @@ type MatchEndHudLike = {
     }[],
     mySessionId: string,
   ) => void;
-  setOverallLeaderboard: (state: {
-    status: "loading" | "error" | "ready";
-    rows?: Array<{
-      displayName: string;
-      scoreTotal: number;
-      kills: number;
-      wins: number;
-      matches: number;
-    }>;
-  }) => void;
   hide: () => void;
 };
 
@@ -51,15 +41,6 @@ type CreateHudRuntimeOptions = {
   matchEndHud: MatchEndHudLike;
   mySessionId: string;
   joinedAt: number;
-  fetchOverallLeaderboard: (signal: AbortSignal) => Promise<
-    Array<{
-      displayName: string;
-      scoreTotal: number;
-      kills: number;
-      wins: number;
-      matches: number;
-    }>
-  >;
 };
 
 export function createHudRuntime(options: CreateHudRuntimeOptions): {
@@ -87,39 +68,14 @@ export function createHudRuntime(options: CreateHudRuntimeOptions): {
     players: Iterable<HudPlayerLike>;
   }) => void;
 } {
-  const { debugOverlay, matchEndHud, mySessionId, joinedAt, fetchOverallLeaderboard } = options;
+  const { debugOverlay, matchEndHud, mySessionId, joinedAt } = options;
   /** Verhindert ~60×/s `show()` während `MATCH_PHASE_ENDED` (DOM-Neuaufbau / „flackert“). */
   let matchEndScoreboardShown = false;
-  let leaderboardRequestSeq = 0;
   let disposed = false;
-  let leaderboardRequest: AbortController | undefined;
-
-  function cancelLeaderboard() {
-    leaderboardRequestSeq++;
-    leaderboardRequest?.abort();
-    leaderboardRequest = undefined;
-  }
-
-  async function loadLeaderboard() {
-    const reqId = ++leaderboardRequestSeq;
-    const request = new AbortController();
-    leaderboardRequest = request;
-    const isCurrent = () => !disposed && reqId === leaderboardRequestSeq && matchEndScoreboardShown;
-    try {
-      const rows = await fetchOverallLeaderboard(request.signal);
-      if (isCurrent()) matchEndHud.setOverallLeaderboard({ status: "ready", rows });
-    } catch {
-      if (isCurrent()) matchEndHud.setOverallLeaderboard({ status: "error" });
-    } finally {
-      if (leaderboardRequest === request) leaderboardRequest = undefined;
-    }
-  }
-
   return {
     dispose() {
       if (disposed) return;
       disposed = true;
-      cancelLeaderboard();
       if (matchEndScoreboardShown) matchEndHud.hide();
       matchEndScoreboardShown = false;
     },
@@ -203,12 +159,9 @@ export function createHudRuntime(options: CreateHudRuntimeOptions): {
             a.sessionId.localeCompare(b.sessionId),
         );
         matchEndHud.show(rows, mySessionId);
-        matchEndHud.setOverallLeaderboard({ status: "loading" });
         matchEndScoreboardShown = true;
-        void loadLeaderboard();
       } else {
         if (matchEndScoreboardShown) {
-          cancelLeaderboard();
           matchEndHud.hide();
           matchEndScoreboardShown = false;
         }

@@ -16,7 +16,6 @@ const base = SHIP_HULL_PROFILE_BY_CLASS[SHIP_CLASS_FAC];
 assert.strictEqual(getAuthoritativeShipHullProfile(SHIP_CLASS_FAC), getShipHullProfileByClass(SHIP_CLASS_FAC));
 
 const merged = mergeShipHullVisualProfile(base, {
-  hullVisualScale: 1.5,
   movement: { movementSpeedMul: 2 },
   collisionHitbox: {
     center: { x: 0, y: 1, z: 0 },
@@ -24,7 +23,7 @@ const merged = mergeShipHullVisualProfile(base, {
   },
 });
 
-assert.equal(merged.hullVisualScale, 1.5);
+assert.deepEqual(merged.mountSlots, base.mountSlots, "rule patches preserve model-derived spatial values");
 assert.equal(merged.movement?.movementSpeedMul, 2);
 assert.equal(merged.movement?.turnRateMul, base.movement?.turnRateMul);
 assert.equal(merged.collisionHitbox?.halfExtents.z, 10);

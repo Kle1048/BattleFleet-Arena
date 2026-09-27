@@ -17,8 +17,9 @@ export function configCodec(defaults: AdminConfig): JsonCodec<ConfigDocument> {
       if (!Object.keys(defaults).some(key => key in values)) throw new StorageError("corrupt", "Config has no recognized fields");
       for (const key of Object.keys(defaults)) {
         const value = values[key];
-        if (value === undefined && migrated) continue; // Legacy files may contain a subset.
-        if (key === "maintenanceMode" ? typeof value !== "boolean" : typeof value !== "number" || !Number.isFinite(value)) {
+        // Older v1 files without islandsEnabled inherit the configured default.
+        if (value === undefined && (migrated || key === "islandsEnabled")) continue;
+        if (key === "maintenanceMode" || key === "islandsEnabled" ? typeof value !== "boolean" : typeof value !== "number" || !Number.isFinite(value)) {
           throw new StorageError("corrupt", `Invalid config field: ${key}`);
         }
       }

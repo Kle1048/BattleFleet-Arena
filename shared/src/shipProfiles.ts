@@ -2,6 +2,9 @@ import { getShipClassProfile, type ShipClassId, normalizeShipClassId } from "./s
 import type { ShipHullVisualProfile } from "./shipVisualLayout";
 import { ASWM_MAGIC_RELOAD_MS } from "./aswm";
 import { SHIP_HULL_PROFILE_BY_CLASS } from "./content/shipCatalog";
+import { loadShipProfile } from "./content/loadShipProfile";
+import { modelSpatialMetadata } from "./content/modelMetadata";
+import { shipProfileSource, type ShipHullProfileSource } from "./content/shipProfileSource";
 
 export { SHIP_HULL_PROFILE_BY_CLASS } from "./content/shipCatalog";
 
@@ -18,10 +21,6 @@ export function getAuthoritativeShipHullProfile(shipClass: unknown): ShipHullVis
   return getShipHullProfileByClass(shipClass);
 }
 
-/**
- * Tieft kopieren der Basis und Überschreiben mit Patch (z. B. Client-localStorage-Overrides).
- * Arrays (`mountSlots`, `fixedSeaSkimmerLaunchers`) werden bei gesetztem Patch **ersetzt**, nicht zusammengeführt.
- */
 /** ASuM-Runden pro Seite; ohne JSON: `aswmMaxPerOwner` gleichmäßig auf port/starboard. */
 export function getAswmMagazineFromProfile(
   hull: ShipHullVisualProfile | undefined,
@@ -47,19 +46,20 @@ export function getAswmMagicReloadMsFromProfile(hull: ShipHullVisualProfile | un
 
 export function mergeShipHullVisualProfile(
   base: ShipHullVisualProfile,
-  patch: Partial<ShipHullVisualProfile> | null | undefined,
+  patch: Partial<ShipHullProfileSource> | null | undefined,
 ): ShipHullVisualProfile {
   if (!patch) return base;
+  const baseSource = shipProfileSource(base);
   const movement =
     patch.movement !== undefined
       ? { ...(base.movement ?? {}), ...patch.movement }
       : base.movement;
-  return {
-    ...base,
+  const source = {
+    ...baseSource,
     ...patch,
     movement,
-    mountSlots: patch.mountSlots ?? base.mountSlots,
-    fixedSeaSkimmerLaunchers: patch.fixedSeaSkimmerLaunchers ?? base.fixedSeaSkimmerLaunchers,
+    mountSlots: patch.mountSlots ?? baseSource.mountSlots,
+    fixedSeaSkimmerLaunchers: patch.fixedSeaSkimmerLaunchers ?? baseSource.fixedSeaSkimmerLaunchers,
     aswmMagazine: patch.aswmMagazine ?? base.aswmMagazine,
     aswmMagicReloadMs: patch.aswmMagicReloadMs ?? base.aswmMagicReloadMs,
     defaultLoadout:
@@ -69,9 +69,6 @@ export function mergeShipHullVisualProfile(
     defaultRotatingMountFireSector:
       patch.defaultRotatingMountFireSector ?? base.defaultRotatingMountFireSector,
     collisionHitbox: patch.collisionHitbox ?? base.collisionHitbox,
-    clientVisualTuningDefaults:
-      patch.clientVisualTuningDefaults !== undefined
-        ? { ...base.clientVisualTuningDefaults, ...patch.clientVisualTuningDefaults }
-        : base.clientVisualTuningDefaults,
   };
+  return loadShipProfile(source, modelSpatialMetadata(source.hullGltfId), base.shipClassId);
 }

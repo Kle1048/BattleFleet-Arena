@@ -1,10 +1,10 @@
 {
-  "assembled_triangles": 9500,
+  "assembled_triangles": 9588,
   "parts": {
-    "SPRUANCE_HULL.002": 7500,
-    "SPRUANCE_TEMPLATE_mk45.002": 196,
-    "SPRUANCE_TEMPLATE_phalanx.002": 264,
-    "SPRUANCE_TEMPLATE_seasparrow.002": 372,
-    "SPRUANCE_TEMPLATE_harpoon.002": 584
+    "SPRUANCE_HULL.005": 7858,
+    "SPRUANCE_TEMPLATE_mk45.005": 246,
+    "SPRUANCE_TEMPLATE_phalanx.005": 264,
+    "SPRUANCE_TEMPLATE_seasparrow.005": 372,
+    "SPRUANCE_TEMPLATE_harpoon.005": 424
   }
 }

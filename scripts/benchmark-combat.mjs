@@ -6,17 +6,26 @@ import assert from "node:assert/strict";
 import { mkdtempSync, readFileSync, readdirSync, unlinkSync, rmdirSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
+import { fingerprintCombatContent, readCombatContent } from "./combat-content.mjs";
 
 // Explicit diagnostic mode prints a candidate, but never overwrites an expectation.
 // Content changes require review and an intentional fixture edit; normal runs stay strict.
 const candidate = process.argv.slice(2).includes("--candidate");
 if (process.argv.slice(2).some(arg => arg !== "--candidate")) throw new Error("Only --candidate is supported");
+const simulationContentSha256 = fingerprintCombatContent(readCombatContent());
+const baseline = JSON.parse(readFileSync(new URL("./fixtures/combat-baseline.json", import.meta.url), "utf8"));
+if (!candidate) {
+  assert.equal(baseline.formatVersion, 2, "Legacy model content baseline: explicit migration required");
+  assert.deepEqual(simulationContentSha256, baseline.simulationContentSha256, "Gameplay/model spatial content changed; review before replacing the reference");
+}
 
 const directory = mkdtempSync(path.join(tmpdir(), "bfa-combat-bench-"));
 process.env.BFA_DATA_DIR = directory;
 const { BattleRoom } = await import("../server/src/rooms/BattleRoom.ts");
 const { updateAdminConfig } = await import("../server/src/adminConfig.ts");
-await updateAdminConfig({ minRoomPlayers: 16, operationalAreaHalfExtent: 4000 });
+const { defaultConfig } = await import("../server/src/application/configValues.ts");
+const { storageLifecycle } = await import("../server/src/application/storageServices.ts");
+await updateAdminConfig({ ...defaultConfig(300, 16), operationalAreaHalfExtent: 4000, islandsEnabled: false });
 let now = 1_800_000_000_000;
 let seed = 42;
 const room = new BattleRoom({
@@ -70,26 +79,18 @@ try {
   }
   trace.update(JSON.stringify(room.state.toJSON()));
   const digest = trace.digest("hex");
-  const baseline = JSON.parse(readFileSync(new URL("./fixtures/combat-baseline.json", import.meta.url), "utf8"));
-  const simulationContentSha256 = Object.fromEntries(["fac.json", "mountSockets/fac.json"].map(file => {
-    const content = JSON.parse(readFileSync(new URL("../shared/src/data/ships/" + file, import.meta.url), "utf8"));
-    // Rendering-only tuning is outside this headless trace. Keep every other
-    // field (including newly introduced fields), and normalize line endings/spacing.
-    if (file === "fac.json") for (const key of ["labelDe", "hullGltfId", "hullVisualScale", "clientVisualTuningDefaults"]) delete content[key];
-    return [file, createHash("sha256").update(JSON.stringify(content)).digest("hex")];
-  }));
   if (!candidate) {
-    assert.deepEqual(simulationContentSha256, baseline.simulationContentSha256, "FAC gameplay content changed; review separately from simulation refactors");
     assert.deepEqual(Object.fromEntries(events), baseline.events, "combat event counts changed");
     assert.equal(digest, baseline.traceSha256, "state/event trace changed; investigate before updating the baseline");
   }
   samples.sort((a, b) => a - b);
-  console.log(JSON.stringify({ baselineCheck: candidate ? "SKIPPED: unapproved candidate" : "passed",
-    scenario: "combat-11-humans-5-bots", seconds: 60, samples: samples.length,
+  console.log(JSON.stringify({ formatVersion: 2, baselineCheck: candidate ? "SKIPPED: unapproved candidate" : "passed",
+    scenario: "combat-11-humans-5-bots-canonical-open-water", islandsEnabled: false, seconds: 60, samples: samples.length,
     medianMs: samples[Math.floor(samples.length * 0.5)], p95Ms: samples[Math.floor(samples.length * 0.95)],
     p99Ms: samples[Math.floor(samples.length * 0.99)], events: Object.fromEntries(events), traceSha256: digest, simulationContentSha256 }));
 } finally {
   room.setSimulationInterval(); room.setPatchRate(null); room.clock.clear(); room.clock.stop(); room.onDispose();
+  await storageLifecycle.close();
   for (const name of readdirSync(directory)) unlinkSync(path.join(directory, name));
   rmdirSync(directory);
 }

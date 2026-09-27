@@ -28,7 +28,7 @@ export {
  */
 export const SHIP_ISLAND_COLLISION_RADIUS = 26;
 
-/** Basis-HP für einmaligen Insel-Kanten-Kontakt (skaliert mit `ShipClassProfile.hullScale`). */
+/** Basis-HP für einmaligen Insel-Kanten-Kontakt (× `islandCollisionDamageMul`). */
 export const ISLAND_SCRAPE_BASE_HP = 7;
 
 /**

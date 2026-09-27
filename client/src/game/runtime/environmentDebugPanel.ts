@@ -13,13 +13,12 @@ import {
   getFollowCameraTuning,
   resetFollowCameraTuning,
   savePersistedFollowCameraTuning,
+  subscribeFollowCameraTuning,
   type FollowCameraTuning,
 } from "./followCameraTuning";
 import {
   applyShipDebugTuning,
   DEFAULT_SHIP_DEBUG_TUNING,
-  GLTF_HULL_Y_OFFSET_MAX,
-  GLTF_HULL_Y_OFFSET_MIN,
   getShipDebugTuning,
   type ShipDebugTuning,
 } from "./shipDebugTuning";
@@ -37,6 +36,7 @@ import {
 import { appendToBottomDebugDock } from "./bottomDebugDock";
 import { getSoundMix, resetSoundMixToDefaults, setSoundMix } from "../audio/soundMixState";
 import { savePersistedShipTuning } from "./shipTuningStorage";
+import { resetThirdPersonCamera } from "./thirdPersonCamera";
 
 type ShipSliderDef = {
   key: {
@@ -49,18 +49,8 @@ type ShipSliderDef = {
 };
 
 const SHIP_SLIDERS: readonly ShipSliderDef[] = [
-  { key: "spriteScale", label: "Sprite Scale", min: 0.5, max: 8, step: 0.1 },
-  { key: "shipPivotLocalZ", label: "Ship Pivot Z", min: -80, max: 80, step: 0.1 },
   { key: "cameraPivotLocalZ", label: "Camera Pivot Z", min: -80, max: 80, step: 0.1 },
   { key: "mineSpawnLocalZ", label: "Mine Spawn Z", min: -140, max: 20, step: 0.1 },
-  { key: "wakeSpawnLocalZ", label: "Wake Heck ΔZ (zu Hitbox-Heck)", min: -35, max: 30, step: 0.1 },
-  {
-    key: "gltfHullYOffset",
-    label: "GLB Rumpf Y (Senken −)",
-    min: GLTF_HULL_Y_OFFSET_MIN,
-    max: GLTF_HULL_Y_OFFSET_MAX,
-    step: 1,
-  },
 ];
 
 /** Checkbox „Feinschritte“: Zehntel des normalen Sliderschritts. */
@@ -589,6 +579,38 @@ export function createEnvironmentDebugPanel(
 
   /* ——— Tab: Kamera ——— */
   addSectionTitle(panelCam, "Follow Camera", false);
+  const viewLabel = document.createElement("label");
+  viewLabel.textContent = "Ansicht";
+  const viewSelect = document.createElement("select");
+  viewSelect.style.cssText = selectStyle;
+  viewSelect.setAttribute("aria-label", "Kamera-Ansicht");
+  for (const [value, label] of [["map", "Kartenansicht"], ["thirdPerson", "Third-Person / Orbit"]]) {
+    const option = document.createElement("option");
+    option.value = value!; option.textContent = label!;
+    viewSelect.appendChild(option);
+  }
+  viewSelect.value = currentCamera.mode;
+  viewSelect.addEventListener("change", () => {
+    const applied = applyFollowCameraTuning({ mode: viewSelect.value === "thirdPerson" ? "thirdPerson" : "map" });
+    savePersistedFollowCameraTuning({ ...applied });
+  });
+  panelCam.append(viewLabel, viewSelect);
+  const orbitHint = document.createElement("div");
+  orbitHint.style.cssText = "grid-column:1/-1;font-size:11px;color:#9ed3ff;";
+  orbitHint.textContent = "Third-Person: Alt + linke Maustaste ziehen = umsehen; Mausrad = Zoom. Normale Klicks bleiben Waffensteuerung. Kartenparameter unten gelten nur in der Kartenansicht.";
+  panelCam.appendChild(orbitHint);
+  const recenterOrbit = document.createElement("button");
+  recenterOrbit.type = "button";
+  recenterOrbit.textContent = "Orbit hinter Schiff ausrichten";
+  recenterOrbit.style.gridColumn = "1/-1";
+  recenterOrbit.addEventListener("click", resetThirdPersonCamera);
+  panelCam.appendChild(recenterOrbit);
+  const orbitDistanceRef = addSlider(panelCam, "Orbit-Abstand", 80, 2000, 10, currentCamera.orbitDistance, (value) => {
+    savePersistedFollowCameraTuning({ ...applyFollowCameraTuning({ orbitDistance: value }) });
+  });
+  const orbitPitchRef = addSlider(panelCam, "Orbit-Neigung (°)", 8, 80, 1, currentCamera.orbitPitchDeg, (value) => {
+    savePersistedFollowCameraTuning({ ...applyFollowCameraTuning({ orbitPitchDeg: value }) });
+  });
   const pitchLabel = document.createElement("label");
   pitchLabel.textContent = "Kippwinkel (°)";
   panelCam.appendChild(pitchLabel);
@@ -779,6 +801,11 @@ export function createEnvironmentDebugPanel(
     resetFollowCameraTuning();
     Object.assign(currentCamera, DEFAULT_FOLLOW_CAMERA_TUNING);
     const camNext = getFollowCameraTuning();
+    viewSelect.value = camNext.mode;
+    orbitDistanceRef.input.value = String(camNext.orbitDistance);
+    orbitDistanceRef.val.textContent = String(camNext.orbitDistance);
+    orbitPitchRef.input.value = String(camNext.orbitPitchDeg);
+    orbitPitchRef.val.textContent = String(camNext.orbitPitchDeg);
     pitchInput.value = String(Math.round(camNext.pitchDeg));
     pitchVal.textContent = String(Math.round(camNext.pitchDeg));
     heightInput.value = String(Math.round(camNext.heightAbovePivot));
@@ -861,8 +888,18 @@ export function createEnvironmentDebugPanel(
   bundle.islandCollisionPolygonGroup.visible = getShipDebugTuning().showIslandCollisionPolygons;
   islandPolyToggle.checked = getShipDebugTuning().showIslandCollisionPolygons;
 
+  const unsubscribeCamera = subscribeFollowCameraTuning((value) => {
+    Object.assign(currentCamera, value);
+    viewSelect.value = value.mode;
+    orbitDistanceRef.input.value = String(value.orbitDistance);
+    orbitDistanceRef.val.textContent = value.orbitDistance.toFixed(1);
+    orbitPitchRef.input.value = String(value.orbitPitchDeg);
+    orbitPitchRef.val.textContent = value.orbitPitchDeg.toFixed(1);
+  });
+
   return {
     dispose() {
+      unsubscribeCamera();
       root.remove();
     },
   };

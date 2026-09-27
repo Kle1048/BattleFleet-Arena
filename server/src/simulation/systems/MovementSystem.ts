@@ -2,7 +2,7 @@ import {
   DESTROYER_LIKE_MVP,
   type ShipMovementConfig,
   ISLAND_SCRAPE_BASE_HP,
-  resolveShipIslandCollisions,
+  resolveShipIslandPolygonCollisions,
   resolveShipAndWreckObbOverlaps,
   resolveShipShipCollisions,
   type ShipCollisionParticipant,
@@ -42,6 +42,7 @@ export class MovementSystem {
     private readonly participants: Participants,
     private readonly life: Pick<LifeSystem, "applyDamage">,
     private readonly sendCollisionContact: (sessionId: string, kind: "island" | "ship") => void,
+    private readonly getIslandPolygons = () => DEFAULT_MAP_ISLAND_POLYGONS,
   ) {}
 
   remove(sessionId: string): void {
@@ -85,7 +86,7 @@ export class MovementSystem {
   }
 
   private moveAndResolveTerrain(dt: number, now: number, combatActive: boolean, wreckList: Wrecks): void {
-    const islandPolys = DEFAULT_MAP_ISLAND_POLYGONS;
+    const islandPolys = this.getIslandPolygons();
     for (const [sessionId, row] of this.participants.simulations) {
       const p = this.participants.players.get(sessionId);
       if (!p) continue;
@@ -114,7 +115,7 @@ export class MovementSystem {
             const sc = getShipClassProfile(p.shipClass);
             const scrape = Math.round(
               ISLAND_SCRAPE_BASE_HP *
-                sc.hullScale *
+                sc.islandCollisionDamageMul *
                 progressionIncomingDamageFactor(p.level) *
                 sc.incomingDamageTakenMul,
             );
@@ -140,9 +141,9 @@ export class MovementSystem {
         }
         this.collisionWreckOverlapPrev.set(sessionId, wreckNow);
 
-        resolveShipIslandCollisions(
+        resolveShipIslandPolygonCollisions(
           row.ship,
-          [],
+          islandPolys,
           getAuthoritativeShipHullProfile(p.shipClass)?.collisionHitbox,
         );
       } else {

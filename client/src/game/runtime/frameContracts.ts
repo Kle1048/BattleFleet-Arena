@@ -2,6 +2,7 @@ import type { PlayerView, MissileView, TorpedoView } from "../presentation/Battl
 import type { AirDefenseMissileSnapshot, AirDefensePlayerSnapshot } from "@battlefleet/shared/rules";
 import type { createUpdateCadence } from "./updateCadence";
 import type { CockpitHudUpdate } from "../presentation/CockpitModel";
+import type { InputSample } from "../input/keyboardMouse";
 
 /** Synchronous borrowed presentation values and output ports; no transport objects.
  * Each phase selects only its own state fields and dependencies from these contracts. */
@@ -79,6 +80,7 @@ export type FrameRuntimeState = {
   /** Dedupe für `input`-Nachrichten (Telegraf / Ziel — nicht jedes Frame). */
   lastInputDedupKey: string | null;
   lastInputDedupAtMs: number;
+  pendingInput: InputSample | null;
   /** Letzter Telegraf-Raster (Motor), für Rasterton; −1 = noch nicht initialisiert. */
   lastTelegraphThrottleIndex: number;
   lastTelegraphRudderIndex: number;

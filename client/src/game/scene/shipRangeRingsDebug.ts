@@ -12,13 +12,11 @@ const SEGMENTS = 96;
 
 /**
  * Konzentrische Kreise in der XZ-Ebene um den Schiffsmittelpunkt (lokal).
- * Skalierung wie `weaponGuideGroup`: `invHullScale`, damit Radien in Weltmetern gelten.
+ * Alle Koordinaten liegen direkt in Spielmetern vor.
  */
-export function createLocalShipRangeRingsGroup(hullScale: number): THREE.Group {
+export function createLocalShipRangeRingsGroup(): THREE.Group {
   const root = new THREE.Group();
   root.name = "shipRangeRingsDebug";
-  const inv = hullScale > 1e-6 ? 1 / hullScale : 1;
-  root.scale.setScalar(inv);
 
   for (let i = 1; i <= SHIP_RANGE_RING_COUNT; i++) {
     const r = i * SHIP_RANGE_RING_SPACING_M;

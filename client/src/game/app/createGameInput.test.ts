@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { PerspectiveCamera } from "three";
 import { createGameInput } from "./createGameInput";
 import { t } from "../../locale/t";
+import { applyFollowCameraTuning, getFollowCameraTuning, resetFollowCameraTuning } from "../runtime/followCameraTuning";
 
 class Target extends EventTarget {
   listeners = new Map<string, Set<EventListenerOrEventListenerObject>>();
@@ -47,8 +48,8 @@ try {
   const controls = createGameInput(canvas as unknown as HTMLCanvasElement, new PerspectiveCamera());
   for (let cycle = 0; cycle < 20; cycle++) {
     const session = controls.startSession();
-    assert.equal(win.count(), 3);
-    assert.equal(canvas.count(), 6);
+    assert.equal(win.count(), 5);
+    assert.equal(canvas.count(), 11);
     assert.equal(body.children.length, 1);
     assert.equal(session.input.sample().throttle, 0);
     assert.equal(session.input.sample().primaryFire, false);
@@ -64,12 +65,38 @@ try {
     assert.equal(session.mobileHudActions.onNextFireControlTarget, undefined);
     assert.equal(session.input.sample().primaryFire, false);
   }
+  applyFollowCameraTuning({ mode: "thirdPerson" });
+  const orbitSession = controls.startSession();
+  canvas.dispatchEvent(Object.assign(new Event("pointerdown", { cancelable: true }), {
+    pointerId: 7, button: 0, altKey: true, clientX: 100, clientY: 100,
+  }));
+  assert.equal(orbitSession.input.sample().primaryFire, false, "orbit gesture does not fire");
+  canvas.dispatchEvent(Object.assign(new Event("pointermove", { cancelable: true }), {
+    pointerId: 7, clientX: 160, clientY: 140,
+  }));
+  assert.equal(getFollowCameraTuning().orbitPitchDeg, 24);
+  const distance = getFollowCameraTuning().orbitDistance;
+  const wheel = Object.assign(new Event("wheel", { cancelable: true }), { deltaY: -100, deltaMode: 0 });
+  canvas.dispatchEvent(wheel);
+  assert(wheel.defaultPrevented);
+  assert(getFollowCameraTuning().orbitDistance < distance);
+  win.dispatchEvent(new Event("blur"));
+  const pitchAfterBlur = getFollowCameraTuning().orbitPitchDeg;
+  canvas.dispatchEvent(Object.assign(new Event("pointermove", { cancelable: true }), {
+    pointerId: 7, clientX: 200, clientY: 200,
+  }));
+  assert.equal(getFollowCameraTuning().orbitPitchDeg, pitchAfterBlur, "blur ends dragging");
+  canvas.dispatchEvent(Object.assign(new Event("pointerdown", { cancelable: true }), { pointerId: 8, button: 0 }));
+  assert.equal(orbitSession.input.sample().primaryFire, true, "normal click still fires in orbit mode");
+  controls.stopSession();
+  assert.equal(win.count(), 0); assert.equal(canvas.count(), 0);
+  resetFollowCameraTuning();
   win.location.search = "?mobileControls=1";
   for (let cycle = 0; cycle < 20; cycle++) {
     const before = created.length;
     const session = controls.startSession();
-    assert.equal(win.count(), 3);
-    assert.equal(canvas.count(), 7); // Includes the session's mobile aim reticle.
+    assert.equal(win.count(), 5);
+    assert.equal(canvas.count(), 12); // Includes the session's mobile aim reticle.
     assert.equal(body.children.length, 2);
     assert.equal(session.input.sample().primaryFire, false);
     const primary = created.slice(before).find(element => element.textContent === t("mobile.btnFire"))!;
@@ -87,6 +114,7 @@ try {
   controls.dispose(); controls.dispose();
   assert.throws(() => controls.startSession(), /disposed/);
 } finally {
+  resetFollowCameraTuning();
   for (const name of names) {
     const previous = originals.get(name);
     if (previous) Object.defineProperty(globalThis, name, previous);

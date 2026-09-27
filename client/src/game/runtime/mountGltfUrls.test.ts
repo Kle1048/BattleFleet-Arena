@@ -1,21 +1,20 @@
-import assert from 'node:assert/strict';
-import {resolveMountModelVisualId,resolveMountGltfUrl} from './mountGltfUrls';
-for(const hull of ['gepard','s143a']) {
-  assert.equal(resolveMountModelVisualId('visual_artillery',hull),'visual_gepard_artillery');
-  assert.equal(resolveMountModelVisualId('visual_pdms',hull),'visual_gepard_pdms');
-  assert.equal(resolveMountModelVisualId('visual_ssm',hull),'visual_gepard_exocet');
-  assert.equal(resolveMountModelVisualId('visual_ciws',hull),'visual_ciws');
+import assert from "node:assert/strict";
+import { MODEL_CATALOG } from "@battlefleet/shared";
+import { resolveMountGltfUrl, uniqueMountVisualUrls } from "./mountGltfUrls";
+import { resolveShipHullGltfUrl, HULL_GLTF_URL_BY_ID } from "./hullGltfUrls";
+
+for (const [id, model] of Object.entries(MODEL_CATALOG)) {
+  const resolve = model.kind === "hull" ? resolveShipHullGltfUrl : resolveMountGltfUrl;
+  assert.equal(resolve(id), `/assets/${model.file}`);
 }
-for(const hull of ['spruance','destroyer']) {
-  assert.equal(resolveMountModelVisualId('visual_artillery',hull),'visual_spruance_mk45');
-  assert.equal(resolveMountModelVisualId('visual_ciws',hull),'visual_spruance_phalanx');
-  assert.equal(resolveMountModelVisualId('visual_sam',hull),'visual_spruance_seasparrow');
-  assert.equal(resolveMountModelVisualId('visual_ssm',hull),'visual_spruance_harpoon');
-  assert.equal(resolveMountModelVisualId('visual_pdms',hull),'visual_pdms');
+assert.equal(resolveMountGltfUrl("gepard_artillery"), "/assets/systems/mount_gepard_artillery.glb");
+assert.equal(resolveMountGltfUrl("spruance_mk45"), "/assets/systems/mount_spruance_mk45.glb");
+assert.equal(Object.keys(HULL_GLTF_URL_BY_ID).length, 3);
+assert.equal(uniqueMountVisualUrls().length, 11);
+for (const id of ["visual_artillery", "unknown", "__proto__", "constructor", "../outside"]) {
+  assert.throws(() => resolveMountGltfUrl(id), /Unknown model/);
+  assert.throws(() => resolveShipHullGltfUrl(id), /Unknown model/);
 }
-for(const hull of ['cruiser','f124','fac']) {
-  assert.equal(resolveMountModelVisualId('visual_artillery',hull),'visual_artillery');
-  assert.equal(resolveMountModelVisualId('visual_pdms',hull),'visual_pdms');
-}
-assert(resolveMountGltfUrl(resolveMountModelVisualId('visual_pdms','gepard')).endsWith('/mount_gepard_pdms.glb'));
-console.log('Hull-specific mount models preserve existing weapon identities.');
+assert.throws(() => resolveMountGltfUrl("gepard"), /not a mount/);
+assert.throws(() => resolveShipHullGltfUrl("gepard_artillery"), /not a hull/);
+console.log("One model catalog drives URLs; unknown IDs and wrong model kinds fail explicitly");
