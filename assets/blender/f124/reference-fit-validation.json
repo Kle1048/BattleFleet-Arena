@@ -1,0 +1,143 @@
+{
+  "status": "pass",
+  "reference_sha256": "436299be377ab4f2a5d96034b299976ef6696aa0fc46351a9ab77597a8a92a72",
+  "method": "Manual landmarks + dimensional checks; full silhouette/top-view overlay inspected separately.",
+  "source_resolution": [
+    500,
+    328
+  ],
+  "side_scale_pixels_per_metre": 3.4125874125874125,
+  "checks": [
+    {
+      "feature": "APAR center",
+      "reference_x_px": 297,
+      "model_x_px": 297.43,
+      "error_px": 0.43,
+      "tolerance_px": 3,
+      "pass": true
+    },
+    {
+      "feature": "SMART-L pedestal center",
+      "reference_x_px": 163,
+      "model_x_px": 162.98,
+      "error_px": 0.02,
+      "tolerance_px": 3,
+      "pass": true
+    },
+    {
+      "feature": "Twin funnel center",
+      "reference_x_px": 222,
+      "model_x_px": 221.68,
+      "error_px": 0.32,
+      "tolerance_px": 4,
+      "pass": true
+    },
+    {
+      "feature": "Signal mast center",
+      "reference_x_px": 240,
+      "model_x_px": 239.76,
+      "error_px": 0.24,
+      "tolerance_px": 3,
+      "pass": true
+    },
+    {
+      "feature": "Bridge roof forward edge",
+      "reference_x_px": 342,
+      "model_x_px": 341.12,
+      "error_px": 0.88,
+      "tolerance_px": 4,
+      "pass": true
+    },
+    {
+      "feature": "Hangar aft edge",
+      "reference_x_px": 100,
+      "model_x_px": 101.55,
+      "error_px": 1.55,
+      "tolerance_px": 3,
+      "pass": true
+    },
+    {
+      "feature": "VLS center",
+      "reference_x_px": 365,
+      "model_x_px": 366.03,
+      "error_px": 1.03,
+      "tolerance_px": 3,
+      "pass": true
+    },
+    {
+      "feature": "main_fwd",
+      "reference_x_px": 423,
+      "model_x_px": 424.04,
+      "error_px": 1.04,
+      "tolerance_px": 3,
+      "pass": true
+    },
+    {
+      "feature": "ram_fwd",
+      "reference_x_px": 394,
+      "model_x_px": 395.03,
+      "error_px": 1.03,
+      "tolerance_px": 3,
+      "pass": true
+    },
+    {
+      "feature": "ram_aft",
+      "reference_x_px": 120,
+      "model_x_px": 119.98,
+      "error_px": 0.02,
+      "tolerance_px": 3,
+      "pass": true
+    },
+    {
+      "feature": "Main mast tip",
+      "reference_y_px": 111,
+      "model_y_px": 109.54,
+      "error_px": 1.46,
+      "tolerance_px": 3,
+      "pass": true
+    },
+    {
+      "feature": "APAR housing top",
+      "reference_y_px": 131,
+      "model_y_px": 132.06,
+      "error_px": 1.06,
+      "tolerance_px": 4,
+      "pass": true
+    },
+    {
+      "feature": "Funnel rim",
+      "reference_y_px": 168,
+      "model_y_px": 168.23,
+      "error_px": 0.23,
+      "tolerance_px": 3,
+      "pass": true
+    },
+    {
+      "feature": "Bridge roof",
+      "reference_y_px": 181,
+      "model_y_px": 181.2,
+      "error_px": 0.2,
+      "tolerance_px": 3,
+      "pass": true
+    },
+    {
+      "feature": "Hangar roof",
+      "reference_y_px": 190,
+      "model_y_px": 189.39,
+      "error_px": 0.61,
+      "tolerance_px": 3,
+      "pass": true
+    },
+    {
+      "feature": "Signal mast tip",
+      "reference_y_px": 143,
+      "model_y_px": 142.98,
+      "error_px": 0.02,
+      "tolerance_px": 3,
+      "pass": true
+    }
+  ],
+  "funnel_body_gap_metres": 3.7,
+  "vls_cells_across_beam": 8,
+  "vls_cells_along_length": 4
+}

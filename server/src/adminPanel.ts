@@ -1,8 +1,11 @@
-import express, { type Express } from "express";
+import express, { type Express, type Request, type Response } from "express";
 import { randomBytes } from "node:crypto";
 import { createAdminGuard } from "./serverSecurity.js";
-import { getAdminConfig, updateAdminConfig } from "./adminConfig.js";
-import { leaderboardSize, resetLeaderboard, topLeaderboard } from "./leaderboardStore.js";
+import { getAdminConfig, getConfigRevision, updateAdminConfig } from "./adminConfig.js";
+import type { AdminConfigPatch } from "./adminConfig.js";
+import { leaderboardSize, leaderboardRevision, resetLeaderboard, topLeaderboard } from "./leaderboardStore.js";
+import { storageLifecycle } from "./application/storageServices.js";
+import { StorageError, storageErrorCode } from "./persistence/storageErrors.js";
 
 export type AdminPanelControls = {
   activeRoomSummaries: () => {
@@ -18,8 +21,11 @@ export type AdminPanelControls = {
 function adminStatus(controls: AdminPanelControls) {
   return {
     config: getAdminConfig(),
+    configRevision: getConfigRevision(),
+    storage: storageLifecycle.snapshot(),
     leaderboard: {
       count: leaderboardSize(),
+      revision: leaderboardRevision(),
       rows: topLeaderboard(10).map((r) => ({
         displayName: r.displayName,
         scoreTotal: r.scoreTotal,
@@ -60,56 +66,35 @@ export function registerAdminPanel(app: Express, controls: AdminPanelControls, t
     res.json(adminStatus(controls));
   });
 
-  app.patch("/api/admin/config", (req, res) => {
-    const body = (req.body ?? {}) as {
-      matchDurationSec?: unknown;
-      minRoomPlayers?: unknown;
-      maintenanceMode?: unknown;
-      operationalAreaHalfExtent?: unknown;
-      passiveXpIntervalMs?: unknown;
-      passiveXpBase?: unknown;
-      seaControlXpMultiplier?: unknown;
-      respawnDelayMs?: unknown;
-      spawnProtectionMs?: unknown;
-      samCooldownMs?: unknown;
-      oobDestroyAfterMs?: unknown;
-    };
-    const next = updateAdminConfig({
-      matchDurationSec:
-        body.matchDurationSec === undefined ? undefined : Number(body.matchDurationSec),
-      minRoomPlayers: body.minRoomPlayers === undefined ? undefined : Number(body.minRoomPlayers),
-      maintenanceMode:
-        body.maintenanceMode === undefined ? undefined : body.maintenanceMode === true,
-      operationalAreaHalfExtent:
-        body.operationalAreaHalfExtent === undefined
-          ? undefined
-          : Number(body.operationalAreaHalfExtent),
-      passiveXpIntervalMs:
-        body.passiveXpIntervalMs === undefined ? undefined : Number(body.passiveXpIntervalMs),
-      passiveXpBase: body.passiveXpBase === undefined ? undefined : Number(body.passiveXpBase),
-      seaControlXpMultiplier:
-        body.seaControlXpMultiplier === undefined
-          ? undefined
-          : Number(body.seaControlXpMultiplier),
-      respawnDelayMs: body.respawnDelayMs === undefined ? undefined : Number(body.respawnDelayMs),
-      spawnProtectionMs:
-        body.spawnProtectionMs === undefined ? undefined : Number(body.spawnProtectionMs),
-      samCooldownMs: body.samCooldownMs === undefined ? undefined : Number(body.samCooldownMs),
-      oobDestroyAfterMs:
-        body.oobDestroyAfterMs === undefined ? undefined : Number(body.oobDestroyAfterMs),
-    });
-    res.json({ config: next });
-  });
+  app.patch("/api/admin/config", committedRoute(async (req, res) => {
+    const revision = requireRevision(req, res);
+    if (revision === null) return;
+    const patch: AdminConfigPatch = {};
+    for (const key of Object.keys(getAdminConfig()) as (keyof AdminConfigPatch)[]) {
+      const value: unknown = req.body[key];
+      if (value === undefined) continue;
+      if (key === "maintenanceMode") {
+        if (typeof value !== "boolean") { res.status(400).json({ error: "Invalid config value" }); return; }
+        patch[key] = value;
+      } else {
+        if (typeof value !== "number" || !Number.isFinite(value)) { res.status(400).json({ error: "Invalid config value" }); return; }
+        patch[key] = value;
+      }
+    }
+    const config = await updateAdminConfig(patch, revision);
+    res.json({ config, configRevision: revision + 1 });
+  }));
 
-  app.post("/api/admin/leaderboard/reset", (req, res) => {
-    const body = (req.body ?? {}) as { confirm?: unknown };
-    if (body.confirm !== "RESET") {
+  app.post("/api/admin/leaderboard/reset", committedRoute(async (req, res) => {
+    if (req.body?.confirm !== "RESET") {
       res.status(400).json({ error: 'Send {"confirm":"RESET"} to reset the leaderboard.' });
       return;
     }
-    resetLeaderboard();
-    res.json({ ok: true, leaderboard: { count: leaderboardSize() } });
-  });
+    const revision = requireRevision(req, res);
+    if (revision === null) return;
+    const committed = await resetLeaderboard(revision);
+    res.json({ ok: true, leaderboard: { count: 0, revision: committed } });
+  }));
 
   app.post("/api/admin/round/restart", (req, res) => {
     const body = (req.body ?? {}) as { confirm?: unknown };
@@ -119,6 +104,26 @@ export function registerAdminPanel(app: Express, controls: AdminPanelControls, t
     }
     res.json({ ok: true, ...controls.restartActiveRounds() });
   });
+}
+
+function requireRevision(req: Request, res: Response): number | null {
+  const revision: unknown = req.body?.expectedRevision;
+  if (typeof revision === "number" && Number.isSafeInteger(revision) && revision >= 0) return revision;
+  res.status(428).json({ error: "A current expectedRevision is required; reload status before changing data." });
+  return null;
+}
+
+/** Express 4 does not observe async handler rejections. Never acknowledge a failed commit. */
+function committedRoute(handler: (req: Request, res: Response) => Promise<void>) {
+  return (req: Request, res: Response): void => {
+    void handler(req, res).catch(error => {
+      const conflict = error instanceof StorageError && error.code === "conflict";
+      console.error("[admin-storage] request failed code=%s", storageErrorCode(error));
+      res.status(conflict ? 409 : 503).json({ error: conflict
+        ? "Data changed; reload status before retrying."
+        : "Storage commit failed. Reload status before retrying; do not assume a disconnected request was rolled back." });
+    });
+  };
 }
 
 function adminHtml(nonce: string): string {
@@ -167,6 +172,7 @@ function adminHtml(nonce: string): string {
       <label>Admin token<input id="adminToken" type="password" autocomplete="off" required minlength="32" maxlength="256" /></label>
       <button type="submit">Connect</button>
       <button id="logout" type="button">Disconnect</button>
+      <button id="refreshStatus" type="button">Refresh status</button>
     </form>
     <p>The token is kept in this tab's memory only. Use HTTPS or a local SSH tunnel. Reloading disconnects.</p>
   </section>
@@ -251,6 +257,8 @@ function adminHtml(nonce: string): string {
 <script nonce="${nonce}">
 const $ = (id) => document.getElementById(id);
 let adminToken = "";
+let configRevision = null;
+let leaderboardRevision = null;
 
 async function requestJson(url, options = {}) {
   if (!adminToken) throw new Error("Enter the admin token and connect first.");
@@ -289,6 +297,8 @@ function escapeHtml(value) {
 
 async function refresh() {
   const status = await requestJson("/api/admin/status");
+  configRevision = status.configRevision;
+  leaderboardRevision = status.leaderboard.revision;
   $("matchDurationSec").value = status.config.matchDurationSec;
   $("minRoomPlayers").value = status.config.minRoomPlayers;
   $("maintenanceMode").checked = status.config.maintenanceMode;
@@ -314,6 +324,7 @@ $("configForm").addEventListener("submit", async (event) => {
     await requestJson("/api/admin/config", {
       method: "PATCH",
       body: JSON.stringify({
+        expectedRevision: configRevision,
         matchDurationSec: Number($("matchDurationSec").value),
         minRoomPlayers: Number($("minRoomPlayers").value),
         maintenanceMode: $("maintenanceMode").checked,
@@ -339,7 +350,7 @@ $("resetLeaderboard").addEventListener("click", async () => {
   try {
     await requestJson("/api/admin/leaderboard/reset", {
       method: "POST",
-      body: JSON.stringify({ confirm: "RESET" }),
+      body: JSON.stringify({ confirm: "RESET", expectedRevision: leaderboardRevision }),
     });
     setMessage("Leaderboard reset.");
     await refresh();
@@ -377,6 +388,10 @@ $("loginForm").addEventListener("submit", async (event) => {
 $("logout").addEventListener("click", () => {
   adminToken = "";
   location.reload();
+});
+$("refreshStatus").addEventListener("click", async () => {
+  try { await refresh(); setMessage("Status refreshed. Review values before retrying a change."); }
+  catch (error) { setMessage(String(error.message || error), true); }
 });
 </script>
 </body>

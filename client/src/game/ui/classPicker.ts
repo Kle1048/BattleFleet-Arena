@@ -4,6 +4,7 @@
 
 import { PLAYER_DISPLAY_NAME_MAX_LEN, SHIP_CLASS_FAC, type ShipClassId } from "@battlefleet/shared";
 import { t } from "../../locale/t";
+import { waitForDialog } from "./dialogLifetime";
 
 export type ShipLobbyChoice = {
   shipClass: ShipClassId;
@@ -11,40 +12,25 @@ export type ShipLobbyChoice = {
   displayName: string;
 };
 
-export function pickShipLobbyChoice(): Promise<ShipLobbyChoice> {
-  return new Promise((resolve) => {
-    const root = document.createElement("div");
-    root.className = "class-picker-overlay";
-    root.setAttribute("role", "dialog");
-    root.setAttribute("aria-modal", "true");
-    root.setAttribute("aria-label", t("classPicker.ariaDialog"));
-    root.innerHTML = `
-      <div class="class-picker-panel">
-        <label class="class-picker-name-label">
-          <span class="class-picker-name-caption">${t("classPicker.nameCaption")}</span>
-          <input type="text" class="class-picker-name-input" maxlength="${PLAYER_DISPLAY_NAME_MAX_LEN}"
-            autocomplete="nickname" spellcheck="false" placeholder="" />
-        </label>
-        <button type="button" class="class-picker-continue-btn" aria-label="${t("classPicker.continue")}">→</button>
-      </div>
-    `;
-    const nameInput = root.querySelector(".class-picker-name-input") as HTMLInputElement;
-    const continueBtn = root.querySelector(".class-picker-continue-btn") as HTMLButtonElement;
+export async function pickShipLobbyChoice(signal?: AbortSignal): Promise<ShipLobbyChoice> {
+  const root = document.createElement("div");
+  root.className = "class-picker-overlay";
+  root.setAttribute("role", "dialog");
+  root.setAttribute("aria-modal", "true");
+  root.setAttribute("aria-label", t("classPicker.ariaDialog"));
+  root.innerHTML = `
+    <div class="class-picker-panel">
+      <label class="class-picker-name-label">
+        <span class="class-picker-name-caption">${t("classPicker.nameCaption")}</span>
+        <input type="text" class="class-picker-name-input" maxlength="${PLAYER_DISPLAY_NAME_MAX_LEN}"
+          autocomplete="nickname" spellcheck="false" placeholder="" />
+      </label>
+      <button type="button" class="class-picker-continue-btn" aria-label="${t("classPicker.continue")}">→</button>
+    </div>
+  `;
+  const nameInput = root.querySelector(".class-picker-name-input") as HTMLInputElement;
+  const continueBtn = root.querySelector(".class-picker-continue-btn") as HTMLButtonElement;
 
-    const finish = (): void => {
-      root.remove();
-      resolve({ shipClass: SHIP_CLASS_FAC, displayName: nameInput.value });
-    };
-
-    continueBtn.addEventListener("click", () => finish());
-    nameInput.addEventListener("keydown", (e) => {
-      if (e.key === "Enter") {
-        e.preventDefault();
-        finish();
-      }
-    });
-
-    document.body.appendChild(root);
-    queueMicrotask(() => nameInput.focus());
-  });
+  await waitForDialog(root, continueBtn, { signal, enterInput: nameInput });
+  return { shipClass: SHIP_CLASS_FAC, displayName: nameInput.value };
 }

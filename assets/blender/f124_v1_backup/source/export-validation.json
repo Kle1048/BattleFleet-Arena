@@ -1,0 +1,60 @@
+{
+  "status": "pass",
+  "hullMetres": [
+    17.399999618530273,
+    41.5,
+    143
+  ],
+  "checks": [
+    "single scene",
+    "embedded PNGs",
+    "UV coordinates",
+    "exact socket names and JSON agreement",
+    "bf_muzzle per mount",
+    "real BattleFleet prepare and mount attachment scales"
+  ],
+  "files": [
+    {
+      "file": "client/public/assets/ships/hull_f124.glb",
+      "bytes": 1654940,
+      "triangles": 6064,
+      "nodes": [
+        "MESH_F124_HULL_F124_FlightDeck_UV",
+        "MESH_F124_HULL_F124_PaintedSteel_UV",
+        "MESH_F124_HULL_F124_Pennant_Alpha",
+        "RAIL_ssm_rail_port",
+        "RAIL_ssm_rail_starboard",
+        "SOCKET_main_fwd",
+        "SOCKET_ram_aft",
+        "SOCKET_ram_fwd"
+      ]
+    },
+    {
+      "file": "client/public/assets/systems/mount_f124_76mm.glb",
+      "bytes": 598124,
+      "triangles": 176,
+      "nodes": [
+        "bf_muzzle",
+        "MESH_F124_TEMPLATE_76mm_F124_PaintedSteel_UV"
+      ]
+    },
+    {
+      "file": "client/public/assets/systems/mount_f124_ram.glb",
+      "bytes": 632120,
+      "triangles": 716,
+      "nodes": [
+        "bf_muzzle",
+        "MESH_F124_TEMPLATE_ram_F124_PaintedSteel_UV"
+      ]
+    },
+    {
+      "file": "client/public/assets/systems/mount_f124_harpoon.glb",
+      "bytes": 604068,
+      "triangles": 260,
+      "nodes": [
+        "bf_muzzle",
+        "MESH_F124_TEMPLATE_harpoon_F124_PaintedSteel_UV"
+      ]
+    }
+  ]
+}

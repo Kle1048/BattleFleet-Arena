@@ -9,8 +9,10 @@ type DebugOverlayLike = {
   }) => void;
 };
 
-export function installGlobalRuntimeErrorHandlers(debugOverlay: DebugOverlayLike): void {
-  window.addEventListener("unhandledrejection", (ev) => {
+export function installGlobalRuntimeErrorHandlers(debugOverlay: DebugOverlayLike): () => void {
+  let disposed = false;
+  const onRejection = (ev: PromiseRejectionEvent) => {
+    if (disposed) return;
     const msg = ev.reason instanceof Error ? ev.reason.message : String(ev.reason);
     console.error("unhandledrejection", ev.reason);
     debugOverlay.update({
@@ -21,5 +23,11 @@ export function installGlobalRuntimeErrorHandlers(debugOverlay: DebugOverlayLike
       diag: undefined,
       warn: `Unhandled: ${msg}`,
     });
-  });
+  };
+  window.addEventListener("unhandledrejection", onRejection);
+  return () => {
+    if (disposed) return;
+    disposed = true;
+    window.removeEventListener("unhandledrejection", onRejection);
+  };
 }

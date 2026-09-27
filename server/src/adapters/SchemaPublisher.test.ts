@@ -1,0 +1,62 @@
+import assert from "node:assert/strict";
+import { BattleState } from "@battlefleet/shared/protocol/schema";
+import { SimulationState } from "../simulation/SimulationState.js";
+import { testParticipants } from "../simulation/testParticipants.js";
+import { SchemaPublisher } from "./SchemaPublisher.js";
+
+const source = new SimulationState(), wire = new BattleState();
+const publisher = new SchemaPublisher(wire);
+const fixture = testParticipants("a", "b");
+for (const p of fixture.players.values()) source.participants.add(p, fixture.simulations.get(p.id)!);
+const a = source.playerList[0]!;
+source.missileList.push({ missileId: 1, ownerId: "a", targetId: "b", x: 1, z: 2, headingRad: 3 });
+source.torpedoList.push({ torpedoId: 2, ownerId: "b", x: 4, z: 5, headingRad: 6 });
+source.wreckList.push({ wreckId: "w", anchorX: 7, anchorZ: 8, headingRad: 9, variant: 2, shipClass: "fac",
+  deathAtMs: 10, createdAtMs: 11, expiresAtMs: 12 });
+publisher.publish(source);
+const wireA = wire.playerList.at(0)!;
+assert.notEqual(wireA, a);
+assert.deepEqual(wireA.toJSON(), a, "all scalar fields including defaults are projected");
+assert.deepEqual(wire.missileList.at(0)!.toJSON(), source.missileList[0]);
+assert.deepEqual(wire.torpedoList.at(0)!.toJSON(), source.torpedoList[0]);
+assert.deepEqual(wire.wreckList.at(0)!.toJSON(), source.wreckList[0]);
+const incremental = new BattleState();
+incremental.decode(wire.encodeAll());
+wire.discardAllChanges();
+// Every copied field is exercised, not only the ones changed by the combat fixture.
+for (const key of Object.keys(a) as (keyof typeof a)[]) {
+  if (key === "id") continue;
+  const value = a[key];
+  Reflect.set(a, key, typeof value === "number" ? value + 7 : typeof value === "boolean" ? !value : value + "_test");
+}
+publisher.publish(source);
+assert.equal(wire.playerList.at(0), wireA, "existing schema object remains stable");
+assert.deepEqual(wireA.toJSON(), a);
+incremental.decode(wire.encode());
+assert.deepEqual(incremental.toJSON(), wire.toJSON(), "changed scalar fields survive delta encoding");
+wire.discardAllChanges();
+const authoritativeHp = a.hp;
+wireA.hp = -999; wireA.displayName = "network mutation";
+assert.equal(a.hp, authoritativeHp);
+assert.notEqual(a.displayName, wireA.displayName, "there is no schema-to-domain write path");
+publisher.publish(source);
+assert.equal(wireA.hp, authoritativeHp);
+const decoded = new BattleState();
+decoded.decode(wire.encodeAll());
+assert.deepEqual(decoded.toJSON(), wire.toJSON(), "projection is valid Colyseus wire state");
+source.participants.remove("a");
+const replacement = testParticipants("a");
+source.participants.add(replacement.players.get("a")!, replacement.simulations.get("a")!);
+publisher.publish(source);
+assert.deepEqual([...wire.playerList].map(p => p.id), ["b", "a"]);
+assert.notEqual(wire.playerList.at(1), wireA, "remove/rejoin between publications still replaces identity");
+incremental.decode(wire.encode());
+assert.deepEqual(incremental.toJSON(), wire.toJSON(), "remove/rejoin is a valid incremental schema patch");
+wire.discardAllChanges();
+source.participants.clear(); source.missileList.length = 0;
+source.torpedoList.length = 0; source.wreckList.length = 0;
+publisher.publish(source); publisher.publish(source);
+assert.deepEqual([wire.playerList.length, wire.missileList.length, wire.torpedoList.length, wire.wreckList.length], [0, 0, 0, 0]);
+incremental.decode(wire.encode());
+assert.deepEqual(incremental.toJSON(), wire.toJSON(), "all collection removals survive delta encoding");
+console.log("one-way schema projection, every scalar field, encoding and identity lifecycle ok");

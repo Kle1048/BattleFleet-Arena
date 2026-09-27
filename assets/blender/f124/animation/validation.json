@@ -1,0 +1,29 @@
+{
+  "passed": true,
+  "source": "shared/src/data/ships/destroyer.json",
+  "samples": 961,
+  "gameClamp": "clampYawToMountSector",
+  "limitCounts": {
+    "main_fwd": 240,
+    "ram_fwd": 240,
+    "ram_aft": 179
+  },
+  "mounts": [
+    {
+      "id": "main_fwd",
+      "gameSlot": "main_fwd",
+      "halfAngleDegrees": 119.99999999999999
+    },
+    {
+      "id": "ram_fwd",
+      "gameSlot": "ciws_fwd",
+      "halfAngleDegrees": 150.00000000000003
+    },
+    {
+      "id": "ram_aft",
+      "gameSlot": "sam_aft",
+      "halfAngleDegrees": 119.99999999999999
+    }
+  ],
+  "note": "Pitch limits and slew speed are scene-only presentation settings, not game rules."
+}

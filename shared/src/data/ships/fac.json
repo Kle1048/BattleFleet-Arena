@@ -1,11 +1,15 @@
 {
   "profileId": "fac",
-  "labelDe": "FAC (Schnellboot-Klasse)",
-  "hullGltfId": "fac",
+  "labelDe": "Gepard-Klasse (Typ 143A)",
+  "hullGltfId": "gepard",
   "hullVisualScale": 0.00968,
   "clientVisualTuningDefaults": {
-    "gltfHullYOffset": -600,
-    "spriteScale": 1
+    "gltfHullYOffset": -338.5416666666667,
+    "spriteScale": 1,
+    "gltfHullOffsetX": 0,
+    "gltfHullOffsetZ": 0,
+    "shipPivotLocalZ": 0,
+    "wakeSpawnLocalZ": -18.4
   },
   "collisionHitbox": {
     "center": { "x": 0, "y": 0, "z": 0 },
@@ -51,7 +55,7 @@
       "visualId": "visual_ssm",
       "launchYawRadFromBow": -0.7853981633974483,
       "socket": {
-        "position": { "x": -2.4, "y": 1.0, "z": -9 },
+        "position": { "x": 0, "y": 2.1911428571428573, "z": -18.2 },
         "eulerRad": { "x": 0, "y": -0.7853981633974483, "z": 0 }
       }
     },
@@ -61,7 +65,7 @@
       "visualId": "visual_ssm",
       "launchYawRadFromBow": 0.7853981633974483,
       "socket": {
-        "position": { "x": 2.4, "y": 1.0, "z": -9 },
+        "position": { "x": 0, "y": 2.264, "z": -10.6 },
         "eulerRad": { "x": 0, "y": 0.7853981633974483, "z": 0 }
       }
     }

@@ -44,6 +44,7 @@ export function createDebugOverlay(options?: {
   /** `false` = nur FPS/Frame/Ping (+ optional Warnung); `true` = volles Debug inkl. Toggle. */
   setDevPanelsVisible: (visible: boolean) => void;
   getDevPanelsVisible: () => boolean;
+  dispose(): void;
 } {
   const el = document.createElement("div");
   el.id = "debug-overlay";
@@ -93,8 +94,10 @@ export function createDebugOverlay(options?: {
   applyCompact(readDebugCompact());
 
   let devPanelsVisible = false;
+  let disposed = false;
 
   const setDevPanelsVisible = (visible: boolean): void => {
+    if (disposed) return;
     devPanelsVisible = visible;
     el.classList.toggle("debug-overlay--minimal", !visible);
     if (visible) {
@@ -104,14 +107,21 @@ export function createDebugOverlay(options?: {
     }
   };
 
-  toggle.addEventListener("click", () => {
-    if (!devPanelsVisible) return;
+  const onToggle = () => {
+    if (disposed || !devPanelsVisible) return;
     applyCompact(!el.classList.contains("debug-overlay--compact"));
-  });
+  };
+  toggle.addEventListener("click", onToggle);
 
   setDevPanelsVisible(false);
 
   return {
+    dispose() {
+      if (disposed) return;
+      disposed = true;
+      toggle.removeEventListener("click", onToggle);
+      el.remove();
+    },
     update({
       fps,
       roomId,
@@ -121,6 +131,7 @@ export function createDebugOverlay(options?: {
       diag: diagText,
       warn: warnText,
     }): void {
+      if (disposed) return;
       const minimal = el.classList.contains("debug-overlay--minimal");
       const ping = pingMs == null ? "—" : `${Math.round(pingMs)} ms`;
       const fpsStr = fps.toFixed(0);

@@ -117,6 +117,7 @@ export function createInputHandlers(
   dispose: () => void;
 } {
   const keys = new Set<string>();
+  let disposed = false;
   const mobileSurface = isMobileControlSurface();
   const telegraph = createMachineryTelegraphLevers({ interactive: mobileSurface });
   const mobileControls = createMobileControls(
@@ -149,6 +150,7 @@ export function createInputHandlers(
   }
 
   function toggleKeyboardControlMode(): void {
+    if (disposed) return;
     keyboardControlMode = keyboardControlMode === "hold" ? "step" : "hold";
     writeKeyboardControlMode(keyboardControlMode);
     updateControlModeButton();
@@ -166,6 +168,7 @@ export function createInputHandlers(
   }
 
   const onDown = (e: KeyboardEvent): void => {
+    if (disposed) return;
     keys.add(e.code);
     if (e.code === "Space") {
       e.preventDefault();
@@ -211,6 +214,7 @@ export function createInputHandlers(
   let lastCanvasPointerType: string | null = null;
 
   const onMove = (e: PointerEvent): void => {
+    if (disposed) return;
     lastCanvasPointerType = e.pointerType;
     const rect = canvas.getBoundingClientRect();
     const x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
@@ -219,13 +223,15 @@ export function createInputHandlers(
     mouseNdcY = y;
   };
   canvas.addEventListener("pointermove", onMove);
-  canvas.addEventListener("contextmenu", (e) => e.preventDefault());
-  canvas.addEventListener("auxclick", (e) => e.preventDefault());
+  const preventCanvasMenu = (e: Event): void => e.preventDefault();
+  canvas.addEventListener("contextmenu", preventCanvasMenu);
+  canvas.addEventListener("auxclick", preventCanvasMenu);
 
   let lmbHeld = false;
   let rmbHeld = false;
   let mmbHeld = false;
   const onPointerDown = (e: PointerEvent): void => {
+    if (disposed) return;
     if (e.target === canvas) {
       lastCanvasPointerType = e.pointerType;
     }
@@ -265,6 +271,10 @@ export function createInputHandlers(
   window.addEventListener("pointerup", onPointerUp);
 
   function sample(): InputSample {
+    if (disposed) return {
+      throttle: 0, rudderInput: 0, aimWorldX: 0, aimWorldZ: 0,
+      primaryFire: false, secondaryFire: false, torpedoFire: false, radarActive: true,
+    };
     const mobile = mobileControls.sample();
     if (!mobile.active) {
       pinViewport = null;
@@ -382,6 +392,7 @@ export function createInputHandlers(
   }
 
   function queueRadarToggle(): void {
+    if (disposed) return;
     pendingRadarToggles += 1;
   }
 
@@ -389,10 +400,17 @@ export function createInputHandlers(
     sample,
     queueRadarToggle,
     dispose: () => {
+      if (disposed) return;
+      disposed = true;
+      keys.clear();
+      pendingRadarToggles = 0;
+      pinViewport = null;
       window.removeEventListener("keydown", onDown);
       window.removeEventListener("keyup", onUp);
       controlModeButton.removeEventListener("click", toggleKeyboardControlMode);
       canvas.removeEventListener("pointermove", onMove);
+      canvas.removeEventListener("contextmenu", preventCanvasMenu);
+      canvas.removeEventListener("auxclick", preventCanvasMenu);
       canvas.removeEventListener("pointerdown", onPointerDown);
       canvas.removeEventListener("pointerup", onPointerUp);
       canvas.removeEventListener("pointercancel", onPointerUp);

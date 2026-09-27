@@ -1,6 +1,6 @@
 # Zielarchitektur — BattleFleet Arena
 
-Stand: 26.09.2026. Status: **Planungsbaseline für Review-Punkte 12–14, noch nicht implementiert.**
+Stand: 27.09.2026. Status: **Review-Punkte 12–14 implementiert und lokal abgenommen.** Diese Architektur bleibt die verbindliche Grenze für weitere Änderungen. Messungen, Nachweise und Betriebsgrenzen führt das [Arbeitsprotokoll](./REFACTORING-PROGRESS.md).
 
 Dieses Dokument legt Verantwortlichkeiten und Abhängigkeitsregeln für den Modulaufbruch fest. Die Umsetzung folgt dem [Refactoring-Plan](./REFACTORING-PLAN.md). Abweichungen werden vor der betreffenden Extraktion hier begründet; Dateinamen dürfen angepasst werden, fachliche Grenzen nicht stillschweigend.
 
@@ -8,9 +8,9 @@ Die langfristige [Vision](../way-ahead.md) bleibt erhalten. Hier wird daraus ein
 
 ## 1. Ausgangslage und Umfang
 
-Am aktuellen Arbeitsstand überprüft, einschließlich noch nicht committeter Änderungen aus den bisherigen Review-Punkten:
+Planungsbaseline vom 26.09.2026, vor der Extraktion; die rechte Spalte ist inzwischen umgesetzt:
 
-| Bereich | Heute | Ziel nach dem Umbau |
+| Bereich | Vor dem Umbau | Umgesetztes Ziel |
 | --- | --- | --- |
 | Server | `BattleRoom` verbindet Netzwerk, Schema, Regeln, Bots, Tick und Match-Speicherung | Dünner Colyseus-Adapter, headless Simulation, getrennte Anwendung und Speicherung |
 | Shared | Reine Regeln, Content und Colyseus-Schema über einen breiten Einstieg | Portable Regeln/Typen getrennt vom transportgebundenen Schema |
@@ -49,7 +49,7 @@ Erlaubte Richtung: äußere Adapter → Anwendung/Simulation → portable Regeln
 
 ## 4. Zielstruktur und Zuständigkeiten
 
-Die folgenden Pfade sind **geplant**, keine Behauptung über bereits vorhandene Dateien. Bestehende Module bleiben stehen, bis der jeweilige Schritt sie betrifft. Die Liste zeigt Grenzen, nicht die Pflicht, für jeden Eintrag sofort eine Datei anzulegen.
+Die folgende Übersicht beschreibt die umgesetzten Grenzen. Bestehende reine Helfer wurden nicht allein für ein neues Verzeichnis verschoben; Frame-Phasen bleiben beispielsweise unter `game/runtime`.
 
 ```text
 shared/src/
@@ -61,20 +61,20 @@ server/src/
   index.ts                     # Prozessstart und Verdrahtung
   rooms/BattleRoom.ts           # Colyseus-Lifecycle, Transport, Tick-Trigger
   adapters/                    # Command-, Schema- und Event-Mapping
-  application/                 # ConfigService, MatchResultService, Room-Verwaltung
+  application/                 # ConfigService, MatchResultService, Settings und Shutdown
   simulation/
     GameSimulation.ts          # Einstieg und explizite Phasenfolge
     SimulationState.ts         # Eigener, transportfreier Zustand
     ParticipantRegistry.ts     # Teilnehmer und abgeleitete Indizes
     systems/                   # Bots, Match, Life, Movement, Combat, Collision
   persistence/                 # Ports, WriteQueue, JSON-Adapter; später ggf. SQLite
-  ops/                         # Bestehende Metriken und Betriebsdiagnostik
+  tickMetrics.ts               # Bestehende begrenzte Betriebsdiagnostik
 client/src/
   main.ts                      # Minimaler Einstieg
   game/app/                    # createGameApp, GameSession, Start/Stop/Dispose
   game/runtime/                # Frame-Scheduler, Cadence, Kamera, Lifecycle-Helfer
   game/adapters/               # Netzwerk → Read Model/Ereignisse, Input → Netzwerk
-  game/presentation/           # World-, Cockpit-, Match-, Audio-/FX-Presenter
+  game/presentation/           # Read Model, Cockpit-Vertrag, Event-/Feedback-Presenter
   game/renderers/              # Bestehende Schiffs-/Welt-Darstellung
   game/effects/                # Effektrezepte, ParticlePool, Sprite-Backend
   game/audio/                  # Bestehende Audio-Implementierungen
@@ -152,17 +152,17 @@ Lebensdauervertrag:
 - Shutdown stoppt zuerst neue Arbeit/Eingabe, löst Abonnements und Verbindung, entsorgt dann Presenter und Ressourcen in umgekehrter Abhängigkeitsreihenfolge. Wiederholtes Dispose ist unschädlich.
 - Späte Asset-/Netzwerk-Ergebnisse dürfen eine beendete Session nicht wiederbeleben; Abort-/Generation-Checks bleiben erhalten.
 - Asset-Caches besitzen gemeinsam genutzte Geometrien/Texturen; Instanzen nur ihre eigenen Materialien/Overlays. Details stehen im Asset-Lifecycle-Dokument.
-- Ein Start–Join–Leave–erneuter Join darf keine doppelten Listener oder wachsende Ressourcenbestände erzeugen. Das ist ein neues Abnahmekriterium, keine Behauptung über den heutigen vollständigen Cleanup.
+- Ein Start–Join–Leave–erneuter Join darf keine doppelten Listener oder wachsende Ressourcenbestände erzeugen. Headless-Lifecycles und 21 echte Same-App-Sessions wurden geprüft; das ist keine unbegrenzte Laufzeitgarantie.
 
 ## 7. Persistenz — Punkt 13
 
 Die Simulation erzeugt ein Match-Ergebnis, kennt aber kein Repository. `MatchResultService` übernimmt dieses als eigenes DTO. `ConfigService` trennt validierte, veröffentlichte Konfiguration von einem noch nicht bestätigten Schreibwunsch.
 
-Geplante fachliche Ports:
+Umgesetzte fachliche Ports:
 
 | Port | Vertragskern |
 | --- | --- |
-| ConfigRepository | `load`, `save` mit Revision; Promise erfüllt erst nach vereinbartem Commit |
+| ConfigRepository | `load`, `patch` auf letzter bestätigter Revision; Promise erfüllt erst nach vereinbartem Commit |
 | LeaderboardRepository | `recordMatch(matchId, results)`, `top`, `reset`; atomar, Match-ID-Deduplizierung persistent |
 | StorageLifecycle | `flush`/`close`; begrenzte Shutdown-Frist und sichtbare Fehler |
 
@@ -181,6 +181,12 @@ Weitere verbindliche Semantik:
 
 **SQLite ist die nächste Option, keine vorab installierte Pflicht.** Entscheidung vor einem Backendwechsel anhand Datenmenge, Write-Latenz, Transaktionen und Betriebsbedarf dokumentieren. Ein synchroner Treiber im Tick-/HTTP-Prozess wäre keine Lösung für Event-Loop-Blockierung; ggf. Worker oder passende asynchrone Anbindung. Mehrere Serverprozesse/Hosts sind mit der ersten JSON-Lösung nicht freigegeben. PostgreSQL erst bei entsprechendem Betriebsbedarf.
 
+Implementierungsentscheidung 27.09.2026: [Persistenzvertrag und Recovery](./PERSISTENCE.md).
+Config/Reset verwenden revisionsbedingte Admin-Anfragen; Queue-Reihenfolge gilt auch
+für Retries und Reset. Deduplizierungsmarker bleiben innerhalb eines begrenzten
+16-MiB-Dokuments erhalten (kein stilles Ablaufdatum). Commit bedeutet File-Sync plus
+Rename, Directory-Sync nur bei Plattformunterstützung; Pending-RAM ist keine Outbox.
+
 ## 8. Partikel — Punkt 14
 
 Die öffentliche FX-API und Effektrezepte bleiben zunächst gleich. Intern werden drei Aufgaben getrennt: Effektbeschreibung/Emitter, Partikellebensdauer/Pool und Three.js-Darstellung.
@@ -191,6 +197,12 @@ Die öffentliche FX-API und Effektrezepte bleiben zunächst gleich. Intern werde
 4. Sprite-Backend zuerst beibehalten. Erst Messungen von CPU-Framezeit, Draw Calls, GPU-Zeit und Speicher rechtfertigen Instancing/Batches. Transparenz, Sortierung, Blending, Culling und unabhängige Farben/Alpha sind Abnahmekriterien.
 
 Keine neue Qualitätsreduktion als versteckter Performance-Fix. Ein späteres Budget-/LOD-System benötigt eine eigene Produktentscheidung.
+
+Implementiert: `effects/fxSystem.ts` (Rezepte/Terminierung), `ParticlePool.ts` und
+`indexHeap.ts` (Lebensdauer/Indizes), `spriteParticleBackend.ts` (Three.js-Ressourcen
+und Kinematik). Min-Index-Freilisten und Alters-Heap bewahren die bisherige
+Wiederverwendungs-/Verdrängungsordnung. Punkt 14.2 bleibt bewusst ungenutzt: keine
+neue Batch-/Instancing-Komplexität ohne gesonderte Render-Optimierungsentscheidung.
 
 ## 9. Sicherheits- und Betriebsgrenzen
 
@@ -206,3 +218,8 @@ Keine neue Qualitätsreduktion als versteckter Performance-Fix. Ein späteres Bu
 Für jede Extraktion gelten die Gates im [Refactoring-Plan](./REFACTORING-PLAN.md). Am Ende gibt es keine produktive Legacy-Delegation, keine Regelkopie in Alt-/Neumodul, keinen zyklischen Import und keinen I/O-Aufruf in der Simulation. Modulgröße ist ein Warnsignal, aber keine starre Zeilenzahlvorgabe: Ziel ist eine klar benennbare Verantwortung mit schmalen Verträgen.
 
 Änderungen an Tick-Timing, Protokoll, Speicherdurabilität, Backend oder Partikelbild werden als eigene Entscheidung mit Anlass, Alternative, Auswirkung, Test und Rückweg ergänzt. Die langfristige Vision allein ist keine Freigabe für zusätzliche Features während des Refactorings.
+
+Separat freigegebene Inhaltsänderung am Abschlussstand: [Gepard/FAC und neue
+Kampf-Referenz](./CONTENT-BASELINE-GEPARD.md). Die alte Refactoring-Referenz wurde
+zuerst mit dem alten Content bestätigt und bleibt archiviert; die neue Referenz
+ist ausdrücklich keine nachträgliche Kaschierung einer Extraktionsabweichung.

@@ -15,41 +15,41 @@ const client = { sessionId: "human", send(type: string) { events.push(type); } }
 try {
   room.onCreate(); room.setSimulationInterval();
   room.onJoin(client, { displayName: "Human" });
-  const p = room.state.playerList.at(0)!;
-  assert.equal(room["findPlayer"]("human"), p);
+  const p = room["simulation"].state.playerList.at(0)!;
+  assert.equal(room["simulation"]["findPlayer"]("human"), p);
   assert.equal(room["clientsById"].get("human"), client);
-  assert.equal(room["findPlayer"]("missing"), undefined);
-  room["sendCollisionContact"]("human", "island");
+  assert.equal(room["simulation"]["findPlayer"]("missing"), undefined);
+  room["gameEvents"].send("human", "collisionContact", { kind: "island" });
   assert.deepEqual(events, ["collisionContact"]);
-  const config = room["movementCfgForPlayer"](p);
-  assert.equal(room["movementCfgForPlayer"](p), config);
+  const config = room["simulation"]["movement"].configForPlayer(p);
+  assert.equal(room["simulation"]["movement"].configForPlayer(p), config);
   for (const [shipClass, level] of [["fac", 4], ["destroyer", 5], ["cruiser", 7]] as const) {
     p.shipClass = shipClass; p.level = level;
-    const current = room["movementCfgForPlayer"](p);
+    const current = room["simulation"]["movement"].configForPlayer(p);
     assert.notEqual(current, config);
     assert.deepEqual(current, movementConfigForPlayer(DESTROYER_LIKE_MVP, getShipClassProfile(shipClass), level,
       getAuthoritativeShipHullProfile(shipClass)?.movement ?? null));
-    assert.equal(room["movementCfgForPlayer"](p), current);
+    assert.equal(room["simulation"]["movement"].configForPlayer(p), current);
   }
   room.restartRoundFromAdmin();
-  assert.equal(room["findPlayer"]("human"), p);
-  assert.deepEqual(room["movementCfgForPlayer"](p), config);
-  room["spawnServerBot"]();
-  const botId = [...room["serverBotIds"]][0]!;
-  assert(room["findPlayer"](botId));
+  assert.equal(room["simulation"]["findPlayer"]("human"), p);
+  assert.deepEqual(room["simulation"]["movement"].configForPlayer(p), config);
+  room["simulation"]["bots"].spawn();
+  const botId = [...room["simulation"]["bots"].ids][0]!;
+  assert(room["simulation"]["findPlayer"](botId));
   assert(!room["clientsById"].has(botId));
-  room["removeServerBot"](botId);
-  assert(!room["findPlayer"](botId));
+  room["simulation"]["bots"].remove(botId);
+  assert(!room["simulation"]["findPlayer"](botId));
   room["physicsStep"](0.05);
-  assert.equal(room["playersById"].size, room.state.playerList.length);
+  assert.equal(room["simulation"]["participants"].players.size, room["simulation"].state.playerList.length);
   room.onLeave(client);
-  assert(!room["findPlayer"]("human")); assert(!room["clientsById"].has("human"));
-  room["sendCollisionContact"]("human", "ship");
+  assert(!room["simulation"]["findPlayer"]("human")); assert(!room["clientsById"].has("human"));
+  room["gameEvents"].send("human", "collisionContact", { kind: "ship" });
   assert.deepEqual(events, ["collisionContact"]);
   room.onJoin(client);
-  assert.notEqual(room["findPlayer"]("human"), p);
+  assert.notEqual(room["simulation"]["findPlayer"]("human"), p);
   room.onDispose();
-  assert.equal(room["playersById"].size, 0); assert.equal(room["clientsById"].size, 0);
+  assert.equal(room["simulation"]["participants"].players.size, 0); assert.equal(room["clientsById"].size, 0);
 } finally {
   room.setSimulationInterval(); room.setPatchRate(null); room.clock.clear(); room.clock.stop(); room.onDispose();
   rmdirSync(dir);

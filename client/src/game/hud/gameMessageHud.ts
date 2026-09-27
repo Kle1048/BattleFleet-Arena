@@ -18,6 +18,7 @@ export type GameMessageHudOptions = {
 };
 
 export type GameMessageHud = {
+  dispose(): void;
   /**
    * Toast-Meldung (wird von OOB verdrängt, danach wieder angezeigt falls noch gültig).
    */
@@ -60,11 +61,19 @@ export function createGameMessageHud(options?: GameMessageHudOptions): GameMessa
   document.body.appendChild(wrap);
 
   let toastUntilMs = 0;
+  let disposed = false;
   let toastText = "";
   let toastKind: "info" | "danger" = "info";
 
   return {
+    dispose() {
+      if (disposed) return;
+      disposed = true;
+      toastText = "";
+      wrap.remove();
+    },
     showToast(text, kind = "info", durationMs = 4500) {
+      if (disposed) return;
       toastText = text;
       toastKind = kind;
       toastUntilMs = performance.now() + durationMs;
@@ -76,6 +85,7 @@ export function createGameMessageHud(options?: GameMessageHudOptions): GameMessa
       });
     },
     updateFrame(nowMs, oobCountdownSec, spawnProtectionSec) {
+      if (disposed) return;
       if (oobCountdownSec > 0) {
         wrap.style.display = "flex";
         titleEl.style.color = "#ff8a8a";

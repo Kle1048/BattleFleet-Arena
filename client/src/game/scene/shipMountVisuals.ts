@@ -13,7 +13,7 @@ import {
   ROTATING_WEAPON_GUIDE_KINDS,
   weaponEngagementRangeWorldForMountVisualId,
 } from "@battlefleet/shared";
-import { resolveMountGltfUrl } from "../runtime/mountGltfUrls";
+import { resolveMountGltfUrl, resolveMountModelVisualId } from "../runtime/mountGltfUrls";
 import { renderToWorldX } from "../runtime/renderCoords";
 import { cloneMeshMaterialsDeep, collectHullMeshMaterials } from "./shipGltfHull";
 import { readMarkedSocketTransformsFromHullGltf } from "./shipSocketGltf";
@@ -175,9 +175,10 @@ export function attachMountVisualsToHullModel(
       trainSlot?: MountSlotDefinition;
     },
   ): void => {
-    const tpl = getTemplate(visualId);
+    const modelVisualId = resolveMountModelVisualId(visualId, profile.hullGltfId);
+    const tpl = getTemplate(modelVisualId);
     if (!tpl) {
-      const url = resolveMountGltfUrl(visualId);
+      const url = resolveMountGltfUrl(modelVisualId);
       console.warn(
         `[BattleFleet] Mount GLB template missing for visualId "${visualId}" (anchor "${name}"). ` +
           `URL: ${url} — preload failed, 404, or unknown id (see mountGltfUrls.ts).`,

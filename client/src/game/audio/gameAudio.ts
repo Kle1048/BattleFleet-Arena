@@ -7,7 +7,8 @@
  */
 
 import { type SoundId, SoundUrls } from "./soundCatalog";
-import { disposeDynamicMusic, setDynamicMusicBufferMap, updateDynamicMusic as runDynamicMusicUpdate } from "./dynamicMusic";
+import { disposeDynamicMusic, stopDynamicMusic, setDynamicMusicBufferMap, updateDynamicMusic as runDynamicMusicUpdate } from "./dynamicMusic";
+import { createAnimationLifetime } from "../runtime/animationLifetime";
 import { createAsyncAssetCache, fetchAssetBytes } from "../runtime/asyncAssetCache";
 import {
   type ListenerShipPose,
@@ -23,6 +24,7 @@ import { getEngineUserMult } from "./soundMixState";
 
 let audioCtx: AudioContext | null = null;
 let disposed = false;
+let sessionSounds = createAnimationLifetime();
 
 let listenerPose: ListenerShipPose | null = null;
 
@@ -228,6 +230,12 @@ function beep(
   osc.connect(g);
   g.connect(panner);
   panner.connect(c.destination);
+  const release = sessionSounds.own(() => {
+    osc.onended = null;
+    try { osc.stop(); } catch { /* It may already have ended. */ }
+    osc.disconnect(); g.disconnect(); panner.disconnect();
+  });
+  osc.onended = release;
   osc.start(t0);
   osc.stop(t0 + durMs / 1000 + 0.05);
 }
@@ -251,11 +259,18 @@ function playBuffer(id: SoundId, gain = 0.35, spatial?: SpatialSoundOpts): boole
   src.connect(g);
   g.connect(panner);
   panner.connect(c.destination);
+  const release = sessionSounds.own(() => {
+    src.onended = null;
+    try { src.stop(); } catch { /* It may already have ended. */ }
+    src.disconnect(); g.disconnect(); panner.disconnect();
+  });
+  src.onended = release;
   src.start();
   return true;
 }
 
 function emitSoundId(id: SoundId, gain = 0.35, spatial?: SpatialSoundOpts): void {
+  if (disposed) return;
   if (playBuffer(id, gain, spatial)) return;
   switch (id) {
     case "primaryFire":
@@ -272,7 +287,7 @@ function emitSoundId(id: SoundId, gain = 0.35, spatial?: SpatialSoundOpts): void
       break;
     case "levelUp":
       beep(523, 55, 0.065, "sine", spatial);
-      window.setTimeout(() => beep(784, 80, 0.06, "sine", spatial), 70);
+      sessionSounds.delay(() => beep(784, 80, 0.06, "sine", spatial), 70);
       break;
     case "warning":
       beep(310, 220, 0.08, "triangle", spatial);
@@ -285,8 +300,8 @@ function emitSoundId(id: SoundId, gain = 0.35, spatial?: SpatialSoundOpts): void
       break;
     case "missileLockOn":
       beep(1180, 42, 0.055, "square");
-      window.setTimeout(() => beep(1520, 38, 0.052, "square"), 48);
-      window.setTimeout(() => beep(1180, 32, 0.048, "square"), 100);
+      sessionSounds.delay(() => beep(1520, 38, 0.052, "square"), 48);
+      sessionSounds.delay(() => beep(1180, 32, 0.048, "square"), 100);
       break;
     case "airDefenseSamFire":
       beep(720, 55, 0.055, "square", spatial);
@@ -296,23 +311,23 @@ function emitSoundId(id: SoundId, gain = 0.35, spatial?: SpatialSoundOpts): void
       break;
     case "airDefenseCiwsFire":
       beep(1400, 28, 0.045, "square", spatial);
-      window.setTimeout(() => beep(1650, 22, 0.038, "square", spatial), 34);
+      sessionSounds.delay(() => beep(1650, 22, 0.038, "square", spatial), 34);
       break;
     case "airDefenseCiwsIntercept":
       beep(1850, 38, 0.05, "triangle", spatial);
       break;
     case "weaponHit":
       beep(320, 55, 0.065, "triangle", spatial);
-      window.setTimeout(() => beep(180, 40, 0.05, "square", spatial), 38);
+      sessionSounds.delay(() => beep(180, 40, 0.05, "square", spatial), 38);
       break;
     case "explosion":
       beep(95, 140, 0.09, "sawtooth", spatial);
-      window.setTimeout(() => beep(55, 180, 0.07, "sine", spatial), 45);
+      sessionSounds.delay(() => beep(55, 180, 0.07, "sine", spatial), 45);
       break;
     case "softkillChaff":
       beep(420, 45, 0.042, "square", spatial);
-      window.setTimeout(() => beep(280, 55, 0.038, "triangle", spatial), 38);
-      window.setTimeout(() => beep(190, 70, 0.034, "sawtooth", spatial), 95);
+      sessionSounds.delay(() => beep(280, 55, 0.038, "triangle", spatial), 38);
+      sessionSounds.delay(() => beep(190, 70, 0.034, "sawtooth", spatial), 95);
       break;
     case "telegraphNotchClick":
       beep(1280, 12, 0.006, "triangle", spatial);
@@ -323,6 +338,26 @@ function emitSoundId(id: SoundId, gain = 0.35, spatial?: SpatialSoundOpts): void
 }
 
 export const gameAudio = {
+  /** End a session without disposing the app's audio context or download cache. */
+  stopSession(): void {
+    sessionSounds.dispose();
+    if (!disposed) sessionSounds = createAnimationLifetime();
+    stopDynamicMusic();
+    const engine = engineBed ?? engineSynth;
+    try { engineBed?.source.stop(); } catch { /* Already stopped. */ }
+    try { engineSynth?.osc.stop(); } catch { /* Already stopped. */ }
+    engineBed?.source.disconnect();
+    engineSynth?.osc.disconnect();
+    engine?.filter.disconnect();
+    engine?.gain.disconnect();
+    engineBed = null;
+    engineSynth = null;
+    engineCurrentGain = 0;
+    engineTargetRate = engineCurrentRate = 1;
+    engineTargetFilterHz = engineCurrentFilterHz = 420;
+    listenerPose = null;
+    sfxDuckUntilMs = 0;
+  },
   unlockFromUserGesture(): void {
     void ctx()?.resume();
   },
@@ -342,12 +377,9 @@ export const gameAudio = {
   dispose(): void {
     if (disposed) return;
     disposed = true;
+    gameAudio.stopSession();
     soundCache.dispose();
     disposeDynamicMusic();
-    engineBed?.source.stop();
-    engineSynth?.osc.stop();
-    engineBed = null;
-    engineSynth = null;
     buffers.clear();
     listenerPose = null;
     if (audioCtx) void audioCtx.close();

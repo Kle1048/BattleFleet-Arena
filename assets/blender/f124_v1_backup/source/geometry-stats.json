@@ -1,0 +1,18 @@
+{
+  "F124_HULL": {
+    "triangles": 6064,
+    "mesh_batches": 3
+  },
+  "F124_TEMPLATE_76mm": {
+    "triangles": 176,
+    "mesh_batches": 1
+  },
+  "F124_TEMPLATE_ram": {
+    "triangles": 716,
+    "mesh_batches": 1
+  },
+  "F124_TEMPLATE_harpoon": {
+    "triangles": 260,
+    "mesh_batches": 1
+  }
+}

@@ -51,7 +51,7 @@ type CreateHudRuntimeOptions = {
   matchEndHud: MatchEndHudLike;
   mySessionId: string;
   joinedAt: number;
-  fetchOverallLeaderboard: () => Promise<
+  fetchOverallLeaderboard: (signal: AbortSignal) => Promise<
     Array<{
       displayName: string;
       scoreTotal: number;
@@ -63,6 +63,7 @@ type CreateHudRuntimeOptions = {
 };
 
 export function createHudRuntime(options: CreateHudRuntimeOptions): {
+  dispose(): void;
   updateDebugOverlay: (params: {
     now: number;
     roomState: unknown;
@@ -90,8 +91,38 @@ export function createHudRuntime(options: CreateHudRuntimeOptions): {
   /** Verhindert ~60×/s `show()` während `MATCH_PHASE_ENDED` (DOM-Neuaufbau / „flackert“). */
   let matchEndScoreboardShown = false;
   let leaderboardRequestSeq = 0;
+  let disposed = false;
+  let leaderboardRequest: AbortController | undefined;
+
+  function cancelLeaderboard() {
+    leaderboardRequestSeq++;
+    leaderboardRequest?.abort();
+    leaderboardRequest = undefined;
+  }
+
+  async function loadLeaderboard() {
+    const reqId = ++leaderboardRequestSeq;
+    const request = new AbortController();
+    leaderboardRequest = request;
+    const isCurrent = () => !disposed && reqId === leaderboardRequestSeq && matchEndScoreboardShown;
+    try {
+      const rows = await fetchOverallLeaderboard(request.signal);
+      if (isCurrent()) matchEndHud.setOverallLeaderboard({ status: "ready", rows });
+    } catch {
+      if (isCurrent()) matchEndHud.setOverallLeaderboard({ status: "error" });
+    } finally {
+      if (leaderboardRequest === request) leaderboardRequest = undefined;
+    }
+  }
 
   return {
+    dispose() {
+      if (disposed) return;
+      disposed = true;
+      cancelLeaderboard();
+      if (matchEndScoreboardShown) matchEndHud.hide();
+      matchEndScoreboardShown = false;
+    },
     updateDebugOverlay({
       now,
       roomState,
@@ -105,6 +136,7 @@ export function createHudRuntime(options: CreateHudRuntimeOptions): {
       extraDiagLine,
       perfMetrics,
     }) {
+      if (disposed) return;
       let warn = colyseusWarn;
       if (!warn && now - joinedAt > 4_000 && stateSyncCount === 0) {
         warn = t("debugHud.warnNoRoomStateSync");
@@ -143,6 +175,7 @@ export function createHudRuntime(options: CreateHudRuntimeOptions): {
     },
 
     updateMatchEndHud({ matchEnded, players }) {
+      if (disposed) return;
       if (matchEnded) {
         if (matchEndScoreboardShown) return;
         const rows: {
@@ -171,20 +204,11 @@ export function createHudRuntime(options: CreateHudRuntimeOptions): {
         );
         matchEndHud.show(rows, mySessionId);
         matchEndHud.setOverallLeaderboard({ status: "loading" });
-        const reqId = ++leaderboardRequestSeq;
-        void fetchOverallLeaderboard()
-          .then((overallRows) => {
-            if (reqId !== leaderboardRequestSeq || !matchEndScoreboardShown) return;
-            matchEndHud.setOverallLeaderboard({ status: "ready", rows: overallRows });
-          })
-          .catch(() => {
-            if (reqId !== leaderboardRequestSeq || !matchEndScoreboardShown) return;
-            matchEndHud.setOverallLeaderboard({ status: "error" });
-          });
         matchEndScoreboardShown = true;
+        void loadLeaderboard();
       } else {
         if (matchEndScoreboardShown) {
-          leaderboardRequestSeq += 1;
+          cancelLeaderboard();
           matchEndHud.hide();
           matchEndScoreboardShown = false;
         }

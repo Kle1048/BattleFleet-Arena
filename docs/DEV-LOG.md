@@ -371,4 +371,4 @@ Historische Kurz-Dokumentation der bisherigen Entwicklung.
 
 - Made-with: Cursor
 
-<!-- devlog-rev:bcbf803ab04a584fc80e01a345fed2093375f4b4 -->
+<!-- devlog-rev:231f1a1868ca8e727987a0abea8bcab487cd97d5 -->

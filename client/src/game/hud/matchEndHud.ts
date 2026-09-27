@@ -1,5 +1,5 @@
 /**
- * Task 10 — Vollbild-Scoreboard nach Match-Ende; „Weiter“ → Lobby (Seiten-Reload).
+ * Vollbild-Scoreboard nach Match-Ende; „Weiter“ über den Session-Besitzer.
  */
 
 import { progressionNavalRankEn } from "@battlefleet/shared";
@@ -25,6 +25,7 @@ export type MatchEndScoreRow = {
 };
 
 export type MatchEndHud = {
+  dispose(): void;
   show: (rows: MatchEndScoreRow[], mySessionId: string) => void;
   setOverallLeaderboard: (state: {
     status: "loading" | "error" | "ready";
@@ -76,14 +77,21 @@ export function createMatchEndHud(onPlayAgain: () => void): MatchEndHud {
   const overallTbody = root.querySelector(".match-end-overall-tbody") as HTMLElement;
   const replayBtn = root.querySelector(".match-end-replay") as HTMLButtonElement;
 
-  replayBtn.addEventListener("click", () => {
-    onPlayAgain();
-  });
+  let disposed = false;
+  const onReplay = () => { if (!disposed) onPlayAgain(); };
+  replayBtn.addEventListener("click", onReplay);
 
   document.body.appendChild(root);
 
   return {
+    dispose() {
+      if (disposed) return;
+      disposed = true;
+      replayBtn.removeEventListener("click", onReplay);
+      root.remove();
+    },
     show(rows: MatchEndScoreRow[], mySessionId: string): void {
+      if (disposed) return;
       tbody.textContent = "";
       rows.forEach((r, idx) => {
         const tr = document.createElement("tr");
@@ -104,6 +112,7 @@ export function createMatchEndHud(onPlayAgain: () => void): MatchEndHud {
       root.hidden = false;
     },
     setOverallLeaderboard(state): void {
+      if (disposed) return;
       if (state.status === "loading") {
         overallStatus.textContent = t("matchEnd.overallLoading");
         overallTable.hidden = true;
@@ -133,6 +142,7 @@ export function createMatchEndHud(onPlayAgain: () => void): MatchEndHud {
       });
     },
     hide(): void {
+      if (disposed) return;
       root.hidden = true;
       tbody.textContent = "";
       overallTbody.textContent = "";

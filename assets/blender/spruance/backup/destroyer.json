@@ -1,0 +1,83 @@
+{
+  "profileId": "destroyer",
+  "labelDe": "Zerstörer",
+  "hullGltfId": "destroyer",
+  "hullVisualScale": 0.012,
+  "clientVisualTuningDefaults": {
+    "gltfHullYOffset": -633,
+    "spriteScale": 1
+  },
+  "collisionHitbox": {
+    "center": { "x": 0, "y": 0, "z": 0 },
+    "halfExtents": { "x": 6, "y": 7.5, "z": 60 }
+  },
+  "shipClassId": "destroyer",
+  "movement": {
+    "movementSpeedMul": 1,
+    "turnRateMul": 1,
+    "accelMul": 1
+  },
+  "defaultRotatingMountFireSector": {
+    "kind": "symmetric",
+    "halfAngleRadFromBow": 3.141592653589793
+  },
+  "mountSlots": [
+    {
+      "id": "main_fwd",
+      "compatibleKinds": ["artillery"],
+      "defaultVisualId": "visual_artillery",
+      "fireSector": {
+        "kind": "symmetric",
+        "halfAngleRadFromBow": 2.0943951023931953
+      }
+    },
+    {
+      "id": "ciws_fwd",
+      "compatibleKinds": ["ciws"],
+      "defaultVisualId": "visual_ciws",
+      "fireSector": {
+        "kind": "symmetric",
+        "halfAngleRadFromBow": 2.6179938779914944
+      }
+    },
+    {
+      "id": "sam_aft",
+      "compatibleKinds": ["sam_launcher"],
+      "defaultVisualId": "visual_sam",
+      "fireSector": {
+        "kind": "symmetric",
+        "halfAngleRadFromBow": 2.0943951023931953,
+        "centerYawRadFromBow": 3.141592653589793
+      }
+    }
+  ],
+  "fixedSeaSkimmerLaunchers": [
+    {
+      "id": "ssm_rail_port",
+      "side": "port",
+      "visualId": "visual_ssm",
+      "launchYawRadFromBow": -1.5707963267948966,
+      "socket": {
+        "position": { "x": -3.5, "y": 1.25, "z": 6 },
+        "eulerRad": { "x": 0, "y": -1.5707963267948966, "z": 0 }
+      }
+    },
+    {
+      "id": "ssm_rail_starboard",
+      "side": "starboard",
+      "visualId": "visual_ssm",
+      "launchYawRadFromBow": 1.5707963267948966,
+      "socket": {
+        "position": { "x": 3.5, "y": 1.25, "z": 6 },
+        "eulerRad": { "x": 0, "y": 1.5707963267948966, "z": 0 }
+      }
+    }
+  ],
+  "aswmMagazine": { "port": 4, "starboard": 4 },
+  "aswmMagicReloadMs": 30000,
+  "defaultLoadout": {
+    "main_fwd": "visual_artillery",
+    "ciws_fwd": "visual_ciws",
+    "sam_aft": "visual_sam"
+  }
+}

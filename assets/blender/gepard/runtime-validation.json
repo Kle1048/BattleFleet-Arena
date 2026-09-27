@@ -1,0 +1,48 @@
+{
+  "passed": true,
+  "assembledTriangles": 8398,
+  "hullDimensions": [
+    7.800000190734863,
+    19.450000047683716,
+    57.599998474121094
+  ],
+  "worldLength": 60.015998410118954,
+  "wakeWorldZ": -30.008,
+  "drawCalls": 5,
+  "checks": [
+    "actual game loader and mount attachment",
+    "embedded PNG textures and UVs",
+    "two independent rotating weapons",
+    "four Exocet canisters",
+    "muzzle empties",
+    "exact socket agreement",
+    "metre-scale reconstruction",
+    "unchanged loadout / PD defense / sectors / movement / magazine / collision box"
+  ],
+  "files": [
+    {
+      "file": "client/public/assets/ships/hull_gepard.glb",
+      "triangles": 5390,
+      "bytes": 11019104,
+      "meshBatches": 1
+    },
+    {
+      "file": "client/public/assets/systems/mount_gepard_artillery.glb",
+      "triangles": 388,
+      "bytes": 1323736,
+      "meshBatches": 1
+    },
+    {
+      "file": "client/public/assets/systems/mount_gepard_pdms.glb",
+      "triangles": 748,
+      "bytes": 1518408,
+      "meshBatches": 1
+    },
+    {
+      "file": "client/public/assets/systems/mount_gepard_exocet.glb",
+      "triangles": 936,
+      "bytes": 1638716,
+      "meshBatches": 1
+    }
+  ]
+}

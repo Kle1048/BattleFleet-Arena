@@ -18,15 +18,9 @@ import {
   type ShipHullVisualProfile,
 } from "./shipVisualLayout";
 
-/** Äußerer SAM-Ring (m). */
-export const AD_SAM_RANGE = 400;
-export const AD_SAM_RANGE_SQ = AD_SAM_RANGE * AD_SAM_RANGE;
-/** PD / RAM-ähnlich (m), zwischen SAM und CIWS. */
-export const AD_PD_RANGE = 200;
-export const AD_PD_RANGE_SQ = AD_PD_RANGE * AD_PD_RANGE;
-/** CIWS (m). */
-export const AD_CIWS_RANGE = 100;
-export const AD_CIWS_RANGE_SQ = AD_CIWS_RANGE * AD_CIWS_RANGE;
+import { AD_SAM_RANGE_SQ, AD_PD_RANGE_SQ, AD_CIWS_RANGE_SQ } from "./airDefenseRanges";
+// Preserve existing imports while layout consumers use the lower-level data module.
+export * from "./airDefenseRanges";
 /**
  * Softkill-Einflusszone (m) — einmaliger Wurf, wenn die Rakete diese Distanz zum Verteidiger erreicht.
  */

@@ -1,5 +1,6 @@
 import * as THREE from "three";
 import { resizeCamera } from "../scene/createGameScene";
+import { createLifetime } from "./lifetime";
 
 function sizeFromRoot(root: HTMLElement): { w: number; h: number } {
   const w = Math.max(1, root.clientWidth || window.innerWidth);
@@ -9,14 +10,20 @@ function sizeFromRoot(root: HTMLElement): { w: number; h: number } {
 
 export function createGameRenderer(root: HTMLElement): THREE.WebGLRenderer {
   const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: "high-performance" });
-  renderer.outputColorSpace = THREE.SRGBColorSpace;
-  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-  const { w, h } = sizeFromRoot(root);
-  renderer.setSize(w, h);
-  renderer.shadowMap.enabled = true;
-  renderer.shadowMap.type = THREE.PCFSoftShadowMap;
-  root.appendChild(renderer.domElement);
-  return renderer;
+  try {
+    renderer.outputColorSpace = THREE.SRGBColorSpace;
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    const { w, h } = sizeFromRoot(root);
+    renderer.setSize(w, h);
+    renderer.shadowMap.enabled = true;
+    renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    root.appendChild(renderer.domElement);
+    return renderer;
+  } catch (error) {
+    renderer.domElement.remove();
+    renderer.dispose();
+    throw error;
+  }
 }
 
 /**
@@ -25,19 +32,29 @@ export function createGameRenderer(root: HTMLElement): THREE.WebGLRenderer {
  */
 export function bindRendererResize(
   camera: THREE.PerspectiveCamera,
-  renderer: THREE.WebGLRenderer,
+  renderer: Pick<THREE.WebGLRenderer, "setSize">,
   sizeRoot?: HTMLElement,
-): void {
+): () => void {
+  const lifetime = createLifetime();
   const sync = (): void => {
+    if (lifetime.disposed) return;
     const w = sizeRoot ? Math.max(1, sizeRoot.clientWidth) : window.innerWidth;
     const h = sizeRoot ? Math.max(1, sizeRoot.clientHeight) : window.innerHeight;
     resizeCamera(camera, w, h);
     renderer.setSize(w, h);
   };
-  sync();
-  window.addEventListener("resize", sync);
-  if (sizeRoot && typeof ResizeObserver !== "undefined") {
-    const ro = new ResizeObserver(() => sync());
-    ro.observe(sizeRoot);
+  try {
+    sync();
+    window.addEventListener("resize", sync);
+    lifetime.defer(() => window.removeEventListener("resize", sync));
+    if (sizeRoot && typeof ResizeObserver !== "undefined") {
+      const ro = new ResizeObserver(sync);
+      lifetime.defer(() => ro.disconnect());
+      ro.observe(sizeRoot);
+    }
+    return lifetime.dispose;
+  } catch (error) {
+    lifetime.dispose();
+    throw error;
   }
 }

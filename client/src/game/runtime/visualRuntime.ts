@@ -1,32 +1,14 @@
-import type { ArraySchema } from "@colyseus/schema";
 import type * as THREE from "three";
 import type { ShipClassId } from "@battlefleet/shared";
+import type { BattleStateSource, PlayerView } from "../presentation/BattleReadModel";
 import { createInterpolationBuffer, advanceIfPoseChanged, type InterpolationBuffer } from "../network/remoteInterpolation";
 import type { ShipVisual } from "../scene/shipVisual";
 import { createShipRenderer } from "../renderers/ships/shipRenderer";
 
-type RoomLike = {
-  state: unknown;
-  onStateChange: (cb: () => void) => void;
-};
-
-type PlayerLike = {
-  id: string;
-  displayName?: string;
-  shipClass?: string;
-  x: number;
-  z: number;
-  headingRad: number;
-  rudder: number;
-  aimX: number;
-  aimZ: number;
-};
-
-type VisualRuntimeOptions<TPlayer extends PlayerLike> = {
-  room: RoomLike;
+type VisualRuntimeOptions = {
+  stateSource: BattleStateSource;
   scene: THREE.Scene;
   mySessionId: string;
-  playerListOf: (room: { state: unknown }) => ArraySchema<TPlayer>;
   /** Optional: GLB-Template pro Schiffsklasse (aus Cache). */
   getHullGltfTemplate?: (shipClassId: ShipClassId) => THREE.Group | null;
   /** Optional: Mount-GLBs nach `visual_*`-Id (aus Cache). */
@@ -36,13 +18,13 @@ type VisualRuntimeOptions<TPlayer extends PlayerLike> = {
    * Wenn ein **anderer** Spieler der `playerList` hinzugefügt wird (nach initialem Snapshot),
    * z. B. Comms-Zeile in `main.ts`.
    */
-  onRemotePlayerJoinedRoom?: (player: TPlayer) => void;
+  onRemotePlayerJoinedRoom?: (player: PlayerView) => void;
 };
 
-export type VisualRuntime<TPlayer extends PlayerLike> = {
+export type VisualRuntime = {
   visuals: Map<string, ShipVisual>;
   remoteInterp: Map<string, InterpolationBuffer>;
-  ensureVisualsForPlayers: (list: ArraySchema<TPlayer>) => void;
+  ensureVisualsForPlayers: (list: readonly PlayerView[]) => void;
   /** z. B. `wreck:<id>` — gleicher Renderer wie Spieler-Schiffe. */
   ensureShipVisual: (sessionKey: string, shipClassId?: ShipClassId) => void;
   removeShipVisual: (sessionKey: string) => boolean;
@@ -50,14 +32,11 @@ export type VisualRuntime<TPlayer extends PlayerLike> = {
   dispose: () => void;
 };
 
-export function createVisualRuntime<TPlayer extends PlayerLike>(
-  options: VisualRuntimeOptions<TPlayer>,
-): VisualRuntime<TPlayer> {
+export function createVisualRuntime(options: VisualRuntimeOptions): VisualRuntime {
   const {
-    room,
+    stateSource,
     scene,
     mySessionId,
-    playerListOf,
     getHullGltfTemplate,
     getMountGltfTemplate,
     loadShipAssets,
@@ -70,57 +49,35 @@ export function createVisualRuntime<TPlayer extends PlayerLike>(
   });
   const visuals = shipRenderer.getVisuals() as Map<string, ShipVisual>;
   const remoteInterp = new Map<string, InterpolationBuffer>();
-  let playerListHandlersBoundTo: ArraySchema<TPlayer> | null = null;
-  let stateSyncCount = 0;
+  let disposed = false;
   let lastEnsurePlayerCount = -1;
   const lastEnsureShipClassById = new Map<string, string>();
-  /** Verhindert Doppel-Toasts bei `onAdd(..., true)` und List-Rebind; Leave entfernt. */
-  const joinAnnounceSeen = new Set<string>();
-
-  const bindPlayerListHandlers = (): void => {
-    const list = playerListOf(room);
-    if (list === playerListHandlersBoundTo) return;
-    playerListHandlersBoundTo = list;
-    let hydratingInitialOnAdd = true;
-    list.onAdd((player) => {
+  // Hydration is silent. Subsequent membership notifications are emitted once by the adapter.
+  for (const player of stateSource.model.playerList) shipRenderer.ensureShip(player.id, player.shipClass);
+  const unsubscribe = stateSource.subscribe({
+    onPlayerAdded(player) {
       const sc = typeof player.shipClass === "string" ? player.shipClass : undefined;
       shipRenderer.ensureShip(player.id, sc);
       if (player.id === mySessionId) return;
-      if (!onRemotePlayerJoinedRoom) return;
-      if (hydratingInitialOnAdd) {
-        joinAnnounceSeen.add(player.id);
-        return;
-      }
-      if (joinAnnounceSeen.has(player.id)) return;
-      joinAnnounceSeen.add(player.id);
-      onRemotePlayerJoinedRoom(player);
-    }, true);
-    hydratingInitialOnAdd = false;
-    list.onRemove((player) => {
+      onRemotePlayerJoinedRoom?.(player);
+    },
+    onPlayerRemoved(player) {
       shipRenderer.removeShip(player.id);
       remoteInterp.delete(player.id);
       lastEnsureShipClassById.delete(player.id);
-      joinAnnounceSeen.delete(player.id);
-    });
-  };
-
-  room.onStateChange(() => {
-    stateSyncCount += 1;
-    bindPlayerListHandlers();
-    const t = performance.now();
-    const list = playerListOf(room);
-    for (const p of list) {
-      if (p.id === mySessionId) continue;
-      const buf = remoteInterp.get(p.id);
-      if (!buf) {
-        remoteInterp.set(p.id, createInterpolationBuffer(p, t));
-      } else {
-        advanceIfPoseChanged(buf, p, t);
+    },
+    onState(receivedAtMs) {
+      for (const p of stateSource.model.playerList) {
+        if (p.id === mySessionId) continue;
+        const buf = remoteInterp.get(p.id);
+        if (!buf) {
+          remoteInterp.set(p.id, createInterpolationBuffer(p, receivedAtMs));
+        } else {
+          advanceIfPoseChanged(buf, p, receivedAtMs);
+        }
       }
-    }
+    },
   });
-
-  bindPlayerListHandlers();
 
   return {
     visuals,
@@ -155,15 +112,16 @@ export function createVisualRuntime<TPlayer extends PlayerLike>(
       }
     },
     getStateSyncCount() {
-      return stateSyncCount;
+      return stateSource.model.stateSyncCount;
     },
     dispose() {
+      if (disposed) return;
+      disposed = true;
+      unsubscribe();
       shipRenderer.dispose();
       remoteInterp.clear();
-      playerListHandlersBoundTo = null;
       lastEnsurePlayerCount = -1;
       lastEnsureShipClassById.clear();
-      joinAnnounceSeen.clear();
     },
   };
 }

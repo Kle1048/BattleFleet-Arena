@@ -1,4 +1,5 @@
 import * as THREE from "three";
+import { createAnimationLifetime, type AnimationClock, type AnimationLifetime } from "../runtime/animationLifetime";
 import { renderToWorldX, worldToRenderX } from "../runtime/renderCoords";
 
 /**
@@ -49,6 +50,7 @@ function disposeSamGroup(scene: THREE.Scene, group: THREE.Group): void {
 }
 
 function interceptRingFlash(
+  animation: AnimationLifetime,
   scene: THREE.Scene,
   x: number,
   z: number,
@@ -71,21 +73,20 @@ function interceptRingFlash(
   ring.rotation.x = -Math.PI / 2;
   ring.position.set(x, 0.4, z);
   scene.add(ring);
-  const born = performance.now();
+  const release = animation.own(() => disposeMesh(scene, ring));
+  const born = animation.now();
   const fade = (): void => {
-    const t = performance.now() - born;
+    const t = animation.now() - born;
     const mat = ring.material as THREE.MeshBasicMaterial;
     mat.opacity = Math.max(0, 0.82 * (1 - t / 240));
     ring.scale.setScalar(1 + t * 0.006);
     if (t >= 240) {
-      scene.remove(ring);
-      ring.geometry.dispose();
-      mat.dispose();
+      release();
       return;
     }
-    requestAnimationFrame(fade);
+    animation.frame(fade);
   };
-  requestAnimationFrame(fade);
+  animation.frame(fade);
 }
 
 function buildSamInterceptMissile(): THREE.Group {
@@ -141,6 +142,7 @@ function emitSamInterceptTrailTick(
 }
 
 function playSamIntercept(
+  animation: AnimationLifetime,
   scene: THREE.Scene,
   fromX: number,
   fromZ: number,
@@ -168,7 +170,7 @@ function playSamIntercept(
   const len = Math.hypot(dx, dz);
   if (len < 0.5) {
     if (withEndBurst) {
-      interceptRingFlash(scene, ex, ez, 0x88c8ff, 5, 20);
+      interceptRingFlash(animation, scene, ex, ez, 0x88c8ff, 5, 20);
     }
     return;
   }
@@ -180,9 +182,10 @@ function playSamIntercept(
   const g = buildSamInterceptMissile();
   g.position.set(sx, sy, sz);
   scene.add(g);
+  const release = animation.own(() => disposeSamGroup(scene, g));
 
-  const trailSuppressUntilMs = performance.now() + (launchFx ? SAM_INTERCEPT_TRAIL_SUPPRESS_MS : 0);
-  let lastTrailAt = performance.now();
+  const trailSuppressUntilMs = animation.now() + (launchFx ? SAM_INTERCEPT_TRAIL_SUPPRESS_MS : 0);
+  let lastTrailAt = animation.now();
 
   if (getTrackedTargetXZ) {
     const speed = len / (SAM_FLIGHT_MS * 0.001);
@@ -191,7 +194,7 @@ function playSamIntercept(
     const py = sy;
     let tx = ex;
     let tz = ez;
-    let lastNow = performance.now();
+    let lastNow = animation.now();
     const tStart = lastNow;
 
     const finishAt = (fx: number, fz: number): void => {
@@ -203,14 +206,14 @@ function playSamIntercept(
       } else {
         g.rotation.y = chordYaw;
       }
-      disposeSamGroup(scene, g);
+      release();
       if (withEndBurst) {
-        interceptRingFlash(scene, fx, fz, 0x88c8ff, 6, 22);
+        interceptRingFlash(animation, scene, fx, fz, 0x88c8ff, 6, 22);
       }
     };
 
     const stepTrack = (): void => {
-      const now = performance.now();
+      const now = animation.now();
       const dt = Math.min(0.08, (now - lastNow) / 1000);
       lastNow = now;
 
@@ -250,15 +253,15 @@ function playSamIntercept(
         g.rotation.y = chordYaw;
       }
 
-      const nowMs = performance.now();
+      const nowMs = animation.now();
       const dtMs = Math.min(80, nowMs - lastTrailAt);
       lastTrailAt = nowMs;
       emitSamInterceptTrailTick(launchFx, px, pz, tx, tz, dtMs, nowMs, trailSuppressUntilMs);
 
-      requestAnimationFrame(stepTrack);
+      animation.frame(stepTrack);
     };
     g.rotation.y = Math.hypot(tx - sx, tz - sz) > 1e-4 ? Math.atan2(tx - sx, tz - sz) : chordYaw;
-    requestAnimationFrame(stepTrack);
+    animation.frame(stepTrack);
     return;
   }
 
@@ -274,9 +277,9 @@ function playSamIntercept(
       }
     };
 
-    let prevStep = performance.now();
+    let prevStep = animation.now();
     const step = (): void => {
-      const nowMs = performance.now();
+      const nowMs = animation.now();
       const u = Math.min(1, (nowMs - tStart) / SAM_FLIGHT_MS);
       const px = sx + (ex - sx) * u;
       const py = sy + (ey - sy) * u;
@@ -289,22 +292,23 @@ function playSamIntercept(
       emitSamInterceptTrailTick(launchFx, px, pz, ex, ez, dtMs, nowMs, trailSuppressUntilMs);
 
       if (u >= 1) {
-        disposeSamGroup(scene, group);
+        release();
         if (withEndBurst) {
-          interceptRingFlash(scene, ex, ez, 0x88c8ff, 6, 22);
+          interceptRingFlash(animation, scene, ex, ez, 0x88c8ff, 6, 22);
         }
         return;
       }
-      requestAnimationFrame(step);
+      animation.frame(step);
     };
-    requestAnimationFrame(step);
+    animation.frame(step);
   };
 
   g.rotation.y = chordYaw;
-  runFlight(g, performance.now());
+  runFlight(g, animation.now());
 }
 
 function playCiwsIntercept(
+  animation: AnimationLifetime,
   scene: THREE.Scene,
   fromX: number,
   fromZ: number,
@@ -317,7 +321,7 @@ function playCiwsIntercept(
   const len = Math.hypot(dx, dz);
   if (len < 0.5) {
     if (withEndBurst) {
-      interceptRingFlash(scene, toX, toZ, 0xffcc66, 3, 16);
+      interceptRingFlash(animation, scene, toX, toZ, 0xffcc66, 3, 16);
     }
     return;
   }
@@ -336,7 +340,7 @@ function playCiwsIntercept(
       CIWS_TRACER_FLIGHT_MS_MIN +
       Math.random() * (CIWS_TRACER_FLIGHT_MS_MAX - CIWS_TRACER_FLIGHT_MS_MIN);
 
-    window.setTimeout(() => {
+    animation.delay(() => {
       const toTarget = new THREE.Vector3(toX - sx, 0, toZ - sz);
       if (toTarget.lengthSq() < 1e-6) return;
       toTarget.normalize();
@@ -360,30 +364,31 @@ function playCiwsIntercept(
       mesh.setRotationFromQuaternion(quat);
       mesh.position.set(sx, sy, sz);
       scene.add(mesh);
+      const release = animation.own(() => disposeMesh(scene, mesh));
 
-      const t0 = performance.now();
+      const t0 = animation.now();
       const ex = toX;
       const ez = toZ;
       const ey = sy * 0.4;
       const anim = (): void => {
-        const u = Math.min(1, (performance.now() - t0) / flightMs);
+        const u = Math.min(1, (animation.now() - t0) / flightMs);
         const m = u * u;
         mesh.position.set(sx + (ex - sx) * m, sy + (ey - sy) * m, sz + (ez - sz) * m);
         const fade = mesh.material as THREE.MeshBasicMaterial;
         fade.opacity = 0.95 * (1 - u * 0.85);
         if (u >= 1) {
-          disposeMesh(scene, mesh);
+          release();
           return;
         }
-        requestAnimationFrame(anim);
+        animation.frame(anim);
       };
-      requestAnimationFrame(anim);
+      animation.frame(anim);
     }, delay);
   }
 
   if (withEndBurst) {
-    window.setTimeout(() => {
-      interceptRingFlash(scene, toX, toZ, 0xffea90, 4, 15);
+    animation.delay(() => {
+      interceptRingFlash(animation, scene, toX, toZ, 0xffea90, 4, 15);
     }, CIWS_BURST_SPREAD_MS * 0.65);
   }
 }
@@ -392,7 +397,8 @@ function playCiwsIntercept(
  * Server `airDefenseFire`: nur ausgehende FK / Tracer — **ohne** Einschlag-Ring.
  * `pdLaunchY`: optional Mündungs-Höhe (Three.js) für PDMS; sonst fester `FLIGHT_Y` wie SAM.
  */
-export function playAirDefenseFire(
+function playAirDefenseFire(
+  animation: AnimationLifetime,
   scene: THREE.Scene,
   layer: "sam" | "pd" | "ciws",
   fromX: number,
@@ -413,9 +419,9 @@ export function playAirDefenseFire(
         const launchHeading = Math.atan2(toX - fromX, toZ - fromZ);
         launchFx.spawnMissileLaunchSmoke(fromX, fromZ, launchHeading);
       }
-      playSamIntercept(scene, rx0, fromZ, rx1, toZ, false, y, getTrackedTargetXZ ?? null, launchFx ?? null);
+      playSamIntercept(animation, scene, rx0, fromZ, rx1, toZ, false, y, getTrackedTargetXZ ?? null, launchFx ?? null);
     } else {
-      playCiwsIntercept(scene, rx0, fromZ, rx1, toZ, false);
+      playCiwsIntercept(animation, scene, rx0, fromZ, rx1, toZ, false);
     }
   } catch (e) {
     console.warn("[airDefenseFx] playAirDefenseFire", e);
@@ -423,7 +429,8 @@ export function playAirDefenseFire(
 }
 
 /** Server `airDefenseIntercept`: Detonation am Zielpunkt (nach Trefferwurf). */
-export function playAirDefenseHitBurst(
+function playAirDefenseHitBurst(
+  animation: AnimationLifetime,
   scene: THREE.Scene,
   x: number,
   z: number,
@@ -432,11 +439,11 @@ export function playAirDefenseHitBurst(
   try {
     const rx = worldToRenderX(x);
     if (layer === "sam") {
-      interceptRingFlash(scene, rx, z, 0x88c8ff, 6, 22);
+      interceptRingFlash(animation, scene, rx, z, 0x88c8ff, 6, 22);
     } else if (layer === "pd") {
-      interceptRingFlash(scene, rx, z, 0xa8d8ff, 5, 18);
+      interceptRingFlash(animation, scene, rx, z, 0xa8d8ff, 5, 18);
     } else {
-      interceptRingFlash(scene, rx, z, 0xffea90, 4, 15);
+      interceptRingFlash(animation, scene, rx, z, 0xffea90, 4, 15);
     }
   } catch (e) {
     console.warn("[airDefenseFx] playAirDefenseHitBurst", e);
@@ -446,7 +453,8 @@ export function playAirDefenseHitBurst(
 /**
  * Kurzer 2D-Puls am abgebildeten Abfangpunkt — unabhängig von Three-Meshes (Debug + Nutzer-Feedback).
  */
-export function showAirDefenseScreenPulse(
+function showAirDefenseScreenPulse(
+  animation: AnimationLifetime,
   camera: THREE.Camera,
   mount: HTMLElement,
   worldX: number,
@@ -471,9 +479,30 @@ export function showAirDefenseScreenPulse(
     `pointer-events:none;z-index:12000;background:${col};box-shadow:0 0 22px 6px ${glow};opacity:0.95;` +
     `transition:opacity 0.35s ease-out,transform 0.35s ease-out;transform:scale(1);`;
   mount.appendChild(el);
-  requestAnimationFrame(() => {
+  const release = animation.own(() => el.remove());
+  animation.frame(() => {
     el.style.opacity = "0";
     el.style.transform = "scale(2.2)";
   });
-  window.setTimeout(() => el.remove(), 420);
+  animation.delay(release, 420);
+}
+
+/** Public effect arguments omit the session-owned lifetime injected by this factory. */
+type EffectArgs<T extends unknown[]> = T extends [AnimationLifetime, ...infer Args] ? Args : never;
+
+/** A session owns every delayed tracer, flying interceptor and screen pulse. */
+export function createAirDefenseFx(clock?: AnimationClock) {
+  const animation = createAnimationLifetime(clock);
+  return {
+    fire(...args: EffectArgs<Parameters<typeof playAirDefenseFire>>) {
+      if (!animation.disposed) playAirDefenseFire(animation, ...args);
+    },
+    hit(...args: EffectArgs<Parameters<typeof playAirDefenseHitBurst>>) {
+      if (!animation.disposed) playAirDefenseHitBurst(animation, ...args);
+    },
+    pulse(...args: EffectArgs<Parameters<typeof showAirDefenseScreenPulse>>) {
+      if (!animation.disposed) showAirDefenseScreenPulse(animation, ...args);
+    },
+    dispose: animation.dispose,
+  };
 }

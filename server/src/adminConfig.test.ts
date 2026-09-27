@@ -39,7 +39,7 @@ assert.deepEqual(getAdminConfig(), {
 });
 
 assert.deepEqual(
-  updateAdminConfig({
+  await updateAdminConfig({
     matchDurationSec: 12,
     minRoomPlayers: 99,
     maintenanceMode: true,
@@ -78,7 +78,7 @@ assert.equal(getSpawnProtectionMs(), 30_000);
 assert.equal(getSamCooldownMs(), 500);
 assert.equal(getOobDestroyAfterMs(), 1000);
 
-assert.deepEqual(updateAdminConfig({
+assert.deepEqual(await updateAdminConfig({
   matchDurationSec: 420,
   minRoomPlayers: 4,
   maintenanceMode: false,
@@ -107,7 +107,7 @@ assert.equal(getOperationalAreaHalfExtent(1), 2000);
 
 const persisted = JSON.parse(
   readFileSync(path.join(dataDir, "admin-config.json"), "utf8"),
-) as unknown;
+).config as unknown;
 assert.deepEqual(persisted, {
   matchDurationSec: 420,
   minRoomPlayers: 4,

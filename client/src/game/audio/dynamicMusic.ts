@@ -124,7 +124,7 @@ function startVoice(c: AudioContext, out: AudioNode, t: 0 | 1 | 2, v: Voice): vo
 
 /**
  * Eine geglättete Ziel-Stufe 0…2 (darf auch Zwischenwerte annehmen).
- * Kein weitere Glättung in diesem Modul — stammt aus `frameRuntime`.
+ * Keine weitere Glättung in diesem Modul — stammt aus `frameAudioFx`.
  */
 export function updateDynamicMusic(
   c: AudioContext,
@@ -161,11 +161,16 @@ export function updateDynamicMusic(
 export const dynamicMusicTuning = { MUSIC_OUT_MULT, TIER_PAIRS, SoundFiles };
 
 export function disposeDynamicMusic(): void {
-  for (const voice of voices) stopVoice(voice);
+  stopDynamicMusic();
   musicMaster?.node.disconnect();
   musicMaster = null;
   bufferMap = null;
   requestBuffer = () => {};
+}
+
+/** Session leave stops voices but keeps app-owned decoded buffers available. */
+export function stopDynamicMusic(): void {
+  for (const voice of voices) stopVoice(voice);
 }
 
 export function getMusicFileNames(tier: 0 | 1 | 2): { a: string; b: string } {

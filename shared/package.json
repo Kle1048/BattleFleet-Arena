@@ -9,10 +9,28 @@
       "bfa-source": "./src/index.ts",
       "node": "./dist/index.js",
       "default": "./src/index.ts"
+    },
+    "./rules": {
+      "types": "./src/rules/index.ts",
+      "bfa-source": "./src/rules/index.ts",
+      "node": "./dist/rules/index.js",
+      "default": "./src/rules/index.ts"
+    },
+    "./protocol": {
+      "types": "./src/protocol/index.ts",
+      "bfa-source": "./src/protocol/index.ts",
+      "node": "./dist/protocol/index.js",
+      "default": "./src/protocol/index.ts"
+    },
+    "./protocol/schema": {
+      "types": "./src/protocol/schema.ts",
+      "bfa-source": "./src/protocol/schema.ts",
+      "node": "./dist/protocol/schema.js",
+      "default": "./src/protocol/schema.ts"
     }
   },
   "scripts": {
-    "build": "esbuild src/index.ts --bundle --packages=external --platform=node --format=esm --outfile=dist/index.js",
+    "build": "esbuild src/index.ts src/rules/index.ts src/protocol/index.ts src/protocol/schema.ts --bundle --splitting --packages=external --platform=node --format=esm --outbase=src --outdir=dist",
     "prepare": "npm run build",
     "typecheck": "tsc --noEmit",
     "test": "node ../scripts/run-tests.mjs"

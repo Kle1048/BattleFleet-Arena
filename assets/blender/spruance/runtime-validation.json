@@ -1,0 +1,54 @@
+{
+  "passed": true,
+  "assembledTriangles": 9500,
+  "hullDimensions": [
+    16.81999969482422,
+    48.30000019073486,
+    171.6999969482422
+  ],
+  "worldLength": 119.99999786714658,
+  "wakeWorldZ": -60,
+  "drawCalls": 6,
+  "checks": [
+    "actual game loader and mount attachment",
+    "embedded PNG textures and UVs",
+    "three independent rotating weapons; two visual-only aft mounts",
+    "eight Harpoon canisters",
+    "muzzle empties",
+    "exact socket agreement",
+    "metre-scale reconstruction",
+    "unchanged loadout / CIWS and SAM defense / sectors / movement / magazine / collision box"
+  ],
+  "files": [
+    {
+      "file": "client/public/assets/ships/hull_spruance.glb",
+      "triangles": 7500,
+      "bytes": 10069316,
+      "meshBatches": 1
+    },
+    {
+      "file": "client/public/assets/systems/mount_spruance_mk45.glb",
+      "triangles": 196,
+      "bytes": 1367508,
+      "meshBatches": 1
+    },
+    {
+      "file": "client/public/assets/systems/mount_spruance_phalanx.glb",
+      "triangles": 264,
+      "bytes": 1492792,
+      "meshBatches": 1
+    },
+    {
+      "file": "client/public/assets/systems/mount_spruance_seasparrow.glb",
+      "triangles": 372,
+      "bytes": 1645800,
+      "meshBatches": 1
+    },
+    {
+      "file": "client/public/assets/systems/mount_spruance_harpoon.glb",
+      "triangles": 584,
+      "bytes": 1644504,
+      "meshBatches": 1
+    }
+  ]
+}

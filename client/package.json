@@ -8,6 +8,7 @@
     "dev": "vite",
     "dev:editor": "vite --open /editor.html",
     "build": "tsc --noEmit && vite build",
+    "build:benchmark": "tsc --noEmit && vite build --config vite.benchmark.config.ts",
     "preview": "vite preview",
     "generate:placeholder-glb": "node scripts/generatePlaceholderGlb.mjs"
   },

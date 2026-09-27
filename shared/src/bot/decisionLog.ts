@@ -1,6 +1,6 @@
 import type { BotLogEntry, BotLogPhase } from "./types";
 
-export function createBotDecisionLog(limit = 200): {
+export function createBotDecisionLog(limit: number, nowMs: () => number): {
   add: (entry: BotLogEntry) => void;
   addSimple: (phase: BotLogPhase, message: string, data?: Record<string, unknown>) => void;
   getRecent: (max: number, phase?: BotLogPhase | "ALL") => BotLogEntry[];
@@ -14,7 +14,7 @@ export function createBotDecisionLog(limit = 200): {
       }
     },
     addSimple(phase, message, data): void {
-      entries.push({ timestamp: performance.now(), phase, message, data });
+      entries.push({ timestamp: nowMs(), phase, message, data });
       if (entries.length > limit) {
         entries.splice(0, entries.length - limit);
       }

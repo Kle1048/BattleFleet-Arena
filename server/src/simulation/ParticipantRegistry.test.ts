@@ -1,0 +1,25 @@
+import assert from "node:assert/strict";
+import { ParticipantRegistry } from "./ParticipantRegistry.js";
+
+const registry = new ParticipantRegistry<{ id: string; hp: number }, { throttle: number }>();
+const player = { id: "a", hp: 100 };
+const simulation = { throttle: 0 };
+registry.add(player, simulation);
+registry.add({ id: "b", hp: 90 }, { throttle: 1 });
+assert.equal(registry.players.get("a"), player);
+assert.equal(registry.simulations.get("a"), simulation);
+assert.deepEqual([...registry.players.keys()], [...registry.simulations.keys()]);
+assert.throws(() => registry.add({ id: "a", hp: 1 }, { throttle: -1 }), /already joined/);
+assert.equal(registry.players.get("a"), player, "failed duplicate insertion must not replace either object");
+assert.equal(registry.simulations.get("a"), simulation);
+player.hp = 50;
+assert.equal(registry.players.get("a")!.hp, 50, "indexes reference the owner model, not copied snapshots");
+registry.remove("a"); registry.remove("a");
+assert(!registry.players.has("a") && !registry.simulations.has("a"));
+registry.add({ id: "a", hp: 100 }, { throttle: 0 });
+assert.notEqual(registry.players.get("a"), player);
+assert.deepEqual([...registry.players.keys()], ["b", "a"], "remove/rejoin preserves insertion-order semantics");
+registry.clear(); registry.clear();
+assert.equal(registry.size, 0);
+assert.equal(registry.simulations.size, 0);
+console.log("participant registry membership, identity and ordering tests ok");

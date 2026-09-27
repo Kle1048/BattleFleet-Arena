@@ -2,7 +2,8 @@
  * HUD: **Brücke** (links, Navigation) und **OPZ** (rechts, Radar + Waffen + HP).
  */
 
-import type { ShipClassId } from "@battlefleet/shared";
+import type { CockpitHudUpdate } from "../presentation/CockpitModel";
+export type { CockpitHudUpdate } from "../presentation/CockpitModel";
 import { t } from "../../locale/t";
 import { createDomWriter } from "./domWriter";
 import {
@@ -29,52 +30,10 @@ export {
   cockpitRadarThreatKey,
 };
 
-export type CockpitHudUpdate = {
-  speed: number;
-  maxSpeed: number;
-  headingRad: number;
-  /** Welt XZ — Kartenmitte-Marker auf dem Nord-Radar. */
-  worldX: number;
-  worldZ: number;
-  /** Hauptgeschütz-Richtung relativ Bug (Train). */
-  mainMountTrainRad: number;
-  /** Magazin-Kapazität / Seite (Profil). */
-  aswmMagPortCap: number;
-  aswmMagStarboardCap: number;
-  /** Server: verbleibende Runden. */
-  aswmRemainingPort: number;
-  aswmRemainingStarboard: number;
-  hp: number;
-  maxHp: number;
-  primaryCooldownSec: number;
-  secondaryCooldownSec: number;
-  torpedoCooldownSec: number;
-  mineCount: number;
-  mineMaxCount: number;
-  respawnCountdownSec: number;
-  spawnProtectionSec: number;
-  matchRemainingSec: number;
-  score: number;
-  kills: number;
-  rankLabelEn: string;
-  xpLine: string;
-  shipClassLabel: string;
-  playerDisplayName: string;
-  shipClassId: ShipClassId;
-  radarBlips: RadarBlipNorm[];
-  radarVisible: boolean;
-  ownRadarActive: boolean;
-  esmLines: CockpitEsmLine[];
-  /** Hostile ASuM — Peilung (gestrichelt / durchgezogen je nach Lock). */
-  radarThreatLines: CockpitRadarThreatLine[];
-  /** Feste SSM-Rails — kurze Peiler-Ticks (Nord oben). */
-  ssmRailLines: CockpitSsmRailLine[];
-};
-
 export function createCockpitHud(opts?: {
   /** Suchrad wie **R** umschalten (Touch / Maus am HUD-Knopf). */
   onRadarToggle?: () => void;
-}): { update: (u: CockpitHudUpdate) => void } {
+}): { update: (u: CockpitHudUpdate) => void; dispose(): void } {
   const radarRangeLabel = t("hud.radarRangeMeters", { m: RADAR_RANGE_WORLD });
   const wrap = document.createElement("div");
   wrap.className = "cockpit-hud-root";
@@ -216,13 +175,12 @@ export function createCockpitHud(opts?: {
 
   document.body.appendChild(wrap);
 
-  if (opts?.onRadarToggle) {
-    const toggle = opts.onRadarToggle;
-    ownRadarStatusEl.addEventListener("click", (e) => {
-      e.stopPropagation();
-      toggle();
-    });
-  }
+  let disposed = false;
+  const onRadarClick = (e: Event) => {
+    e.stopPropagation();
+    if (!disposed) opts?.onRadarToggle?.();
+  };
+  ownRadarStatusEl.addEventListener("click", onRadarClick);
 
   const svgNs = "http://www.w3.org/2000/svg";
   const dom = createDomWriter();
@@ -348,6 +306,12 @@ export function createCockpitHud(opts?: {
   }
 
   return {
+    dispose() {
+      if (disposed) return;
+      disposed = true;
+      ownRadarStatusEl.removeEventListener("click", onRadarClick);
+      wrap.remove();
+    },
     update({
       speed,
       maxSpeed,
@@ -380,6 +344,7 @@ export function createCockpitHud(opts?: {
       radarThreatLines,
       ssmRailLines,
     }: CockpitHudUpdate): void {
+      if (disposed) return;
       dom.text(playerNameEl, playerDisplayName);
       dom.text(shipClassEl, shipClassLabel);
 

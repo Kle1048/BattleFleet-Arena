@@ -54,6 +54,7 @@ export function createFireControlChannel(options: {
   const raycaster = new THREE.Raycaster();
 
   let designatedTargetId: string | null = null;
+  let disposed = false;
 
   /** Zusätzlicher Faktor nur für die Darstellung (Hitbox-Umkreis bleibt Berechnungsbasis). */
   const RING_RADIUS_VISUAL_FACTOR = 1.2;
@@ -88,7 +89,7 @@ export function createFireControlChannel(options: {
   const updateFireControlRing = (me: PlayerRow, target: PlayerRow): void => {
     const hull = getAuthoritativeShipHullProfile(target.shipClass);
     const h = target.headingRad;
-    /** Wie `frameRuntime`: `collisionHitbox` sitzt unter `ShipVisual.group` — Ursprung = Sim minus Pivot entlang Fahrtachse. */
+    /** Wie `frameWorld`: `collisionHitbox` sitzt unter `ShipVisual.group` — Ursprung = Sim minus Pivot entlang Fahrtachse. */
     const pivotZ = getShipDebugTuningForVisualClass(target.shipClass).shipPivotLocalZ;
     const refX = target.x - Math.sin(h) * pivotZ;
     const refZ = target.z - Math.cos(h) * pivotZ;
@@ -166,12 +167,14 @@ export function createFireControlChannel(options: {
   let latestPlayers: PlayerRow[] = [];
 
   const cycleNextTarget = (): void => {
+    if (disposed) return;
     const me = latestPlayers.find((p) => p.id === mySessionId);
     if (!me || me.lifeState === PlayerLifeState.AwaitingRespawn) return;
     selectNextTargetWithinRange(me);
   };
 
   const onPointerDown = (e: PointerEvent): void => {
+    if (disposed) return;
     if (e.button !== 0) return;
     const rect = canvas.getBoundingClientRect();
     const ndcX = ((e.clientX - rect.left) / rect.width) * 2 - 1;
@@ -194,6 +197,7 @@ export function createFireControlChannel(options: {
   };
 
   const onKeyDown = (e: KeyboardEvent): void => {
+    if (disposed) return;
     if (e.code === "KeyF" && !e.repeat) {
       cycleNextTarget();
       return;
@@ -211,6 +215,7 @@ export function createFireControlChannel(options: {
 
   return {
     applyToInput(sample, players, matchEnded): InputSample {
+      if (disposed) return sample;
       latestPlayers = Array.from(players);
       if (matchEnded) {
         setRingVisible(false);
@@ -253,6 +258,9 @@ export function createFireControlChannel(options: {
     },
     cycleNextTarget,
     dispose() {
+      if (disposed) return;
+      disposed = true;
+      latestPlayers = [];
       canvas.removeEventListener("pointerdown", onPointerDown);
       window.removeEventListener("keydown", onKeyDown);
       designatedTargetId = null;

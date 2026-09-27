@@ -1,0 +1,10 @@
+{
+  "passed": true,
+  "scene": "F124_Animation_Demo",
+  "frames": 481,
+  "actions": 8,
+  "packed_textures": 4,
+  "radar_and_aircraft_frames_checked": 481,
+  "saved_scene_count": 1,
+  "static_source_retained": "F124_Hessen_Asset_v3.003"
+}

@@ -1,11 +1,15 @@
 {
   "profileId": "destroyer",
-  "labelDe": "Zerstörer",
-  "hullGltfId": "destroyer",
+  "labelDe": "Spruance-Klasse",
+  "hullGltfId": "spruance",
   "hullVisualScale": 0.012,
   "clientVisualTuningDefaults": {
-    "gltfHullYOffset": -633,
-    "spriteScale": 1
+    "gltfHullYOffset": -512.5218404193362,
+    "spriteScale": 1,
+    "gltfHullOffsetX": 0,
+    "gltfHullOffsetZ": 0,
+    "shipPivotLocalZ": 0,
+    "wakeSpawnLocalZ": 0
   },
   "collisionHitbox": {
     "center": { "x": 0, "y": 0, "z": 0 },
@@ -58,7 +62,7 @@
       "visualId": "visual_ssm",
       "launchYawRadFromBow": -1.5707963267948966,
       "socket": {
-        "position": { "x": -3.5, "y": 1.25, "z": 6 },
+        "position": { "x": -4.7, "y": 11.2, "z": -1.5 },
         "eulerRad": { "x": 0, "y": -1.5707963267948966, "z": 0 }
       }
     },
@@ -68,7 +72,7 @@
       "visualId": "visual_ssm",
       "launchYawRadFromBow": 1.5707963267948966,
       "socket": {
-        "position": { "x": 3.5, "y": 1.25, "z": 6 },
+        "position": { "x": 4.7, "y": 11.2, "z": -1.5 },
         "eulerRad": { "x": 0, "y": 1.5707963267948966, "z": 0 }
       }
     }

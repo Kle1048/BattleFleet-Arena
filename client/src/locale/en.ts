@@ -58,35 +58,35 @@ export const en = {
 
   toast: {
     /**
-     * frameRuntime.ts — `showToast` when the local player transitions to `awaiting_respawn`.
+     * frameFeedback.ts — `showToast` when the local player transitions to `awaiting_respawn`.
      */
     destroyedWaitingRespawn: "Destroyed — waiting for respawn…",
     /**
-     * frameRuntime.ts — local player destroyed by another; `{killer}` = `playerDisplayLabel` of killer.
+     * frameFeedback.ts — local player destroyed by another; `{killer}` = `playerDisplayLabel` of killer.
      */
     destroyedWaitingRespawnByKiller: "Destroyed by {killer} — waiting for respawn…",
     /**
-     * frameRuntime.ts — kill feed when killer is known; `{killer}` / `{victim}` = display labels.
+     * frameFeedback.ts — kill feed when killer is known; `{killer}` / `{victim}` = display labels.
      */
     playerKilledByKiller: "{killer} destroyed {victim}",
     /**
-     * frameRuntime.ts — victim died with no attributed killer (OOB, island scrape, etc.); `{victim}` = label.
+     * frameFeedback.ts — victim died with no attributed killer (OOB, island scrape, etc.); `{victim}` = label.
      */
     playerDestroyedNoKiller: "{victim} destroyed",
     /**
-     * frameRuntime.ts — `showToast` when incoming ASuM count goes from 0 to &gt;0 (air defense hint).
+     * frameFeedback.ts — `showToast` when incoming ASuM count goes from 0 to &gt;0 (air defense hint).
      */
     vampireIncomingAd: "Vampire! Vampire! Vampire!",
     /**
-     * frameRuntime.ts — local player crosses into the central Sea Control Area (passive score zone).
+     * frameFeedback.ts — local player crosses into the central Sea Control Area (passive score zone).
      */
     seaControlEntered: "Sea Control Area — entered",
     /**
-     * frameRuntime.ts — local player leaves the Sea Control Area.
+     * frameFeedback.ts — local player leaves the Sea Control Area.
      */
     seaControlLeft: "Sea Control Area — left",
     /**
-     * frameRuntime.ts — `showToast` on progression level-up; `{level}`, `{rank}` = naval rank string.
+     * frameCockpit.ts — `showToast` on progression level-up; `{level}`, `{rank}` = naval rank string.
      */
     levelRank: "Level {level}: {rank}",
     /**
@@ -525,9 +525,9 @@ export const en = {
     speedUnitKn: " kn",
     /** cockpitHud.ts — radar range footer; `{m}` = world meters (see RADAR_RANGE_WORLD). */
     radarRangeMeters: "{m}m",
-    /** frameRuntime.ts — XP line when at max progression level (cockpit `xpLine`). */
+    /** frameCockpit.ts — XP line when at max progression level (cockpit `xpLine`). */
     xpMax: "MAX",
-    /** frameRuntime.ts — XP progress `xpLine`; `{current}`, `{need}` = segment XP. */
+    /** frameCockpit.ts — XP progress `xpLine`; `{current}`, `{need}` = segment XP. */
     xpProgress: "{current} / {need}",
   },
 

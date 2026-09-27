@@ -1,4 +1,4 @@
-import { AD_CIWS_RANGE, AD_PD_RANGE, AD_SAM_RANGE } from "./airDefense";
+import { AD_CIWS_RANGE, AD_PD_RANGE, AD_SAM_RANGE } from "./airDefenseRanges";
 import { ARTILLERY_RANGE } from "./artillery";
 
 /**

@@ -14,7 +14,10 @@ import type {
   TacticalContext,
 } from "./types";
 
-export function createBotController(): {
+/** Diagnostics use host clocks; decision cadence continues to use update(now). */
+export type BotDiagnosticClock = { wallNow: () => number; monotonicNow: () => number };
+
+export function createBotController(clock: BotDiagnosticClock): {
   enable: () => void;
   disable: () => void;
   isEnabled: () => boolean;
@@ -45,7 +48,7 @@ export function createBotController(): {
   let latestCommand: BotInputCommand | null = null;
   const memory = createBotMemoryStore();
   const decisionEngine = createDecisionEngine(new DecisionTreeStrategy());
-  const log = createBotDecisionLog(240);
+  const log = createBotDecisionLog(240, clock.monotonicNow);
   const lastInputs: BotInputCommand[] = [];
   const recentIntents: { at: number; intent: BotIntent }[] = [];
 
@@ -79,7 +82,7 @@ export function createBotController(): {
         cachedIntent = decisionEngine.decide({ snapshot, context, memory: memory.get() });
         memory.onIntent(cachedIntent, now);
         if (prevIntent !== cachedIntent) {
-          const switchedAt = Date.now();
+          const switchedAt = clock.wallNow();
           recentIntents.push({ at: switchedAt, intent: cachedIntent });
           if (recentIntents.length > 20) recentIntents.splice(0, recentIntents.length - 20);
           log.addSimple("DECIDE", `intent=${cachedIntent}`, {

@@ -1,0 +1,28 @@
+{
+  "passed": true,
+  "maximum_sheer_height_change_m": 4.440892098500626e-16,
+  "bow_half_beams_m": {
+    "18": {
+      "old_half_beam": 2.7,
+      "new_half_beam": 3.02
+    },
+    "22": {
+      "old_half_beam": 1.95,
+      "new_half_beam": 2.42
+    },
+    "25": {
+      "old_half_beam": 1.05,
+      "new_half_beam": 1.69
+    },
+    "27": {
+      "old_half_beam": 0.42999999999999994,
+      "new_half_beam": 0.96
+    },
+    "28.8": {
+      "old_half_beam": 0.015000000000000013,
+      "new_half_beam": 0.075
+    }
+  },
+  "overhanging_roof_removed": true,
+  "assembled_triangles": 8398
+}

@@ -4,13 +4,14 @@ import { operationalHalfExtentFromParticipantCount } from "./mapBounds";
 import { MATCH_DURATION_SEC, MATCH_PHASE_RUNNING } from "./match";
 import { PlayerLifeState } from "./playerLife";
 import { SHIP_CLASS_FAC } from "./shipClass";
+import type { PlayerValues, MissileValues, TorpedoValues, WreckValues, MatchValues } from "./protocol/stateValues";
 
 /**
  * Keine Klassenfeld-Initialisierer (`id = ""`, `playerList = new ArraySchema()`) bei target ES2022:
  * Die werden als eigene Properties angelegt und laufen nicht über die defineTypes-Setter — dann fehlt
  * setParent() an der ArraySchema / ReferenceTracker, und encode → getNextUniqueId wirft.
  */
-export class PlayerState extends Schema {
+export class PlayerState extends Schema implements PlayerValues {
   declare id: string;
   declare x: number;
   declare z: number;
@@ -157,7 +158,7 @@ defineTypes(PlayerState, {
 });
 
 /** Replizierte Lenkflugkörper (Task 7); Server autoritativ. */
-export class MissileState extends Schema {
+export class MissileState extends Schema implements MissileValues {
   declare missileId: number;
   declare ownerId: string;
   /** Ziel-Session oder leer = geradeaus. */
@@ -187,7 +188,7 @@ defineTypes(MissileState, {
 });
 
 /** Replizierte Torpedos (Task 8); geradeaus, langsamer als ASuM. */
-export class TorpedoState extends Schema {
+export class TorpedoState extends Schema implements TorpedoValues {
   declare torpedoId: number;
   declare ownerId: string;
   declare x: number;
@@ -213,7 +214,7 @@ defineTypes(TorpedoState, {
 });
 
 /** Statisches Wrack (Hitbox-OBB wie Schiff–Schiff); entsteht beim Respawn nach Zerstörung. */
-export class ShipWreckState extends Schema {
+export class ShipWreckState extends Schema implements WreckValues {
   declare wreckId: string;
   /** Schiffssimulationsanker (Seekarten-XZ), Bezug für `collisionHitbox` wie bei Spielern. */
   declare anchorX: number;
@@ -253,7 +254,7 @@ defineTypes(ShipWreckState, {
   expiresAtMs: "number",
 });
 
-export class BattleState extends Schema {
+export class BattleState extends Schema implements MatchValues {
   declare playerList: ArraySchema<PlayerState>;
   declare missileList: ArraySchema<MissileState>;
   declare torpedoList: ArraySchema<TorpedoState>;

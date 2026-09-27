@@ -1,0 +1,35 @@
+{
+  "description": "60 seconds, 11 moving humans and 5 bot brains; seed 42; approved Gepard/FAC content revision on 2026-09-27, after refactoring equivalence was verified against pre-gepard content",
+  "previousBaseline": "combat-baseline.pre-gepard.json",
+  "traceSha256": "454cc199cde58ca012ee8d2432049496ff36c2e4106734eb98a9d5cf97aa165b",
+  "simulationContentSha256": {
+    "fac.json": "164200309b7a2d59eaa41c91588430f77d2e14d005c7ba81cbf2d4b4070ddfbc",
+    "mountSockets/fac.json": "feabb408488a15a6b98b9ebf8382a63edaf7a53e148100ec513827a063830c2f"
+  },
+  "events": {
+    "artyFired": 945,
+    "aswmFired": 193,
+    "softkillResult": 26,
+    "aswmImpact": 96,
+    "artyImpact": 926,
+    "missileLockOn": 31,
+    "airDefenseFire": 25,
+    "airDefenseIntercept": 10,
+    "collisionContact": 8,
+    "aswmMagazineReloaded": 16
+  },
+  "referenceRunsMs": [
+    {
+      "median": 1.177,
+      "p95": 1.7931
+    },
+    {
+      "median": 1.315,
+      "p95": 1.9588
+    },
+    {
+      "median": 1.1571,
+      "p95": 1.7663
+    }
+  ]
+}

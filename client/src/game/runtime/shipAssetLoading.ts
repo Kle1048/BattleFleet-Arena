@@ -1,6 +1,6 @@
 import type { ShipClassId } from "@battlefleet/shared";
 import { getAuthoritativeHullProfile, resolveShipHullGltfUrlForClass } from "./shipProfileRuntime";
-import { resolveMountGltfUrl } from "./mountGltfUrls";
+import { resolveMountGltfUrl, resolveMountModelVisualId } from "./mountGltfUrls";
 import { loadShipHullGltfSource } from "../scene/shipGltfHull";
 
 const pending = new Map<ShipClassId, Promise<void>>();
@@ -15,10 +15,10 @@ export function loadShipAssets(shipClass: ShipClassId): Promise<void> | undefine
   const urls = new Set([resolveShipHullGltfUrlForClass(shipClass)]);
   for (const slot of profile?.mountSlots ?? []) {
     const id = profile?.defaultLoadout?.[slot.id] ?? slot.defaultVisualId;
-    if (id) urls.add(resolveMountGltfUrl(id));
+    if (id) urls.add(resolveMountGltfUrl(resolveMountModelVisualId(id, profile?.hullGltfId ?? "")));
   }
   for (const launcher of profile?.fixedSeaSkimmerLaunchers ?? []) {
-    if (launcher.visualId) urls.add(resolveMountGltfUrl(launcher.visualId));
+    if (launcher.visualId) urls.add(resolveMountGltfUrl(resolveMountModelVisualId(launcher.visualId, profile?.hullGltfId ?? "")));
   }
   const promise = Promise.all([...urls].map(loadShipHullGltfSource)).then(() => {
     settled.add(shipClass);

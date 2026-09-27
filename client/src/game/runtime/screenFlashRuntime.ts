@@ -1,3 +1,5 @@
+import { createAnimationLifetime } from "./animationLifetime";
+
 /**
  * Voller Bildschirm — kurzer Aufblitz (z. B. Schiffsvernichtung), ohne Pointer-Block.
  */
@@ -14,15 +16,18 @@ export function createScreenFlashOverlay(): {
   document.body.appendChild(el);
 
   let fadeToken = 0;
+  const animation = createAnimationLifetime();
+  animation.own(() => el.remove());
 
   return {
     trigger(opts?: { intensity?: number }) {
+      if (animation.disposed) return;
       const intensity = Math.max(0, Math.min(1.2, opts?.intensity ?? 1));
       const token = ++fadeToken;
       el.style.transition = "none";
       el.style.opacity = String(0.12 + 0.62 * intensity);
 
-      requestAnimationFrame(() => {
+      animation.frame(() => {
         if (token !== fadeToken) return;
         el.style.transition = "opacity 520ms cubic-bezier(0.22, 1, 0.36, 1)";
         el.style.opacity = "0";
@@ -30,7 +35,7 @@ export function createScreenFlashOverlay(): {
     },
     dispose() {
       fadeToken++;
-      el.remove();
+      animation.dispose();
     },
   };
 }

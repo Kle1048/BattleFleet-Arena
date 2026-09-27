@@ -1,6 +1,6 @@
 # Umbauplan — Review-Punkte 12, 13 und 14
 
-Stand: 26.09.2026. **Alle nachfolgenden Schritte sind geplant, noch nicht durchgeführt.**
+Stand: 27.09.2026. **Umsetzung und lokale Abnahme abgeschlossen.** Der nachfolgende Plan dokumentiert die eingehaltene Reihenfolge und bleibt die Prüfliste für spätere Änderungen. Nachweise und ausdrücklich verbleibende Betriebsrisiken stehen im [Arbeitsprotokoll](./REFACTORING-PROGRESS.md). Das optionale instanzierte Backend wurde nicht eingeführt.
 
 Verbindliche technische Leitplanken: [Zielarchitektur](./TARGET-ARCHITECTURE.md). Die Nummern beziehen sich auf das Code-Review, nicht auf die älteren MVP-Tasks im `Project_Plan.md`.
 
@@ -104,4 +104,4 @@ Code-Extraktionen bleiben einzeln rücknehmbar, ohne laufende Datenformate oder 
 
 **Punkt 14 fertig:** Pool-Scans reduziert, Lebensdauer-/Speicherinvarianten getestet, visuelle Qualität erhalten und Nutzen gemessen; komplexeres Backend nur bei Bedarf.
 
-**Nächster konkreter Arbeitsschritt: 12.0.** Zuerst fehlende Charakterisierungstests und die aktuelle Messbaseline ergänzen, dann 12.1/12.2 beginnen. Mit dieser Dokumentation werden noch keine Laufzeitmodule geändert.
+**Einstieg war 12.0:** Charakterisierungen und Messbaseline zuerst. Den aktuellen nächsten Schritt und noch fehlende Gates führt das [Arbeitsprotokoll](./REFACTORING-PROGRESS.md); dieses Dokument definiert weiterhin den gesamten Umfang, nicht nur bereits erledigte Teile.

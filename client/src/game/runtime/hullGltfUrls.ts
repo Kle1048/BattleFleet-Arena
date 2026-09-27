@@ -13,12 +13,15 @@ const FALLBACK_HULL = `${BASE}assets/S143A.glb`;
  * Workbench: `resolveShipHullGltfUrlForWorkbenchPreview`.
  */
 export const HULL_GLTF_URL_BY_ID: Record<string, string> = {
+  gepard: `${BASE}assets/ships/hull_gepard.glb`,
+  spruance: `${BASE}assets/ships/hull_spruance.glb`,
+  f124: `${BASE}assets/ships/hull_f124.glb`,
   fac: `${BASE}assets/ships/hull_fac.glb`,
-  destroyer: `${BASE}assets/ships/hull_destroyer.glb`,
+  destroyer: `${BASE}assets/ships/hull_spruance.glb`,
   cruiser: `${BASE}assets/ships/hull_cruiser.glb`,
   /** z. B. für KI-/Varianten-Rumpf */
   facAI: `${BASE}assets/ships/hull_facAI.glb`,
-  s143a: FALLBACK_HULL,
+  s143a: `${BASE}assets/ships/hull_gepard.glb`,
 };
 
 export function resolveShipHullGltfUrl(hullGltfId: string): string {

@@ -1,0 +1,29 @@
+{
+  "passed": true,
+  "files": [
+    {
+      "file": "hull_gepard.glb",
+      "triangles": 5390,
+      "geometryUnchanged": true,
+      "embeddedPbrImages": 3
+    },
+    {
+      "file": "mount_gepard_artillery.glb",
+      "triangles": 388,
+      "geometryUnchanged": true,
+      "embeddedPbrImages": 3
+    },
+    {
+      "file": "mount_gepard_pdms.glb",
+      "triangles": 748,
+      "geometryUnchanged": true,
+      "embeddedPbrImages": 3
+    },
+    {
+      "file": "mount_gepard_exocet.glb",
+      "triangles": 936,
+      "geometryUnchanged": true,
+      "embeddedPbrImages": 3
+    }
+  ]
+}

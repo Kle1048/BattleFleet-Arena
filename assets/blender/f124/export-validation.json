@@ -1,0 +1,67 @@
+{
+  "status": "pass",
+  "hullMetres": [
+    17.399999618530273,
+    41.69999933242798,
+    143
+  ],
+  "assembledTriangles": 9412,
+  "checks": [
+    "single scene",
+    "embedded PNGs",
+    "UV coordinates",
+    "exact socket names and JSON agreement",
+    "rail positions and orientations",
+    "forward RAM ahead of VLS",
+    "separate open port and starboard funnels verified by GLB raycasts",
+    "unobstructed central passage",
+    "raised transverse VLS",
+    "bf_muzzle per mount",
+    "real BattleFleet prepare and mount attachment scales",
+    "assembled triangle budget <= 10000"
+  ],
+  "files": [
+    {
+      "file": "client/public/assets/ships/hull_f124.glb",
+      "bytes": 1732380,
+      "triangles": 7268,
+      "nodes": [
+        "MESH_F124_HULL.006_F124_FlightDeck_UV.014",
+        "MESH_F124_HULL.006_F124_PaintedSteel_UV.054",
+        "MESH_F124_HULL.006_F124_Pennant_Alpha.014",
+        "RAIL_ssm_rail_port",
+        "RAIL_ssm_rail_starboard",
+        "SOCKET_main_fwd",
+        "SOCKET_ram_aft",
+        "SOCKET_ram_fwd"
+      ]
+    },
+    {
+      "file": "client/public/assets/systems/mount_f124_76mm.glb",
+      "bytes": 599108,
+      "triangles": 192,
+      "nodes": [
+        "bf_muzzle",
+        "MESH_F124_TEMPLATE_76mm.006_F124_PaintedSteel_UV.054"
+      ]
+    },
+    {
+      "file": "client/public/assets/systems/mount_f124_ram.glb",
+      "bytes": 632240,
+      "triangles": 716,
+      "nodes": [
+        "bf_muzzle",
+        "MESH_F124_TEMPLATE_ram.006_F124_PaintedSteel_UV.054"
+      ]
+    },
+    {
+      "file": "client/public/assets/systems/mount_f124_harpoon.glb",
+      "bytes": 604188,
+      "triangles": 260,
+      "nodes": [
+        "bf_muzzle",
+        "MESH_F124_TEMPLATE_harpoon.006_F124_PaintedSteel_UV.054"
+      ]
+    }
+  ]
+}

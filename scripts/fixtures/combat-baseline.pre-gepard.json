@@ -1,0 +1,21 @@
+{
+  "description": "60 seconds, 11 moving humans and 5 bot brains; seed 42; captured before subsystem extraction",
+  "traceSha256": "e71a7ed372952020e2036ef731f8de84827e2336931ed3da71b28377669c4afd",
+  "events": {
+    "artyFired": 907,
+    "aswmFired": 193,
+    "softkillResult": 32,
+    "artyImpact": 885,
+    "airDefenseFire": 28,
+    "missileLockOn": 41,
+    "airDefenseIntercept": 9,
+    "aswmImpact": 97,
+    "collisionContact": 7,
+    "aswmMagazineReloaded": 14
+  },
+  "referenceRunsMs": [
+    { "median": 3.3911, "p95": 5.0596 },
+    { "median": 3.3920, "p95": 5.1254 },
+    { "median": 3.4031, "p95": 5.4172 }
+  ]
+}

@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { mkdtempSync, rmdirSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
+import { resetMagazine } from "../simulation/systems/magazine.js";
 import {
   getAswmMagazineFromProfile,
   getAuthoritativeShipHullProfile,
@@ -33,15 +34,15 @@ try {
         room.onCreate();
         room.setSimulationInterval();
         // Exercise the real participant/reset paths without a WebSocket server or wall-clock ticks.
-        room["joinNewParticipant"]("reset-player", "Reset Player");
-        const player = room.state.playerList.at(0)!;
-        const sim = room["sim"].get(player.id)!;
+        room["simulation"].join("reset-player", "Reset Player");
+        const player = room["simulation"].state.playerList.at(0)!;
+        const sim = room["simulation"]["participants"].simulations.get(player.id)!;
         player.shipClass = previousClass;
         player.level = 7;
         player.hp = 1;
         player.score = 123;
         player.kills = 2;
-        room["resetAswmMagazineFromClass"](sim, previousClass);
+        resetMagazine(sim, previousClass);
         player.aswmRemainingPort = sim.aswmRemainingPort;
         player.aswmRemainingStarboard = sim.aswmRemainingStarboard;
         sim.aswmNextShotAtMs = Date.now() + 5_000;
@@ -50,8 +51,8 @@ try {
         if (restartMode === "admin") {
           room.restartRoundFromAdmin();
         } else {
-          room.state.matchPhase = MATCH_PHASE_ENDED;
-          room["resetMatchForNewRound"](Date.now());
+          room["simulation"].state.matchPhase = MATCH_PHASE_ENDED;
+          room["simulation"].reset(Date.now());
         }
 
         const context = `${previousClass} -> FAC (${restartMode})`;
@@ -60,7 +61,7 @@ try {
         assert.equal(player.hp, shipClassBaseMaxHp(SHIP_CLASS_FAC), context);
         assert.equal(player.maxHp, player.hp, context);
         assert.equal(player.lifeState, PlayerLifeState.SpawnProtected, context);
-        assert.equal(room.state.matchPhase, MATCH_PHASE_RUNNING, context);
+        assert.equal(room["simulation"].state.matchPhase, MATCH_PHASE_RUNNING, context);
         assert.equal(player.score, 0, context);
         assert.equal(player.kills, 0, context);
         assert.deepEqual(

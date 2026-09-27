@@ -85,19 +85,40 @@ try {
   }
   const patch = await fetch(`${base}/api/admin/config`, {
     method: "PATCH", headers: { ...auth, "content-type": "application/json" },
-    body: JSON.stringify({ matchDurationSec: 120 }),
+    body: JSON.stringify({ matchDurationSec: 120, expectedRevision: 0 }),
   });
   assert.equal(patch.status, 200);
   await patch.arrayBuffer();
-  assert.equal(JSON.parse(readFileSync(path.join(dataDir, "admin-config.json"), "utf8")).matchDurationSec, 120);
+  assert.equal(JSON.parse(readFileSync(path.join(dataDir, "admin-config.json"), "utf8")).config.matchDurationSec, 120);
+  for (const [expectedRevision, status] of [[undefined, 428], [0, 409]] as const) {
+    const response = await fetch(`${base}/api/admin/config`, {
+      method: "PATCH", headers: { ...auth, "content-type": "application/json" },
+      body: JSON.stringify({ matchDurationSec: 180, expectedRevision }),
+    });
+    assert.equal(response.status, status); await response.arrayBuffer();
+  }
+  assert.equal(getAdminConfig().matchDurationSec, 120, "stale/lost-response retry cannot overwrite a later revision");
   for (const [route, confirm] of [["round/restart", "RESTART"], ["leaderboard/reset", "RESET"]]) {
     const res = await fetch(`${base}/api/admin/${route}`, {
-      method: "POST", headers: { ...auth, "content-type": "application/json" }, body: JSON.stringify({ confirm }),
+      method: "POST", headers: { ...auth, "content-type": "application/json" }, body: JSON.stringify({ confirm, expectedRevision: 0 }),
     });
     assert.equal(res.status, 200);
     await res.arrayBuffer();
   }
   assert.equal(restarts, 1);
+  const { storageLifecycle } = await import("./application/storageServices.js");
+  await storageLifecycle.close();
+  for (const [route, method, body] of [
+    ["config", "PATCH", { expectedRevision: 1, matchDurationSec: 180 }],
+    ["leaderboard/reset", "POST", { confirm: "RESET", expectedRevision: 1 }],
+  ] as const) {
+    const response = await fetch(`${base}/api/admin/${route}`, { method,
+      headers: { ...auth, "content-type": "application/json" }, body: JSON.stringify(body) });
+    assert.equal(response.status, 503, "unavailable commit must never report success");
+    const text = await response.text();
+    assert(!text.includes(dataDir) && !text.includes(token));
+  }
+  assert.equal(getAdminConfig().matchDurationSec, 120);
   const disabled = express();
   registerAdminPanel(disabled, controls, "");
   const disabledServer = disabled.listen(0, "127.0.0.1");

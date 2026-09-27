@@ -1,3 +1,5 @@
+import type { RadarBlipNorm } from "../presentation/CockpitModel";
+
 /**
  * Radar: **Nordgebunden** (+Welt-Z = Nord oben, +X = Ost rechts; SVG-y nach unten → `ny` negiert).
  * Legacy: `radarBlipNormalized` = schiffsgebunden (Bug oben) — nur noch für Tests/Referenz.
@@ -22,7 +24,7 @@ const RADAR_SSM_RAIL_TICK_LEN_PX_DEFAULT =
  */
 export const RADAR_ESM_RANGE_WORLD = RADAR_RANGE_WORLD * 2;
 
-export type RadarBlipNorm = { nx: number; ny: number };
+export type { RadarBlipNorm } from "../presentation/CockpitModel";
 
 /**
  * Nord-up: Zielposition relativ zum eigenen Schiff in Weltkoordinaten.

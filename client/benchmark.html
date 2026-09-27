@@ -1,0 +1,18 @@
+<!doctype html>
+<html lang="en">
+  <head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>BattleFleet deterministic client benchmark</title></head>
+  <body>
+    <div id="app"></div>
+    <section id="benchmark-controls" aria-label="Client benchmark">
+      <h1>Client benchmark — offline replay</h1>
+      <p id="benchmark-status" role="status">Checking WebGL…</p>
+      <button id="benchmark-run" disabled>Run 3 warm repetitions</button>
+      <button id="benchmark-stop" disabled>Stop</button>
+      <button id="benchmark-visual" disabled>Visual: follow / port / overhead</button>
+      <button id="benchmark-gpu" disabled>Measure static GPU frame</button>
+      <p>Fixed 1280×720, pixel ratio 1, 16 ships, 60 Hz replay. No server or account required.</p>
+      <pre id="benchmark-results" aria-label="Benchmark results"></pre>
+    </section>
+    <script type="module" src="/src/benchmark/main.ts"></script>
+  </body>
+</html>

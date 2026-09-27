@@ -28,6 +28,7 @@ import { LIGHTING_PRESETS, type LightingPresetId } from "./lightingPresets";
 import { createIslandGltfInstance, loadIslandGltfTemplate } from "./islandGltfVisuals";
 import { createAsyncAssetCache, fetchAssetBytes } from "../runtime/asyncAssetCache";
 import { disposeVisualResources } from "./shipVisualResources";
+import { ownWaterReflectionTarget } from "./waterReflectionOwner";
 
 export type { LightingPresetId } from "./lightingPresets";
 
@@ -55,6 +56,8 @@ export const SHIP_CAMERA_PIVOT_LOCAL_Z = SHIP_BOW_Z - SHIP_LENGTH / 6;
 
 export type GameSceneBundle = {
   dispose: () => void;
+  /** Optional assets have settled; normal startup deliberately does not wait for this. */
+  assetsReady: Promise<void>;
   scene: THREE.Scene;
   camera: THREE.PerspectiveCamera;
   /** three.js `Water` (Reflexion + Normalmap). */
@@ -218,7 +221,7 @@ export function artilleryFxCullRadiusSq(
   return r * r;
 }
 
-export async function createGameScene(): Promise<GameSceneBundle> {
+export async function createGameScene(options: { environmentTuning?: Readonly<EnvironmentTuning> } = {}): Promise<GameSceneBundle> {
   let disposed = false;
   const normalCache = createAsyncAssetCache({
     async load(url: string, signal) {
@@ -233,8 +236,9 @@ export async function createGameScene(): Promise<GameSceneBundle> {
     },
     disposeValue: (texture) => { texture.dispose(); texture.image.close(); },
   });
-  const persisted = loadPersistedEnvironmentTuning();
-  let tuning: EnvironmentTuning = { ...DEFAULT_ENVIRONMENT_TUNING, ...persisted };
+  // Explicit tuning lets diagnostics use defaults without reading or rewriting user preferences.
+  let tuning: EnvironmentTuning = { ...DEFAULT_ENVIRONMENT_TUNING,
+    ...(options.environmentTuning ?? loadPersistedEnvironmentTuning()) };
 
   const scene = new THREE.Scene();
   const camera = new THREE.PerspectiveCamera(FOLLOW_CAM_FOV, 1, 1, 25_000);
@@ -271,6 +275,7 @@ export async function createGameScene(): Promise<GameSceneBundle> {
     fog: false,
     eye: new THREE.Vector3(0, 400, 0),
   }) as THREE.Mesh;
+  const waterReflection = ownWaterReflectionTarget(water);
   water.rotation.x = -Math.PI / 2;
   water.receiveShadow = true;
 
@@ -332,9 +337,10 @@ export async function createGameScene(): Promise<GameSceneBundle> {
   assignToOverlayLayer(seaControlBorder);
   scene.add(seaControlBorder);
 
-  void normalCache.load(`${import.meta.env?.BASE_URL ?? "/"}textures/waternormals.jpg`).then((texture) => {
+  const assetJobs: Promise<unknown>[] = [];
+  assetJobs.push(normalCache.load(`${import.meta.env?.BASE_URL ?? "/"}textures/waternormals.jpg`).then((texture) => {
     if (texture && !disposed) (water.material as THREE.ShaderMaterial).uniforms.normalSampler!.value = texture;
-  });
+  }));
   let islandIdx = 0;
   for (const is of DEFAULT_MAP_ISLANDS) {
     const glbIsland = createIslandGltfInstance(islandIdx, is.radius);
@@ -343,7 +349,7 @@ export async function createGameScene(): Promise<GameSceneBundle> {
     island.name = `island_${is.id}`;
     scene.add(island);
     const index = islandIdx;
-    void loadIslandGltfTemplate(index).then(() => {
+    assetJobs.push(loadIslandGltfTemplate(index).then(() => {
       if (disposed || glbIsland) return;
       const replacement = createIslandGltfInstance(index, is.radius);
       if (!replacement) return;
@@ -351,7 +357,7 @@ export async function createGameScene(): Promise<GameSceneBundle> {
       replacement.name = island.name;
       scene.add(replacement);
       disposeVisualResources(island);
-    });
+    }));
     islandIdx += 1;
   }
 
@@ -384,10 +390,17 @@ export async function createGameScene(): Promise<GameSceneBundle> {
   };
 
   return {
+    assetsReady: Promise.all(assetJobs).then(() => {}),
     dispose() {
+      if (disposed) return;
       disposed = true;
       normalCache.dispose();
       waterNormals.dispose();
+      waterReflection.dispose();
+      sun.shadow.dispose();
+      // GLB instances only own their materials. Shared geometry/textures remain
+      // with the app cache, which is released after the scene and all sessions.
+      disposeVisualResources(scene);
     },
     scene,
     camera,
@@ -479,6 +492,10 @@ export function resizeCamera(camera: THREE.PerspectiveCamera, w: number, h: numb
 
 /** Gedämpfte Gier für Head-up (nur Kameraposition); `null` = noch nicht initialisiert. */
 let headUpSmoothedHeadingRad: number | null = null;
+
+export function resetFollowCameraSmoothing(): void {
+  headUpSmoothedHeadingRad = null;
+}
 
 /**
  * Follow-Cam: Blick auf vorderes-Schiff-Drittel (Pivot).

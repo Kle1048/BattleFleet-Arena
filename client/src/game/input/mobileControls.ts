@@ -1,4 +1,5 @@
 import { t } from "../../locale/t";
+import { createLifetime } from "../runtime/lifetime";
 
 export type MobileControlSample = {
   active: boolean;
@@ -53,8 +54,10 @@ function bindHoldButton(
   btn: HTMLButtonElement,
   setHeld: (held: boolean) => void,
   activeBg = "rgba(28,88,140,0.96)",
-): void {
+): () => void {
+  const events = new AbortController();
   const setState = (held: boolean): void => {
+    if (events.signal.aborted) return;
     setHeld(held);
     btn.style.background = held ? activeBg : "rgba(10,24,40,0.86)";
     btn.style.borderColor = held ? "rgba(170,220,255,0.75)" : "rgba(160,220,255,0.35)";
@@ -62,33 +65,38 @@ function bindHoldButton(
   const blockSelect = (e: Event): void => {
     e.preventDefault();
   };
-  btn.addEventListener("selectstart", blockSelect);
+  btn.addEventListener("selectstart", blockSelect, { signal: events.signal });
 
   const onDown = (e: PointerEvent): void => {
+    if (events.signal.aborted) return;
     e.preventDefault();
     if (window.getSelection) window.getSelection()?.removeAllRanges();
     btn.setPointerCapture(e.pointerId);
     setState(true);
   };
   const onUp = (e: PointerEvent): void => {
+    if (events.signal.aborted) return;
     e.preventDefault();
     if (btn.hasPointerCapture(e.pointerId)) btn.releasePointerCapture(e.pointerId);
     setState(false);
   };
-  btn.addEventListener("pointerdown", onDown);
-  btn.addEventListener("pointerup", onUp);
-  btn.addEventListener("pointercancel", onUp);
-  btn.addEventListener("lostpointercapture", () => setState(false));
+  btn.addEventListener("pointerdown", onDown, { signal: events.signal });
+  btn.addEventListener("pointerup", onUp, { signal: events.signal });
+  btn.addEventListener("pointercancel", onUp, { signal: events.signal });
+  btn.addEventListener("lostpointercapture", () => setState(false), { signal: events.signal });
+  return () => { setHeld(false); events.abort(); };
 }
 
-function bindTapButton(btn: HTMLButtonElement, onTap: () => void): void {
+function bindTapButton(btn: HTMLButtonElement, onTap: () => void): () => void {
+  const events = new AbortController();
   btn.addEventListener("pointerdown", (e) => {
     e.preventDefault();
-  });
+  }, { signal: events.signal });
   btn.addEventListener("click", (e) => {
     e.preventDefault();
-    onTap();
-  });
+    if (!events.signal.aborted) onTap();
+  }, { signal: events.signal });
+  return () => events.abort();
 }
 
 export function createMobileControls(options?: CreateMobileControlsOptions): {
@@ -107,7 +115,9 @@ export function createMobileControls(options?: CreateMobileControlsOptions): {
     };
   }
 
+  const lifetime = createLifetime();
   const root = document.createElement("div");
+  lifetime.defer(() => root.remove());
   root.setAttribute("aria-label", t("mobile.ariaRoot"));
   root.style.cssText =
     "position:fixed;inset:0;z-index:9000;pointer-events:none;touch-action:none;" +
@@ -146,9 +156,9 @@ export function createMobileControls(options?: CreateMobileControlsOptions): {
   btnNextFc.setAttribute("aria-label", t("mobile.ariaNextFireControl"));
   btnNextFc.style.minHeight = "46px";
   btnNextFc.style.fontSize = "11px";
-  bindTapButton(btnNextFc, () => {
+  lifetime.defer(bindTapButton(btnNextFc, () => {
     options?.hudActions?.onNextFireControlTarget?.();
-  });
+  }));
 
   const ssmRow = document.createElement("div");
   ssmRow.style.cssText = "display:grid;grid-template-columns:1fr 1fr;gap:8px;width:100%;";
@@ -170,23 +180,23 @@ export function createMobileControls(options?: CreateMobileControlsOptions): {
   let primaryFire = false;
   let secondaryPort = false;
   let secondaryStb = false;
-  bindHoldButton(btnPrimary, (held) => {
+  lifetime.defer(bindHoldButton(btnPrimary, (held) => {
     primaryFire = held;
-  }, "rgba(116,64,30,0.96)");
-  bindHoldButton(
+  }, "rgba(116,64,30,0.96)"));
+  lifetime.defer(bindHoldButton(
     btnPort,
     (held) => {
       secondaryPort = held;
     },
     "rgba(160,45,45,0.96)",
-  );
-  bindHoldButton(
+  ));
+  lifetime.defer(bindHoldButton(
     btnStb,
     (held) => {
       secondaryStb = held;
     },
     "rgba(35,120,65,0.96)",
-  );
+  ));
 
   return {
     sample: () => {
@@ -205,8 +215,6 @@ export function createMobileControls(options?: CreateMobileControlsOptions): {
       };
       return snapshot;
     },
-    dispose: () => {
-      root.remove();
-    },
+    dispose: lifetime.dispose,
   };
 }

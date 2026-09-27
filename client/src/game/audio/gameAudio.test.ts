@@ -12,8 +12,11 @@ let stoppedOscillators = 0;
 let sources = 0;
 let closed = false;
 let decodes = 0;
+const delayed = new Map<number, () => void>();
+let nextTimer = 0;
+let disconnected = 0;
 const param = () => ({ value: 0, setValueAtTime() {}, linearRampToValueAtTime() {}, exponentialRampToValueAtTime() {} });
-const node = () => ({ connect() {}, disconnect() {}, gain: param(), frequency: param(), pan: param(), playbackRate: param() });
+const node = () => ({ connect() {}, disconnect() { disconnected++; }, gain: param(), frequency: param(), pan: param(), playbackRate: param() });
 class FakeAudioContext {
   state = "running";
   currentTime = 0;
@@ -29,7 +32,10 @@ class FakeAudioContext {
 }
 const flush = () => new Promise((resolve) => setTimeout(resolve, 0));
 try {
-  Object.defineProperty(globalThis, "window", { configurable: true, value: { setTimeout } });
+  Object.defineProperty(globalThis, "window", { configurable: true, value: {
+    setTimeout(run: () => void) { const id = ++nextTimer; delayed.set(id, run); return id; },
+    clearTimeout(id: number) { delayed.delete(id); },
+  } });
   Object.defineProperty(globalThis, "AudioContext", { configurable: true, value: FakeAudioContext });
   globalThis.fetch = (input, init) => new Promise<Response>((resolve) => {
     const url = String(input);
@@ -64,6 +70,19 @@ try {
   gameAudio.updateDynamicMusic({ active: true, smoothedTier0to2: 2, dtMs: 16 });
   await flush();
   assert.ok(fetches.has(SoundUrls.musicCombatA) || fetches.has(SoundUrls.musicCombatB));
+  gameAudio.missileLockOn();
+  assert.equal(delayed.size, 2);
+  const lateBeeps = [...delayed.values()];
+  const beforeStop = oscillators;
+  const beforeDisconnect = disconnected;
+  gameAudio.stopSession();
+  assert.equal(closed, false, "session stop retains the app audio context");
+  assert.equal(delayed.size, 0);
+  assert.ok(disconnected > beforeDisconnect, "session voices disconnect their audio graph");
+  for (const run of lateBeeps) run();
+  assert.equal(oscillators, beforeStop, "dequeued old beeps remain inert after session stop");
+  gameAudio.primaryFire();
+  assert.equal(sources, 3, "next session can reuse the already decoded sound");
   gameAudio.dispose();
   gameAudio.dispose();
   assert.ok(closed);

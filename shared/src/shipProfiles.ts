@@ -1,67 +1,9 @@
-import {
-  SHIP_CLASS_CRUISER,
-  SHIP_CLASS_DESTROYER,
-  SHIP_CLASS_FAC,
-  getShipClassProfile,
-  type ShipClassId,
-  normalizeShipClassId,
-} from "./shipClass";
-import {
-  type MountSlotDefinitionInput,
-  type ShipHullVisualProfile,
-  type ShipSocketTransform,
-  resolveMountSlotsWithSocketRegistry,
-} from "./shipVisualLayout";
+import { getShipClassProfile, type ShipClassId, normalizeShipClassId } from "./shipClass";
+import type { ShipHullVisualProfile } from "./shipVisualLayout";
 import { ASWM_MAGIC_RELOAD_MS } from "./aswm";
-import facJson from "./data/ships/fac.json";
-import destroyerJson from "./data/ships/destroyer.json";
-import cruiserJson from "./data/ships/cruiser.json";
-import facMountSocketRegistry from "./data/ships/mountSockets/fac.json";
-import destroyerMountSocketRegistry from "./data/ships/mountSockets/destroyer.json";
-import cruiserMountSocketRegistry from "./data/ships/mountSockets/cruiser.json";
+import { SHIP_HULL_PROFILE_BY_CLASS } from "./content/shipCatalog";
 
-function asProfileWithMountInputs(
-  raw: unknown,
-): Omit<ShipHullVisualProfile, "mountSlots"> & { mountSlots: MountSlotDefinitionInput[] } {
-  return raw as Omit<ShipHullVisualProfile, "mountSlots"> & { mountSlots: MountSlotDefinitionInput[] };
-}
-
-/** JSON-Profile pro Schiffsklasse — gleiche Faktoren wie zuvor `ShipClassProfile` + Movement. */
-export const SHIP_HULL_PROFILE_BY_CLASS: Record<ShipClassId, ShipHullVisualProfile> = {
-  [SHIP_CLASS_FAC]: (() => {
-    const raw = asProfileWithMountInputs(facJson);
-    return {
-      ...raw,
-      mountSlots: resolveMountSlotsWithSocketRegistry(
-        raw.profileId,
-        raw.mountSlots,
-        facMountSocketRegistry as Partial<Record<string, ShipSocketTransform>>,
-      ),
-    };
-  })(),
-  [SHIP_CLASS_DESTROYER]: (() => {
-    const raw = asProfileWithMountInputs(destroyerJson);
-    return {
-      ...raw,
-      mountSlots: resolveMountSlotsWithSocketRegistry(
-        raw.profileId,
-        raw.mountSlots,
-        destroyerMountSocketRegistry as Partial<Record<string, ShipSocketTransform>>,
-      ),
-    };
-  })(),
-  [SHIP_CLASS_CRUISER]: (() => {
-    const raw = asProfileWithMountInputs(cruiserJson);
-    return {
-      ...raw,
-      mountSlots: resolveMountSlotsWithSocketRegistry(
-        raw.profileId,
-        raw.mountSlots,
-        cruiserMountSocketRegistry as Partial<Record<string, ShipSocketTransform>>,
-      ),
-    };
-  })(),
-};
+export { SHIP_HULL_PROFILE_BY_CLASS } from "./content/shipCatalog";
 
 export function getShipHullProfileByClass(shipClass: unknown): ShipHullVisualProfile | undefined {
   const id = normalizeShipClassId(shipClass);

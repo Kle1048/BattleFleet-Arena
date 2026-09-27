@@ -24,6 +24,7 @@ export function createMessageLog(options?: {
   dispose: () => void;
 } {
   const root = document.createElement("div");
+  const events = new AbortController();
   root.className = "message-log-panel";
   root.setAttribute("aria-label", t("messageLog.panelTitle"));
 
@@ -44,7 +45,9 @@ export function createMessageLog(options?: {
     helpBtn.textContent = t("messageLog.help");
     helpBtn.title = t("messageLog.helpTitle");
     helpBtn.setAttribute("aria-label", t("messageLog.helpTitle"));
-    helpBtn.addEventListener("click", () => options.onShowHelp?.());
+    helpBtn.addEventListener("click", () => {
+      if (!events.signal.aborted) options.onShowHelp?.();
+    }, { signal: events.signal });
     actions.appendChild(helpBtn);
   }
 
@@ -66,18 +69,15 @@ export function createMessageLog(options?: {
   root.appendChild(list);
 
   const parent = options?.parent ?? document.body;
-  if (options?.parent) {
-    parent.appendChild(root);
-  } else {
-    parent.appendChild(root);
-  }
+  parent.appendChild(root);
 
   const clear = (): void => {
     list.replaceChildren();
   };
-  clearBtn.addEventListener("click", () => clear());
+  clearBtn.addEventListener("click", clear, { signal: events.signal });
 
   const append = (e: CommsLogEntry): void => {
+    if (events.signal.aborted) return;
     const li = document.createElement("li");
     li.className = "message-log-line";
     const kind = e.kind ?? "info";
@@ -104,6 +104,7 @@ export function createMessageLog(options?: {
   return {
     append,
     dispose() {
+      events.abort();
       root.remove();
     },
   };

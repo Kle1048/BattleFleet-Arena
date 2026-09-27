@@ -1,0 +1,11 @@
+{
+  "main_fwd": {
+    "position": { "x": 0, "y": 1.55, "z": 10 }
+  },
+  "ciws_fwd": {
+    "position": { "x": 0, "y": 2.1, "z": 4.5 }
+  },
+  "sam_aft": {
+    "position": { "x": 0, "y": 1.85, "z": -4 }
+  }
+}

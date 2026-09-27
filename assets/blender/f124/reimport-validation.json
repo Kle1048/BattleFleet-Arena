@@ -1,0 +1,26 @@
+{
+  "status": "pass",
+  "scene": "F124_GLTF_REIMPORT_QA.008",
+  "mesh_count": 9,
+  "reimport_materials": [
+    "F124_FlightDeck_UV.015",
+    "F124_PaintedSteel_UV.055",
+    "F124_PaintedSteel_UV.056",
+    "F124_PaintedSteel_UV.057",
+    "F124_PaintedSteel_UV.058",
+    "F124_PaintedSteel_UV.059",
+    "F124_PaintedSteel_UV.060",
+    "F124_Pennant_Alpha.015",
+    "F124_Preview_Sea.006"
+  ],
+  "renders": [
+    "f124_hero.png",
+    "f124_stern.png",
+    "f124_profile.png",
+    "f124_top.png",
+    "f124_bow.png",
+    "f124_aft.png",
+    "f124_match_side.png",
+    "f124_match_top.png"
+  ]
+}

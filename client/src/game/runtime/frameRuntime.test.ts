@@ -1,6 +1,5 @@
 import assert from "node:assert/strict";
 import * as THREE from "three";
-import { ArraySchema } from "@colyseus/schema";
 import { PlayerState, PlayerLifeState } from "@battlefleet/shared";
 import { createFrameRuntimeState, runFrameRuntimeStep } from "./frameRuntime";
 import { createShipVisual, disposeShipVisual } from "../scene/shipVisual";
@@ -11,7 +10,7 @@ Object.defineProperty(globalThis, "window", { configurable: true, value: { inner
 const me = new PlayerState();
 me.id = "me"; me.shipClass = "fac"; me.hp = me.maxHp = 100; me.lifeState = PlayerLifeState.Alive;
 const other = new PlayerState(); other.id = "other";
-const list = new ArraySchema(me, other);
+const list = [me, other];
 const visual = createShipVisual({ isLocal: true, shipClassId: "fac" });
 let hud = 0;
 let sent = 0;
@@ -48,7 +47,7 @@ try {
   assert.equal(hud, 23);
   me.radarActive = false; options.now += 1; runFrameRuntimeStep(options);
   assert.equal(hud, 24);
-  list.deleteAt(1); options.now += 1; runFrameRuntimeStep(options);
+  list.splice(1, 1); options.now += 1; runFrameRuntimeStep(options);
   assert(!state.playersById.has("other")); assert(!state.lastLifeStateBySessionId.has("other"));
   assert.notEqual(createFrameRuntimeState().adPlayers, state.adPlayers);
 } finally {

@@ -1,24 +1,5 @@
-import type { RadarBlipNorm } from "./radarHudMath";
-
-export type CockpitEsmLine = { x1: number; y1: number; x2: number; y2: number; stroke?: string };
-
-/** ASuM-Bedrohung auf dem Plan-Peiler: gestrichelt vor Lock, durchgezogen bei Lock auf eigenes Schiff. */
-export type CockpitRadarThreatLine = {
-  x1: number;
-  y1: number;
-  x2: number;
-  y2: number;
-  dashed: boolean;
-};
-
-/** Feste SSM-Rail — kurzer Peiler-Tick auf dem Plan-Radar (Nord oben). */
-export type CockpitSsmRailLine = {
-  x1: number;
-  y1: number;
-  x2: number;
-  y2: number;
-  stroke?: string;
-};
+import type { RadarBlipNorm, CockpitEsmLine, CockpitRadarThreatLine, CockpitSsmRailLine } from "../presentation/CockpitModel";
+export type { CockpitEsmLine, CockpitRadarThreatLine, CockpitSsmRailLine } from "../presentation/CockpitModel";
 
 /** Stabiler String zum Erkennen von Änderungen am Plan-Radar (kein DOM-Rebuild bei gleichem Kontaktbild). */
 export function cockpitRadarBlipsKey(blips: readonly RadarBlipNorm[]): string {

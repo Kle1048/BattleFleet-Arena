@@ -1,0 +1,22 @@
+{
+  "passed": true,
+  "scene": "F124_Animation_Weathered",
+  "source_retained": "F124_Animation_Demo",
+  "rust_patches": 16,
+  "packed_textures": 6,
+  "generated_textures": [
+    [
+      1254,
+      1254
+    ],
+    [
+      1254,
+      1254
+    ]
+  ],
+  "animation_frames_checked": 481,
+  "animated_objects": 8,
+  "max_transform_error": 0,
+  "game_sector_constraints_preserved": true,
+  "runtime_glbs_changed": false
+}

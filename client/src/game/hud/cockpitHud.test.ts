@@ -19,6 +19,8 @@ class FakeElement {
   set innerHTML(value: string) { this.html = value; writes++; }
   setAttribute() { writes++; }
   addEventListener() {}
+  removeEventListener() {}
+  remove() { writes++; }
   appendChild(child: FakeElement) { this.children.push(child); writes++; }
   replaceChildren() { this.children = []; this.replacements++; writes++; }
   querySelector(selector: string) {
@@ -65,6 +67,10 @@ try {
   model.playerDisplayName = "<img src=x onerror=alert(1)>"; hud.update(model);
   assert.equal(nodes.get(".cockpit-player-name")!.textContent, model.playerDisplayName);
   assert.equal(nodes.get(".cockpit-player-name")!.innerHTML, "");
+  hud.dispose();
+  const disposedWrites = writes;
+  hud.dispose(); hud.update(model);
+  assert.equal(writes, disposedWrites, "a released HUD cannot write into detached DOM");
 } finally {
   if (previousDocument) Object.defineProperty(globalThis, "document", previousDocument);
   else Reflect.deleteProperty(globalThis, "document");

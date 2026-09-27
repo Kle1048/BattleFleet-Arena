@@ -28,9 +28,11 @@ export function createMobileMapAimReticle(
   document.body.appendChild(el);
 
   const prevCursor = canvas.style.cursor;
+  let disposed = false;
   canvas.style.cursor = "default";
 
   const onPointerDown = (e: PointerEvent): void => {
+    if (disposed) return;
     if (e.target !== canvas) return;
     if (e.button !== 0) return;
     el.style.left = `${e.clientX}px`;
@@ -42,6 +44,8 @@ export function createMobileMapAimReticle(
 
   return {
     dispose: () => {
+      if (disposed) return;
+      disposed = true;
       canvas.removeEventListener("pointerdown", onPointerDown);
       canvas.style.cursor = prevCursor;
       el.remove();

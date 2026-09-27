@@ -1,5 +1,6 @@
 import * as THREE from "three";
-import { getAuthoritativeShipHullProfile, type ShipWreckState } from "@battlefleet/shared";
+import type { WreckView } from "../presentation/BattleReadModel";
+import { getAuthoritativeShipHullProfile } from "@battlefleet/shared";
 import { createShipHitboxWireframe } from "../scene/shipHitboxDebug";
 import { assignToOverlayLayer } from "./renderOverlayLayers";
 import { worldToRenderX, worldToRenderYaw } from "./renderCoords";
@@ -10,7 +11,7 @@ const rootsByWreckId = new Map<string, THREE.Group>();
 
 type WreckListLike = {
   length: number;
-  at: (index: number) => ShipWreckState | undefined;
+  at: (index: number) => WreckView | undefined;
 };
 
 /**

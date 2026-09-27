@@ -29,21 +29,3 @@ export function colyseusHttpBase(
 export function createColyseusClient(url: string): Client {
   return new Client(url);
 }
-
-export function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise<T> {
-  return new Promise((resolve, reject) => {
-    const id = window.setTimeout(() => {
-      reject(new Error(label));
-    }, ms);
-    promise.then(
-      (v) => {
-        window.clearTimeout(id);
-        resolve(v);
-      },
-      (e) => {
-        window.clearTimeout(id);
-        reject(e);
-      },
-    );
-  });
-}

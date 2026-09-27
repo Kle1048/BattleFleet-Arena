@@ -1,4 +1,5 @@
-import { PlayerLifeState, type ShipClassId, type ShipWreckState } from "@battlefleet/shared";
+import { PlayerLifeState, type ShipClassId } from "@battlefleet/shared";
+import type { WreckView } from "../presentation/BattleReadModel";
 import { applyShipVisualRuntimeTuning, setShipVisualLifeState, type ShipVisual } from "../scene/shipVisual";
 import { computeWreckVisualPose } from "../scene/shipWreckAnimation";
 import { worldToRenderX, worldToRenderYaw } from "./renderCoords";
@@ -12,7 +13,7 @@ export function wreckVisualSessionKey(wreckId: string): string {
 
 type WreckListLike = {
   length: number;
-  at: (index: number) => ShipWreckState | undefined;
+  at: (index: number) => WreckView | undefined;
 };
 
 /**
@@ -44,7 +45,7 @@ export function syncWreckListVisuals(
 
 export function applyPoseToWreckVisual(
   vis: ShipVisual,
-  w: ShipWreckState,
+  w: WreckView,
   wallNowMs: number,
   tuningGen: number,
 ): void {
