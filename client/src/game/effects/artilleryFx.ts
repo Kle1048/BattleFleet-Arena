@@ -48,11 +48,14 @@ export function createArtilleryFx(scene: THREE.Scene, fx: FxSystem): {
   onFired: (msg: ArtyFiredMsg) => void;
   onImpact: (msg: ArtyImpactMsg, options?: ArtyImpactOptions) => void;
   getStats: () => { activeShells: number };
+  createWarmupMesh: () => THREE.Mesh;
   /** Nach `createVisualRuntime`: Mündung aus Mount-GLB (`bf_muzzle`), sonst Fallback Server-Mündung. */
   setMuzzleSeekResolver: (fn: ((ownerId: string, slotId: string) => ArtilleryMuzzleSeekCoords | null) | null) => void;
 } & GameRenderer<never> {
   const flying: FlyingShell[] = [];
   const shellMat = createArtilleryShellMaterial();
+  const shellGeometry = new THREE.OctahedronGeometry(1.75, 0);
+  let disposed = false;
   let resolveMuzzleSeek: ((ownerId: string, slotId: string) => ArtilleryMuzzleSeekCoords | null) | null = null;
 
   function removeShellById(shellId: number): void {
@@ -60,8 +63,6 @@ export function createArtilleryFx(scene: THREE.Scene, fx: FxSystem): {
     if (idx < 0) return;
     const f = flying[idx]!;
     scene.remove(f.mesh);
-    f.mesh.geometry.dispose();
-    (f.mesh.material as THREE.Material).dispose();
     flying.splice(idx, 1);
   }
 
@@ -70,12 +71,11 @@ export function createArtilleryFx(scene: THREE.Scene, fx: FxSystem): {
   }
 
   function update(nowPerfMs: number, _dtMs = 0): void {
+    if (disposed) return;
     for (let i = flying.length - 1; i >= 0; i--) {
       const f = flying[i]!;
       if (nowPerfMs - f.start > f.flightMs + SHELL_IMPACT_FAILSAFE_GRACE_MS) {
         scene.remove(f.mesh);
-        f.mesh.geometry.dispose();
-        (f.mesh.material as THREE.Material).dispose();
         flying.splice(i, 1);
         continue;
       }
@@ -88,26 +88,30 @@ export function createArtilleryFx(scene: THREE.Scene, fx: FxSystem): {
   }
 
   function dispose(): void {
+    if (disposed) return;
+    disposed = true;
     for (const f of flying) {
       scene.remove(f.mesh);
-      f.mesh.geometry.dispose();
-      (f.mesh.material as THREE.Material).dispose();
     }
     flying.length = 0;
+    resolveMuzzleSeek = null;
     shellMat.dispose();
+    shellGeometry.dispose();
   }
 
   return {
     sync,
     update,
     dispose,
+    createWarmupMesh() { const mesh = new THREE.Mesh(shellGeometry, shellMat); mesh.castShadow = true; return mesh; },
     getStats() {
       return { activeShells: flying.length };
     },
     setMuzzleSeekResolver(fn) {
-      resolveMuzzleSeek = fn;
+      if (!disposed) resolveMuzzleSeek = fn;
     },
     onFired(msg: ArtyFiredMsg): void {
+      if (disposed) return;
       const dx = msg.toX - msg.fromX;
       const dz = msg.toZ - msg.fromZ;
       const len = Math.hypot(dx, dz);
@@ -118,10 +122,8 @@ export function createArtilleryFx(scene: THREE.Scene, fx: FxSystem): {
       const my = muzzle?.y ?? msg.fromY ?? 10;
       fx.spawnArtilleryMuzzle(mx, mz, headingRad, my);
 
-      const r = 1.75;
-      /** Wenige Flächen — reicht für kleinen Tracer, günstiger als Kugel-Mesh. */
-      const geo = new THREE.OctahedronGeometry(r, 0);
-      const mesh = new THREE.Mesh(geo, shellMat.clone());
+      // Keep the material/program and GPU buffers alive across gaps between shots.
+      const mesh = new THREE.Mesh(shellGeometry, shellMat);
       mesh.position.set(worldToRenderX(mx), my, mz);
       mesh.castShadow = true;
       scene.add(mesh);
@@ -139,6 +141,7 @@ export function createArtilleryFx(scene: THREE.Scene, fx: FxSystem): {
     },
 
     onImpact(msg: ArtyImpactMsg, options?: ArtyImpactOptions): void {
+      if (disposed) return;
       removeShellById(msg.shellId);
       if (options?.skipSplash) return;
       const kind = msg.kind ?? "water";

@@ -80,3 +80,26 @@ simulation architecture (point 12) and persistence (point 13) remain separate wo
 The production-preview smoke test confirmed a real room join, a radar toggle and
 optional debug-panel loading. The protected admin endpoint returned live bounded
 tick metrics; this two-participant smoke test is not a capacity benchmark.
+
+## Weapon launch stalls (30 September 2026)
+
+An isolated browser probe (`fire-benchmark.html`, included only in
+`build:benchmark`) reproduces six artillery shots and six SSM launches with
+particles and audio disabled. It counts actual WebGL shader compilations/program
+links and records launch, following-frame and removal timings at 1280x720, DPR 1.
+
+Before the fix, every separated launch recreated geometry/materials; disposing
+the last projectile released its shader programs. Subsequent launches compiled
+four shaders and linked two programs again (main and water-reflection variants).
+Measured render submission took 13.5–17.6 ms for repeated launches and roughly
+98–104 ms on first use, even without particles or sound.
+
+Artillery and SSM now retain one geometry/material pair each for the session,
+removing only projectile objects on expiry. A real warmup draw beneath the session
+loading backdrop prepares both weapons, including reflection/shadow paths, then
+clears the probe pixels. Session disposal releases the retained resources once.
+The same twelve-launch probe then recorded zero compile/link calls during firing,
+0.3–0.7 ms render submission, and stable geometry/program counts across idle gaps.
+These are isolated desktop-browser CPU timings, not GPU measurements or a claim
+about all sources of frame drops in a live match. A 100-cycle regression test
+covers shared ownership, impact/timeout/null cleanup and failed-warmup cleanup.

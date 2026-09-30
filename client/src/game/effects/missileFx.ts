@@ -46,10 +46,13 @@ export function createMissileFx(scene: THREE.Scene, fx: FxSystem): {
   dispose: () => void;
   flashImpact: (x: number, z: number, kind: string) => void;
   getStats: () => { activeMissiles: number };
+  createWarmupMesh: () => THREE.Mesh;
   onFired: (message: MissileFired) => void;
   setMuzzleSeekResolver: (resolver: MuzzleResolver) => void;
 } {
   const byId = new Map<number, Entry>();
+  // Session-owned resources survive the last missile, retaining compiled programs.
+  const bodyTemplate = createProjectileBody("ssm");
   // Wire events may precede the state patch. Bounded and short-lived, never a projectile authority.
   const pendingLaunches = new Map<number, Launch>();
   let resolveMuzzle: MuzzleResolver | undefined;
@@ -59,8 +62,6 @@ export function createMissileFx(scene: THREE.Scene, fx: FxSystem): {
     const e = byId.get(id);
     if (!e) return;
     scene.remove(e.group);
-    e.body.geometry.dispose();
-    (e.body.material as THREE.Material).dispose();
     byId.delete(id);
   }
 
@@ -69,7 +70,7 @@ export function createMissileFx(scene: THREE.Scene, fx: FxSystem): {
     if (e) return e;
 
     const group = new THREE.Group();
-    const body = createProjectileBody("ssm");
+    const body = bodyTemplate.clone();
     body.position.y = BODY_Y;
     group.add(body);
 
@@ -177,12 +178,15 @@ export function createMissileFx(scene: THREE.Scene, fx: FxSystem): {
     for (const id of Array.from(byId.keys())) {
       removeMissileEntry(id);
     }
+    bodyTemplate.geometry.dispose();
+    bodyTemplate.material.dispose();
   }
 
   return {
     sync,
     update,
     dispose,
+    createWarmupMesh: () => bodyTemplate.clone(),
     setMuzzleSeekResolver(resolver) { if (!disposed) resolveMuzzle = resolver; },
     onFired(message) {
       if (disposed) return;

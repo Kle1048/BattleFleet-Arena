@@ -10,5 +10,6 @@ export default defineConfig({
     main: path.resolve(fileURLToPath(new URL(".", import.meta.url)), "benchmark.html"),
     particles: path.resolve(fileURLToPath(new URL(".", import.meta.url)), "particle-benchmark.html"),
     effects: path.resolve(fileURLToPath(new URL(".", import.meta.url)), "fx-preview.html"),
+    firing: path.resolve(fileURLToPath(new URL(".", import.meta.url)), "fire-benchmark.html"),
   } } },
 });

@@ -55,6 +55,7 @@ import type { SessionInput } from "./createGameInput";
 import { pruneVisualRollSmoothed } from "../scene/shipVisualRoll";
 
 import { createSessionFrame } from "./sessionFrame";
+import { warmupWeaponRendering } from "../runtime/warmupWeaponRendering";
 
 export function createSessionPresentation(options: {
   bundle: GameSceneBundle;
@@ -311,6 +312,7 @@ export function createSessionPresentation(options: {
     });
     if (new URLSearchParams(window.location.search).get("debug") === "1") scaConsoleApi.showDevHud(true);
 
+    warmupWeaponRendering(renderer, scene, camera, [artilleryFx.createWarmupMesh(), missileFx.createWarmupMesh()]);
     return { frame, present: eventPresenter.present, dispose };
   } catch (error) { dispose(); throw error; }
 }
