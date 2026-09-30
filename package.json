@@ -3,6 +3,12 @@
   "private": true,
   "workspaces": ["client", "server", "shared"],
   "scripts": {
+    "training:smoke": "node training/run.mjs smoke",
+    "training:train": "node training/run.mjs train",
+    "training:evaluate": "node training/run.mjs evaluate",
+    "training:export": "node training/run.mjs export",
+    "training:benchmark": "node training/run.mjs benchmark",
+    "training:dashboard": "node training/run.mjs dashboard",
     "benchmark:combat": "npm run models:check && node scripts/combat-content.test.mjs && node --conditions=bfa-source --import tsx scripts/benchmark-combat.mjs",
     "models:export": "node --conditions=bfa-source --import tsx scripts/models/exportModel.ts",
     "models:build": "node --conditions=bfa-source --import tsx scripts/models/buildModelMetadata.ts --write",

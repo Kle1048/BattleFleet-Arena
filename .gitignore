@@ -8,6 +8,9 @@ dist-benchmark/
 .env.*
 !.env.example
 .cursor/
+training/.venv/
+training/runs/
+__pycache__/
 # Runtime data (default location depends on the server process working directory).
 server-data/
 # Regenerable clean-material migration staging and recoverable local originals.

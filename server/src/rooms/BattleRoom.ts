@@ -5,6 +5,7 @@ import { BattleState } from "@battlefleet/shared/protocol/schema";
 import type { GameEventSink } from "@battlefleet/shared/protocol";
 import { sanitizePlayerDisplayName, SHIP_CLASS_FAC, SHIP_CLASS_DESTROYER, SHIP_CLASS_CRUISER } from "@battlefleet/shared/rules";
 import { GameSimulation } from "../simulation/GameSimulation.js";
+import { configuredBotPolicy } from "../application/botPolicy.js";
 import type { SimulationEnvironment } from "../simulation/SimulationEnvironment.js";
 import type { MatchPlayerResult } from "../simulation/SimulationSettings.js";
 import { systemEnvironment } from "../application/systemEnvironment.js";
@@ -83,7 +84,7 @@ export class BattleRoom extends Room<BattleState> {
     private readonly monotonicNow: () => number = () => performance.now()) {
     super();
     this.simulation = new GameSimulation(environment, simulationSettings, this.gameEvents,
-      () => this.clients.length, () => performance.now(), (results, matchId) => this.persistMatchResults(results, matchId), randomUUID);
+      () => this.clients.length, () => performance.now(), (results, matchId) => this.persistMatchResults(results, matchId), randomUUID, configuredBotPolicy);
   }
 
   onCreate() {

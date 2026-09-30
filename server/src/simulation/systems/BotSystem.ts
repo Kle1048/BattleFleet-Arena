@@ -2,6 +2,7 @@ import { createBotController, type BotVisiblePlayer, type BotVisibleMissile, typ
 import type { InputCommand } from "@battlefleet/shared/protocol";
 import type { SimulationEnvironment } from "../SimulationEnvironment.js";
 import { desiredServerBotCount } from "./botPopulation.js";
+import type { BotDecisionStrategy } from "@battlefleet/shared/rules";
 
 const SPAWN_STAGGER_MS = 450;
 const REMOVE_STAGGER_MS = 1600;
@@ -16,6 +17,7 @@ type BotPorts = {
   joinParticipant: (id: string, name: string) => void;
   removeParticipant: (id: string) => void;
   applyInput: (id: string, input: InputCommand) => void;
+  createStrategy?: () => BotDecisionStrategy;
 };
 
 /** Owns only bot membership, brains and cadence; never connections, schema or persistence. */
@@ -54,7 +56,7 @@ export class BotSystem {
     const hero = HERO_NAMES[(serial - 1) % HERO_NAMES.length] ?? "Admiral";
     this.ports.joinParticipant(id, `${hero} (Bot)`);
     this.members.add(id);
-    const brain = createBotController({ wallNow: this.ports.environment.nowMs, monotonicNow: this.ports.diagnosticNowMs });
+    const brain = createBotController({ wallNow: this.ports.environment.nowMs, monotonicNow: this.ports.diagnosticNowMs }, this.ports.createStrategy?.());
     brain.enable();
     this.brains.set(id, brain);
   }

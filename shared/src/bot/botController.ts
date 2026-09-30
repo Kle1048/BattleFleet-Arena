@@ -1,4 +1,4 @@
-import { DecisionTreeStrategy, createDecisionEngine } from "./decisionEngine";
+import { DecisionTreeStrategy, createDecisionEngine, type BotDecisionStrategy } from "./decisionEngine";
 import { planAction } from "./actionPlanner";
 import { createBotDecisionLog } from "./decisionLog";
 import { createBotMemoryStore } from "./memoryStore";
@@ -17,7 +17,7 @@ import type {
 /** Diagnostics use host clocks; decision cadence continues to use update(now). */
 export type BotDiagnosticClock = { wallNow: () => number; monotonicNow: () => number };
 
-export function createBotController(clock: BotDiagnosticClock): {
+export function createBotController(clock: BotDiagnosticClock, strategy: BotDecisionStrategy = new DecisionTreeStrategy()): {
   enable: () => void;
   disable: () => void;
   isEnabled: () => boolean;
@@ -48,7 +48,7 @@ export function createBotController(clock: BotDiagnosticClock): {
   let cachedTargetId: string | null = null;
   let latestCommand: BotInputCommand | null = null;
   const memory = createBotMemoryStore();
-  const decisionEngine = createDecisionEngine(new DecisionTreeStrategy());
+  const decisionEngine = createDecisionEngine(strategy);
   const log = createBotDecisionLog(240, clock.monotonicNow);
   const lastInputs: BotInputCommand[] = [];
   const recentIntents: { at: number; intent: BotIntent }[] = [];

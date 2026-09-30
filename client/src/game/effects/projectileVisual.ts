@@ -4,17 +4,19 @@ import sam from "./projectile-assets/sam.json";
 import pd from "./projectile-assets/pd.json";
 
 export type ProjectileVisualKind = "ssm" | "sam" | "pd";
+// Keep SSM readability at 12 units; apply the same enlargement to every model.
+const PROJECTILE_DISPLAY_SCALE = 12 / ssm.length;
 export const PROJECTILE_VISUALS = {
   ssm: { asset: ssm, displayLength: 12 },
-  sam: { asset: sam, displayLength: 22 },
-  pd: { asset: pd, displayLength: 22 },
+  sam: { asset: sam, displayLength: sam.length * PROJECTILE_DISPLAY_SCALE },
+  pd: { asset: pd, displayLength: pd.length * PROJECTILE_DISPLAY_SCALE },
 } as const;
 
 /** Blender-exported single-mesh models, +Z nose / +Y up, centre at origin.
  * Bundled mesh data avoids async IO at launch. GLB counterparts are interchange
  * exports of the same source, not a separately maintained procedural model.
  * Each effect owns its geometry/material and can use its existing disposal path.
- * Lengths retain the previous cosmetic enlargement; never used for collisions.
+ * One cosmetic enlargement preserves relative model sizes; never used for collisions.
  */
 export function createProjectileBody(
   kind: ProjectileVisualKind,

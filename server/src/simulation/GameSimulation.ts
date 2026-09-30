@@ -16,6 +16,7 @@ import { ArtillerySystem } from "./systems/ArtillerySystem.js";
 import { MissileSystem } from "./systems/MissileSystem.js";
 import { MineSystem } from "./systems/MineSystem.js";
 import { AirDefenseSystem } from "./systems/AirDefenseSystem.js";
+import type { BotDecisionStrategy } from "@battlefleet/shared/rules";
 
 const NO_ISLANDS: typeof DEFAULT_MAP_ISLAND_POLYGONS = [];
 
@@ -65,9 +66,10 @@ export class GameSimulation {
     diagnosticNowMs: () => number,
     private readonly completeMatch: (results: readonly MatchPlayerResult[], matchId: string) => void,
     private readonly nextMatchId: () => string,
+    createBotStrategy?: () => BotDecisionStrategy,
   ) {
     this.bots = new BotSystem({
-      environment, diagnosticNowMs,
+      environment, diagnosticNowMs, createStrategy: createBotStrategy,
       joinParticipant: (id, name) => this.join(id, name),
       removeParticipant: id => this.remove(id),
       applyInput: (id, input) => this.applyInput(id, input),

@@ -4,6 +4,7 @@ import { Box3, Vector3 } from "three";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
 import { createProjectileBody, PROJECTILE_VISUALS } from "./projectileVisual";
 
+const renderedLengths: number[] = [];
 for (const kind of ["ssm", "sam", "pd"] as const) {
   const spec = PROJECTILE_VISUALS[kind];
   const body = createProjectileBody(kind);
@@ -28,6 +29,9 @@ for (const kind of ["ssm", "sam", "pd"] as const) {
   assert.equal(body.material.vertexColors, true);
   assert.equal(body.material.depthTest, kind === "ssm");
   const bounds = new Box3().setFromObject(body);
+  renderedLengths.push(bounds.getSize(new Vector3()).z);
+  assert.ok(Math.abs(body.scale.x - 12 / PROJECTILE_VISUALS.ssm.asset.length) < 1e-10,
+    `${kind}: common enlargement preserves relative model proportions`);
   assert.ok(Math.abs(bounds.getSize(new Vector3()).z - spec.displayLength) < .00001);
   assert.ok(bounds.max.z > 0 && bounds.min.z < 0);
   const noseZ = Math.max(...spec.asset.positions.filter((_, i) => i % 3 === 2));
@@ -58,4 +62,7 @@ for (const kind of ["ssm", "sam", "pd"] as const) {
   body.geometry.dispose(); body.material.dispose();
   other.geometry.dispose(); other.material.dispose();
 }
+assert.equal(PROJECTILE_VISUALS.ssm.displayLength, 12, "SSM size stays unchanged");
+assert.ok(renderedLengths[0]! > renderedLengths[1]! && renderedLengths[1]! > renderedLengths[2]!,
+  "rendered lengths must be SSM > SAM > PD");
 console.log("Projectile assets: GLB/runtime parity, <1000 triangles, colours, +Z nose, display size and ownership verified");

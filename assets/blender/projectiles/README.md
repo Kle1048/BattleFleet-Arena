@@ -26,7 +26,9 @@ Die GLBs sind Austauschdateien, keine zweite unabhängig modellierte Quelle.
 Koordinaten: +Y oben, +Z Spitze, Ursprung im Rumpfzentrum. Längen sind nur
 grafische Proportionen, keine Simulationseingaben.
 
-Die bestehende kosmetische Vergrößerung bleibt: SSM 12, SAM/PD 22 Rendereinheiten.
+Ein gemeinsamer kosmetischer Vergrößerungsfaktor erhält die Modellproportionen:
+SSM unverändert 12, SAM ca. 8,42 und PD ca. 6,48 Rendereinheiten. Damit gilt
+SSM > SAM > PD; die bisherigen übergroßen SAM-/PD-Darstellungen entfallen.
 Die ursprünglichen SAM-Tiefentest-/Overlayregeln bleiben ebenso erhalten wie
 Startpunkt, Höhe, Flugbewegung, Lebensdauer, Rauch und Trefferlogik. Das vorhandene
 gemeinsame SAM/PD-VFX wählt Sea Sparrow für SAM und RAM für PD. Keine

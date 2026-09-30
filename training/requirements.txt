@@ -1,0 +1,6 @@
+# Tested together on Python 3.12; CPU wheels for torch are installed by setup.ps1.
+numpy==2.2.6
+gymnasium==1.2.0
+stable-baselines3==2.7.0
+torch==2.8.0
+tensorboard==2.20.0
