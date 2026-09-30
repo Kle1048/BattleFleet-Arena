@@ -69,7 +69,7 @@ export type GameSceneBundle = {
   /** Server-/shared-Kollisions-Polygone (XZ), Sichtbarkeit per Ship-Debug. */
   islandCollisionPolygonGroup: THREE.Group;
   getEnvironmentTuning: () => EnvironmentTuning;
-  applyEnvironmentTuning: (patch: Partial<EnvironmentTuning>) => void;
+  applyEnvironmentTuning: (patch: Partial<EnvironmentTuning>, options?: { persist?: boolean }) => void;
   /** Rote AO-Linie — `half` = `room.state.operationalAreaHalfExtent` (Server). */
   setOperationalAreaHalfExtent: (halfExtent: number) => void;
   setIslandsEnabled: (enabled: boolean) => void;
@@ -104,7 +104,7 @@ function applyEnvironmentState(
   const dir = sunDirectionFromAngles(tuning.elevationDeg, tuning.azimuthDeg);
 
   ambient.color.setHex(mood.ambientColor);
-  ambient.groundColor.setHex(tuning.lightingPreset === "golden_hour" ? 0x354857 : 0x223746);
+  ambient.groundColor.setHex(mood.groundColor);
   ambient.intensity = mood.ambientIntensity * tuning.ambientIntensityMul;
   sun.color.setHex(mood.sunColor);
   sun.intensity = mood.sunIntensity * tuning.sunIntensityMul;
@@ -414,9 +414,9 @@ export async function createGameScene(options: {
   };
 
   const getEnvironmentTuning = (): EnvironmentTuning => ({ ...tuning });
-  const applyEnvironmentTuning = (patch: Partial<EnvironmentTuning>): void => {
+  const applyEnvironmentTuning = (patch: Partial<EnvironmentTuning>, options?: { persist?: boolean }): void => {
     tuning = { ...tuning, ...patch };
-    savePersistedEnvironmentTuning(tuning);
+    if (options?.persist !== false) savePersistedEnvironmentTuning(tuning);
     applyEnvironmentState(tuning, { scene, sky, ambient, sun, water });
   };
 

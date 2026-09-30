@@ -2,6 +2,13 @@
 
 Browser-Multiplayer (Three.js + Colyseus + Node.js) laut `PRD.md` und `Project_Plan.md`. Enthält **Task 2–9 (MVP)** — Netz, Interpolation, AO & Inseln, **Primär-Artillerie** (Plan A), **HP** & **Respawn** mit `lifeState` (**5 s** Timer, **3 s** Spawn-Schutz ohne Splash-Schaden), **ASuM**, **Torpedo**, **SAM/CIWS** (nur gegen eingehende ASuM). **Außerhalb AO** nach **10 s** dasselbe wie Kampftod (kein Disconnect).
 
+## Lernende Bots / Trainingslager
+
+Das lokale [Trainingslager](training/README.md) trainiert taktische PPO-Agenten auf der echten
+Spielsimulation. Die Anleitung erklärt Netzarchitektur, Bibliotheken, Belohnungen,
+Training, Lernkurven, Auswertung und die Verknüpfung exportierter Modelle mit dem Spielserver.
+Schnelltest nach Einrichtung: `node training/run.mjs smoke`.
+
 ## Voraussetzungen
 
 - **Node.js** (LTS empfohlen)

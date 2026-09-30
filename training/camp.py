@@ -2,13 +2,18 @@
 from __future__ import annotations
 
 import argparse
+from functools import partial
 from datetime import datetime, timezone
 import hashlib
 import importlib.metadata
 import json
+import os
 from pathlib import Path
 import subprocess
 import time
+
+# Keep plotting-library caches inside the local training workspace, including subprocesses.
+os.environ.setdefault("MPLCONFIGDIR", str(Path(__file__).resolve().parent / ".cache/matplotlib"))
 
 import numpy as np
 import torch
@@ -34,11 +39,15 @@ def versions():
             ["torch", "stable-baselines3", "gymnasium", "numpy", "tensorboard"]}
 
 
-def evaluate(model=None, *, episodes=8, seed=1_000_000, policy_path=None):
-    env = BattleFleetEnv(policy_path)
+def evaluate(model=None, *, episodes=8, seed=1_000_000, policy_path=None, profile=None):
+    if model is not None:
+        profile = model.bfa_specification["scenario"].get("profile", "standard")
+    env = BattleFleetEnv(policy_path, profile)
     rows = []
     started = time.perf_counter()
     try:
+        if model is not None and getattr(model, "bfa_specification", None) != env.specification:
+            raise ValueError("Evaluation checkpoint has an incompatible training contract")
         for index in range(episodes):
             observation, _ = env.reset(seed=seed + index)
             reward_sum, steps = 0.0, 0
@@ -66,6 +75,12 @@ def evaluate(model=None, *, episodes=8, seed=1_000_000, policy_path=None):
         "win_rate": sum(row["outcome"] == "win" for row in rows) / episodes,
         "mean_reward": float(np.mean([row["reward"] for row in rows])),
         "mean_collisions": float(np.mean([row["collisions"] for row in rows])),
+        "mean_seconds": float(np.mean([row["seconds"] for row in rows])),
+        "mean_kills": float(np.mean([row["kills"] for row in rows])),
+        **{"mean_" + key: float(np.mean([row[key] for row in rows])) for key in
+           ["selfScore", "opponentScore", "aliveSeconds", "deaths", "gunShots", "missileShots"]},
+        **{key + "_fraction": sum(row[key] for row in rows) / max(0.001, sum(row["aliveSeconds"] for row in rows))
+           for key in ["radarSeconds", "zoneSeconds", "closeSeconds", "rearSeconds"]},
         "wall_seconds": time.perf_counter() - started, "rows": rows,
     }
 
@@ -83,7 +98,7 @@ class ValidationCallback(BaseCallback):
         self.next_evaluation += self.every
         report = evaluate(self.model, episodes=self.episodes, seed=500_000)
         report["timesteps"] = self.num_timesteps
-        score = (report["win_rate"], report["mean_reward"])
+        score = (report["mean_reward"], report["win_rate"])
         self.model.save(self.output / f"checkpoint-{self.num_timesteps}")
         if self.best is None or score > self.best:
             self.best = score
@@ -96,14 +111,14 @@ class ValidationCallback(BaseCallback):
         return True
 
 
-def make_env():
-    return Monitor(BattleFleetEnv())
+def make_env(profile="standard"):
+    return Monitor(BattleFleetEnv(profile=profile))
 
 
-def new_model(env, seed=42, rollout=512):
+def new_model(env, seed=42, rollout=512, gamma=0.995):
     return PPO("MlpPolicy", env, device="cpu", seed=seed, verbose=1,
                n_steps=rollout, batch_size=128, n_epochs=10,
-               learning_rate=3e-4, gamma=0.995, gae_lambda=0.95,
+               learning_rate=3e-4, gamma=gamma, gae_lambda=0.95,
                clip_range=0.2, ent_coef=0.01, vf_coef=0.5,
                max_grad_norm=0.5, target_kl=0.03,
                policy_kwargs={"net_arch": {"pi": [64, 64], "vf": [64, 64]},
@@ -115,9 +130,11 @@ def export_policy(model_path, output):
     model_path = Path(model_path).resolve()
     model = PPO.load(model_path, device="cpu")
     model.policy.set_training_mode(False)
-    env = BattleFleetEnv()
+    env = BattleFleetEnv(profile=model.bfa_specification["scenario"].get("profile", "standard"))
     try:
         spec = env.specification
+        if getattr(model, "bfa_specification", None) != spec:
+            raise ValueError("Checkpoint observation/action/scenario contract is incompatible")
         layers = [module for module in model.policy.mlp_extractor.policy_net if isinstance(module, torch.nn.Linear)]
         layers.append(model.policy.action_net)
         artifact = {
@@ -126,6 +143,8 @@ def export_policy(model_path, output):
             "layers": [{"weight": layer.weight.detach().cpu().tolist(), "bias": layer.bias.detach().cpu().tolist()} for layer in layers],
             "metadata": {"created_utc": datetime.now(timezone.utc).isoformat(),
                          "algorithm": "PPO", "timesteps": model.num_timesteps,
+                         "profile": spec["scenario"].get("profile", "standard"),
+                         "profileControllerVersion": spec["scenario"].get("profileControllerVersion"),
                          "checkpoint_sha256": hashlib.sha256(model_path.read_bytes()).hexdigest(),
                          "scenario": spec["scenario"], "libraries": versions()},
         }
@@ -159,26 +178,42 @@ def export_policy(model_path, output):
 def train(args):
     output = Path(args.output).resolve() if args.output else RUNS / datetime.now().strftime("%Y%m%d-%H%M%S")
     output.mkdir(parents=True, exist_ok=False)
-    probe = BattleFleetEnv()
+    probe = BattleFleetEnv(profile=args.profile)
     try:
         spec = probe.specification
         check_env(probe, warn=True)
     finally:
         probe.close()
     commit = subprocess.run(["git", "rev-parse", "HEAD"], cwd=ROOT, capture_output=True, text=True)
-    write_json(output / "run.json", {"arguments": vars(args), "libraries": versions(), "specification": spec,
+    write_json(output / "run.json", {"arguments": {k: v for k, v in vars(args).items() if k != "func"}, "libraries": versions(), "specification": spec,
                                     "git_commit": commit.stdout.strip(), "status": "training"})
     # Full resolved package list is saved for reproducing this particular run.
     import sys
     frozen = subprocess.run([sys.executable, "-m", "pip", "freeze"], capture_output=True, text=True, check=True)
     (output / "requirements-resolved.txt").write_text(frozen.stdout, encoding="utf-8")
-    vector = SubprocVecEnv([make_env] * args.envs, start_method="spawn") if args.envs > 1 else DummyVecEnv([make_env])
+    factory = partial(make_env, args.profile)
+    vector = SubprocVecEnv([factory] * args.envs, start_method="spawn") if args.envs > 1 else DummyVecEnv([factory])
     try:
         vector.seed(args.seed)
         if args.resume:
             model = PPO.load(args.resume, env=vector, device="cpu")
+            if getattr(model, "bfa_specification", None) != spec:
+                raise ValueError("Resume checkpoint has an incompatible training contract")
         else:
-            model = new_model(vector, args.seed)
+            model = new_model(vector, args.seed, gamma=0.998 if args.profile != "standard" else 0.995)
+            model.bfa_specification = spec
+            if args.initialize_from:
+                source = PPO.load(args.initialize_from, device="cpu")
+                source_spec = getattr(source, "bfa_specification", {})
+                if any(source_spec.get(key) != spec[key] for key in ["version", "features", "actions"]):
+                    raise ValueError("Initialization checkpoint has incompatible observations/actions")
+                if source_spec.get("scenario", {}).get("profile", "standard") != args.profile:
+                    raise ValueError("Initialization checkpoint has a different personality")
+                model.policy.load_state_dict(source.policy.state_dict())
+                write_json(output / "initialization.json", {"source": str(Path(args.initialize_from).resolve()),
+                    "source_sha256": hashlib.sha256(Path(args.initialize_from).read_bytes()).hexdigest(),
+                    "source_timesteps": source.num_timesteps, "source_specification": source_spec,
+                    "note": "Weight initialization only; fresh optimizer and new scenario contract."})
         model.tensorboard_log = str(output / "tensorboard")
         callback = ValidationCallback(output, args.eval_every, args.eval_episodes)
         if args.resume:
@@ -193,12 +228,12 @@ def train(args):
         model.save(output / "last")
         last_validation = evaluate(model, episodes=args.eval_episodes, seed=500_000)
         write_json(output / "validation-last.json", last_validation)
-        score = (last_validation["win_rate"], last_validation["mean_reward"])
+        score = (last_validation["mean_reward"], last_validation["win_rate"])
         if callback.best is None or score > callback.best:
             model.save(output / "best")
         best = PPO.load(output / "best.zip", device="cpu")
         report = {"model": evaluate(best, episodes=args.eval_episodes, seed=1_000_000),
-                  "rule_baseline": evaluate(episodes=args.eval_episodes, seed=1_000_000)}
+                  "rule_baseline": evaluate(episodes=args.eval_episodes, seed=1_000_000, profile=args.profile)}
         write_json(output / "holdout.json", report)
         parity = export_policy(output / "best.zip", output / "policy.json")
         write_json(output / "status.json", {"status": "complete", "timesteps": model.num_timesteps, "export_parity": parity})
@@ -208,11 +243,12 @@ def train(args):
         vector.close()
 
 
-def smoke(_args):
+def smoke(args):
     output = RUNS / ("smoke-" + datetime.now().strftime("%Y%m%d-%H%M%S"))
     output.mkdir(parents=True, exist_ok=False)
-    env = BattleFleetEnv()
+    env = BattleFleetEnv(profile=args.profile)
     try:
+        spec = env.specification
         check_env(env, warn=True)
         traces = []
         for _ in range(2):
@@ -227,9 +263,10 @@ def smoke(_args):
         assert traces[0] == traces[1], "Seed replay differs"
     finally:
         env.close()
-    vector = DummyVecEnv([make_env])
+    vector = DummyVecEnv([partial(make_env, args.profile)])
     try:
         model = new_model(vector, rollout=128)
+        model.bfa_specification = spec
         before = [parameter.detach().clone() for parameter in model.policy.parameters()]
         model.learn(total_timesteps=256)
         assert any(not torch.equal(old, new) for old, new in zip(before, model.policy.parameters())), "No learning update occurred"
@@ -276,7 +313,9 @@ def positive(value):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     commands = parser.add_subparsers(dest="command", required=True)
-    commands.add_parser("smoke").set_defaults(func=smoke)
+    p = commands.add_parser("smoke")
+    p.add_argument("--profile", choices=["standard", "aggressive", "cautious", "objective"], default="standard")
+    p.set_defaults(func=smoke)
     p = commands.add_parser("benchmark")
     p.add_argument("--steps", type=positive, default=2000)
     p.set_defaults(func=benchmark)
@@ -285,7 +324,10 @@ def main():
     p.add_argument("--envs", type=positive, choices=range(1, 17), default=4)
     p.add_argument("--seed", type=int, default=42)
     p.add_argument("--output")
-    p.add_argument("--resume", help="Trusted local SB3 checkpoint (.zip)")
+    p.add_argument("--profile", choices=["standard", "aggressive", "cautious", "objective"], default="standard")
+    initialization = p.add_mutually_exclusive_group()
+    initialization.add_argument("--resume", help="Trusted local SB3 checkpoint (.zip), identical scenario")
+    initialization.add_argument("--initialize-from", help="Trusted checkpoint weights; fresh optimizer, explicit scenario transfer")
     p.add_argument("--eval-every", type=positive, default=20_000)
     p.add_argument("--eval-episodes", type=positive, default=8)
     p.set_defaults(func=train)
@@ -307,7 +349,7 @@ def main():
         report = evaluate(model, episodes=args.episodes, seed=args.seed, policy_path=args.policy)
         if args.output:
             write_json(args.output, report)
-        print(json.dumps(report, indent=2))
+        print(json.dumps({k: v for k, v in report.items() if k != "rows"} if args.output else report, indent=2))
 
     p.set_defaults(func=run_evaluation)
     args = parser.parse_args()

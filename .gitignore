@@ -10,6 +10,7 @@ dist-benchmark/
 .cursor/
 training/.venv/
 training/runs/
+training/.cache/
 __pycache__/
 # Runtime data (default location depends on the server process working directory).
 server-data/

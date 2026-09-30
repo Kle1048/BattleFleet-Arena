@@ -52,7 +52,7 @@ export function createMissileFx(scene: THREE.Scene, fx: FxSystem): {
 } {
   const byId = new Map<number, Entry>();
   // Session-owned resources survive the last missile, retaining compiled programs.
-  const bodyTemplate = createProjectileBody("ssm");
+  const bodyTemplate = createProjectileBody("ssm", undefined, { exhaust: true });
   // Wire events may precede the state patch. Bounded and short-lived, never a projectile authority.
   const pendingLaunches = new Map<number, Launch>();
   let resolveMuzzle: MuzzleResolver | undefined;

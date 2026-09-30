@@ -18,15 +18,14 @@ ROOT = Path(__file__).resolve().parents[1]
 class BattleFleetEnv(gym.Env):
     metadata = {"render_modes": []}
 
-    def __init__(self, policy_path: str | None = None):
+    def __init__(self, policy_path: str | None = None, profile: str | None = None):
         super().__init__()
         node = shutil.which("node")
         if not node:
             raise RuntimeError("Node.js must be available on PATH")
         command = [node, "--conditions=bfa-source", "--import", "tsx",
                    str(ROOT / "server/src/training/worker.ts")]
-        if policy_path:
-            command.append(str(Path(policy_path).resolve()))
+        command.extend([str(Path(policy_path).resolve()) if policy_path else "", profile or ""])
         self.process = subprocess.Popen(
             command, cwd=ROOT, stdin=subprocess.PIPE, stdout=subprocess.PIPE,
             stderr=None, text=True, encoding="utf-8", bufsize=1,
@@ -71,7 +70,7 @@ class BattleFleetEnv(gym.Env):
     def reset(self, *, seed=None, options=None):
         super().reset(seed=seed)
         # Explicit seeds reproduce exactly; subsequent resets draw deterministic episode seeds.
-        episode_seed = int(seed) if seed is not None else int(self.np_random.integers(0, 2**32))
+        episode_seed = int(seed) if seed is not None else int(self.np_random.integers(0, 500_000))
         result = self.request({"op": "reset", "seed": episode_seed})
         return np.asarray(result["observation"], dtype=np.float32), result["info"]
 

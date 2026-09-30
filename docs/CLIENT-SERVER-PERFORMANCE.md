@@ -103,3 +103,24 @@ The same twelve-launch probe then recorded zero compile/link calls during firing
 These are isolated desktop-browser CPU timings, not GPU measurements or a claim
 about all sources of frame drops in a live match. A 100-cycle regression test
 covers shared ownership, impact/timeout/null cleanup and failed-warmup cleanup.
+
+## Brighter hulls and muzzle illumination (local experiment)
+
+The three lighting presets now use brighter hemisphere fill, including the lower
+hemisphere, and modestly stronger sunlight. Exposure is unchanged. Sun direction
+and its existing 1024-square shadow map remain dynamic; no new shadow pass is
+introduced. The FX preview offers non-persisted sun-angle controls and separate
+model/muzzle views.
+
+Artillery muzzle flashes reuse the two permanently attached impact lights, with
+an 85 ms quadratic fade, 55 m range, actual barrel height and 700 m visibility
+cutoff. Active impacts have priority over muzzle flashes. No additional light or
+shadow map is created on firing; unit tests cover priority, height and lifetime.
+
+At 1280x720/DPR 1, the open-water static GPU probe measured 2.79 ms median before
+this change and 3.73/3.63 ms afterwards (120 samples each, 60 warmup frames).
+These sequential development-browser samples do not isolate causality or measure
+active muzzle flashes; they do not establish zero overhead or live-match FPS.
+Three warmed 16-ship combat replays then recorded median frame intervals of
+17.7/17.5/17.5 ms, p95 18.3/18.2/18.2 ms, and no frames above 50 ms across 5,400
+measured frames. Median draw count remained 266. This excludes network and audio.

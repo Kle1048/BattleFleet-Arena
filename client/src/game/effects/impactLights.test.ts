@@ -24,6 +24,17 @@ assert.ok(lights.every(l => l.intensity === 0 && l.visible), "zero intensity pre
 fx.flash(0, 10000);
 assert.ok(lights.every(l => l.intensity === 0), "offscreen lights consume no slots");
 fx.flash(NaN, 0);
+fx.muzzle(0, 14, 0);
+const muzzle = lights.find(l => l.intensity > 0)!;
+assert.equal(muzzle.position.y, 14, "muzzle light follows actual barrel height");
+assert.equal(muzzle.distance, 55);
+fx.update(85);
+assert.ok(lights.every(l => l.intensity === 0), "muzzle pulse ends after 85 ms");
+fx.flash(0, 0); fx.flash(40, 0);
+const positions = lights.map(l => l.position.toArray());
+fx.muzzle(0, 14, 0);
+assert.deepEqual(lights.map(l => l.position.toArray()), positions, "muzzle flashes cannot evict impacts");
+assert.ok(lights.every(l => l.intensity === 1600));
 fx.dispose(); fx.dispose(); fx.flash(0, 0); fx.update(0);
 assert.equal(scene.children.length, 0);
 console.log("impact lights: bounded pool, merge, decay, culling and disposal ok");

@@ -2,6 +2,7 @@ import type { BotIntent, BotMemory } from "./types";
 
 export function createBotMemoryStore(): {
   get: () => BotMemory;
+  setPursuit: (pursuit: BotMemory["pursuit"]) => void;
   setLastTarget: (targetId: string | null) => void;
   setLastThreat: (threatId: string | null) => void;
   onIntent: (intent: BotIntent, now: number) => void;
@@ -16,6 +17,7 @@ export function createBotMemoryStore(): {
     get(): BotMemory {
       return { ...mem };
     },
+    setPursuit(pursuit) { mem.pursuit = pursuit; },
     setLastTarget(targetId): void {
       mem.lastTargetId = targetId;
     },

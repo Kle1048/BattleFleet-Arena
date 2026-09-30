@@ -6,6 +6,7 @@ export type LightingPreset = {
   fogNear: number;
   fogFar: number;
   ambientColor: number;
+  groundColor: number;
   ambientIntensity: number;
   sunColor: number;
   sunIntensity: number;
@@ -19,9 +20,10 @@ export const LIGHTING_PRESETS: Record<LightingPresetId, LightingPreset> = {
     fogNear: 0,
     fogFar: 0,
     ambientColor: 0xcfe9ff,
-    ambientIntensity: 0.85,
+    groundColor: 0x7c919e,
+    ambientIntensity: 1.35,
     sunColor: 0xffffff,
-    sunIntensity: 1.65,
+    sunIntensity: 2.1,
     sunPos: [140, 1500, 220],
   },
   golden_hour: {
@@ -30,9 +32,10 @@ export const LIGHTING_PRESETS: Record<LightingPresetId, LightingPreset> = {
     fogNear: 380,
     fogFar: 2100,
     ambientColor: 0xbcd6ef,
-    ambientIntensity: 0.8,
+    groundColor: 0x8b999e,
+    ambientIntensity: 1.25,
     sunColor: 0xffd4a0,
-    sunIntensity: 1.8,
+    sunIntensity: 2.25,
     sunPos: [620, 520, 260],
   },
   stormy_haze: {
@@ -41,9 +44,10 @@ export const LIGHTING_PRESETS: Record<LightingPresetId, LightingPreset> = {
     fogNear: 160,
     fogFar: 1200,
     ambientColor: 0x9ab6c8,
-    ambientIntensity: 0.66,
+    groundColor: 0x657887,
+    ambientIntensity: 1.05,
     sunColor: 0xbdd6ea,
-    sunIntensity: 0.62,
+    sunIntensity: 0.95,
     sunPos: [-260, 720, -180],
   },
 };

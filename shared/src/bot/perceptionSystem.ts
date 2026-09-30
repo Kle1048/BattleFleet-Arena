@@ -1,4 +1,5 @@
 import { PlayerLifeState } from "../playerLife";
+import { RADAR_DETECTION_RANGE, esmDetectionRange } from "../sensors";
 import type {
   BotPlayerList,
   BotVisibleMissile,
@@ -14,32 +15,37 @@ export function observeWorld(
   torpedoList: readonly BotVisibleTorpedo[],
   operationalHalfExtent: number,
 ): PerceptionSnapshot | null {
-  let self = null as PerceptionSnapshot["self"] | null;
+  const players = [...playerList];
+  const self = players.find(p => p.id === mySessionId && p.lifeState !== PlayerLifeState.AwaitingRespawn);
+  if (!self) return null;
   const enemies: PerceptionSnapshot["enemies"] = [];
-  for (const p of playerList) {
+  const esmBearings: NonNullable<PerceptionSnapshot["esmBearings"]> = [];
+  for (const p of players) {
     if (p.lifeState === PlayerLifeState.AwaitingRespawn) continue;
-    if (p.id === mySessionId) {
-      self = p;
-    } else {
-      enemies.push(p);
+    if (p.id === mySessionId) continue;
+    const distance = Math.hypot(p.x - self.x, p.z - self.z);
+    if (self.radarActive !== false && distance <= RADAR_DETECTION_RANGE) enemies.push({ ...p });
+    if (p.radarActive !== false && distance <= esmDetectionRange(p.shipClass)) {
+      esmBearings.push({ id: p.id, bearingRad: Math.atan2(p.x - self.x, p.z - self.z) });
     }
   }
-  if (!self) return null;
   const missiles: BotVisibleMissile[] = [];
   for (let i = 0; i < missileList.length; i++) {
     const m = missileList[i];
-    if (m && m.ownerId !== mySessionId) missiles.push(m);
+    if (m && m.ownerId !== mySessionId && Math.hypot(m.x - self.x, m.z - self.z) <= RADAR_DETECTION_RANGE) missiles.push({ ...m });
   }
   const torpedoes: BotVisibleTorpedo[] = [];
   for (let i = 0; i < torpedoList.length; i++) {
     const t = torpedoList[i];
-    if (t && t.ownerId !== mySessionId) torpedoes.push(t);
+    if (t && t.ownerId !== mySessionId && self.radarActive !== false &&
+        Math.hypot(t.x - self.x, t.z - self.z) <= RADAR_DETECTION_RANGE) torpedoes.push({ ...t });
   }
   return {
     timestamp: now,
     operationalHalfExtent,
-    self,
+    self: { ...self },
     enemies,
+    esmBearings,
     missiles,
     torpedoes,
   };

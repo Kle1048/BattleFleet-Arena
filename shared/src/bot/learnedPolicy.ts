@@ -1,8 +1,9 @@
+import { botProfile, profileControllerVersion, type BotProfile } from "./profiles";
 import type { BotDecisionStrategy } from "./decisionEngine";
 import type { BotIntent, DecisionInput } from "./types";
 
 /** This ordered contract is shared by training, export and production inference. */
-export const POLICY_VERSION = "bfa-tactics-v1";
+export const POLICY_VERSION = "bfa-tactics-v2-sensors";
 export const POLICY_ACTIONS: readonly BotIntent[] = [
   "ATTACK", "CHASE", "REPOSITION", "HOLD_ARC", "TAKE_COVER", "RETREAT",
   "EVADE_MISSILES", "FINISH_TARGET", "SEEK_SEA_CONTROL",
@@ -14,6 +15,7 @@ export const POLICY_FEATURES = [
   "target.heading.sin", "target.heading.cos", "target.distance/2000",
   "target.gunArc", "target.missileArc", "danger", "seaControl", "enemies/8",
   "nearestMissile.dx/1000", "nearestMissile.dz/1000", "nearestMissile.present",
+  "ownRadar.active", "esm.count/8", "esm.bearing.sin", "esm.bearing.cos",
   ...POLICY_ACTIONS.map(a => `previous.${a}`),
 ] as const;
 
@@ -35,6 +37,9 @@ export function encodePolicyObservation({ snapshot: s, context: c, memory }: Dec
     Number(c.targetInGunArc), Number(c.targetInMissileArc), c.dangerScore,
     Number(c.selfInSeaControlZone), s.enemies.length / 8,
     missile ? (missile.x - p.x) / 1000 : 0, missile ? (missile.z - p.z) / 1000 : 0, Number(!!missile),
+    Number(p.radarActive !== false), (s.esmBearings?.length ?? 0) / 8,
+    c.esmBearingRad != null ? Math.sin(c.esmBearingRad) : 0,
+    c.esmBearingRad != null ? Math.cos(c.esmBearingRad) : 0,
     ...POLICY_ACTIONS.map(a => Number(memory.lastIntent === a))];
   return values.map(v => Number.isFinite(v) ? Math.fround(Math.max(-1, Math.min(1, v))) : 0);
 }
@@ -52,6 +57,8 @@ export function validatePolicyArtifact(raw: unknown): PolicyArtifact {
   if (a.version !== POLICY_VERSION || a.activation !== "tanh" ||
       JSON.stringify(a.features) !== JSON.stringify(POLICY_FEATURES) ||
       JSON.stringify(a.actions) !== JSON.stringify(POLICY_ACTIONS)) throw new Error("Incompatible policy contract");
+  if (botProfile(a.metadata?.profile) !== "standard" && a.metadata?.profileControllerVersion !== profileControllerVersion(botProfile(a.metadata?.profile)))
+    throw new Error("Incompatible personality controller version; retrain/export the model");
   const sizes = [POLICY_FEATURES.length, 64, 64, POLICY_ACTIONS.length];
   if (!Array.isArray(a.layers) || a.layers.length !== 3) throw new Error("Expected three policy layers");
   for (let i = 0; i < 3; i++) {
@@ -80,7 +87,11 @@ export function policyLogits(artifact: PolicyArtifact, observation: readonly num
 
 export class LearnedPolicyStrategy implements BotDecisionStrategy {
   private readonly artifact: PolicyArtifact;
-  constructor(raw: unknown) { this.artifact = validatePolicyArtifact(raw); }
+  readonly profile: BotProfile;
+  constructor(raw: unknown) {
+    this.artifact = validatePolicyArtifact(raw);
+    this.profile = botProfile(this.artifact.metadata?.profile);
+  }
   decide(input: DecisionInput): BotIntent {
     const logits = policyLogits(this.artifact, encodePolicyObservation(input));
     let best = 0;

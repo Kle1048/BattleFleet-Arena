@@ -91,7 +91,7 @@ function interceptRingFlash(
 function buildSamInterceptMissile(kind: "sam" | "pd"): THREE.Group {
   const group = new THREE.Group();
   group.frustumCulled = false;
-  const body = createProjectileBody(kind);
+  const body = createProjectileBody(kind, undefined, { exhaust: kind === "sam" });
   body.frustumCulled = false;
   body.renderOrder = AD_FX_RENDER_ORDER;
   body.position.y = 0;

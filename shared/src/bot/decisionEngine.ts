@@ -1,6 +1,7 @@
 import type { BotIntent, DecisionInput } from "./types";
 
 export interface BotDecisionStrategy {
+  readonly profile?: import("./profiles").BotProfile;
   decide(input: DecisionInput): BotIntent;
 }
 
@@ -11,6 +12,7 @@ export class DecisionTreeStrategy implements BotDecisionStrategy {
     const target = snapshot.enemies.find((q) => q.id === context.bestTargetId) ?? null;
     if (context.incomingMissileThreat) return "EVADE_MISSILES";
     if (hpPercent < 0.25) return "RETREAT";
+    if (!target && context.esmTargetId) return "ATTACK";
     if (
       target &&
       target.maxHp > 0 &&

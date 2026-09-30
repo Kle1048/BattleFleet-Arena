@@ -11,4 +11,18 @@ export function loadBotPolicy(path: string | undefined): (() => LearnedPolicyStr
   return () => new LearnedPolicyStrategy(artifact);
 }
 
-export const configuredBotPolicy = loadBotPolicy(process.env.BFA_BOT_POLICY_PATH);
+/** Each room gets its own roster cursor; repeated paths deliberately repeat a personality. */
+export function loadBotRoster(raw: string): () => (() => LearnedPolicyStrategy) {
+  const paths: unknown = JSON.parse(raw);
+  if (!Array.isArray(paths) || paths.length < 1 || paths.length > 16 ||
+      !paths.every(path => typeof path === "string" && path.length > 0)) throw new Error("Invalid bot policy roster");
+  const factories = paths.map(path => loadBotPolicy(path)!);
+  return () => {
+    let next = 0;
+    return () => factories[next++ % factories.length]!();
+  };
+}
+
+const roster = process.env.BFA_BOT_POLICY_PATHS ? loadBotRoster(process.env.BFA_BOT_POLICY_PATHS) : undefined;
+const single = roster ? undefined : loadBotPolicy(process.env.BFA_BOT_POLICY_PATH);
+export const createConfiguredBotPolicy = () => roster ? roster() : single;

@@ -1,4 +1,6 @@
 import { DecisionTreeStrategy, createDecisionEngine, type BotDecisionStrategy } from "./decisionEngine";
+import { profileIntent } from "./profiles";
+import type { BotMemory } from "./types";
 import { planAction } from "./actionPlanner";
 import { createBotDecisionLog } from "./decisionLog";
 import { createBotMemoryStore } from "./memoryStore";
@@ -18,6 +20,7 @@ import type {
 export type BotDiagnosticClock = { wallNow: () => number; monotonicNow: () => number };
 
 export function createBotController(clock: BotDiagnosticClock, strategy: BotDecisionStrategy = new DecisionTreeStrategy()): {
+  getMemory: () => BotMemory;
   enable: () => void;
   disable: () => void;
   isEnabled: () => boolean;
@@ -47,6 +50,7 @@ export function createBotController(clock: BotDiagnosticClock, strategy: BotDeci
   let cachedContext: TacticalContext | null = null;
   let cachedTargetId: string | null = null;
   let latestCommand: BotInputCommand | null = null;
+  let lastContactKey = "";
   const memory = createBotMemoryStore();
   const decisionEngine = createDecisionEngine(strategy);
   const log = createBotDecisionLog(240, clock.monotonicNow);
@@ -54,6 +58,7 @@ export function createBotController(clock: BotDiagnosticClock, strategy: BotDeci
   const recentIntents: { at: number; intent: BotIntent }[] = [];
 
   return {
+    getMemory: () => memory.get(),
     enable(): void {
       enabled = true;
     },
@@ -75,13 +80,21 @@ export function createBotController(clock: BotDiagnosticClock, strategy: BotDeci
       );
       if (!snapshot) return null;
       snapshot.islandsEnabled = islandsEnabled;
+      snapshot.profile = strategy.profile;
+      const context = orient(snapshot, memory.get());
+      const seenTarget = snapshot.enemies.find(p => p.id === context.bestTargetId);
+      if (seenTarget) memory.setPursuit({ id: seenTarget.id, x: seenTarget.x, z: seenTarget.z, at: now });
+      const contactKey = JSON.stringify([snapshot.self.radarActive !== false,
+        snapshot.enemies.map(p => p.id), snapshot.esmBearings?.map(b => b.id)]);
+      const contactsChanged = contactKey !== lastContactKey;
+      lastContactKey = contactKey;
+      // Never retain the old precise target/weapon command after a sensor contact disappears.
+      cachedContext = context;
+      cachedTargetId = context.bestTargetId ?? context.esmTargetId ?? null;
       if (now - lastDecideAt >= 140 || !cachedIntent || !cachedContext) {
-        const context = orient(snapshot, memory.get());
-        cachedContext = context;
-        cachedTargetId = context.bestTargetId;
-        memory.setLastTarget(context.bestTargetId);
+        if (context.bestTargetId || strategy.profile !== "aggressive") memory.setLastTarget(context.bestTargetId);
         const prevIntent = cachedIntent;
-        cachedIntent = decisionEngine.decide({ snapshot, context, memory: memory.get() });
+        cachedIntent = profileIntent(decisionEngine.decide({ snapshot, context, memory: memory.get() }), snapshot, memory.get());
         memory.onIntent(cachedIntent, now);
         if (prevIntent !== cachedIntent) {
           const switchedAt = clock.wallNow();
@@ -96,7 +109,7 @@ export function createBotController(clock: BotDiagnosticClock, strategy: BotDeci
         }
         lastDecideAt = now;
       }
-      if (now - lastActAt >= 70 && cachedIntent && cachedContext) {
+      if ((now - lastActAt >= 70 || contactsChanged) && cachedIntent && cachedContext) {
         latestCommand = planAction({
           intent: cachedIntent,
           snapshot,

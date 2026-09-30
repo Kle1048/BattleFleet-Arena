@@ -259,6 +259,7 @@ export function createFxSystem(scene: THREE.Scene, environment: {
     const px0 = worldToRenderX(worldX);
     const z0 = worldZ;
     const useMuzzleY = Number.isFinite(baseWorldY);
+    lights.muzzle(px0, (useMuzzleY ? baseWorldY! : 11) + 1, z0);
     const yBurst = (lo: number, hi: number) =>
       useMuzzleY ? (baseWorldY as number) + randRange(-1.2, 1.2) : randRange(lo, hi);
 

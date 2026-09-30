@@ -23,19 +23,29 @@ function clamp01(v: number): number {
   return Math.max(0, Math.min(1, v));
 }
 
-export function orient(snapshot: PerceptionSnapshot, _memory: BotMemory): TacticalContext {
+export function orient(snapshot: PerceptionSnapshot, memory: BotMemory): TacticalContext {
   const self = snapshot.self;
   let bestTargetId: string | null = null;
   let closestEnemyDistSq = Infinity;
+  let bestScore = Infinity;
   for (const e of snapshot.enemies) {
     const d2 = distSq(self.x, self.z, e.x, e.z);
-    if (d2 < closestEnemyDistSq) {
+    const profile = snapshot.profile;
+    const score = profile && profile !== "standard"
+      ? Math.sqrt(d2) + (profile === "aggressive" ? 360 : 160) * e.hp / Math.max(1, e.maxHp)
+        - (e.id === memory.lastTargetId ? (profile === "aggressive" ? 280 : 80) : 0)
+        - (isInSeaControlZone(e.x, e.z) ? (profile === "objective" ? 300 : 140) : 0)
+      : d2;
+    if (score < bestScore) {
+      bestScore = score;
       closestEnemyDistSq = d2;
       bestTargetId = e.id;
     }
   }
 
   const bestEnemy = snapshot.enemies.find((e) => e.id === bestTargetId) ?? null;
+  // Stable identity order, never choose passive contacts using their unknown distance.
+  const esm = [...(snapshot.esmBearings ?? [])].sort((a, b) => a.id.localeCompare(b.id))[0];
   const bestTargetDistSq: number | null = bestEnemy ? closestEnemyDistSq : null;
   let targetInGunArc = false;
   let targetInMissileArc = false;
@@ -85,6 +95,8 @@ export function orient(snapshot: PerceptionSnapshot, _memory: BotMemory): Tactic
     aggressionScore,
     survivalScore,
     bestTargetId,
+    esmTargetId: esm?.id ?? null,
+    esmBearingRad: esm?.bearingRad ?? null,
     bestTargetDistSq,
     targetInGunArc,
     targetInMissileArc,

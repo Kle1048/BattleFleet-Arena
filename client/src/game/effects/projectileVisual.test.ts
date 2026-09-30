@@ -66,3 +66,22 @@ assert.equal(PROJECTILE_VISUALS.ssm.displayLength, 12, "SSM size stays unchanged
 assert.ok(renderedLengths[0]! > renderedLengths[1]! && renderedLengths[1]! > renderedLengths[2]!,
   "rendered lengths must be SSM > SAM > PD");
 console.log("Projectile assets: GLB/runtime parity, <1000 triangles, colours, +Z nose, display size and ownership verified");
+
+for (const kind of ["ssm", "sam"] as const) {
+  const body = createProjectileBody(kind, undefined, { exhaust: true });
+  const asset = PROJECTILE_VISUALS[kind].asset;
+  const position = body.geometry.getAttribute("position");
+  assert.equal(position.count, asset.positions.length / 3 + 18 * 3);
+  assert.equal(body.children.length, 0, "flame shares the existing mesh and draw");
+  assert.equal(body.geometry.groups.length, 0, "no separate material pass");
+  const tail = Math.min(...asset.positions.filter((_, i) => i % 3 === 2));
+  for (let i = asset.positions.length / 3; i < position.count; i += 3) {
+    const a = new Vector3().fromBufferAttribute(position, i);
+    const b = new Vector3().fromBufferAttribute(position, i + 1);
+    const c = new Vector3().fromBufferAttribute(position, i + 2);
+    assert.ok(Math.max(a.z, b.z, c.z) <= tail + asset.length * .004, "flame stays at the nozzle behind the body");
+    const center = a.clone().add(b).add(c).multiplyScalar(1/3); center.z = 0;
+    assert.ok(b.sub(a).cross(c.sub(a)).dot(center) > 0, "outward winding survives backface culling");
+  }
+  body.geometry.dispose(); body.material.dispose();
+}

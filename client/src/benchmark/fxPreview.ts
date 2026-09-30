@@ -15,6 +15,8 @@ import { disposeShipSpriteTexture } from "../game/scene/shipVisual";
 import { LIGHTING_PRESETS } from "../game/scene/lightingPresets";
 import { sunAnglesFromPosition } from "../game/scene/environmentSun";
 import { createShipWakeRibbonSystem } from "../game/scene/shipWakeRibbon";
+import { createProjectileBody } from "../game/effects/projectileVisual";
+import { getPrimaryArtilleryMuzzleSeekCoords } from "../game/scene/shipMountVisuals";
 
 async function start() {
 const root = document.querySelector<HTMLElement>("#app")!;
@@ -33,7 +35,9 @@ ship.id = "preview"; ship.x = 0; ship.z = 0; ship.headingRad = 0; ship.aimX = 0;
 ships.sync([ship]);
 const wakes = createShipWakeRibbonSystem(bundle.scene);
 const wakeVisuals = new Map(ships.getVisuals());
-let wakeMode = false;
+let wakeMode = false, exhaustMode = false;
+const exhaustBodies = [createProjectileBody("ssm", undefined, { exhaust: true }), createProjectileBody("sam", undefined, { exhaust: true })];
+exhaustBodies.forEach((body, i) => { body.position.set(i ? 5 : -5, 4, 0); body.visible = false; bundle.scene.add(body); });
 let now = 0, raf = 0, playing = false, disposed = false;
 const makeFx = () => createFxSystem(bundle.scene, { camera: bundle.camera, random: seededRandom(73), now: () => now });
 let fx = makeFx();
@@ -41,15 +45,21 @@ const play = document.querySelector<HTMLButtonElement>("#play")!;
 function camera() {
   const overhead = document.querySelector<HTMLSelectElement>("#angle")!.value === "overhead";
   bundle.camera.up.set(0, 1, 0);
+  if (exhaustMode) {
+    bundle.camera.position.set(...(overhead ? [0, 35, .01] : [19, 16, -26]) as [number, number, number]);
+    bundle.camera.lookAt(0, 4, 0); bundle.camera.updateMatrixWorld(true); return;
+  }
   bundle.camera.position.set(...(overhead ? [15, wakeMode ? 250 : 150, .01] : [85, 60, 95]) as [number, number, number]);
   bundle.camera.lookAt(wakeMode ? 0 : 15, 0, wakeMode ? -35 : 0); bundle.camera.updateMatrixWorld(true);
 }
 function draw() {
   updateGameWaterAnimations(bundle.water, now);
   renderer.render(bundle.scene, bundle.camera);
-  stats.textContent = wakeMode ? "Fahrt mit 28 m/s · Schaum ohne Spritzpartikel" : `${Math.round(now)} ms · ${fx.getStats().activeParticles} aktive Partikel`;
+  stats.textContent = exhaustMode ? "SSM und SAM · je 18 zusätzliche Dreiecke · kein zusätzlicher Draw Call" : wakeMode ? "Fahrt mit 28 m/s · Schaum ohne Spritzpartikel" : `${Math.round(now)} ms · ${fx.getStats().activeParticles} aktive Partikel`;
 }
 function reset() {
+  exhaustMode = false; exhaustBodies.forEach(body => { body.visible = false; });
+  wakeVisuals.get(ship.id)!.group.visible = true;
   wakeMode = false; ship.x = 0; ship.z = 0; ship.headingRad = 0; ships.sync([ship]);
   const visual = wakeVisuals.get(ship.id)!;
   visual.group.position.set(0, 0, 0); visual.group.rotation.y = 0;
@@ -68,7 +78,7 @@ function show(time: number) {
 function resize() { renderer.setSize(root.clientWidth, root.clientHeight); resizeCamera(bundle.camera, root.clientWidth, root.clientHeight); draw(); }
 document.querySelectorAll<HTMLButtonElement>("[data-time]").forEach(button => button.addEventListener("click", () => show(Number(button.dataset.time))));
 document.querySelector("#wake")!.addEventListener("click", () => {
-  stop(); fx.dispose(); now = 6000; fx = makeFx(); wakeMode = true;
+  stop(); reset(); fx.dispose(); now = 6000; fx = makeFx(); wakeMode = true;
   wakes.updateFromPlayers({ players: [], visuals: wakeVisuals });
   ship.speed = 28;
   for (let i = 0; i <= 90; i++) {
@@ -81,10 +91,34 @@ document.querySelector("#wake")!.addEventListener("click", () => {
   }
   camera(); draw();
 });
+document.querySelector("#exhaust")!.addEventListener("click", () => {
+  stop(); reset(); fx.dispose(); fx = makeFx(); exhaustMode = true;
+  wakeVisuals.get(ship.id)!.group.visible = false;
+  exhaustBodies.forEach(body => { body.visible = true; }); camera(); draw();
+});
 document.querySelector("#angle")!.addEventListener("change", () => { camera(); draw(); });
+for (const id of ["models", "muzzle"]) document.querySelector(`#${id}`)!.addEventListener("click", () => {
+  stop(); reset(); fx.dispose(); fx = makeFx();
+  if (id === "muzzle") {
+    const muzzle = getPrimaryArtilleryMuzzleSeekCoords(wakeVisuals.get(ship.id), "main_fwd");
+    if (muzzle) fx.spawnArtilleryMuzzle(muzzle.x, muzzle.z, 0, muzzle.y);
+    now = 15; fx.update(15);
+  }
+  draw();
+});
+const sunAzimuth = document.querySelector<HTMLInputElement>("#sun-azimuth")!;
+const sunElevation = document.querySelector<HTMLInputElement>("#sun-elevation")!;
+function syncSunControls() {
+  const tuning = bundle.getEnvironmentTuning();
+  sunAzimuth.value = String(tuning.azimuthDeg); sunElevation.value = String(tuning.elevationDeg);
+}
+for (const slider of [sunAzimuth, sunElevation]) slider.addEventListener("input", () => {
+  bundle.applyEnvironmentTuning({ azimuthDeg: Number(sunAzimuth.value), elevationDeg: Number(sunElevation.value) }, { persist: false }); draw();
+});
+syncSunControls();
 document.querySelector<HTMLSelectElement>("#lighting")!.addEventListener("change", event => {
   const lightingPreset = (event.target as HTMLSelectElement).value as LightingPresetId;
-  bundle.applyEnvironmentTuning({ lightingPreset, ...sunAnglesFromPosition(LIGHTING_PRESETS[lightingPreset].sunPos) }); draw();
+  bundle.applyEnvironmentTuning({ lightingPreset, ...sunAnglesFromPosition(LIGHTING_PRESETS[lightingPreset].sunPos) }, { persist: false }); syncSunControls(); draw();
 });
 play.addEventListener("click", () => {
   if (playing) { stop(); return; }
@@ -101,6 +135,7 @@ play.addEventListener("click", () => {
 window.addEventListener("resize", resize);
 window.addEventListener("beforeunload", () => {
   disposed = true; stop(); window.removeEventListener("resize", resize);
+  exhaustBodies.forEach(body => { body.removeFromParent(); body.geometry.dispose(); body.material.dispose(); });
   fx.dispose(); wakes.dispose(); ships.dispose(); reflection.dispose(); bundle.dispose(); gltfAssetCache.dispose(); disposeShipSpriteTexture(); renderer.dispose();
 }, { once: true });
 camera(); resize(); show(300);

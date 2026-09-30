@@ -54,9 +54,11 @@ export class BotSystem {
     const serial = this.nextSerial++;
     const id = `bfa_bot_${serial}_${this.ports.environment.random().toString(36).slice(2, 8)}`;
     const hero = HERO_NAMES[(serial - 1) % HERO_NAMES.length] ?? "Admiral";
-    this.ports.joinParticipant(id, `${hero} (Bot)`);
+    const strategy = this.ports.createStrategy?.();
+    const label = strategy?.profile && strategy.profile !== "standard" ? strategy.profile : "Bot";
+    this.ports.joinParticipant(id, `${hero} (${label})`);
     this.members.add(id);
-    const brain = createBotController({ wallNow: this.ports.environment.nowMs, monotonicNow: this.ports.diagnosticNowMs }, this.ports.createStrategy?.());
+    const brain = createBotController({ wallNow: this.ports.environment.nowMs, monotonicNow: this.ports.diagnosticNowMs }, strategy);
     brain.enable();
     this.brains.set(id, brain);
   }

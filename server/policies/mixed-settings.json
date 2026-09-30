@@ -1,0 +1,14 @@
+{
+  "matchDurationSec": 300,
+  "islandsEnabled": false,
+  "minRoomPlayers": 5,
+  "maintenanceMode": false,
+  "operationalAreaHalfExtent": 2000,
+  "passiveXpIntervalMs": 4000,
+  "passiveXpBase": 4,
+  "seaControlXpMultiplier": 5,
+  "respawnDelayMs": 5000,
+  "spawnProtectionMs": 3000,
+  "samCooldownMs": 3000,
+  "oobDestroyAfterMs": 10000
+}

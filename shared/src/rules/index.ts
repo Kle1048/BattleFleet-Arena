@@ -36,10 +36,12 @@ export * from "../wrecks";
 
 /** Headless / client AI — `createBotController` + types for perception/planning. */
 export { createBotController } from "../bot/botController";
+export { RADAR_DETECTION_RANGE, ESM_BASE_DETECTION_RANGE, esmDetectionRange } from "../sensors";
 export type { BotDecisionStrategy } from "../bot/decisionEngine";
 export { DecisionTreeStrategy } from "../bot/decisionEngine";
 export { LearnedPolicyStrategy, validatePolicyArtifact, encodePolicyObservation, policyLogits, POLICY_ACTIONS, POLICY_FEATURES, POLICY_VERSION } from "../bot/learnedPolicy";
 export { observeWorld } from "../bot/perceptionSystem";
+export { BOT_PROFILES, botProfile, PROFILE_CONTROLLER_VERSION, profileControllerVersion, type BotProfile } from "../bot/profiles";
 export { orient } from "../bot/orientationSystem";
 export type { BotDiagnosticClock } from "../bot/botController";
 export type {

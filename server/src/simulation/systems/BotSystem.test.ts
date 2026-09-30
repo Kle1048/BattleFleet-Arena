@@ -55,3 +55,18 @@ commands.length = 0;
 system.tick(now + 4000, players, [], [], 4000);
 assert.equal(commands.length, 0, "disposed brains cannot submit stale input");
 console.log("bot population cadence, IDs, input dispatch and disposal tests ok");
+
+let strategiesCreated = 0, strategyDecisions = 0;
+const learnedSystem = new BotSystem({
+  environment: { nowMs: () => now, random: () => 0.5 }, diagnosticNowMs: () => now,
+  joinParticipant: () => {}, removeParticipant: () => {}, applyInput: () => {},
+  createStrategy: () => {
+    strategiesCreated++;
+    return { decide: () => { strategyDecisions++; return "RETREAT"; } };
+  },
+});
+learnedSystem.spawn(); learnedSystem.spawn();
+learnedSystem.tick(now, players, [], [], 4000);
+assert.equal(strategiesCreated, 2, "each server bot receives its own strategy instance");
+assert.equal(strategyDecisions, 2, "server brains use the injected strategy");
+learnedSystem.dispose();
