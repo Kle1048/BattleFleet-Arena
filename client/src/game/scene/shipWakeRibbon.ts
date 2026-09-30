@@ -1,4 +1,6 @@
 import * as THREE from "three";
+import { createWakeFoamTexture } from "./wakeFoamTexture";
+import { createBowFoam } from "./bowFoam";
 import {
   DEFAULT_SHIP_WAKE_LOD_MAX_DIST_WORLD,
   PlayerLifeState,
@@ -27,9 +29,12 @@ export function wakeRibbonBaseHalfWidthWorld(shipClass: string | undefined): num
 /** Re-Export für Aufrufer, die nur das Client-Modul importieren. */
 export { DEFAULT_SHIP_WAKE_LOD_MAX_DIST_WORLD };
 
-function createWakeRibbonShaderMaterial(): THREE.ShaderMaterial {
+function createWakeRibbonShaderMaterial(texture: THREE.Texture): THREE.ShaderMaterial {
   return new THREE.ShaderMaterial({
     uniforms: {
+      ...THREE.UniformsUtils.clone(THREE.UniformsLib.fog),
+      foamMap: { value: texture },
+      wakeStrength: { value: 1 },
       time: { value: 0 },
       diffuse: { value: new THREE.Color(0xc8e2f8) },
       opacity: { value: DEFAULT_OPACITY },
@@ -38,60 +43,42 @@ function createWakeRibbonShaderMaterial(): THREE.ShaderMaterial {
       attribute vec2 ribbonUv;
       varying vec2 vRibbonUv;
       varying vec2 vWorldXZ;
+      #include <fog_pars_vertex>
       void main() {
         vRibbonUv = ribbonUv;
         vec4 w = modelMatrix * vec4(position, 1.0);
         vWorldXZ = w.xz;
-        gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+        vec4 mvPosition = modelViewMatrix * vec4(position, 1.0);
+        gl_Position = projectionMatrix * mvPosition;
+        #include <fog_vertex>
       }
     `,
     fragmentShader: `
       uniform float time;
       uniform vec3 diffuse;
       uniform float opacity;
+      uniform float wakeStrength;
+      uniform sampler2D foamMap;
       varying vec2 vRibbonUv;
       varying vec2 vWorldXZ;
-
+      #include <fog_pars_fragment>
       void main() {
-        float u = vRibbonUv.x;
-        float vw = vRibbonUv.y;
-
-        float fadeTail = smoothstep(0.0, 0.26, u);
-        float fadeStern = 1.0 - smoothstep(0.74, 1.0, u) * 0.16;
-        float fadeU = fadeTail * fadeStern;
-
-        float edge = smoothstep(0.0, 0.22, vw) * smoothstep(0.0, 0.22, 1.0 - vw);
-
-        vec2 w = vWorldXZ * 0.085;
-        float n = sin(w.x * 1.9 + w.y * 1.45 + time * 0.82);
-        n += 0.52 * sin(w.x * -3.1 + w.y * 2.55 - time * 0.58);
-        n += 0.38 * sin(w.x * 0.42 + w.y * -0.48 + time * 0.38);
-        n += 0.32 * sin(w.x * 4.8 + w.y * 3.9 + time * 1.05);
-        vec2 w2 = vWorldXZ * 0.21;
-        n += 0.26 * sin(w2.x * 5.2 + w2.y * 4.1 - time * 0.95);
-        n += 0.18 * sin(w2.x * -7.0 + w2.y * 3.4 + time * 1.15);
-        vec2 w3 = vWorldXZ * 0.38;
-        n += 0.14 * sin(w3.x * 3.3 + w3.y * -5.1 - time * 0.72);
-
-        float nNorm = 0.54 + 0.46 * (0.5 + 0.5 * clamp(n * 0.21, -1.0, 1.0));
-
-        float rippleLong = 0.5 + 0.5 * sin(u * 36.0 - time * 1.45);
-        rippleLong = 0.78 + 0.22 * rippleLong;
-        rippleLong *= 0.94 + 0.06 * sin(u * 74.0 + time * 0.85);
-        rippleLong *= 0.97 + 0.03 * sin(u * 118.0 - time * 1.1);
-
-        float crossW = sin(vw * 6.2831853 * 4.5 + dot(w, vec2(2.4, -1.85)) + time * 0.55);
-        crossW += 0.35 * sin(vw * 6.2831853 * 9.0 - dot(w2, vec2(1.1, 2.0)) - time * 0.4);
-        float crossPat = 0.86 + 0.14 * (0.5 + 0.5 * crossW);
-
-        float chop = sin(w.x * 2.7 - w.y * 2.2 + time * 1.25) * sin(w.y * 3.1 + w.x * 1.4 - time * 0.95);
-        float chopMix = 0.9 + 0.1 * (0.5 + 0.5 * chop);
-
-        float pat = nNorm * rippleLong * crossPat * chopMix;
-        pat = pow(max(pat, 0.001), 0.92);
-
-        float a = opacity * fadeU * edge * pat;
-        gl_FragColor = vec4(diffuse, a);
+        float u = vRibbonUv.x, across = abs(vRibbonUv.y * 2.0 - 1.0);
+        // Two texture reads replace the previous stack of animated sine waves.
+        vec2 foam = texture2D(foamMap, vWorldXZ * .045 + vec2(time * .012, -time * .008)).rg;
+        float detail = texture2D(foamMap, vWorldXZ * .11 - vec2(time * .018, 0.0)).g;
+        float broken = smoothstep(.3, .76, foam.r * .75 + detail * .35);
+        float edge = 1.0 - smoothstep(.68 + foam.g * .14, 1.0, across);
+        float tail = smoothstep(0.0, .22, u);
+        float propeller = (1.0 - smoothstep(.08, .43, across)) * smoothstep(.3, 1.0, u);
+        float ridgeAt = mix(.72, .42, u);
+        float ridge = 1.0 - smoothstep(.03, .16, abs(across - ridgeAt + (foam.r - .5) * .16));
+        float density = (.1 + broken * .8 + propeller * .35 + ridge * broken * .4);
+        vec3 color = mix(diffuse * .7, vec3(.91, .97, 1.0), broken);
+        gl_FragColor = vec4(color, min(.8, opacity * wakeStrength * tail * edge * density));
+        #include <tonemapping_fragment>
+        #include <colorspace_fragment>
+        #include <fog_fragment>
       }
     `,
     transparent: true,
@@ -101,7 +88,7 @@ function createWakeRibbonShaderMaterial(): THREE.ShaderMaterial {
     polygonOffset: true,
     polygonOffsetFactor: -0.8,
     polygonOffsetUnits: -0.8,
-    toneMapped: false,
+    fog: true,
   });
 }
 
@@ -124,6 +111,7 @@ type SingleWake = {
     baseHalfWidthWorld: number;
     /** false: außerhalb LOD — Spur leeren, kein Sampling. */
     lodVisible: boolean;
+    nowSeconds: number;
   }) => void;
   dispose: () => void;
 };
@@ -158,6 +146,11 @@ function createSingleShipWakeRibbon(
   mesh.renderOrder = 2;
   mesh.visible = false;
   scene.add(mesh);
+  let strength = 1, movingStrength = 1, lastMovingAt = 0;
+  mesh.onBeforeRender = () => {
+    sharedMaterial.uniforms.wakeStrength!.value = strength;
+    sharedMaterial.uniformsNeedUpdate = true;
+  };
 
   const ring = Array.from({ length: DEFAULT_MAX_SAMPLES }, () => ({ x: 0, z: 0 }));
   // Reused ordered references let the shared tangent helper consume the circular history.
@@ -187,7 +180,7 @@ function createSingleShipWakeRibbon(
     if (uvCount !== n) {
       for (let i = 0; i < n; i++) {
         const uAlong = i / (n - 1);
-        widthScales[i] = 0.16 + 0.84 * Math.pow(uAlong, 0.52);
+        widthScales[i] = 1.65 - .85 * Math.pow(uAlong, .65);
         uv[i * 4] = uv[i * 4 + 2] = uAlong;
         uv[i * 4 + 1] = 0;
         uv[i * 4 + 3] = 1;
@@ -239,10 +232,15 @@ function createSingleShipWakeRibbon(
         clearTrail();
         return;
       }
+      if (speed < 0) { clearTrail(); return; }
       if (speed < DEFAULT_MIN_SPEED) {
-        clearTrail();
+        const idle = Math.max(0, opts.nowSeconds - lastMovingAt);
+        strength = Math.max(0, 1 - idle / 3) * movingStrength;
+        if (idle >= 3) clearTrail();
         return;
       }
+      lastMovingAt = opts.nowSeconds;
+      strength = movingStrength = .35 + .65 * Math.min(1, speed / 28);
 
       vis.group.updateMatrixWorld(true);
       const wake = vis.profile?.modelEffects?.wake;
@@ -298,7 +296,9 @@ export type ShipWakeRibbonSystem = {
  * Kielwasser (Band-Mesh) für **alle** Spieler mit sichtbarem `ShipVisual`.
  */
 export function createShipWakeRibbonSystem(scene: THREE.Scene): ShipWakeRibbonSystem {
-  const sharedMaterial = createWakeRibbonShaderMaterial();
+  const foamTexture = createWakeFoamTexture();
+  const sharedMaterial = createWakeRibbonShaderMaterial(foamTexture);
+  const bowFoam = createBowFoam(scene, foamTexture);
 
   const ribbons = new Map<string, SingleWake>();
   const activeIds = new Set<string>();
@@ -314,6 +314,7 @@ export function createShipWakeRibbonSystem(scene: THREE.Scene): ShipWakeRibbonSy
       const maxD = maxLodDistanceWorld ?? DEFAULT_SHIP_WAKE_LOD_MAX_DIST_WORLD;
       const anchor = lodAnchorWorld;
 
+      bowFoam.begin(nowSeconds ?? 0);
       activeIds.clear();
       for (const p of players) {
         const vis = visuals.get(p.id);
@@ -336,9 +337,12 @@ export function createShipWakeRibbonSystem(scene: THREE.Scene): ShipWakeRibbonSy
           lifeState: p.lifeState,
           baseHalfWidthWorld: wakeRibbonBaseHalfWidthWorld(p.shipClass),
           lodVisible,
+          nowSeconds: nowSeconds ?? 0,
         });
+        if (lodVisible && p.lifeState !== PlayerLifeState.AwaitingRespawn && vis.profile?.modelEffects?.wake) bowFoam.add(vis, p.speed);
       }
 
+      bowFoam.end();
       for (const [id, ribbon] of ribbons) {
         if (!activeIds.has(id)) {
           ribbon.dispose();
@@ -355,6 +359,8 @@ export function createShipWakeRibbonSystem(scene: THREE.Scene): ShipWakeRibbonSy
       ribbons.clear();
       activeIds.clear();
       sharedMaterial.dispose();
+      bowFoam.dispose();
+      foamTexture.dispose();
     },
   };
 }

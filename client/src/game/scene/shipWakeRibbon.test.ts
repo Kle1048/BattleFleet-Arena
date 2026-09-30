@@ -4,8 +4,7 @@ import { getAuthoritativeShipHullProfile, PlayerLifeState } from "@battlefleet/s
 import { createShipWakeRibbonSystem, wakeRibbonBaseHalfWidthWorld } from "./shipWakeRibbon";
 import type { ShipVisual } from "./shipVisual";
 
-// Independent pre-optimization geometry recipe: retain its exact Float32 output,
-// including sample threshold, centered tangents, taper, winding and UV ordering.
+// Independent geometry reference: sampling, centered tangents, widening tail and UV ordering.
 type Point = { x: number; z: number };
 function legacyGeometry(samples: Point[], width: number) {
   const n = samples.length;
@@ -19,7 +18,7 @@ function legacyGeometry(samples: Point[], width: number) {
     const a = samples[Math.max(0, i - 1)]!, b = samples[Math.min(n - 1, i + 1)]!;
     const t = normalized(b.x - a.x, b.z - a.z);
     const p = normalized(-t.z, t.x);
-    const u = i / (n - 1), half = width * (0.16 + 0.84 * Math.pow(u, 0.52));
+    const u = i / (n - 1), half = width * (1.65 - .85 * Math.pow(u, .65));
     const sample = samples[i]!;
     positions.set([sample.x + p.x * half, 0.06, sample.z + p.z * half,
       sample.x - p.x * half, 0.06, sample.z - p.z * half], i * 6);
@@ -67,7 +66,7 @@ function fixture() {
   let lastWidth = NaN;
   let rebuilds = 0;
   // Reset the initial sample just as a stopped ship would.
-  f.player.speed = 0; f.update(); f.player.speed = 12;
+  f.player.speed = -1; f.update(); f.player.speed = 12;
   for (let frame = 0; frame < 1800; frame++) {
     // Curves, many ring wraps, unchanged frames and all hull widths.
     const movingFrame = Math.floor(frame / 3);
@@ -77,7 +76,7 @@ function fixture() {
     f.player.shipClass = frame < 700 ? "fac" : frame < 1300 ? "destroyer" : "cruiser";
     f.vis.profile = getAuthoritativeShipHullProfile(f.player.shipClass);
     const clear = frame >= 900 && frame < 920;
-    f.player.speed = clear ? 0 : 12;
+    f.player.lifeState = clear ? PlayerLifeState.AwaitingRespawn : PlayerLifeState.Alive;
     const previousCount = samples.length;
     if (clear) samples.length = 0;
     else {
@@ -138,8 +137,7 @@ function fixture() {
   // Width-only changes must still redraw even without another sample.
   f.player.shipClass = "cruiser"; f.update();
   assert.equal(pos.version, before + 1); assert.equal(uv.version, beforeUv);
-  for (const reason of ["stop", "reverse", "respawn", "LOD", "marker"] as const) {
-    if (reason === "stop") f.player.speed = 0;
+  for (const reason of ["reverse", "respawn", "LOD", "marker"] as const) {
     if (reason === "reverse") f.player.speed = -12;
     if (reason === "respawn") f.player.lifeState = PlayerLifeState.AwaitingRespawn;
     if (reason === "LOD") f.player.x = 10001;
@@ -185,3 +183,15 @@ function fixture() {
   f.system.dispose();
 }
 console.log("wake dirty uploads, sampling boundary, degenerate turn, LOD/stop/respawn reset and disposal ok");
+
+{
+  const f = fixture(); f.update(10); f.group.position.z = 5; f.update(10.1);
+  const mesh = f.mesh(), position = mesh.geometry.getAttribute("position") as THREE.BufferAttribute;
+  const version = position.version;
+  f.player.speed = 0; f.update(11);
+  assert.equal(mesh.visible, true, "stopping leaves a fading trail");
+  assert.equal(position.version, version, "fade needs no geometry upload");
+  f.update(13.2);
+  assert.equal(mesh.visible, false, "stationary wake expires after three seconds");
+  f.system.dispose();
+}
