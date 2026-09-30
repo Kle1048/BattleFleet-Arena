@@ -28,7 +28,7 @@ export function createReplay(options: {
   const fixture = createCombatFixture();
   const ships = createShipRenderer(options.scene, "fixture-0", options);
   let replayNow = 0;
-  const pool = createFxSystem(options.scene, { random: seededRandom(FIXTURE_SEED), now: () => replayNow });
+  const pool = createFxSystem(options.scene, { camera: options.camera, random: seededRandom(FIXTURE_SEED), now: () => replayNow });
   const artillery = createArtilleryFx(options.scene, pool);
   const missiles = createMissileFx(options.scene, pool);
   let seenMissileIds = new Set<number>();

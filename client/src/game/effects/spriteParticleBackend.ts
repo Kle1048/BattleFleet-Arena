@@ -1,6 +1,7 @@
 import * as THREE from "three";
 import { ParticlePool } from "./ParticlePool";
 import { createParticleBillboards, type ParticleVisual } from "./particleBillboards";
+import { createSmokeAtlas } from "./smokeAtlas";
 
 type Particle = {
   sprite: ParticleVisual;
@@ -22,6 +23,9 @@ type Particle = {
   spinPerSec: number;
   /** >1 hält die Opazität zu Beginn länger hoch (weicher Ausblend für Schweife). */
   alphaLerpPow: number;
+  gravity: number;
+  wind: number;
+  fadeInMs: number;
 };
 
 const MAX_ACTIVE_PARTICLES = 960;
@@ -60,21 +64,17 @@ function makeRingTexture(): THREE.CanvasTexture {
 type TextureKey = "soft" | "smoke" | "ring" | "flashAdd";
 
 /** Sprite rendering/kinematics only; recipes and scheduling stay in fxSystem. */
-export function createSpriteParticleBackend(scene: THREE.Scene, random: () => number) {
+export function createSpriteParticleBackend(scene: THREE.Scene, random: () => number, camera?: THREE.Camera) {
   const texSoft = makeRadialTexture([
     [0, "rgba(255,255,255,1)"],
     [0.45, "rgba(255,255,255,0.66)"],
     [1, "rgba(255,255,255,0)"],
   ]);
-  const texSmoke = makeRadialTexture([
-    [0, "rgba(255,255,255,0.95)"],
-    [0.35, "rgba(215,215,215,0.52)"],
-    [1, "rgba(90,90,90,0)"],
-  ]);
+  const texSmoke = createSmokeAtlas();
   const texRing = makeRingTexture();
 
   const visuals: ParticleVisual[] = [];
-  const billboards = createParticleBillboards(scene, MAX_ACTIVE_PARTICLES, [texSoft, texSmoke, texRing], visuals);
+  const billboards = createParticleBillboards(scene, MAX_ACTIVE_PARTICLES, [texSoft, texSmoke, texRing], visuals, camera);
 
   let disposed = false;
   const tmpColor = new THREE.Color();
@@ -89,7 +89,7 @@ export function createSpriteParticleBackend(scene: THREE.Scene, random: () => nu
       material: { map: textureKey === "smoke" ? texSmoke : textureKey === "ring" ? texRing : texSoft,
         color: new THREE.Color(0xffffff), opacity: 1, rotation: 0,
         blending: textureKey === "flashAdd" ? THREE.AdditiveBlending : THREE.NormalBlending,
-        depthTest: textureKey === "soft" || textureKey === "smoke" },
+        depthTest: true },
     };
     visuals.push(sprite);
     const p: Particle = {
@@ -111,6 +111,7 @@ export function createSpriteParticleBackend(scene: THREE.Scene, random: () => nu
       baseRotation: 0,
       spinPerSec: 0,
       alphaLerpPow: 1,
+      gravity: 0, wind: 0, fadeInMs: 0,
     };
     return p;
   }
@@ -133,8 +134,16 @@ export function createSpriteParticleBackend(scene: THREE.Scene, random: () => nu
     colorEnd: number;
     spinPerSec: number;
     alphaLerpPow?: number;
+    gravity?: number;
+    wind?: number;
+    fadeInMs?: number;
+    stretch?: number;
+    ground?: boolean;
+    glow?: boolean;
   }): void {
     if (disposed) return;
+    // Reserve headroom for new hits instead of letting ambient smoke evict them.
+    if (options.texture === "smoke" && !options.glow && pool.stats().activeParticles >= 800) return;
     const p = pool.acquire(options.texture);
     p.maxAgeMs = options.maxAgeMs;
     p.vx = options.vx;
@@ -150,9 +159,19 @@ export function createSpriteParticleBackend(scene: THREE.Scene, random: () => nu
     p.baseRotation = (Math.PI * 2) * random();
     p.spinPerSec = options.spinPerSec;
     p.alphaLerpPow = options.alphaLerpPow ?? 1;
+    p.gravity = options.gravity ?? 0;
+    p.wind = options.wind ?? (options.texture === "smoke" ? 1 : 0);
+    p.fadeInMs = options.fadeInMs ?? (options.texture === "smoke" ? 100 : 0);
+    p.sprite.atlasFrame = options.texture === "smoke" ? Math.floor(p.baseRotation / (Math.PI * 2) * 4) : 0;
+    p.sprite.stretch = options.stretch ?? 1;
+    p.sprite.ground = options.ground ?? false;
     p.sprite.position.set(options.x, options.y, options.z);
     p.sprite.scale.setScalar(options.sizeStart);
     p.sprite.visible = true;
+    p.sprite.material.opacity = options.alphaStart * (p.fadeInMs > 0 ? 0 : 1);
+    p.sprite.material.color.copy(p.colorStart);
+    p.sprite.material.rotation = p.baseRotation;
+    p.sprite.material.blending = options.glow || options.texture === "flashAdd" ? THREE.AdditiveBlending : THREE.NormalBlending;
   }
 
   function update(dtMs: number): void {
@@ -168,15 +187,20 @@ export function createSpriteParticleBackend(scene: THREE.Scene, random: () => nu
       p.vx *= damping;
       p.vy *= damping;
       p.vz *= damping;
+      // Shared wind in render coordinates, gentle buoyancy; no per-frame noise sampling.
+      p.vx += (3.2 - p.vx) * p.wind * dt * .8;
+      p.vz += (1.4 - p.vz) * p.wind * dt * .8;
+      p.vy += (p.wind * 1.8 - p.gravity) * dt;
       p.sprite.position.x += p.vx * dt;
       p.sprite.position.y += p.vy * dt;
       p.sprite.position.z += p.vz * dt;
+      if (p.gravity > 0 && p.sprite.position.y < .25) return false;
       const size = p.sizeStart + (p.sizeEnd - p.sizeStart) * u;
       p.sprite.scale.setScalar(size);
       const ua = Math.pow(u, p.alphaLerpPow);
       const alpha = p.alphaStart + (p.alphaEnd - p.alphaStart) * ua;
       const mat = p.sprite.material;
-      mat.opacity = Math.max(0, alpha);
+      mat.opacity = Math.max(0, alpha) * (p.fadeInMs > 0 ? Math.min(1, p.ageMs / p.fadeInMs) : 1);
       tmpColor.copy(p.colorStart).lerp(p.colorEnd, ua);
       mat.color.copy(tmpColor);
       mat.rotation = p.baseRotation + p.spinPerSec * (p.ageMs * 0.001);

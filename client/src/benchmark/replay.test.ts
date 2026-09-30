@@ -48,15 +48,15 @@ try {
     snapshots.push(checkpoints);
   }
   assert.deepEqual(snapshots[0], snapshots[1], "repetitions preserve FX counts, membership and output cadence");
-  // Original FX baseline retained; only input counts change for intentional 20 Hz pacing.
+  // Graphics refresh: fewer active particles, two pooled lights, unchanged input/HUD cadence.
   assert.deepEqual(snapshots[0], [
-    { frame: 0, active: 241, pool: 0, children: 289, counts: { inputs: 1, hudUpdates: 1, deaths: 0 } },
-    { frame: 300, active: 958, pool: 177, children: 1191, counts: { inputs: 101, hudUpdates: 101, deaths: 0 } },
-    { frame: 600, active: 955, pool: 180, children: 1191, counts: { inputs: 201, hudUpdates: 201, deaths: 0 } },
-    { frame: 900, active: 959, pool: 237, children: 1252, counts: { inputs: 300, hudUpdates: 301, deaths: 1 } },
-    { frame: 1200, active: 955, pool: 623, children: 1634, counts: { inputs: 361, hudUpdates: 401, deaths: 16 } },
-    { frame: 1500, active: 956, pool: 622, children: 1634, counts: { inputs: 461, hudUpdates: 501, deaths: 16 } },
-    { frame: 1800, active: 959, pool: 619, children: 1634, counts: { inputs: 561, hudUpdates: 601, deaths: 16 } },
+    { frame: 0, active: 238, pool: 0, children: 288, counts: { inputs: 1, hudUpdates: 1, deaths: 0 } },
+    { frame: 300, active: 862, pool: 295, children: 1215, counts: { inputs: 101, hudUpdates: 101, deaths: 0 } },
+    { frame: 600, active: 866, pool: 299, children: 1223, counts: { inputs: 201, hudUpdates: 201, deaths: 0 } },
+    { frame: 900, active: 904, pool: 272, children: 1234, counts: { inputs: 300, hudUpdates: 301, deaths: 1 } },
+    { frame: 1200, active: 872, pool: 682, children: 1612, counts: { inputs: 361, hudUpdates: 401, deaths: 16 } },
+    { frame: 1500, active: 862, pool: 692, children: 1612, counts: { inputs: 461, hudUpdates: 501, deaths: 16 } },
+    { frame: 1800, active: 887, pool: 667, children: 1612, counts: { inputs: 561, hudUpdates: 601, deaths: 16 } },
   ]);
 } finally {
   disposeShipSpriteTexture(); globalThis.fetch = originalFetch;

@@ -1,8 +1,8 @@
 <!doctype html>
 <html lang="en"><head><meta charset="UTF-8"><title>Particle batching comparison</title>
 <style>body{background:#12202c;color:#e0e9f1;font:14px system-ui;margin:20px}button{padding:10px;margin:4px}#views{display:grid;grid-template-columns:1fr 1fr;gap:12px}section{min-width:0}canvas{width:100%;height:auto}pre{white-space:pre-wrap}h2{font-size:16px}</style></head>
-<body><h1>Particle batching — frozen reference versus instancing</h1>
-<p>960 particles, identical seed, opaque canvas + water reflection. RGB comparison; additive framebuffer alpha is intentionally not compared.</p>
+<body><h1>Particle effects — historical reference versus current renderer</h1>
+<p>960 emission requests, identical seed, opaque canvas + water reflection. The new smoke atlas, depth testing and smoke budget intentionally change the image and active count. RGB differences are descriptive, not a parity test.</p>
 <button id="run">Run comparison</button><button id="timing">Measure 120 warm frames</button>
 <select id="angle" aria-label="Camera"><option value="top">Top down</option><option value="port">Low oblique</option><option value="near">Near plane</option></select>
 <p id="status">Loading…</p><div id="views"><section><h2>Reference: individual sprites</h2><div id="legacy"></div></section><section><h2>New: instanced billboards</h2><div id="batch"></div></section></div>

@@ -64,7 +64,7 @@ export type GameSceneBundle = {
   /** three.js `Water` (Reflexion + Normalmap). */
   water: THREE.Mesh;
   sky: Sky;
-  ambient: THREE.AmbientLight;
+  ambient: THREE.HemisphereLight;
   sun: THREE.DirectionalLight;
   /** Server-/shared-Kollisions-Polygone (XZ), Sichtbarkeit per Ship-Debug. */
   islandCollisionPolygonGroup: THREE.Group;
@@ -94,7 +94,7 @@ function applyEnvironmentState(
   ctx: {
     scene: THREE.Scene;
     sky: Sky;
-    ambient: THREE.AmbientLight;
+    ambient: THREE.HemisphereLight;
     sun: THREE.DirectionalLight;
     water: THREE.Mesh;
   },
@@ -104,10 +104,12 @@ function applyEnvironmentState(
   const dir = sunDirectionFromAngles(tuning.elevationDeg, tuning.azimuthDeg);
 
   ambient.color.setHex(mood.ambientColor);
+  ambient.groundColor.setHex(tuning.lightingPreset === "golden_hour" ? 0x354857 : 0x223746);
   ambient.intensity = mood.ambientIntensity * tuning.ambientIntensityMul;
   sun.color.setHex(mood.sunColor);
   sun.intensity = mood.sunIntensity * tuning.sunIntensityMul;
   sun.position.copy(dir).multiplyScalar(3200);
+  sun.userData.sunDirection = dir;
 
   const skyU = sky.material.uniforms as Record<string, { value: number | THREE.Vector3 }>;
   if (skyU.turbidity) skyU.turbidity.value = tuning.turbidity;
@@ -384,17 +386,32 @@ export async function createGameScene(options: {
   };
   setIslandsEnabled(options.islandsEnabled ?? false);
 
-  const ambient = new THREE.AmbientLight(0xffffff, 0.5);
+  const ambient = new THREE.HemisphereLight(0xc5deff, 0x243d4d, 0.65);
   const sun = new THREE.DirectionalLight(0xffffff, 1);
   sun.castShadow = true;
-  sun.shadow.mapSize.setScalar(2048);
+  sun.shadow.mapSize.setScalar(1024);
   sun.shadow.bias = -0.00028;
   sun.shadow.normalBias = 0.038;
+  // The default 10 m / 500 m shadow camera misses a sun positioned 3200 m away.
+  // Keep one bounded local shadow map, following the gameplay camera's sea focus.
+  Object.assign(sun.shadow.camera, { left: -180, right: 180, top: 180, bottom: -180, near: 1, far: 6500 });
+  sun.shadow.camera.updateProjectionMatrix();
   scene.add(ambient);
   scene.add(sun);
   scene.add(sun.target);
 
   applyEnvironmentState(tuning, { scene, sky, ambient, sun, water });
+  const lookDirection = new THREE.Vector3();
+  scene.onBeforeRender = (_renderer, _scene, renderCamera) => {
+    if (renderCamera !== camera) return;
+    camera.getWorldDirection(lookDirection);
+    const travel = lookDirection.y < -.05 ? Math.min(4000, -camera.position.y / lookDirection.y) : 0;
+    const grid = 360 / sun.shadow.mapSize.x;
+    sun.target.position.set(Math.round((camera.position.x + lookDirection.x * travel) / grid) * grid, 0,
+      Math.round((camera.position.z + lookDirection.z * travel) / grid) * grid);
+    sun.position.copy(sun.userData.sunDirection as THREE.Vector3).multiplyScalar(3200).add(sun.target.position);
+    sun.target.updateMatrixWorld(); sun.updateMatrixWorld();
+  };
 
   const getEnvironmentTuning = (): EnvironmentTuning => ({ ...tuning });
   const applyEnvironmentTuning = (patch: Partial<EnvironmentTuning>): void => {
@@ -413,6 +430,7 @@ export async function createGameScene(options: {
     dispose() {
       if (disposed) return;
       disposed = true;
+      scene.onBeforeRender = () => {};
       normalCache.dispose();
       waterNormals.dispose();
       waterReflection.dispose();

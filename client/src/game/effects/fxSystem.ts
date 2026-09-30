@@ -1,4 +1,5 @@
 import type * as THREE from "three";
+import { createImpactLights } from "./impactLights";
 import { createSpriteParticleBackend } from "./spriteParticleBackend";
 import { VisualColorTokens } from "../runtime/materialLibrary";
 import { worldToRenderX } from "../runtime/renderCoords";
@@ -15,6 +16,7 @@ function normalizeImpactKind(kind: string): FxPreset {
 
 export function createFxSystem(scene: THREE.Scene, environment: {
   /** Independent recipe randomness for deterministic replay; not coupled to Three.js UUIDs. */
+  camera?: THREE.Camera;
   random?: () => number;
   now?: () => number;
 } = {}): {
@@ -74,8 +76,9 @@ export function createFxSystem(scene: THREE.Scene, environment: {
   function randRange(min: number, max: number): number {
     return min + random() * (max - min);
   }
-  const backend = createSpriteParticleBackend(scene, random);
+  const backend = createSpriteParticleBackend(scene, random, environment.camera);
   const emit = backend.emit;
+  const lights = createImpactLights(scene, environment.camera);
   let disposed = false;
 
   /** Zeitversetzte Spawns (ohne setTimeout), Abwicklung in `update`. */
@@ -100,250 +103,74 @@ export function createFxSystem(scene: THREE.Scene, environment: {
     }
   }
 
-  function spawnArtilleryImpact(preset: FxPreset, worldX: number, worldZ: number, intensity = 1): void {
-    const x = worldToRenderX(worldX);
-    const z = worldZ;
-    const s = Math.max(0.65, Math.min(2.05, intensity));
-    const warm = preset === "hit";
-    const earthy = preset === "island";
-
-    const ringLayers = preset === "water" ? 4 : preset === "island" ? 3 : 3;
-    const ringColors =
-      preset === "water"
-        ? [
-            VisualColorTokens.artilleryImpactWaterLight,
-            VisualColorTokens.artilleryImpactWaterMid,
-            VisualColorTokens.artilleryImpactWaterDark,
-            VisualColorTokens.artilleryImpactWaterMid,
-          ]
-        : preset === "island"
-          ? [
-              VisualColorTokens.artilleryImpactIslandMid,
-              VisualColorTokens.artilleryImpactIslandDark,
-              VisualColorTokens.artilleryImpactIslandMid,
-            ]
-          : [
-              VisualColorTokens.artilleryImpactHitInner,
-              VisualColorTokens.artilleryImpactHitOuter,
-              VisualColorTokens.artilleryImpactHitBurst,
-            ];
-
-    for (let i = 0; i < ringLayers; i++) {
-      const col = ringColors[Math.min(i, ringColors.length - 1)]!;
-      const delayScale = 1 + i * 0.2;
-      emit({
-        texture: "ring",
-        x,
-        y: preset === "hit" ? randRange(0.85, 1.8) : randRange(0.45, 0.95),
-        z,
-        vx: 0,
-        vy: preset === "hit" ? 1.2 * s : 0.45 * s,
-        vz: 0,
-        dragPerSec: 0.35,
-        maxAgeMs: (preset === "hit" ? randRange(340, 480) : randRange(380, 520)) * delayScale * 0.85,
-        sizeStart: (preset === "hit" ? randRange(10, 16) : randRange(8, 14)) * s * (1 + i * 0.12),
-        sizeEnd: (preset === "hit" ? randRange(55, 78) : randRange(48, 72)) * s * delayScale,
-        alphaStart: preset === "water" ? 0.55 : preset === "island" ? 0.48 : 0.62,
-        alphaEnd: 0,
-        colorStart: col,
-        colorEnd: preset === "water" ? VisualColorTokens.artilleryImpactWaterDark : earthy ? 0x4a4036 : 0x553422,
-        spinPerSec: randRange(-0.15, 0.15),
-      });
+  /** Small, distinct phases replace overlapping radial impact clouds. */
+  function impact(preset: FxPreset, x: number, z: number, scale: number): void {
+    if (disposed || !Number.isFinite(x + z + scale)) return;
+    const water = preset === "water", hit = preset === "hit";
+    if (hit) lights.flash(x, z, scale);
+    const particle = (options: Partial<Parameters<typeof emit>[0]>) => emit({
+      texture: "soft", x, y: 3, z, vx: 0, vy: 0, vz: 0, dragPerSec: .6,
+      maxAgeMs: 800, sizeStart: 5 * scale, sizeEnd: 14 * scale,
+      alphaStart: .7, alphaEnd: 0, colorStart: 0xffd483, colorEnd: 0xa13312,
+      spinPerSec: 0, ...options,
+    });
+    if (water) {
+      // Ripples live on the sea plane; spray and droplets follow ballistic arcs.
+      for (let i = 0; i < 2; i++) particle({ texture: "ring", ground: true,
+        y: .35 + i * .08, sizeStart: (5 + i * 3) * scale, sizeEnd: (48 + i * 17) * scale,
+        maxAgeMs: 1000 + i * 220, alphaStart: .36, colorStart: 0xd2f5ff, colorEnd: 0x5d99ac });
+      for (let i = 0; i < 9; i++) {
+        const a = randRange(0, Math.PI * 2), speed = randRange(3, 10) * scale;
+        particle({ x: x + Math.cos(a) * 2, z: z + Math.sin(a) * 2, y: 2,
+          vx: Math.cos(a) * speed, vz: Math.sin(a) * speed, vy: randRange(24, 42) * scale,
+          gravity: 32, dragPerSec: .15, stretch: 2.6, maxAgeMs: 1600,
+          sizeStart: randRange(2, 4) * scale, sizeEnd: 6 * scale,
+          colorStart: 0xf1fcff, colorEnd: 0x93bac8, alphaStart: .62 });
+      }
+      for (let i = 0; i < 8; i++) {
+        const a = randRange(0, Math.PI * 2), speed = randRange(10, 22) * scale;
+        particle({ vx: Math.cos(a) * speed, vz: Math.sin(a) * speed, vy: randRange(14, 32) * scale,
+          gravity: 38, dragPerSec: .12, sizeStart: 1.5 * scale, sizeEnd: .6 * scale,
+          stretch: 1.7, maxAgeMs: 1900, colorStart: 0xe9fbff, colorEnd: 0xa6ccd7 });
+      }
+      return;
     }
-
-    const nFlash = preset === "hit" ? 12 : 5;
-    const nSmoke = preset === "hit" ? 20 : preset === "island" ? 14 : 12;
-    const nAdd = preset === "hit" ? 6 : 0;
-
-    for (let i = 0; i < nFlash; i++) {
-      const ang = randRange(0, Math.PI * 2);
-      const sp = randRange(8, 22) * s;
-      emit({
-        texture: "soft",
-        x: x + Math.cos(ang) * randRange(0, 3),
-        y: randRange(1.2, 4.2),
-        z: z + Math.sin(ang) * randRange(0, 3),
-        vx: Math.cos(ang) * sp * 0.05,
-        vy: randRange(9, 14) * s,
-        vz: Math.sin(ang) * sp * 0.05,
-        dragPerSec: 1.35,
-        maxAgeMs: randRange(180, 360),
-        sizeStart: randRange(6, 12) * s,
-        sizeEnd: randRange(16, 28) * s,
-        alphaStart: 0.68,
-        alphaEnd: 0,
-        colorStart: warm ? 0xfff6d4 : earthy ? 0xd7c29a : 0xf2fbff,
-        colorEnd: warm ? 0xff8d3e : earthy ? 0x967355 : 0x7acdf0,
-        spinPerSec: randRange(-0.8, 0.8),
-      });
+    if (hit) particle({ texture: "flashAdd", y: 6, maxAgeMs: 105,
+      sizeStart: 22 * scale, sizeEnd: 7 * scale, colorStart: 0xfff4d8, colorEnd: 0xffaa43, alphaStart: .95 });
+    // Fire lobes become smoke. The atlas gives them shape without additional draws.
+    for (let i = 0; i < (hit ? 7 : 4); i++) {
+      const a = randRange(0, Math.PI * 2), speed = randRange(4, 12) * scale;
+      particle({ texture: "smoke", x: x + Math.cos(a) * 4 * scale, z: z + Math.sin(a) * 4 * scale,
+        y: randRange(3, 8), vx: Math.cos(a) * speed, vz: Math.sin(a) * speed,
+        vy: randRange(7, 15) * scale, dragPerSec: 1.3, maxAgeMs: randRange(380, 620),
+        sizeStart: randRange(8, 12) * scale, sizeEnd: randRange(18, 25) * scale,
+        fadeInMs: 25, glow: hit, alphaStart: .95, colorStart: hit ? 0xffac31 : 0xbba284,
+        colorEnd: hit ? 0xe44308 : 0x655849, spinPerSec: randRange(-.7, .7) });
     }
-
-    for (let i = 0; i < nAdd; i++) {
-      const ang = randRange(0, Math.PI * 2);
-      emit({
-        texture: "flashAdd",
-        x: x + Math.cos(ang) * randRange(0, 4),
-        y: randRange(1.5, 5),
-        z: z + Math.sin(ang) * randRange(0, 4),
-        vx: Math.cos(ang) * randRange(4, 14) * 0.4,
-        vy: randRange(6, 16) * s,
-        vz: Math.sin(ang) * randRange(4, 14) * 0.4,
-        dragPerSec: 1.8,
-        maxAgeMs: randRange(120, 240),
-        sizeStart: randRange(8, 16) * s,
-        sizeEnd: randRange(3, 8) * s,
-        alphaStart: 0.85,
-        alphaEnd: 0,
-        colorStart: VisualColorTokens.artilleryImpactHitBurst,
-        colorEnd: VisualColorTokens.artilleryImpactHitOuter,
-        spinPerSec: randRange(-1.2, 1.2),
-      });
+    for (let i = 0; i < (hit ? 11 : 8); i++) {
+      const a = randRange(0, Math.PI * 2), speed = randRange(2, 7) * scale;
+      particle({ texture: "smoke", x: x + Math.cos(a) * 5, z: z + Math.sin(a) * 5,
+        y: randRange(3, 7), vx: Math.cos(a) * speed, vz: Math.sin(a) * speed,
+        vy: randRange(5, 10) * scale, maxAgeMs: randRange(1600, 2600), fadeInMs: hit ? 350 : 80,
+        sizeStart: randRange(6, 10) * scale, sizeEnd: randRange(22, 34) * scale,
+        alphaStart: .65, colorStart: hit ? 0x6b6661 : 0x94816b, colorEnd: hit ? 0x555760 : 0x73695c,
+        spinPerSec: randRange(-.22, .22) });
     }
-
-    for (let i = 0; i < nSmoke; i++) {
-      const ang = randRange(0, Math.PI * 2);
-      const drift = randRange(2, 10) * s;
-      emit({
-        texture: "smoke",
-        x: x + Math.cos(ang) * randRange(0, 5),
-        y: randRange(2.0, 5.8),
-        z: z + Math.sin(ang) * randRange(0, 5),
-        vx: Math.cos(ang) * drift * 0.12,
-        vy: randRange(2.5, 6.2) * s,
-        vz: Math.sin(ang) * drift * 0.12,
-        dragPerSec: 0.72,
-        maxAgeMs: randRange(1200, 2600),
-        sizeStart: randRange(7, 12) * s,
-        sizeEnd: randRange(28, 46) * s,
-        alphaStart: warm ? 0.56 : earthy ? 0.5 : 0.42,
-        alphaEnd: 0,
-        colorStart: warm ? 0x6c6460 : earthy ? 0x7b6a58 : 0x6e7c88,
-        colorEnd: warm ? 0x222224 : earthy ? 0x342c26 : 0x2b3842,
-        spinPerSec: randRange(-0.3, 0.3),
-      });
+    for (let i = 0; i < (hit ? 6 : 3); i++) {
+      const a = randRange(0, Math.PI * 2), speed = randRange(15, 32) * scale;
+      particle({ texture: hit ? "flashAdd" : "soft", vx: Math.cos(a) * speed, vz: Math.sin(a) * speed,
+        vy: randRange(10, 24) * scale, gravity: 28, dragPerSec: .4, maxAgeMs: randRange(350, 650),
+        sizeStart: 1.9 * scale, sizeEnd: .5 * scale, colorStart: hit ? 0xffe4a3 : 0x86765c,
+        colorEnd: hit ? 0xd84a12 : 0x443c31 });
     }
   }
 
+  function spawnArtilleryImpact(preset: FxPreset, worldX: number, worldZ: number, intensity = 1): void {
+    impact(preset, worldToRenderX(worldX), worldZ, Math.max(.65, Math.min(2.05, intensity)));
+  }
+
   function spawnWeaponImpact(weapon: "missile" | "torpedo", preset: FxPreset, x: number, z: number): void {
-    const s = weapon === "missile" ? 0.64 : 1.35;
-    const warm = preset === "hit";
-    const earthy = preset === "island";
-    const waterCol =
-      weapon === "missile" ? VisualColorTokens.missileImpactWater : VisualColorTokens.torpedoImpactWater;
-    const hitCol =
-      weapon === "missile" ? VisualColorTokens.missileImpactHit : VisualColorTokens.torpedoImpactHit;
-
-    const ringLayers = 2;
-    const ringColors =
-      preset === "hit"
-        ? [hitCol, hitCol]
-        : preset === "island"
-          ? [VisualColorTokens.artilleryImpactIslandMid, VisualColorTokens.artilleryImpactIslandDark]
-          : [waterCol, waterCol];
-
-    for (let i = 0; i < ringLayers; i++) {
-      const col = ringColors[Math.min(i, ringColors.length - 1)]!;
-      const delayScale = 1 + i * 0.22;
-      emit({
-        texture: "ring",
-        x,
-        y: preset === "hit" ? randRange(0.75, 1.55) : randRange(0.42, 0.88),
-        z,
-        vx: 0,
-        vy: preset === "hit" ? s : 0.38 * s,
-        vz: 0,
-        dragPerSec: 0.38,
-        maxAgeMs: (preset === "hit" ? randRange(300, 440) : randRange(340, 480)) * delayScale * 0.88,
-        sizeStart: (preset === "hit" ? randRange(8, 13) : randRange(7, 11)) * s * (1 + i * 0.1),
-        sizeEnd: (preset === "hit" ? randRange(42, 62) : randRange(38, 56)) * s * delayScale,
-        alphaStart: preset === "water" ? 0.5 : preset === "island" ? 0.46 : 0.58,
-        alphaEnd: 0,
-        colorStart: col,
-        colorEnd:
-          preset === "water"
-            ? waterCol === VisualColorTokens.missileImpactWater
-              ? 0x5a7a9a
-              : 0x3a8aa8
-            : earthy
-              ? 0x4a4036
-              : weapon === "missile"
-                ? 0x662218
-                : 0x5c3818,
-        spinPerSec: randRange(-0.12, 0.12),
-      });
-    }
-
-    const nFlash = weapon === "torpedo" ? (preset === "hit" ? 16 : 9) : preset === "hit" ? 8 : 4;
-    const nSmoke = weapon === "torpedo" ? (preset === "hit" ? 24 : 14) : preset === "hit" ? 13 : 8;
-    const nAdd = weapon === "torpedo" ? (preset === "hit" ? 8 : 2) : preset === "hit" ? 5 : 0;
-
-    for (let i = 0; i < nFlash; i++) {
-      const ang = randRange(0, Math.PI * 2);
-      const sp = randRange(7, 18) * s;
-      emit({
-        texture: "soft",
-        x: x + Math.cos(ang) * randRange(0, 2.5),
-        y: randRange(1.0, 3.6),
-        z: z + Math.sin(ang) * randRange(0, 2.5),
-        vx: Math.cos(ang) * sp * 0.045,
-        vy: randRange(7, 12) * s,
-        vz: Math.sin(ang) * sp * 0.045,
-        dragPerSec: 1.28,
-        maxAgeMs: randRange(160, 320),
-        sizeStart: randRange(5, 10) * s,
-        sizeEnd: randRange(14, 24) * s,
-        alphaStart: 0.64,
-        alphaEnd: 0,
-        colorStart: warm ? (weapon === "missile" ? 0xffdde8 : 0xffe8d8) : earthy ? 0xd7c29a : waterCol,
-        colorEnd: warm ? hitCol : earthy ? 0x967355 : weapon === "missile" ? 0xaaccff : 0x8ee8ff,
-        spinPerSec: randRange(-0.65, 0.65),
-      });
-    }
-
-    for (let i = 0; i < nAdd; i++) {
-      const ang = randRange(0, Math.PI * 2);
-      emit({
-        texture: "flashAdd",
-        x: x + Math.cos(ang) * randRange(0, 3),
-        y: randRange(1.2, 4.2),
-        z: z + Math.sin(ang) * randRange(0, 3),
-        vx: Math.cos(ang) * randRange(3, 11) * 0.38,
-        vy: randRange(5, 14) * s,
-        vz: Math.sin(ang) * randRange(3, 11) * 0.38,
-        dragPerSec: 1.75,
-        maxAgeMs: randRange(110, 220),
-        sizeStart: randRange(6, 13) * s,
-        sizeEnd: randRange(2.5, 7) * s,
-        alphaStart: 0.8,
-        alphaEnd: 0,
-        colorStart: hitCol,
-        colorEnd: weapon === "missile" ? 0xff3318 : 0xffaa66,
-        spinPerSec: randRange(-1.1, 1.1),
-      });
-    }
-
-    for (let i = 0; i < nSmoke; i++) {
-      const ang = randRange(0, Math.PI * 2);
-      const drift = randRange(2, 8) * s;
-      emit({
-        texture: "smoke",
-        x: x + Math.cos(ang) * randRange(0, 4),
-        y: randRange(1.8, 5.0),
-        z: z + Math.sin(ang) * randRange(0, 4),
-        vx: Math.cos(ang) * drift * 0.1,
-        vy: randRange(2.2, 5.5) * s,
-        vz: Math.sin(ang) * drift * 0.1,
-        dragPerSec: 0.7,
-        maxAgeMs: randRange(1000, 2200),
-        sizeStart: randRange(6, 10) * s,
-        sizeEnd: randRange(24, 38) * s,
-        alphaStart: warm ? 0.52 : earthy ? 0.46 : 0.38,
-        alphaEnd: 0,
-        colorStart: warm ? 0x5c5855 : earthy ? 0x73655a : 0x5c6a78,
-        colorEnd: warm ? 0x1e1e20 : earthy ? 0x2e2820 : 0x263038,
-        spinPerSec: randRange(-0.28, 0.28),
-      });
-    }
+    impact(preset, x, z, weapon === "missile" ? .85 : 1.35);
   }
 
   function spawnMissileImpact(worldX: number, worldZ: number, kind: string): void {
@@ -626,22 +453,22 @@ export function createFxSystem(scene: THREE.Scene, environment: {
 
     // Welle 0 — kernnah
     spawnArtilleryImpact("hit", w, z0, 1.48);
-    burstRing(3, 3, 10, 0.98, 1.2);
+    burstRing(1, 3, 10, 0.98, 1.2);
 
     // Welle 1 — nach ~65 ms, etwas weiter, immer noch dicht
     scheduleFx(t0 + 65, () => {
       spawnArtilleryImpact("hit", w, z0, 1.08);
-      burstRing(4, 5, 14, 0.88, 1.12);
+      burstRing(1, 5, 14, 0.88, 1.12);
     });
 
     // Welle 2 — ~140 ms
     scheduleFx(t0 + 140, () => {
-      burstRing(5, 6, 18, 0.75, 1.0);
+      burstRing(2, 6, 18, 0.75, 1.0);
     });
 
     // Welle 3 — ~220 ms, nachhall / kleinere Blitze
     scheduleFx(t0 + 220, () => {
-      burstRing(4, 4, 12, 0.62, 0.86);
+      burstRing(1, 4, 12, 0.62, 0.86);
     });
 
     // Welle 4 — ~300 ms, absorbierender Abschluss
@@ -728,6 +555,7 @@ export function createFxSystem(scene: THREE.Scene, environment: {
     if (disposed) return;
     flushPendingFx();
     backend.update(dtMs);
+    lights.update(dtMs);
   }
 
   function dispose(): void {
@@ -735,6 +563,7 @@ export function createFxSystem(scene: THREE.Scene, environment: {
     disposed = true;
     pendingFx.length = 0;
     backend.dispose();
+    lights.dispose();
   }
 
   return {

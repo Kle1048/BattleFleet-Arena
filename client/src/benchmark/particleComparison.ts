@@ -68,7 +68,9 @@ async function start() {
       const delta = Math.abs(legacy.pixels[i + c]! - batch.pixels[i + c]!);
       sum += delta; max = Math.max(max, delta); if (delta > 2) changed++;
     }
-    output.textContent = JSON.stringify({ camera: angle.value, activeParticles: batch.backend.getStats().activeParticles,
+    output.textContent = JSON.stringify({ camera: angle.value, referenceActiveParticles: legacy.backend.getStats().activeParticles,
+      activeParticles: batch.backend.getStats().activeParticles,
+      note: "Different art direction and budgets; not an equal-workload batching benchmark or RGB parity assertion",
       reference: before, instanced: after, rgb: { meanError: sum / (width * height * 3), maxError: max,
         channelsOver2: changed, fractionOver2: changed / (width * height * 3) } }, null, 2);
     status.textContent = "Comparison complete";

@@ -118,7 +118,7 @@ export function createSessionPresentation(options: {
       onToast: (e) => commsLog.append({ text: e.text, kind: e.kind }),
     });
     lifetime.use(gameMessageHud);
-    const fxSystem = lifetime.use(createFxSystem(scene));
+    const fxSystem = lifetime.use(createFxSystem(scene, { camera: bundle.camera }));
     const artilleryFx = lifetime.use(createArtilleryFx(scene, fxSystem));
     const missileFx = lifetime.use(createMissileFx(scene, fxSystem));
     const torpedoFx = lifetime.use(createTorpedoFx(scene, fxSystem));

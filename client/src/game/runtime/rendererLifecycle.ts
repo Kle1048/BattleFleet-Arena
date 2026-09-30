@@ -11,6 +11,8 @@ function sizeFromRoot(root: HTMLElement): { w: number; h: number } {
 export function createGameRenderer(root: HTMLElement): THREE.WebGLRenderer {
   const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: "high-performance" });
   try {
+    renderer.toneMapping = THREE.ACESFilmicToneMapping;
+    renderer.toneMappingExposure = 1.15;
     renderer.outputColorSpace = THREE.SRGBColorSpace;
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
     const { w, h } = sizeFromRoot(root);
