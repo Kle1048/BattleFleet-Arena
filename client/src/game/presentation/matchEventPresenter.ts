@@ -53,9 +53,9 @@ export function createMatchEventPresenter(options: MatchEventPresenterOptions) {
     const { x, z, layer } = notice;
     const defenderName = notice.defenderId !== null
       ? (options.formatPlayerLabel?.(notice.defenderId) ?? notice.defenderId.slice(0, 8)) : "Verteidiger";
-    const targetLabel = notice.missileId !== null ? ` (Ziel ASuM #${notice.missileId})` : "";
+    const targetLabel = notice.missileId !== null ? ` (target SSM #${notice.missileId})` : "";
     if (type === "airDefenseIntercept") {
-      options.appendAirDefenseComms?.({ text: `LW: ${layerLabel(layer)} Abfang ERFOLG — ${defenderName}${targetLabel}`, kind: "info" });
+      options.appendAirDefenseComms?.({ text: `AD: ${layerLabel(layer)} intercept SUCCESS — ${defenderName}${targetLabel}`, kind: "info" });
       options.onAirDefenseSound?.({ phase: "intercept", layer, worldX: x, worldZ: z });
       options.airDefense.intercept(x, z, layer);
       return;
@@ -75,7 +75,7 @@ export function createMatchEventPresenter(options: MatchEventPresenterOptions) {
         fromX = muzzle.x; fromZ = muzzle.z; launchY = muzzle.y;
       }
     }
-    options.appendAirDefenseComms?.({ text: `LW: ${layerLabel(layer)} Feuer — ${defenderName}${targetLabel}`, kind: "info" });
+    options.appendAirDefenseComms?.({ text: `AD: ${layerLabel(layer)} fired — ${defenderName}${targetLabel}`, kind: "info" });
     options.onAirDefenseSound?.({ phase: "fire", layer, worldX: fromX, worldZ: fromZ });
     options.airDefense.fire({
       layer, fromX, fromZ, toX: x, toZ: z, launchY,
