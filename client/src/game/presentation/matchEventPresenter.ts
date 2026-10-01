@@ -52,7 +52,7 @@ export function createMatchEventPresenter(options: MatchEventPresenterOptions) {
   function airDefense(type: "airDefenseFire" | "airDefenseIntercept", notice: AirDefenseNotice): void {
     const { x, z, layer } = notice;
     const defenderName = notice.defenderId !== null
-      ? (options.formatPlayerLabel?.(notice.defenderId) ?? notice.defenderId.slice(0, 8)) : "Verteidiger";
+      ? (options.formatPlayerLabel?.(notice.defenderId) ?? notice.defenderId.slice(0, 8)) : "Defender";
     const targetLabel = notice.missileId !== null ? ` (target SSM #${notice.missileId})` : "";
     if (type === "airDefenseIntercept") {
       options.appendAirDefenseComms?.({ text: `AD: ${layerLabel(layer)} intercept SUCCESS — ${defenderName}${targetLabel}`, kind: "info" });

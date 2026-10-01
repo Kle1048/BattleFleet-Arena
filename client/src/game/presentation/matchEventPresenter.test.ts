@@ -45,7 +45,7 @@ order.length = 0;
 presenter.present({ type: "airDefenseFire", payload: { ...notice, defenderId: "missing", defenderX: null } });
 assert.deepEqual(order, [], "no origin means no invented launch or comms notice");
 presenter.present({ type: "airDefenseIntercept", payload: { ...notice, defenderId: null, missileId: null, layer: "ciws" } });
-assert.deepEqual(order.splice(0), ["AD: CIWS intercept SUCCESS — Verteidiger", "sound:intercept:100:200:ciws", "intercept-fx:100:200:ciws"]);
+assert.deepEqual(order.splice(0), ["AD: CIWS intercept SUCCESS — Defender", "sound:intercept:100:200:ciws", "intercept-fx:100:200:ciws"]);
 assert.equal(notice.x, 100, "presenter does not mirror or mutate input values");
 presenter.dispose(); presenter.dispose();
 presenter.present({ type: "airDefenseFire", payload: notice });
