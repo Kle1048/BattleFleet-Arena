@@ -5,6 +5,7 @@ import * as THREE from "three";
 import { createFireControlChannel } from "../input/fireControlChannel";
 import { createCockpitHud } from "../hud/cockpitHud";
 import { createMessageLog } from "../hud/messageLog";
+import { createControlsHelp } from "../hud/controlsHelp";
 import { createDebugOverlay } from "../hud/debugOverlay";
 import { createBotController } from "@battlefleet/shared";
 import { createMatchEndHud } from "../hud/matchEndHud";
@@ -89,13 +90,16 @@ export function createSessionPresentation(options: {
     if (!bridgeEl || !bridgeStackEl || !opzEl) {
       throw new Error(t("errors.cockpitHudMissing"));
     }
+    const openHelp = () => {
+      void showMissionBriefing(startup.signal).catch(error => {
+        if (!startup.signal.aborted) console.warn("Mission briefing failed", error);
+      });
+    };
+    lifetime.use(createControlsHelp(openHelp));
     const commsLog = createMessageLog({
       parent: bridgeStackEl,
-      onShowHelp: () => {
-        void showMissionBriefing(startup.signal).catch(error => {
-          if (!startup.signal.aborted) console.warn("Mission briefing failed", error);
-        });
-      },
+      fullscreenParent: opzEl,
+      onShowHelp: openHelp,
     });
     lifetime.use(commsLog);
     commsLog.append({ text: t("messageLog.initialObjective") });
@@ -253,7 +257,13 @@ export function createSessionPresentation(options: {
       onToast: (text, kind, durationMs) => gameMessageHud.showToast(text, kind, durationMs),
     });
     lifetime.use(fireControl);
-    lifetime.defer(() => { mobileHudActions.onNextFireControlTarget = undefined; });
+    lifetime.defer(() => {
+      mobileHudActions.onNextFireControlTarget = undefined;
+      mobileHudActions.onNearestFireControlTarget = undefined;
+      mobileHudActions.onClearFireControlTarget = undefined;
+    });
+    mobileHudActions.onNearestFireControlTarget = () => fireControl.selectNearestTarget();
+    mobileHudActions.onClearFireControlTarget = () => fireControl.clearTarget();
     mobileHudActions.onNextFireControlTarget = () => {
       fireControl.cycleNextTarget();
     };

@@ -30,7 +30,7 @@ export type InputSample = {
   secondaryFire: boolean;
   /** Torpedo/Minen (Task 8): mittlere Maustaste gehalten oder T (wenn Feature aktiv). */
   torpedoFire: boolean;
-  /** Suchrad an/aus — R toggelt (ESM-Sichtbarkeit für Gegner). */
+  /** Suchrad an/aus über den HUD-Schalter (ESM-Sichtbarkeit für Gegner). */
   radarActive: boolean;
   /** Feste SSM-Rail: Q = port, E = starboard (halten); Mobile-Softkeys; bei nur RMB ausgelassen → Zielrichtung am Server. */
   aswmFireSide?: "port" | "starboard";
@@ -175,9 +175,6 @@ export function createInputHandlers(
     }
     if (e.code === "KeyM" && !e.repeat) {
       toggleKeyboardControlMode();
-    }
-    if (e.code === "KeyR" && !e.repeat) {
-      radarActive = !radarActive;
     }
     if (keyboardControlMode !== "step") {
       return;

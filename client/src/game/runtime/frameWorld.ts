@@ -1,4 +1,4 @@
-import { PlayerLifeState, wreckVariantFromSessionId, pickThreatMissilePositionForDefender, type AirDefenseMissileSnapshot, type AirDefensePlayerSnapshot } from "@battlefleet/shared/rules";
+import { shipHasDamageSmoke, PlayerLifeState, wreckVariantFromSessionId, pickThreatMissilePositionForDefender, type AirDefenseMissileSnapshot, type AirDefensePlayerSnapshot } from "@battlefleet/shared/rules";
 import type { FramePlayer, FrameRuntimeState, FrameEffects } from "./frameContracts";
 import type * as THREE from "three";
 import type { InputSample } from "../input/keyboardMouse";
@@ -139,7 +139,7 @@ export function updateFrameWorld<TPlayer extends FramePlayer>(options: {
     if (p.lifeState !== PlayerLifeState.AwaitingRespawn) {
       const hpPercent = p.maxHp > 0 ? p.hp / p.maxHp : 1;
       const severity =
-        hpPercent < 0.3 ? "heavily_damaged" : hpPercent < 0.9 ? "damaged" : null;
+        shipHasDamageSmoke(p.hp, p.maxHp) ? (hpPercent < 0.3 ? "heavily_damaged" : "damaged") : null;
       if (severity) {
         const intervalMs = severity === "heavily_damaged" ? 80 : 170;
         const last = state.lastDamageSmokeAtBySessionId.get(sessionId) ?? 0;

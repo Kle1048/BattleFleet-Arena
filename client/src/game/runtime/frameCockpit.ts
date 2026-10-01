@@ -1,9 +1,11 @@
-import { PlayerLifeState, PROGRESSION_MAX_LEVEL, SPEED_FEEL_FACTOR, normalizeShipClassId, shipClassIdForProgressionLevel, getShipClassProfile, progressionMovementScale, progressionXpToNextLevel, progressionNavalRankEn, launcherYawRadFromBow, esmDetectionRangeMul, esmEmitterStrokeCss, resolveAirDefenseDefenderIdForMissile, getAswmMagazineFromProfile, type ShipClassId, type AirDefenseMissileSnapshot, type AirDefensePlayerSnapshot } from "@battlefleet/shared/rules";
+import { PlayerLifeState, PROGRESSION_MAX_LEVEL, SPEED_FEEL_FACTOR, normalizeShipClassId, shipClassIdForProgressionLevel, getShipClassProfile, progressionMovementScale, progressionXpToNextLevel, progressionNavalRankEn, launcherYawRadFromBow, esmDetectionRange, esmEmitterStrokeCss, resolveAirDefenseDefenderIdForMissile, getAswmMagazineFromProfile, type ShipClassId, type AirDefenseMissileSnapshot, type AirDefensePlayerSnapshot } from "@battlefleet/shared/rules";
 import type { FramePlayer, FrameRuntimeState, CockpitOutput, MessageOutput, AudioOutput, FrameOwnedTorpedo } from "./frameContracts";
 import { t } from "../../locale/t";
+import { FIRE_CONTROL_TARGET_RANGE as FIRE_CONTROL_RANGE_M } from "@battlefleet/shared/rules";
+import { RADAR_DETECTION_RANGE, canIdentifyShip, SHIP_CONTACT_DISPLAY_RANGE } from "@battlefleet/shared/rules";
 import { getAuthoritativeHullProfile } from "./shipProfileRuntime";
 import type { CockpitRadarThreatLine, CockpitSsmRailLine, RadarBlipNorm } from "../presentation/CockpitModel";
-import { RADAR_ESM_RANGE_WORLD, RADAR_PLAN_SVG_BLIP_RADIUS, cockpitSsmRailTickLineNorthUp,
+import { RADAR_PLAN_SVG_BLIP_RADIUS, cockpitSsmRailTickLineNorthUp,
   esmLineTowardBlip, radarBlipNormalizedNorthUp } from "../hud/radarHudMath";
 
 export type FrameCockpitState = Pick<FrameRuntimeState,
@@ -17,6 +19,7 @@ export function updateFrameCockpit(options: {
   torpedoList: readonly FrameOwnedTorpedo[] | null; adMissileSnapsScratch: readonly AirDefenseMissileSnapshot[];
   adPlayerSnapshots: readonly AirDefensePlayerSnapshot[]; state: FrameCockpitState;
   cockpit: CockpitOutput; gameMessageHud: Pick<MessageOutput, "showToast">;
+  fireControlTargetId?: string | null;
   gameAudio: Pick<AudioOutput, "levelUp">; toShortSession: (id: string) => string;
 }): void {
   const { me, p, now, mySessionId, cfgMaxSpeed, matchEnded, matchRemainingSecRaw, playerList,
@@ -93,11 +96,14 @@ export function updateFrameCockpit(options: {
       for (const other of playerList) {
         if (other.id === mySessionId) continue;
         if (other.lifeState === PlayerLifeState.AwaitingRespawn) continue;
-        const b = radarBlipNormalizedNorthUp(p.x, p.z, other.x, other.z);
-        if (b && ownRadarActive) radarBlips.push(b);
+        const designated = other.id === options.fireControlTargetId;
+        const b = radarBlipNormalizedNorthUp(p.x, p.z, other.x, other.z, SHIP_CONTACT_DISPLAY_RANGE);
+        if (b && ((designated && Math.hypot(other.x - p.x, other.z - p.z) <= FIRE_CONTROL_RANGE_M) || canIdentifyShip({ x: p.x, z: p.z, radarActive: ownRadarActive }, other))) {
+          radarBlips.push(designated ? { ...b, designated: true } : b);
+        }
         const emitterOn = other.radarActive !== false;
         if (emitterOn) {
-          const esmRangeWorld = RADAR_ESM_RANGE_WORLD * esmDetectionRangeMul(other.shipClass);
+          const esmRangeWorld = esmDetectionRange(other.shipClass);
           const bEsm = radarBlipNormalizedNorthUp(p.x, p.z, other.x, other.z, esmRangeWorld);
           if (bEsm) {
             const line = esmLineTowardBlip(bEsm);
@@ -111,7 +117,7 @@ export function updateFrameCockpit(options: {
         if (resolveAirDefenseDefenderIdForMissile(m, adPlayerSnapshots) !== mySessionId) {
           continue;
         }
-        const bM = radarBlipNormalizedNorthUp(p.x, p.z, m.x, m.z, RADAR_ESM_RANGE_WORLD);
+        const bM = radarBlipNormalizedNorthUp(p.x, p.z, m.x, m.z, RADAR_DETECTION_RANGE);
         if (!bM) continue;
         const line = esmLineTowardBlip(bM);
         const lockedOnMe = m.targetId === mySessionId;

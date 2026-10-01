@@ -1,7 +1,7 @@
 /** User-facing status formatting belongs to presentation, not the transport adapter. */
 export function connectionErrorMessage(code: number, message?: string): string {
   const line = `[${code}] ${message ?? ""}`.trim();
-  return line.length > 0 ? line : `Fehler-Code ${code}`;
+  return line.length > 0 ? line : `Error code ${code}`;
 }
 
 export function connectionClosedMessage(code: number, reason?: string): string {
@@ -12,5 +12,5 @@ export function connectionClosedMessage(code: number, reason?: string): string {
   if (code === WS_CLOSE_WITH_ERROR && reason?.includes("destroyed_in_combat")) {
     return "Destroyed in combat. Reload the page to play again.";
   }
-  return `Verbindung beendet (${code}). Seite neu laden.`;
+  return `Connection closed (${code}). Reload the page.`;
 }

@@ -4,7 +4,7 @@ export type { CockpitEsmLine, CockpitRadarThreatLine, CockpitSsmRailLine } from 
 /** Stabiler String zum Erkennen von Änderungen am Plan-Radar (kein DOM-Rebuild bei gleichem Kontaktbild). */
 export function cockpitRadarBlipsKey(blips: readonly RadarBlipNorm[]): string {
   if (blips.length === 0) return "";
-  return blips.map((b) => `${b.nx.toFixed(3)}_${b.ny.toFixed(3)}`).join("|");
+  return blips.map((b) => `${b.nx.toFixed(3)}_${b.ny.toFixed(3)}${b.designated ? "_fc" : ""}`).join("|");
 }
 
 export function cockpitRadarEsmKey(lines: readonly CockpitEsmLine[]): string {

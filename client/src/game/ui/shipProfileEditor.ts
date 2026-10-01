@@ -1,5 +1,5 @@
 /**
- * Schiffsprofil-Editor (Workbench): alle Felder von `ShipHullVisualProfile` — Tabs + JSON-Bereiche.
+ * Ship profile-Editor (Workbench): alle Felder von `ShipHullVisualProfile` — Tabs + JSON-Bereiche.
  * Speicherung als Patch in localStorage pro `shipClassId`; Export/Import als Datei.
  */
 
@@ -30,8 +30,8 @@ import {
 
 const CLASSES: { id: ShipClassId; label: string }[] = [
   { id: SHIP_CLASS_FAC, label: "FAC" },
-  { id: SHIP_CLASS_DESTROYER, label: "Zerstörer" },
-  { id: SHIP_CLASS_CRUISER, label: "Kreuzer" },
+  { id: SHIP_CLASS_DESTROYER, label: "Destroyer" },
+  { id: SHIP_CLASS_CRUISER, label: "Cruiser" },
 ];
 
 function num(v: string, fallback: number): number {
@@ -276,24 +276,24 @@ export function createShipProfileEditorPanel(
   const root = document.createElement("div");
   root.className = "ship-profile-editor-root";
   root.setAttribute("role", "region");
-  root.setAttribute("aria-label", "Schiffsprofil");
+  root.setAttribute("aria-label", "Ship profile");
 
   const hullOptions = buildHullOptions();
   const classOptions = buildClassOptions();
 
   root.innerHTML = `
     <div class="ship-editor-panel ship-profile-editor-panel">
-      <h2 class="ship-editor-title">Schiffsprofil</h2>
+      <h2 class="ship-editor-title">Ship profile</h2>
       <p class="ship-editor-hint ship-profile-editor-hint">
-        Speichern = Patch in <strong>localStorage</strong>. JSON-Tabs: <code>mountSlots</code>,
-        <code>fixedSeaSkimmerLaunchers</code>, <code>defaultLoadout</code> — gleiche Struktur wie in
-        <code>shared/src/data/ships/</code>. Positionen, Ausrichtung und Maße werden ausschließlich im 3D-Modell bearbeitet; die Vorschau verwendet die daraus erzeugten Marker.
+        Save = patch in <strong>localStorage</strong>. JSON-Tabs: <code>mountSlots</code>,
+        <code>fixedSeaSkimmerLaunchers</code>, <code>defaultLoadout</code> — same structure as in
+        <code>shared/src/data/ships/</code>. Edit positions, orientation and dimensions in the 3D model; the preview uses the markers generated from it.
       </p>
-      <div class="ship-editor-tabs" role="tablist" aria-label="Profil-Kategorien">
-        <button type="button" class="ship-editor-tab is-active" role="tab" aria-selected="true" data-tab="basis">Basis</button>
-        <button type="button" class="ship-editor-tab" role="tab" aria-selected="false" data-tab="movement">Bewegung</button>
+      <div class="ship-editor-tabs" role="tablist" aria-label="Profile categories">
+        <button type="button" class="ship-editor-tab is-active" role="tab" aria-selected="true" data-tab="basis">Basics</button>
+        <button type="button" class="ship-editor-tab" role="tab" aria-selected="false" data-tab="movement">Movement</button>
         <button type="button" class="ship-editor-tab" role="tab" aria-selected="false" data-tab="hitbox">Hitbox</button>
-        <button type="button" class="ship-editor-tab" role="tab" aria-selected="false" data-tab="fire">Feuersektor</button>
+        <button type="button" class="ship-editor-tab" role="tab" aria-selected="false" data-tab="fire">Firing sector</button>
         <button type="button" class="ship-editor-tab" role="tab" aria-selected="false" data-tab="asum">ASuM</button>
         <button type="button" class="ship-editor-tab" role="tab" aria-selected="false" data-tab="json">JSON</button>
       </div>
@@ -326,21 +326,21 @@ export function createShipProfileEditorPanel(
             <input type="number" step="0.05" data-field="dragWhenNeutralMul" class="ship-editor-num" placeholder="1" /></label>
         </div>
         <div class="ship-editor-tab-panel" data-tab-panel="hitbox" role="tabpanel" hidden>
-          <div class="ship-editor-subtitle">collisionHitbox (AABB, +Y oben, +Z Bug)</div>
+          <div class="ship-editor-subtitle">collisionHitbox (AABB, +Y up, +Z bow)</div>
           <div class="ship-editor-grid">
-            <label>Mitte X <input type="number" step="0.1" data-field="hbCx" class="ship-editor-num" /></label>
-            <label>Mitte Y <input type="number" step="0.1" data-field="hbCy" class="ship-editor-num" /></label>
-            <label>Mitte Z <input type="number" step="0.1" data-field="hbCz" class="ship-editor-num" /></label>
-            <label>Halbe X <input type="number" step="0.1" min="0.05" data-field="hbHx" class="ship-editor-num" /></label>
-            <label>Halbe Y <input type="number" step="0.1" min="0.05" data-field="hbHy" class="ship-editor-num" /></label>
-            <label>Halbe Z <input type="number" step="0.1" min="0.05" data-field="hbHz" class="ship-editor-num" /></label>
+            <label>Center X <input type="number" step="0.1" data-field="hbCx" class="ship-editor-num" /></label>
+            <label>Center Y <input type="number" step="0.1" data-field="hbCy" class="ship-editor-num" /></label>
+            <label>Center Z <input type="number" step="0.1" data-field="hbCz" class="ship-editor-num" /></label>
+            <label>Half extent X <input type="number" step="0.1" min="0.05" data-field="hbHx" class="ship-editor-num" /></label>
+            <label>Half extent Y <input type="number" step="0.1" min="0.05" data-field="hbHy" class="ship-editor-num" /></label>
+            <label>Half extent Z <input type="number" step="0.1" min="0.05" data-field="hbHz" class="ship-editor-num" /></label>
           </div>
         </div>
         <div class="ship-editor-tab-panel" data-tab-panel="fire" role="tabpanel" hidden>
-          <p class="ship-profile-json-note">defaultRotatingMountFireSector — Fallback für drehbare Mounts ohne eigenen <code>fireSector</code>.</p>
-          <label class="ship-editor-field"><span>Art</span>
+          <p class="ship-profile-json-note">defaultRotatingMountFireSector — Fallback for rotating mounts without their own <code>fireSector</code>.</p>
+          <label class="ship-editor-field"><span>Type</span>
             <select data-field="fsKind" class="ship-editor-input">
-              <option value="">(kein Eintrag)</option>
+              <option value="">(not set)</option>
               <option value="symmetric">symmetric</option>
               <option value="asymmetric">asymmetric</option>
               <option value="union">union</option>
@@ -348,7 +348,7 @@ export function createShipProfileEditorPanel(
           <div data-fs-panel="symmetric" hidden>
             <label class="ship-editor-field"><span>halfAngleRadFromBow</span>
               <input type="number" step="0.01" data-field="fsHalf" class="ship-editor-num" /></label>
-            <label class="ship-editor-field"><span>centerYawRadFromBow (optional, Standard 0)</span>
+            <label class="ship-editor-field"><span>centerYawRadFromBow (optional, default 0)</span>
               <input type="number" step="0.01" data-field="fsCenter" class="ship-editor-num" /></label>
           </div>
           <div data-fs-panel="asymmetric" hidden>
@@ -358,34 +358,34 @@ export function createShipProfileEditorPanel(
               <input type="number" step="0.01" data-field="fsMax" class="ship-editor-num" /></label>
           </div>
           <div data-fs-panel="union" hidden>
-            <label class="ship-editor-field"><span>sectors (JSON-Array)</span>
+            <label class="ship-editor-field"><span>sectors (JSON array)</span>
               <textarea data-field="fsUnion" class="ship-editor-json" rows="6">[]</textarea></label>
           </div>
         </div>
         <div class="ship-editor-tab-panel" data-tab-panel="asum" role="tabpanel" hidden>
           <div class="ship-editor-subtitle">aswmMagazine</div>
           <label class="ship-editor-field"><span>port</span>
-            <input type="number" step="1" min="0" data-field="aswmPort" class="ship-editor-num" placeholder="leer = nicht setzen" /></label>
+            <input type="number" step="1" min="0" data-field="aswmPort" class="ship-editor-num" placeholder="empty = not set" /></label>
           <label class="ship-editor-field"><span>starboard</span>
-            <input type="number" step="1" min="0" data-field="aswmSb" class="ship-editor-num" placeholder="leer = nicht setzen" /></label>
-          <p class="ship-profile-json-note">Beide Felder leer: kein Override. Beide gesetzt: Magazin wird überschrieben.</p>
+            <input type="number" step="1" min="0" data-field="aswmSb" class="ship-editor-num" placeholder="empty = not set" /></label>
+          <p class="ship-profile-json-note">Leave both fields empty for no override. Set both to override the magazine.</p>
           <label class="ship-editor-field"><span>aswmMagicReloadMs (optional)</span>
             <input type="number" step="100" min="0" data-field="aswmMagicReloadMs" class="ship-editor-num" /></label>
         </div>
         <div class="ship-editor-tab-panel" data-tab-panel="json" role="tabpanel" hidden>
-          <label class="ship-editor-field ship-editor-json-block"><span>mountSlots (JSON-Array)</span>
+          <label class="ship-editor-field ship-editor-json-block"><span>mountSlots (JSON array)</span>
             <textarea data-json="mountSlots" class="ship-editor-json" spellcheck="false" rows="10"></textarea></label>
-          <label class="ship-editor-field ship-editor-json-block"><span>fixedSeaSkimmerLaunchers (JSON-Array)</span>
+          <label class="ship-editor-field ship-editor-json-block"><span>fixedSeaSkimmerLaunchers (JSON array)</span>
             <textarea data-json="fixedSeaSkimmerLaunchers" class="ship-editor-json" spellcheck="false" rows="6"></textarea></label>
-          <label class="ship-editor-field ship-editor-json-block"><span>defaultLoadout (JSON-Objekt)</span>
+          <label class="ship-editor-field ship-editor-json-block"><span>defaultLoadout (JSON object)</span>
             <textarea data-json="defaultLoadout" class="ship-editor-json" spellcheck="false" rows="5"></textarea></label>
         </div>
       </div>
       <div class="ship-editor-actions">
-        <button type="button" class="ship-editor-btn ship-editor-btn-primary" data-action="save">Speichern</button>
-        <button type="button" class="ship-editor-btn" data-action="reset">Klasse zurücksetzen</button>
-        <button type="button" class="ship-editor-btn" data-action="export">JSON exportieren</button>
-        <label class="ship-editor-btn ship-editor-file">JSON importieren
+        <button type="button" class="ship-editor-btn ship-editor-btn-primary" data-action="save">Save</button>
+        <button type="button" class="ship-editor-btn" data-action="reset">Reset class</button>
+        <button type="button" class="ship-editor-btn" data-action="export">Export JSON</button>
+        <label class="ship-editor-btn ship-editor-file">Import JSON
           <input type="file" accept="application/json,.json" data-action="import" hidden /></label>
       </div>
     </div>
@@ -510,7 +510,7 @@ export function createShipProfileEditorPanel(
           options?.onApplied?.(currentClass);
         } catch (err) {
           console.error("[ShipProfileEditor]", err);
-          window.alert(err instanceof Error ? err.message : "Speichern fehlgeschlagen.");
+          window.alert(err instanceof Error ? err.message : "Save failed.");
         }
       }
       if (action === "reset") {
@@ -544,7 +544,7 @@ export function createShipProfileEditorPanel(
           try {
             const data = JSON.parse(String(reader.result)) as ShipHullProfileSource;
             if (!data.shipClassId || !getAuthoritativeShipHullProfile(data.shipClassId)) {
-              throw new Error("Ungültige oder unbekannte shipClassId");
+              throw new Error("Invalid or unknown shipClassId");
             }
             setHullProfilePatchForClass(data.shipClassId, data);
             setHullProfileWorkbenchLivePreview(data.shipClassId, null);

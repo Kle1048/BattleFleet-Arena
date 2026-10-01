@@ -1,5 +1,5 @@
 import type { RadarBlipNorm } from "../presentation/CockpitModel";
-import { RADAR_DETECTION_RANGE, ESM_BASE_DETECTION_RANGE } from "@battlefleet/shared/rules";
+import { SHIP_CONTACT_DISPLAY_RANGE, ESM_BASE_DETECTION_RANGE } from "@battlefleet/shared/rules";
 
 /**
  * Radar: **Nordgebunden** (+Welt-Z = Nord oben, +X = Ost rechts; SVG-y nach unten → `ny` negiert).
@@ -7,7 +7,7 @@ import { RADAR_DETECTION_RANGE, ESM_BASE_DETECTION_RANGE } from "@battlefleet/sh
  */
 
 /** Anzeige-Radius in Welt-Einheiten (Server XZ) — aktives Suchrad / Blips. */
-export const RADAR_RANGE_WORLD = RADAR_DETECTION_RANGE;
+export const RADAR_RANGE_WORLD = SHIP_CONTACT_DISPLAY_RANGE;
 
 /** SVG-Skalierung für Plan-Radar-Blips/Linien (viewBox ±52; Kreis ~r47). */
 export const RADAR_PLAN_SVG_BLIP_RADIUS = 46;
@@ -21,7 +21,7 @@ const RADAR_SSM_RAIL_TICK_LEN_PX_DEFAULT =
 
 /**
  * Passive ESM — **Basis** für FAC (×1): Peilung bei eingeschaltetem Gegner-Radar.
- * Zerstörer ×1,5, Kreuzer ×2 — siehe `@battlefleet/shared` `esmDetectionRangeMul`.
+ * Zerstörer ×1,25, Kreuzer ×1,5 — siehe `@battlefleet/shared` `esmDetectionRangeMul`.
  */
 export const RADAR_ESM_RANGE_WORLD = ESM_BASE_DETECTION_RANGE;
 

@@ -1,6 +1,6 @@
 {
   "profileId": "cruiser",
-  "labelDe": "Kreuzer",
+  "labelDe": "Cruiser",
   "hullGltfId": "cruiser",
   "collisionHitbox": {
     "center": {

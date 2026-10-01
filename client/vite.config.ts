@@ -22,6 +22,7 @@ export default defineConfig({
     rollupOptions: {
       input: {
         main: path.resolve(root, "index.html"),
+        manual: path.resolve(root, "manual.html"),
         editor: path.resolve(root, "editor.html"),
         islandPolygonEditor: path.resolve(root, "island-polygon-editor.html"),
       },

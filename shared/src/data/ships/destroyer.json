@@ -1,6 +1,6 @@
 {
   "profileId": "destroyer",
-  "labelDe": "Spruance-Klasse",
+  "labelDe": "Spruance class",
   "hullGltfId": "spruance",
   "collisionHitbox": {
     "center": {

@@ -7,6 +7,7 @@ import {
 } from "@battlefleet/shared";
 import type { InputSample } from "./keyboardMouse";
 import { worldToRenderX } from "../runtime/renderCoords";
+import { FIRE_CONTROL_RANGE_M } from "./fireControlRange";
 
 type PlayerRow = {
   id: string;
@@ -17,9 +18,8 @@ type PlayerRow = {
   lifeState: string;
 };
 
-const TARGET_ACQUIRE_MAX_DIST_M = 600;
-/** Größer als Erfassung — verhindert Flattern an der Reichweitengrenze. */
-const TARGET_LOST_DIST_M = 800;
+const TARGET_ACQUIRE_MAX_DIST_M = FIRE_CONTROL_RANGE_M;
+const TARGET_LOST_DIST_M = FIRE_CONTROL_RANGE_M;
 
 function findShipSessionFromIntersect(hit: THREE.Intersection): string | null {
   let o: THREE.Object3D | null = hit.object;
@@ -45,8 +45,11 @@ export function createFireControlChannel(options: {
     players: Iterable<PlayerRow>,
     matchEnded: boolean,
   ) => InputSample;
-  /** Wie **F**: nächstes gegnerisches Ziel im Feuerleitkanal (≤ 600 m), zyklisch. */
+  getTargetId: () => string | null;
+  /** Wie R: durch Ziele innerhalb von 800 m schalten. */
   cycleNextTarget: () => void;
+  selectNearestTarget: () => void;
+  clearTarget: () => void;
   dispose: () => void;
 } {
   const { scene, camera, canvas, mySessionId, playerLabel, onToast } = options;
@@ -130,7 +133,7 @@ export function createFireControlChannel(options: {
     return dx * dx + dz * dz;
   };
 
-  const selectNextTargetWithinRange = (me: PlayerRow): void => {
+  const selectNextTargetWithinRange = (me: PlayerRow, nearest = false): void => {
     const maxSq = TARGET_ACQUIRE_MAX_DIST_M * TARGET_ACQUIRE_MAX_DIST_M;
     const candidates = latestPlayers
       .filter(
@@ -149,7 +152,7 @@ export function createFireControlChannel(options: {
       onToast(`Fire-control channel: no target <= ${TARGET_ACQUIRE_MAX_DIST_M} m`, "danger", 2600);
       return;
     }
-    if (!designatedTargetId) {
+    if (nearest || !designatedTargetId) {
       setDesignation(candidates[0]!);
       return;
     }
@@ -161,15 +164,17 @@ export function createFireControlChannel(options: {
   /** Zuletzt aus dem Spieltick — für Raycast-Klicks zwischen Frames. */
   let latestPlayers: PlayerRow[] = [];
 
-  const cycleNextTarget = (): void => {
-    if (disposed) return;
+  let latestMatchEnded = false;
+  const chooseTarget = (nearest: boolean): void => {
+    if (disposed || latestMatchEnded) return;
     const me = latestPlayers.find((p) => p.id === mySessionId);
     if (!me || me.lifeState === PlayerLifeState.AwaitingRespawn) return;
-    selectNextTargetWithinRange(me);
+    selectNextTargetWithinRange(me, nearest);
   };
+  const cycleNextTarget = () => chooseTarget(false);
 
   const onPointerDown = (e: PointerEvent): void => {
-    if (disposed || e.defaultPrevented) return;
+    if (disposed || latestMatchEnded || e.defaultPrevented) return;
     if (e.button !== 0) return;
     const rect = canvas.getBoundingClientRect();
     const ndcX = ((e.clientX - rect.left) / rect.width) * 2 - 1;
@@ -182,7 +187,10 @@ export function createFireControlChannel(options: {
       if (!sid) continue;
       if (sid === mySessionId) return;
       const target = list.find((p) => p.id === sid);
-      if (target && target.lifeState !== PlayerLifeState.AwaitingRespawn) {
+      const me = list.find(p => p.id === mySessionId);
+      if (target && me && me.lifeState !== PlayerLifeState.AwaitingRespawn &&
+          sqDist(me.x, me.z, target.x, target.z) <= FIRE_CONTROL_RANGE_M ** 2 &&
+          target.lifeState !== PlayerLifeState.AwaitingRespawn) {
         setDesignation(target);
         return;
       }
@@ -192,12 +200,15 @@ export function createFireControlChannel(options: {
   };
 
   const onKeyDown = (e: KeyboardEvent): void => {
-    if (disposed) return;
-    if (e.code === "KeyF" && !e.repeat) {
-      cycleNextTarget();
+    if (disposed || e.repeat || e.defaultPrevented || e.ctrlKey || e.altKey || e.metaKey) return;
+    const element = e.target as HTMLElement | null;
+    if (element?.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(element?.tagName ?? "")) return;
+    if (e.code === "KeyF" || e.code === "KeyR") {
+      e.preventDefault();
+      chooseTarget(e.code === "KeyF");
       return;
     }
-    if (e.code !== "Escape") return;
+    if (e.code !== "Escape" && e.code !== "KeyC") return;
     if (designatedTargetId) {
       designatedTargetId = null;
       setRingVisible(false);
@@ -209,9 +220,11 @@ export function createFireControlChannel(options: {
   window.addEventListener("keydown", onKeyDown);
 
   return {
+    getTargetId: () => designatedTargetId,
     applyToInput(sample, players, matchEnded): InputSample {
       if (disposed) return sample;
       latestPlayers = Array.from(players);
+      latestMatchEnded = matchEnded;
       if (matchEnded) {
         setRingVisible(false);
         designatedTargetId = null;
@@ -252,6 +265,8 @@ export function createFireControlChannel(options: {
       };
     },
     cycleNextTarget,
+    selectNearestTarget: () => chooseTarget(true),
+    clearTarget: () => { if (!disposed && designatedTargetId) clearDesignation("manual"); },
     dispose() {
       if (disposed) return;
       disposed = true;

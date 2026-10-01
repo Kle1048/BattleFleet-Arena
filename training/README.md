@@ -1,6 +1,106 @@
 # BattleFleet-Arena: Trainingslager
 
-**Aktueller Stand:** Die drei ausgewogeneren Profile und der Zehnminutenkurs sind im Abschnitt „Ausgewogenere Profile, zweite Trainingsgeneration“ beschrieben. Ältere Abschnitte dokumentieren frühere Trainingsstände.
+## Aktuelle Sensorregeln: Sicht, Rauch und größere Radarreichweite
+
+Seit 01.10.2026 gelten für normale und neuronale Bots sowie die Kontaktanzeige:
+
+| Zielklasse | Passive Sicht | Sicht bei Schadensrauch | Aktives Radar | ESM bei sendendem Ziel |
+|---|---:|---:|---:|---:|
+| FAC | 600 m | 800 m | 1.200 m | 1.600 m |
+| Zerstörer | 800 m | 800 m | 1.600 m | 2.000 m |
+| Kreuzer | 1.000 m | 800 m | 2.000 m | 2.400 m |
+
+Entscheidend ist die Größe des **Ziels**, nicht des Beobachters. Sicht funktioniert
+auch bei beiden Radaren aus und liefert einen präzisen, identifizierten Kontakt.
+Die Rauchreichweite gilt unter 90 % HP, passend zum sichtbaren Schadensrauch,
+und ersetzt dann die normale Sichtweite durch exakt 800 m bei jeder Klasse.
+Damit sinkt beim rauchenden Kreuzer die optische Reichweite von 1.000 auf 800 m;
+Radar und ESM bleiben unverändert.
+ESM bleibt eine reine Peilung ohne genaue Zielentfernung oder HP. Die Reichweiten
+sind inklusive ihrer Grenze; tote Schiffe sind keine aktiven Zielkontakte.
+
+Die HMI-Kontaktfläche zeigt einen Radius von 2.000 m; Blips, Kartenmittenmarker
+und Reichweitenbeschriftung verwenden denselben Maßstab. Optische Kontakte bleiben
+bei ausgeschaltetem Radar sichtbar. Der vorhandene manuelle Feuerleitkanal bleibt
+bei 800 m und kann weiterhin einen manuell bezeichneten Kontakt markieren.
+Waffen- und Flugkörper-/Minen-Erkennungsreichweiten wurden nicht angehoben.
+
+Der Trainingsvertrag enthält jetzt `sensorContract: bfa-visual-smoke-radar-v4`.
+Die 37 Features und neun Aktionen sind unverändert, bestehende Spielmodelle bleiben
+ladbar. Alte Checkpoints dürfen jedoch nicht stillschweigend mit `--resume` unter
+neuen Sensorbedingungen fortgesetzt werden: Dafür ist `--initialize-from` mit neuer
+Validierung vorgesehen. Alle oben/unten dokumentierten früheren Trainingsresultate
+wurden vor dieser Sensoränderung gemessen und gelten nicht als Leistungsnachweis
+unter den neuen Regeln.
+
+## Vierergefechte ohne Teams
+
+Das Trainingslager unterstützt jetzt **vier Schiffe, jeder gegen jeden**, mit
+300 Sekunden pro Runde, Respawns und den normalen Überlebens-, Sea-Control- und
+Abschusspunkten. Ein lernender Bot spielt gegen drei eingefrorene Actor-Modelle.
+Für jedes der drei Profile läuft ein eigener PPO-Lauf; die Gegner lernen während
+dieses Laufs nicht mit. Das ist Mehrspielertraining gegen feste Gegner, noch keine
+Self-Play-Liga und kein Teamtraining.
+
+`--opponent-roster` wählt diesen Modus. Die JSON-Datei enthält genau drei lokale
+Policy-Pfade, relativ zum Ordner dieser Datei. Beispiel:
+
+```json
+["frozen/aggressive.json", "frozen/objective.json", "frozen/cautious.json"]
+```
+
+Die drei Dateien werden als validierte Modelle geladen. Ihre SHA-256-Werte und
+Profile sind Teil des Trainingsvertrags. Alle vier Controller besitzen eigenes
+Gedächtnis und verwenden die normalen Radar-/ESM-Filter. Die 37 Netzfeatures und
+neun Absichten bleiben kompatibel; vorhandene Gewichte können ausdrücklich mit
+`--initialize-from` übernommen werden. `--resume` verlangt den identischen Vertrag.
+
+```powershell
+node training/run.mjs train --profile cautious --initialize-from training/runs/balance-20260930/final/cautious/best.zip --opponent-roster training/runs/ffa4-20261001/opponents.json --steps 150000 --envs 2 --learning-rate 0.00003 --eval-every 50000 --eval-episodes 8 --selection-metric game --seed 401 --output training/runs/ffa4-next-cautious
+```
+
+Jeder Ausgabepfad muss neu sein. Ohne Roster bleibt der bisherige Duellmodus
+verfügbar. `--opponent-policy` und `--opponent-roster` schließen sich aus.
+
+### Belohnung und Vergleich im Vierergefecht
+
+Die FFA-Variante hat den eigenen Szenariovertrag `bfa-ffa4-v1`. Eigene Punkte,
+zugerechnete Abschüsse, erhaltene Schäden, Tode und die bisherigen kleinen
+Positionsanteile zählen weiterhin. **Für fremden HP-Verlust gibt es im FFA keinen
+Schadensreward**, auch nicht für eigene nichttödliche Treffer: Der alte Duellwert
+kann nicht unterscheiden, welches Schiff den Schaden verursacht hat. Sonst würde
+der Lerner belohnt, wenn sich zwei andere Schiffe bekämpfen. Ein Gegner-Score-Abzug
+wird in diesem Modus ebenfalls nicht verwendet. Die tatsächlichen Spielpunkte
+bleiben davon unberührt.
+
+Ein Sieg verlangt am Rundenende mehr Spielpunkte als jeder der drei Gegner.
+Gleichstand an der Spitze zählt als Remis; sonst verliert der Lerner. Zusätzlich
+wird die Platzierung erfasst (1 plus Anzahl besser platzierter Gegner; geteilte
+Plätze bei Gleichstand). `opponentScore` bezeichnet im FFA den höchsten Gegnerwert.
+Die Startplätze wechseln mit `seed % 4`; Lage, Richtung und Kurs werden zusätzlich
+seedabhängig variiert. Alte und neue Modelle werden auf exakt denselben Starts
+gegen dieselben drei eingefrorenen Gegner verglichen.
+
+```powershell
+node --conditions=bfa-source --import tsx training/ffa-evaluate.mts training/runs/ffa4-20261001/baseline.json training/runs/ffa4-20261001/opponents.json training/runs/ffa4-next-evaluation.json 20 10200000
+```
+
+Das erste Manifest ordnet Modellnamen ihren Policy-Pfaden zu (absolute Pfade oder
+relativ zum Arbeitsverzeichnis). Der Test verändert keine Spielmodelle. Gemessen
+werden unter anderem Platzierung, Siege, Punkte, Tode, Gebietszeit und Radarzeit.
+Diese Messung prüft jedes Profil gegen den festen Gegnerpool; sie belegt noch
+keine gleiche Stärke einer Besetzung aus ausschließlich neuen Modellen.
+
+Der erste Lauf liegt unter `training/runs/ffa4-20261001/`. Plan, eingefrorene Gegner,
+Checkpoints und Auswertungen bleiben dort erhalten. Abschließende Resultate stehen
+in [VERIFICATION.md](VERIFICATION.md). Die aktive Spielsession wird durch Training
+und Export nicht automatisch umgestellt.
+
+**KI verstehen:** Der lokale [Lernkurs mit acht Lektionen](academy/index.html) erklärt unsere Bots von den Sensoren über neuronale Netze und PPO bis zur Auswertung. Er enthält echte Modellberechnungen, Selbsttests, Übungen mit Lösungen und drei animierte Lehrsequenzen. Die einzelne HTML-Datei funktioniert auch offline im Browser. Die Animationen sind schematische Erklärungen, keine Spielaufzeichnungen.
+
+Bei Bedarf im Projektverzeichnis lokal bereitstellen: `training/.venv/Scripts/python.exe -m http.server 5180 --bind 127.0.0.1 --directory training/academy`, dann `http://127.0.0.1:5180/` öffnen. Die eingebetteten Modell-Snapshots mit `node training/academy/build.mjs` erneuern; Lehrberechnungen und Übereinstimmung mit der Spielinferenz prüfen: `node --conditions=bfa-source --import tsx training/academy/verify.mjs`.
+
+**Aktueller Stand:** Das lokale Spiel lädt weiterhin die ausgewählten Modelle aus `training/runs/balance-20260930/final/`. Die zusätzliche Trainingsrunde vom 01.10.2026 wurde abgeschlossen, aber wegen schlechterer Balance im Abschlusstest nicht übernommen. Die Fortsetzungen mit Stärkevergleich sind am Ende dieses Dokuments beschrieben. Ältere Abschnitte dokumentieren frühere Trainingsstände.
 
 Dieses Trainingslager trainiert einen taktischen Bot mit Reinforcement Learning auf der echten, grafiklosen Spielsimulation. Das Ergebnis ist ein neuronales Netz, dessen Gewichte der Spielserver laden kann. Die erste Version ist ein lokales Kommandozeilen-Werkzeug mit TensorBoard für die Lernkurven. Eine eigene Szenario-Weboberfläche oder ein Replay-Viewer ist noch nicht enthalten.
 
@@ -643,3 +743,100 @@ training/.venv/Scripts/python.exe training/verify_profiles.py objective --run pe
 
 Jeder Befehl prüft zwanzig vollständige Runden und zusätzlich zwei vollständige
 Python/TypeScript-Vergleichsrunden, einschließlich Respawns.
+
+## Fortsetzung: Spielstärke der Profile angleichen (30.09.2026)
+
+Das lokale Spiel lädt jetzt `training/runs/balance-20260930/final/{aggressive,cautious,objective}/policy.json`.
+Die Spielregeln, Sensorreichweiten und Profildoktrinen wurden dabei nicht verändert.
+Trainingsrunden bleiben zehn Minuten, lokale Spielrunden fünf Minuten.
+
+Acht PPO-Versuche liefen vollständig durch: insgesamt 1.354.752 zusätzliche
+Umgebungsschritte. Darunter waren Fortsetzungen der vorhandenen Gewichte,
+explizite Übertragung zwischen Profilen und Training gegen einen eingefrorenen
+aggressiven KI-Gegner. Zwei Imitationsversuche verwendeten zusätzlich jeweils
+16.000 beobachtete Übergänge. Nicht jeder Versuch wurde übernommen.
+
+Die Auswahl berücksichtigt diesmal tatsächliche Siege, danach den mittleren
+Spielpunkte-Vorsprung (`--selection-metric game`). Der Ausgangsstand wird vor der
+Fortsetzung ebenfalls geprüft und als Rückfalloption gespeichert. Das verhindert,
+dass ein schlechter letzter Trainingsstand automatisch den bisherigen ersetzt.
+Ein abschließender Vergleich verschiedener Checkpoints berücksichtigt außerdem die
+Stärkespanne der gesamten Zusammenstellung; deshalb ist der gewählte aggressive
+Stand dessen letzter Checkpoint, nicht dessen bester Einzelvalidierungsstand.
+
+### Gegen trainierte Gegner lernen
+
+`--opponent-policy <lokale policy.json>` setzt einen festen trainierten Gegner ein.
+Sein Datei-Hash und Profil gehören zum Trainingsvertrag. Der zusätzliche
+Trainingsreward zieht 0,015 pro neuem gegnerischen Spielpunkt ab. Das stellt den
+Wettbewerb um den Rundensieg stärker in den Vordergrund. Es verändert weder
+Spielpunkte noch Waffen, Physik oder Beobachtungen. Ohne diesen Parameter bleibt
+der bisherige Regelgegner samt bisherigem Trainingsvertrag erhalten.
+
+Bei Modellen aus solchen Läufen verwenden Python-Auswertung und Exportprüfung
+standardmäßig den gespeicherten Trainingsgegner. Dieser lokale Pfad muss noch
+vorhanden sein und zum gespeicherten Hash passen. Der normale Spielserver liest
+den Trainingsgegner nicht; er lädt ausschließlich den Actor des eigenen Bots.
+Für direkte Profilvergleiche verwendet `tournament.mts` die explizite Teilnehmerliste.
+
+`--allow-profile-transfer` erlaubt ausschließlich zusammen mit `--initialize-from`
+einen bewussten Gewichtsstart aus einem anderen Profil. Features und Aktionen
+müssen weiterhin identisch sein. Optimierer und Szenariovertrag beginnen neu;
+Quellpfad, Hash und Profilwechsel werden protokolliert. `--learning-rate` erlaubt
+bei einem frischen Optimierer eine kleinere Lernrate; mit `--resume` ist diese
+Option gesperrt, um eine vermeintliche Änderung des alten Optimierers zu vermeiden.
+
+### Zusätzliche Lernbeispiele und tatsächlich ausgewählte Modelle
+
+`imitation_start.py` sammelt erlaubte Beobachtungen mit einem einfachen Lehrer:
+Kontakte angreifen, ohne Kontakte zum Gebiet fahren, bei kritischen eigenen HP
+situationsabhängig zurückziehen bzw. ausweichen. Ein MLP lernt die Aktionslabels
+mit Cross-Entropy; danach folgt ein separater PPO-Lauf. Keine versteckten
+Gegnerkoordinaten werden als Lehrer- oder Policy-Eingaben verwendet. Der Lehrer
+läuft nicht als Entscheidungsregel im veröffentlichten Spielbot.
+
+- Aggressiv: weitertrainierter PPO-Stand, `aggressive/last.zip` (100.352 neue Schritte).
+- Auftrag: bester Stand von `objective/best.zip` aus 200.704 neuen Schritten,
+  initialisiert mit zuvor gelernten aggressiven Gewichten; die Auftragsdoktrin bleibt aktiv.
+- Vorsichtig: neuronal gelernter Imitationsstart. Die anschließenden PPO-Stände
+  verschlechterten seine Validierung und wurden ausdrücklich nicht übernommen.
+  Sein Export kann daher `timesteps: 0` für PPO ausweisen; die 16.000 überwachten
+  Trainingsbeispiele stehen separat in `cautious-imitation/imitation.json`.
+
+`selection.json` dokumentiert die Auswahl. Die Entwicklungsturniere nutzten Seeds
+8100000–8100011. Der Abschlussvergleich auf neuen Seeds steht in VERIFICATION.md.
+**Die Lücke ist kleiner, aber ähnliche Spielstärke ist noch nicht erreicht.**
+Der vorsichtige Bot sendet weiter selten und greift stärker mit Flugkörpern an;
+zuverlässig bessere Überlebensleistung ist noch nicht belegt.
+
+Direktes Turnier (fünf Minuten, jedes Paar auf beiden Seiten):
+
+```powershell
+node --conditions=bfa-source --import tsx training/tournament.mts training/runs/balance-20260930/final-roster.json training/runs/balance-20260930/another-tournament.json 20 8600000
+```
+
+Das Turnier ist ein Duellvergleich, kein Ersatz für einen Test mit Menschen und
+vier Bots. Ergebnisse auf den bereits verwendeten Abschlussseeds künftig nicht
+zur Auswahl einer weiteren Generation wiederverwenden. Der Lernkurs enthält
+weiterhin seine ausdrücklich datierten älteren Modell-Snapshots.
+
+### Weitere Trainingsrunde – 01.10.2026
+
+Auftrags- und vorsichtiger Bot wurden jeweils um 200.704 PPO-Schritte weitertrainiert,
+mit zwei Umgebungen, Zehnminuten-Episoden und Lernrate 0,00003. Ausgangspunkt waren
+ihre bisherigen ausgewählten Checkpoints; Trainingsgegner war der eingefrorene
+aggressive Bot. Die Optimierer wurden neu initialisiert. Spielregeln und Doktrinen
+blieben unverändert. Zusammen: 401.408 neue Trainingsschritte.
+
+Der vorsichtige Bot verbesserte seine Validierung nicht; sein ausgewählter Actor
+entspricht weiterhin exakt dem Ausgangsmodell. Beim Auftragsbot wurde der Stand
+nach 100.000 Schritten ausgewählt. Im Entwicklungsturnier wirkte die Besetzung
+etwas ausgewogener, im vorher reservierten Abschlusstest jedoch nicht: Der
+Auftragsbot gewann vor allem zulasten des vorsichtigen Bots. Deshalb wurde nach
+der vorab festgelegten Auswahlregel **kein neues Modell im Spiel aktiviert**.
+
+Alle Checkpoints, Exportprüfungen und vier Turnierberichte liegen unter
+`training/runs/balance-20261001/`. `plan.json` enthält die Auswahlregel,
+`selection.json` die berechnete Entscheidung. Die Ergebnistabelle steht in
+[VERIFICATION.md](VERIFICATION.md). Die Abschlussseeds 9200000–9200019 sind
+verbraucht und dürfen nicht als frischer Abschlusstest einer späteren Auswahl dienen.

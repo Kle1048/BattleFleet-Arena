@@ -36,6 +36,8 @@ Object.defineProperty(globalThis, "document", { configurable: true, value: {
 } });
 try {
   const hud = createCockpitHud();
+  const root = (document.body as unknown as FakeElement).children[0]!;
+  assert(root.innerHTML.includes('2000m'), "HMI labels the actual 2000m contact display radius");
   const model: CockpitHudUpdate = {
     speed: 0, maxSpeed: 100, headingRad: 0, worldX: 0, worldZ: 0, mainMountTrainRad: 0,
     aswmMagPortCap: 2, aswmMagStarboardCap: 2, aswmRemainingPort: 2, aswmRemainingStarboard: 2,
@@ -60,6 +62,12 @@ try {
   hud.update(model);
   const blips = nodes.get(".cockpit-radar-blips")!;
   assert.equal(blips.children.length, 1);
+  model.radarBlips[0]!.designated = true; hud.update(model);
+  assert.equal(blips.children.length, 2, "designation adds a frame even when the contact has not moved");
+  const framedWrites = writes; hud.update(model);
+  assert.equal(writes, framedWrites, "unchanged designation does not rebuild DOM");
+  model.radarBlips[0]!.designated = false; hud.update(model);
+  assert.equal(blips.children.length, 1, "clearing removes the frame but retains the contact");
   model.radarVisible = false; hud.update(model);
   assert.equal(blips.children.length, 0);
   const hiddenWrites = writes; hud.update(model); assert.equal(writes, hiddenWrites);

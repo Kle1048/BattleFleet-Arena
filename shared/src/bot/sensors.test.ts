@@ -17,10 +17,10 @@ const memory = { lastIntent: null, lastTargetId: null, lastThreatId: null, lastI
 const see = (observer = self, target = enemy) => observeWorld(10000, [observer, target], observer.id, [], [], 2000)!;
 
 assert.equal(see().enemies.length, 1, "radar detects even silent ships at 600m");
-assert.equal(see(self, { ...enemy, z: 600.01 }).enemies.length, 0);
-assert.equal(see({ ...self, radarActive: false }).enemies.length, 0);
+assert.equal(see(self, { ...enemy, z: 1200.01 }).enemies.length, 0);
+assert.equal(see({ ...self, radarActive: false }).enemies.length, 1, "passive sight identifies silent ships at 600m");
 assert.equal(see({ ...self, radarActive: false }).esmBearings!.length, 0, "silent target has no passive contact");
-for (const [shipClass, range] of [["fac", 1200], ["dd", 1800], ["cg", 2400]] as const) {
+for (const [shipClass, range] of [["fac", 1600], ["dd", 2000], ["cg", 2400]] as const) {
   // Use actual canonical class IDs below; the test also guards the emitter-based multiplier.
   const canonical = shipClass === "dd" ? "destroyer" : shipClass === "cg" ? "cruiser" : shipClass;
   const target = { ...enemy, shipClass: canonical, radarActive: true, z: range };

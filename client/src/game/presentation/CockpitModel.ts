@@ -2,7 +2,7 @@ import type { ShipClassId } from "@battlefleet/shared/rules";
 
 /** Plain presentation output shared by the frame builder and DOM view.
  * Neither side imports the other's implementation; a field has one contract. */
-export type RadarBlipNorm = { nx: number; ny: number };
+export type RadarBlipNorm = { nx: number; ny: number; designated?: boolean };
 
 export type CockpitEsmLine = { x1: number; y1: number; x2: number; y2: number; stroke?: string };
 

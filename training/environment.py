@@ -18,14 +18,16 @@ ROOT = Path(__file__).resolve().parents[1]
 class BattleFleetEnv(gym.Env):
     metadata = {"render_modes": []}
 
-    def __init__(self, policy_path: str | None = None, profile: str | None = None):
+    def __init__(self, policy_path: str | None = None, profile: str | None = None, opponent_policy: str | None = None, opponent_roster: str | None = None):
         super().__init__()
         node = shutil.which("node")
         if not node:
             raise RuntimeError("Node.js must be available on PATH")
         command = [node, "--conditions=bfa-source", "--import", "tsx",
                    str(ROOT / "server/src/training/worker.ts")]
-        command.extend([str(Path(policy_path).resolve()) if policy_path else "", profile or ""])
+        command.extend([str(Path(policy_path).resolve()) if policy_path else "", profile or "",
+                        str(Path(opponent_policy).resolve()) if opponent_policy else "",
+                        str(Path(opponent_roster).resolve()) if opponent_roster else ""])
         self.process = subprocess.Popen(
             command, cwd=ROOT, stdin=subprocess.PIPE, stdout=subprocess.PIPE,
             stderr=None, text=True, encoding="utf-8", bufsize=1,

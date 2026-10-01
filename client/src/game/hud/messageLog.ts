@@ -17,6 +17,7 @@ function formatTime(d: Date): string {
 
 export function createMessageLog(options?: {
   parent?: HTMLElement;
+  fullscreenParent?: HTMLElement;
   /** Opens the in-game mission briefing overlay (e.g. from Help). */
   onShowHelp?: () => void;
 }): {
@@ -58,6 +59,39 @@ export function createMessageLog(options?: {
   clearBtn.title = t("messageLog.clearTitle");
   clearBtn.setAttribute("aria-label", t("messageLog.clearTitle"));
   actions.appendChild(clearBtn);
+
+  const fullscreenBtn = document.createElement("button");
+  fullscreenBtn.type = "button";
+  fullscreenBtn.className = "message-log-help message-log-fullscreen";
+  fullscreenBtn.textContent = "⛶";
+  const fullscreenAvailable = typeof document.documentElement.requestFullscreen === "function" && document.fullscreenEnabled !== false;
+  let changingFullscreen = false;
+  const syncFullscreen = () => {
+    if (events.signal.aborted) return;
+    const active = !!document.fullscreenElement;
+    const label = t(fullscreenAvailable ? (active ? "messageLog.exitFullscreen" : "messageLog.enterFullscreen") : "messageLog.fullscreenUnavailable");
+    fullscreenBtn.title = label;
+    fullscreenBtn.setAttribute("aria-label", label);
+    fullscreenBtn.setAttribute("aria-pressed", String(active));
+    fullscreenBtn.disabled = changingFullscreen || !fullscreenAvailable;
+  };
+  fullscreenBtn.addEventListener("click", async () => {
+    if (changingFullscreen || !fullscreenAvailable || events.signal.aborted) return;
+    changingFullscreen = true; syncFullscreen();
+    try {
+      if (document.fullscreenElement) await document.exitFullscreen();
+      else await document.documentElement.requestFullscreen();
+    } catch {
+      append({ text: t("messageLog.fullscreenUnavailable"), kind: "info" });
+    } finally {
+      changingFullscreen = false; syncFullscreen();
+      fullscreenBtn.blur();
+    }
+  }, { signal: events.signal });
+  document.addEventListener("fullscreenchange", syncFullscreen, { signal: events.signal });
+  syncFullscreen();
+  (options?.fullscreenParent ?? actions).appendChild(fullscreenBtn);
+  if (options?.fullscreenParent) fullscreenBtn.classList.add("fullscreen-beside-tac");
 
   head.appendChild(headTitle);
   head.appendChild(actions);
@@ -105,6 +139,7 @@ export function createMessageLog(options?: {
     append,
     dispose() {
       events.abort();
+      fullscreenBtn.remove();
       root.remove();
     },
   };

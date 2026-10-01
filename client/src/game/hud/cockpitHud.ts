@@ -6,9 +6,9 @@ import type { CockpitHudUpdate } from "../presentation/CockpitModel";
 export type { CockpitHudUpdate } from "../presentation/CockpitModel";
 import { t } from "../../locale/t";
 import { createDomWriter } from "./domWriter";
+import { SHIP_CONTACT_DISPLAY_RANGE as RADAR_RANGE_WORLD } from "@battlefleet/shared/rules";
 import {
   RADAR_PLAN_SVG_BLIP_RADIUS,
-  RADAR_RANGE_WORLD,
   radarMapCenterMarkerOffsetNorthUp,
   type RadarBlipNorm,
 } from "./radarHudMath";
@@ -118,7 +118,7 @@ export function createCockpitHud(opts?: {
                 <polygon class="cockpit-radar-mapcenter-diamond" points="0,-6 4,0 0,6 -4,0" />
               </g>
               <circle class="cockpit-radar-ownship" cx="0" cy="0" r="2.2" />
-              <g class="cockpit-radar-blips" clip-path="url(#cockpitRadarClip)"></g>
+              <g class="cockpit-radar-blips"></g>
             </svg>
             <div class="cockpit-radar-scan"></div>
           </div>
@@ -248,6 +248,16 @@ export function createCockpitHud(opts?: {
       dot.setAttribute("r", "3");
       dot.setAttribute("class", "cockpit-radar-blip");
       radarBlipsG.appendChild(dot);
+      if (b.designated) {
+        const frame = document.createElementNS(svgNs, "rect");
+        frame.setAttribute("x", String(b.nx * RADAR_PLAN_SVG_BLIP_RADIUS - 4.5));
+        frame.setAttribute("y", String(b.ny * RADAR_PLAN_SVG_BLIP_RADIUS - 4.5));
+        frame.setAttribute("width", "9"); frame.setAttribute("height", "9");
+        frame.setAttribute("fill", "none"); frame.setAttribute("stroke", "#ffe58a");
+        frame.setAttribute("stroke-width", "1.2");
+        frame.setAttribute("class", "cockpit-radar-fire-control");
+        radarBlipsG.appendChild(frame);
+      }
     }
   }
 

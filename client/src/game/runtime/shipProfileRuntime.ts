@@ -69,11 +69,11 @@ export function loadHullProfilePatch(): HullProfilePatchMap {
         valid[id as ShipClassId] = validatedPatch(id, patch);
       } catch {
         // Preserve the stored draft for recovery, but never render unvalidated data.
-        console.warn("[ShipProfileEditor] Ungültiger gespeicherter Klassenentwurf ignoriert.");
+        console.warn("[ShipProfileEditor] Ignored invalid saved class draft.");
       }
     }
   } catch {
-    console.warn("[ShipProfileEditor] Gespeicherte Entwürfe konnten nicht geladen werden.");
+    console.warn("[ShipProfileEditor] Could not load saved drafts.");
   }
   hullProfilePatchCache = valid;
   return structuredClone(valid);

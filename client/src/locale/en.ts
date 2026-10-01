@@ -4,6 +4,45 @@
  */
 
 export const en = {
+  playHelp: {
+    title: "How to play",
+    intro: "Take the central sea-control zone, keep moving and engage enemy ships. You steer the ship; weapons fire only when you press a fire button.",
+    quickStart: "Your first minute",
+    step1: "Move toward the centre marker on the tactical radar. Stay inside the marked arena boundary.",
+    step2: "Press F to select the nearest enemy within 800 m. A pale square on the radar marks your selected contact.",
+    step3: "Turn until the target is inside your weapon's firing arc, then hold Space to fire the gun. Use C to release the target and aim freely again.",
+    movement: "Move & steer",
+    combat: "Aim & fire",
+    systems: "Radar & display",
+    throttle: "Forward / reverse throttle",
+    rudder: "Turn left / right",
+    mode: "Switch hold / step steering",
+    modeDetail: "Hold mode responds while a key is held. In step mode, each press changes a throttle or rudder notch; the order stays set after release. The engine and rudder indicators show your current orders.",
+    aim: "Aim freely when no target is selected",
+    nearest: "Select nearest contact (800 m)",
+    cycle: "Cycle contacts in range",
+    clear: "Release fire-control target",
+    gun: "Fire gun (hold)",
+    missile: "Launch anti-ship missile toward aim",
+    rails: "Launch left / right missile rail",
+    radar: "Search radar on / off",
+    fullscreen: "Toggle fullscreen; Esc exits",
+    fireDetail: "Selecting a target steers your aim but does not fire. A green ring around the ship means the gun can engage; orange means it cannot. Turn your own ship or move closer. Reloads and empty magazines can also prevent firing. Fixed missile rails fire left or right of your bow; point the appropriate rail toward the enemy.",
+    radarDetail: "The tactical display is north-up. Larger ships can be detected farther away; smoke increases visual detection range. With search radar off, nearby visual contacts remain visible. ESM lines show bearings to emitting ships, not exact positions. Fire control selects a contact within 800 m; a pale square marks that target. Radar detection range is not weapon range.",
+    survival: "Objective & survival",
+    survivalDetail: "Earn points over time, with a bonus in the central control zone, and through combat. Promotions unlock larger ships. If you are sunk, wait for the respawn countdown. Leaving the arena starts a destruction countdown. Avoid islands when enabled.",
+    touch: "On a touch screen",
+    touchDetail: "Use the on-screen steering and weapon buttons. Next target cycles contacts; Nearest target selects the closest contact within 800 m; Clear target releases fire control. The RADAR and fullscreen buttons remain available in the HUD.",
+    liveNotice: "Online play continues while this help is open.",
+    close: "Back to game",
+    keys: "Controls",
+    hide: "Hide controls",
+    show: "Show controls",
+    fullGuide: "Open full guide",
+    mouse: "Mouse",
+    leftMouse: "LMB / Space",
+    rightMouse: "RMB",
+  },
   /** Product name — use `fullName` in UI titles; `shortName` where space is tight. */
   product: {
     /** Visible game title (e.g. class picker, marketing). */
@@ -30,10 +69,10 @@ export const en = {
     /** Reserved — `#hud` row 4 when help panel is shown again. */
     helpHudLine4: "Space or left mouse button — primary / naval gun (hold; ~0.5 s cooldown)",
     /** Reserved — `#hud` row 5 when help panel is shown again. */
-    helpHudLine5: "Click an enemy ship or press F — fire-control channel (hold target; fire as usual)",
+    helpHudLine5: "F — nearest contact within 800 m · R — cycle contacts · click an enemy ship to lock",
     /** Reserved — `#hud` row 6 when help panel is shown again. */
     helpHudLine6:
-      "Click water / sky or Esc — clear fire-control channel · Hold Q (port) / E (starboard) for fixed SSM rails, or right mouse for aim-based SSM",
+      "C, Esc or click water / sky — clear fire-control channel · Hold Q (port) / E (starboard) for fixed SSM rails, or right mouse for aim-based SSM",
   },
 
   /** main.ts — hard failures before/during bootstrap. */
@@ -162,6 +201,9 @@ export const en = {
 
   /** messageLog.ts — scrollable comms log panel. */
   messageLog: {
+    enterFullscreen: "Enter fullscreen",
+    exitFullscreen: "Exit fullscreen (Esc)",
+    fullscreenUnavailable: "Fullscreen unavailable in this browser view. Open the game in a browser tab and use F11.",
     /** messageLog.ts — root `aria-label` and header title. */
     panelTitle: "Comms",
     /** messageLog.ts — clear button label. */
@@ -182,7 +224,7 @@ export const en = {
       "Weapons: LMB / Space fires primary; RMB fires SSM at the locked target; Q / E fires port / starboard rails.",
     /** main.ts — initial Comms line: short systems controls. */
     initialControlsSystems:
-      "Systems: F cycles fire-control target, click enemy hulls to lock, R toggles search radar, Help opens the full briefing.",
+      "Systems: F selects the nearest contact, R cycles contacts within 800 m, C clears fire control. Use the RADAR button for search radar.",
   },
 
   /** debugOverlay.ts — FPS / room / ping dev HUD. */
@@ -368,10 +410,10 @@ export const en = {
     /** missionBriefing.ts — text after `<kbd>T</kbd>` / MMB spans (only when mines feature is on). */
     controlMinesTeSuffix: "mine lay (hold; middle mouse also)",
     /** missionBriefing.ts — text after `<kbd>R</kbd>` span. */
-    controlRadarSuffix: "search radar on/off",
+    controlRadarSuffix: "search radar on/off via the RADAR button",
     /** missionBriefing.ts — text after `<kbd>F</kbd>` span (fire-control channel). */
     controlFireControlSuffix:
-      "fire-control channel: cycle the designated hostile in range, or click an enemy hull to lock; primary / SSM fire toward that target when valid",
+      "F: nearest contact · R: cycle contacts within 800 m · C: clear channel. Click a hull to lock; a small radar frame marks the designated target.",
     /** missionBriefing.ts — ship classes & progression ranks. */
     sectionShipsTitle: "Ship classes & progression",
     /**
@@ -403,10 +445,14 @@ export const en = {
     btnSsmPort: "Port SSM",
     /** mobileControls.ts — starboard SSM hold button. */
     btnSsmStarboard: "Stbd SSM",
-    /** mobileControls.ts — tap: next fire-control target (same as key F). */
-    btnNextFireControl: "NEXT TGT",
+    /** mobileControls.ts — tap: next fire-control target (same as key R). */
+    btnNextFireControl: "Next target",
+    btnNearestFireControl: "Nearest target",
+    btnClearFireControl: "Clear target",
+    ariaNearestFireControl: "Select nearest fire-control target within 800 m",
+    ariaClearFireControl: "Clear fire-control target and aim freely",
     /** mobileControls.ts — `aria-label` for next fire-control target button. */
-    ariaNextFireControl: "Cycle next fire-control target (key F)",
+    ariaNextFireControl: "Cycle next fire-control target (key R)",
   },
 
   /** hudRuntime.ts — dev-only lines on the debug overlay. */
@@ -478,9 +524,9 @@ export const en = {
     /** cockpitHud.ts — ASuM row label. */
     labelAswm: "SSM",
     /** cockpitHud.ts — port magazine column header. */
-    aswmPortShort: "BB",
+    aswmPortShort: "PORT",
     /** cockpitHud.ts — starboard magazine column header. */
-    aswmStarboardShort: "STB",
+    aswmStarboardShort: "STBD",
     /** cockpitHud.ts — port column `aria-label`. */
     ariaAswmPort: "SSM port",
     /** cockpitHud.ts — starboard column `aria-label`. */
@@ -490,7 +536,7 @@ export const en = {
     /** cockpitHud.ts — ship topology schematic subhead. */
     subheadTopology: "Topology",
     /** cockpitHud.ts — own radar button `title`. */
-    radarToggleTitle: "Search radar on/off (R key)",
+    radarToggleTitle: "Search radar on/off",
     /** cockpitHud.ts — own radar button `aria-label`. */
     radarToggleAria: "Toggle search radar",
     /** cockpitHud.ts — `update()` primary/secondary ready state. */
@@ -534,13 +580,13 @@ export const en = {
     throttleTick5: "F 2/3",
     throttleTick6: "F/F",
     /** Seven labels port → starboard. */
-    rudderTick0: "Bb F",
-    rudderTick1: "Bb 2/3",
-    rudderTick2: "Bb 1/3",
+    rudderTick0: "P FULL",
+    rudderTick1: "P 2/3",
+    rudderTick2: "P 1/3",
     rudderTick3: "MID",
-    rudderTick4: "St 1/3",
-    rudderTick5: "St 2/3",
-    rudderTick6: "St F",
+    rudderTick4: "S 1/3",
+    rudderTick5: "S 2/3",
+    rudderTick6: "S FULL",
     /** keyboardMouse.ts — desktop keyboard control mode button. */
     controlModeHold: "Keys: HOLD",
     /** keyboardMouse.ts — desktop keyboard control mode button. */

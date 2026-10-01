@@ -39,10 +39,16 @@ def versions():
             ["torch", "stable-baselines3", "gymnasium", "numpy", "tensorboard"]}
 
 
-def evaluate(model=None, *, episodes=8, seed=1_000_000, policy_path=None, profile=None):
+def evaluate(model=None, *, episodes=8, seed=1_000_000, policy_path=None, profile=None, opponent_policy=None, opponent_roster=None):
     if model is not None:
         profile = model.bfa_specification["scenario"].get("profile", "standard")
-    env = BattleFleetEnv(policy_path, profile)
+        opponent_policy = opponent_policy or getattr(model, "bfa_opponent_policy", None)
+        opponent_roster = opponent_roster or getattr(model, "bfa_opponent_roster", None)
+    elif policy_path and opponent_policy is None and opponent_roster is None:
+        metadata = json.loads(Path(policy_path).read_text(encoding="utf-8"))["metadata"]
+        opponent_policy = metadata.get("trainingOpponentPolicy")
+        opponent_roster = metadata.get("trainingOpponentRoster")
+    env = BattleFleetEnv(policy_path, profile, opponent_policy, opponent_roster)
     rows = []
     started = time.perf_counter()
     try:
@@ -85,12 +91,19 @@ def evaluate(model=None, *, episodes=8, seed=1_000_000, policy_path=None, profil
     }
 
 
+def validation_score(report, metric="reward"):
+    if metric == "game":
+        return (report["win_rate"], report["mean_selfScore"] - report["mean_opponentScore"])
+    return (report["mean_reward"], report["win_rate"])
+
+
 class ValidationCallback(BaseCallback):
-    def __init__(self, output, every, episodes):
+    def __init__(self, output, every, episodes, metric="reward"):
         super().__init__()
         self.output, self.every, self.episodes = output, every, episodes
         self.next_evaluation = every
         self.best = None
+        self.metric = metric
 
     def _on_step(self):
         if self.num_timesteps < self.next_evaluation:
@@ -98,7 +111,7 @@ class ValidationCallback(BaseCallback):
         self.next_evaluation += self.every
         report = evaluate(self.model, episodes=self.episodes, seed=500_000)
         report["timesteps"] = self.num_timesteps
-        score = (report["mean_reward"], report["win_rate"])
+        score = validation_score(report, self.metric)
         self.model.save(self.output / f"checkpoint-{self.num_timesteps}")
         if self.best is None or score > self.best:
             self.best = score
@@ -111,14 +124,14 @@ class ValidationCallback(BaseCallback):
         return True
 
 
-def make_env(profile="standard"):
-    return Monitor(BattleFleetEnv(profile=profile))
+def make_env(profile="standard", opponent_policy=None, opponent_roster=None):
+    return Monitor(BattleFleetEnv(profile=profile, opponent_policy=opponent_policy, opponent_roster=opponent_roster))
 
 
-def new_model(env, seed=42, rollout=512, gamma=0.995):
+def new_model(env, seed=42, rollout=512, gamma=0.995, learning_rate=3e-4):
     return PPO("MlpPolicy", env, device="cpu", seed=seed, verbose=1,
                n_steps=rollout, batch_size=128, n_epochs=10,
-               learning_rate=3e-4, gamma=gamma, gae_lambda=0.95,
+               learning_rate=learning_rate, gamma=gamma, gae_lambda=0.95,
                clip_range=0.2, ent_coef=0.01, vf_coef=0.5,
                max_grad_norm=0.5, target_kl=0.03,
                policy_kwargs={"net_arch": {"pi": [64, 64], "vf": [64, 64]},
@@ -130,7 +143,9 @@ def export_policy(model_path, output):
     model_path = Path(model_path).resolve()
     model = PPO.load(model_path, device="cpu")
     model.policy.set_training_mode(False)
-    env = BattleFleetEnv(profile=model.bfa_specification["scenario"].get("profile", "standard"))
+    env = BattleFleetEnv(profile=model.bfa_specification["scenario"].get("profile", "standard"),
+                         opponent_policy=getattr(model, "bfa_opponent_policy", None),
+                         opponent_roster=getattr(model, "bfa_opponent_roster", None))
     try:
         spec = env.specification
         if getattr(model, "bfa_specification", None) != spec:
@@ -145,6 +160,8 @@ def export_policy(model_path, output):
                          "algorithm": "PPO", "timesteps": model.num_timesteps,
                          "profile": spec["scenario"].get("profile", "standard"),
                          "profileControllerVersion": spec["scenario"].get("profileControllerVersion"),
+                         "trainingOpponentPolicy": getattr(model, "bfa_opponent_policy", None),
+                         "trainingOpponentRoster": getattr(model, "bfa_opponent_roster", None),
                          "checkpoint_sha256": hashlib.sha256(model_path.read_bytes()).hexdigest(),
                          "scenario": spec["scenario"], "libraries": versions()},
         }
@@ -178,7 +195,7 @@ def export_policy(model_path, output):
 def train(args):
     output = Path(args.output).resolve() if args.output else RUNS / datetime.now().strftime("%Y%m%d-%H%M%S")
     output.mkdir(parents=True, exist_ok=False)
-    probe = BattleFleetEnv(profile=args.profile)
+    probe = BattleFleetEnv(profile=args.profile, opponent_policy=args.opponent_policy, opponent_roster=args.opponent_roster)
     try:
         spec = probe.specification
         check_env(probe, warn=True)
@@ -191,7 +208,7 @@ def train(args):
     import sys
     frozen = subprocess.run([sys.executable, "-m", "pip", "freeze"], capture_output=True, text=True, check=True)
     (output / "requirements-resolved.txt").write_text(frozen.stdout, encoding="utf-8")
-    factory = partial(make_env, args.profile)
+    factory = partial(make_env, args.profile, args.opponent_policy, args.opponent_roster)
     vector = SubprocVecEnv([factory] * args.envs, start_method="spawn") if args.envs > 1 else DummyVecEnv([factory])
     try:
         vector.seed(args.seed)
@@ -200,22 +217,31 @@ def train(args):
             if getattr(model, "bfa_specification", None) != spec:
                 raise ValueError("Resume checkpoint has an incompatible training contract")
         else:
-            model = new_model(vector, args.seed, gamma=0.998 if args.profile != "standard" else 0.995)
+            model = new_model(vector, args.seed, gamma=0.998 if args.profile != "standard" else 0.995,
+                              learning_rate=args.learning_rate or 3e-4)
             model.bfa_specification = spec
+            model.bfa_opponent_policy = str(Path(args.opponent_policy).resolve()) if args.opponent_policy else None
+            model.bfa_opponent_roster = str(Path(args.opponent_roster).resolve()) if args.opponent_roster else None
             if args.initialize_from:
                 source = PPO.load(args.initialize_from, device="cpu")
                 source_spec = getattr(source, "bfa_specification", {})
                 if any(source_spec.get(key) != spec[key] for key in ["version", "features", "actions"]):
                     raise ValueError("Initialization checkpoint has incompatible observations/actions")
-                if source_spec.get("scenario", {}).get("profile", "standard") != args.profile:
+                if source_spec.get("scenario", {}).get("profile", "standard") != args.profile and not args.allow_profile_transfer:
                     raise ValueError("Initialization checkpoint has a different personality")
                 model.policy.load_state_dict(source.policy.state_dict())
                 write_json(output / "initialization.json", {"source": str(Path(args.initialize_from).resolve()),
                     "source_sha256": hashlib.sha256(Path(args.initialize_from).read_bytes()).hexdigest(),
                     "source_timesteps": source.num_timesteps, "source_specification": source_spec,
-                    "note": "Weight initialization only; fresh optimizer and new scenario contract."})
+                    "cross_profile_transfer": source_spec.get("scenario", {}).get("profile", "standard") != args.profile,
+                    "note": "Weight initialization only; fresh optimizer and new scenario contract. Target profile still requires independent evaluation."})
         model.tensorboard_log = str(output / "tensorboard")
-        callback = ValidationCallback(output, args.eval_every, args.eval_episodes)
+        callback = ValidationCallback(output, args.eval_every, args.eval_episodes, args.selection_metric)
+        if args.resume or args.initialize_from:
+            initial_validation = evaluate(model, episodes=args.eval_episodes, seed=500_000)
+            write_json(output / "validation-initial.json", initial_validation)
+            callback.best = validation_score(initial_validation, args.selection_metric)
+            model.save(output / "best")
         if args.resume:
             callback.next_evaluation = model.num_timesteps + args.eval_every
         try:
@@ -228,12 +254,12 @@ def train(args):
         model.save(output / "last")
         last_validation = evaluate(model, episodes=args.eval_episodes, seed=500_000)
         write_json(output / "validation-last.json", last_validation)
-        score = (last_validation["mean_reward"], last_validation["win_rate"])
+        score = validation_score(last_validation, args.selection_metric)
         if callback.best is None or score > callback.best:
             model.save(output / "best")
         best = PPO.load(output / "best.zip", device="cpu")
         report = {"model": evaluate(best, episodes=args.eval_episodes, seed=1_000_000),
-                  "rule_baseline": evaluate(episodes=args.eval_episodes, seed=1_000_000, profile=args.profile)}
+                  "rule_baseline": evaluate(episodes=args.eval_episodes, seed=1_000_000, profile=args.profile, opponent_policy=args.opponent_policy, opponent_roster=args.opponent_roster)}
         write_json(output / "holdout.json", report)
         parity = export_policy(output / "best.zip", output / "policy.json")
         write_json(output / "status.json", {"status": "complete", "timesteps": model.num_timesteps, "export_parity": parity})
@@ -328,6 +354,12 @@ def main():
     initialization = p.add_mutually_exclusive_group()
     initialization.add_argument("--resume", help="Trusted local SB3 checkpoint (.zip), identical scenario")
     initialization.add_argument("--initialize-from", help="Trusted checkpoint weights; fresh optimizer, explicit scenario transfer")
+    p.add_argument("--allow-profile-transfer", action="store_true", help="Explicitly allow initialization from another personality; keeps target doctrine/reward")
+    p.add_argument("--selection-metric", choices=["reward", "game"], default="reward", help="Checkpoint selection: profile reward or common game win rate then score margin")
+    opponents = p.add_mutually_exclusive_group()
+    opponents.add_argument("--opponent-policy", help="Frozen local JSON duel opponent")
+    opponents.add_argument("--opponent-roster", help="FFA: JSON array of exactly three frozen policy paths, relative to manifest; five-minute rounds")
+    p.add_argument("--learning-rate", type=float, help="Fresh optimizer learning rate; omit for 0.0003")
     p.add_argument("--eval-every", type=positive, default=20_000)
     p.add_argument("--eval-episodes", type=positive, default=8)
     p.set_defaults(func=train)
@@ -353,6 +385,11 @@ def main():
 
     p.set_defaults(func=run_evaluation)
     args = parser.parse_args()
+    if getattr(args, "allow_profile_transfer", False) and not args.initialize_from:
+        parser.error("--allow-profile-transfer requires --initialize-from")
+    if getattr(args, "learning_rate", None) is not None:
+        if args.resume or not 0 < args.learning_rate < 1:
+            parser.error("--learning-rate must be between 0 and 1 and requires a fresh optimizer (not --resume)")
     torch.set_num_threads(1)
     args.func(args)
 

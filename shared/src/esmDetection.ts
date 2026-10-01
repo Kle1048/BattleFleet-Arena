@@ -1,6 +1,6 @@
 /**
  * Passive ESM: Detektionsreichweite der Gegner-Radaremission skaliert mit Schiffsklasse
- * (kleineres FAC kürzer, Zerstörer +50 % vs. FAC, Kreuzer 2× FAC).
+ * (kleineres FAC kürzer, Zerstörer 1,25× FAC, Kreuzer 1,5× FAC).
  */
 
 import {
@@ -11,11 +11,11 @@ import {
   normalizeShipClassId,
 } from "./shipClass";
 
-/** Relativ zu FAC (= 1): Zerstörer +50 %, Kreuzer 2× Reichweite. */
+/** Relativ zu FAC (= 1): Zerstörer 1,25×, Kreuzer 1,5× Reichweite. */
 export const ESM_DETECTION_RANGE_MUL: Record<ShipClassId, number> = {
   [SHIP_CLASS_FAC]: 1,
-  [SHIP_CLASS_DESTROYER]: 1.5,
-  [SHIP_CLASS_CRUISER]: 2,
+  [SHIP_CLASS_DESTROYER]: 1.25,
+  [SHIP_CLASS_CRUISER]: 1.5,
 };
 
 export function esmDetectionRangeMul(shipClass: unknown): number {

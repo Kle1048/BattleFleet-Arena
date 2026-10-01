@@ -1,102 +1,58 @@
-/**
- * Mission-Briefing-Overlay (Hilfe / Vor dem Einsatz).
- */
-
-import { FEATURE_MINES_ENABLED, progressionNavalRankEn } from "@battlefleet/shared";
+/** Accessible, task-oriented help for the running game. */
 import { t } from "../../locale/t";
 import { waitForDialog } from "./dialogLifetime";
+import { controlGuideHtml } from "./controlGuide";
 
-/**
- * Zeigt den Briefing-Screen und resolved nach Bestätigung.
- */
+let briefingOpen = false;
 export async function showMissionBriefing(signal?: AbortSignal): Promise<void> {
-  const minesControlsLi = FEATURE_MINES_ENABLED
-    ? `<li><span class="mission-briefing-kbd">T</span> or <span class="mission-briefing-kbd">MMB</span> ${t("missionBriefing.controlMinesTeSuffix")}</li>`
-    : "";
+  if (briefingOpen || signal?.aborted) return;
+  briefingOpen = true;
+  const previousFocus = document.activeElement as HTMLElement | null;
   const root = document.createElement("div");
   root.className = "mission-briefing-overlay";
   root.setAttribute("role", "dialog");
   root.setAttribute("aria-modal", "true");
-  root.setAttribute("aria-label", t("missionBriefing.ariaDialog"));
-  root.innerHTML = `
-    <div class="mission-briefing-panel">
-      <header class="mission-briefing-header">
-        <span class="mission-briefing-classified">${t("missionBriefing.headerClassified")}</span>
-        <span class="mission-briefing-op">${t("missionBriefing.headerOp")}</span>
-        <span class="mission-briefing-date" aria-hidden="true"></span>
-      </header>
-      <h2 class="mission-briefing-title">${t("missionBriefing.title")}</h2>
-      <p class="mission-briefing-lead">
-        ${t("missionBriefing.leadBefore")}<strong>${t("product.fullName")}</strong>${t("missionBriefing.leadAfter")}
-      </p>
-      <div class="mission-briefing-scroll" tabindex="0">
-        <section class="mission-briefing-section">
-          <h3 class="mission-briefing-h3">${t("missionBriefing.sectionSituationTitle")}</h3>
-          <p>${t("missionBriefing.sectionSituationBody")}</p>
-        </section>
-        <section class="mission-briefing-section">
-          <h3 class="mission-briefing-h3">${t("missionBriefing.sectionMissionTitle")}</h3>
-          <ul class="mission-briefing-list">
-            <li>${t("missionBriefing.missionBullet1")}</li>
-            <li>${t("missionBriefing.missionBullet2")}</li>
-            <li>${t("missionBriefing.missionBullet3")}</li>
-          </ul>
-        </section>
-        <section class="mission-briefing-section">
-          <h3 class="mission-briefing-h3">${t("missionBriefing.sectionMapTitle")}</h3>
-          <ul class="mission-briefing-list mission-briefing-list--compact">
-            <li>${t("missionBriefing.mapBulletSeaControl")}</li>
-            <li>${t("missionBriefing.mapBulletOob")}</li>
-            <li>${t("missionBriefing.mapBulletIslands")}</li>
-            <li>${t("missionBriefing.mapBulletNorth")}</li>
-          </ul>
-        </section>
-        <section class="mission-briefing-section">
-          <h3 class="mission-briefing-h3">${t("missionBriefing.sectionControlsTitle")}</h3>
-          <ul class="mission-briefing-list mission-briefing-list--compact">
-            <li><span class="mission-briefing-kbd">WASD</span> ${t("missionBriefing.controlWasdSuffix")}</li>
-            <li><span class="mission-briefing-kbd">Mouse</span> ${t("missionBriefing.controlMouseSuffix")}</li>
-            <li><span class="mission-briefing-kbd">LMB</span> or <span class="mission-briefing-kbd">Space</span> ${t("missionBriefing.controlPrimarySuffix")}</li>
-            <li><span class="mission-briefing-kbd">RMB</span> ${t("missionBriefing.controlRmbSuffix")}</li>
-            <li><span class="mission-briefing-kbd">Q</span> / <span class="mission-briefing-kbd">E</span> ${t("missionBriefing.controlSsmQeSuffix")}</li>
-            ${minesControlsLi}
-            <li><span class="mission-briefing-kbd">R</span> ${t("missionBriefing.controlRadarSuffix")}</li>
-            <li><span class="mission-briefing-kbd">F</span> ${t("missionBriefing.controlFireControlSuffix")}</li>
-          </ul>
-        </section>
-        <section class="mission-briefing-section">
-          <h3 class="mission-briefing-h3">${t("missionBriefing.sectionShipsTitle")}</h3>
-          <ul class="mission-briefing-list mission-briefing-list--compact">
-            <li>${t("missionBriefing.shipBulletFac", { rank: progressionNavalRankEn(1) })}</li>
-            <li>${t("missionBriefing.shipBulletDestroyer", { rank: progressionNavalRankEn(3) })}</li>
-            <li>${t("missionBriefing.shipBulletCruiser", { rank: progressionNavalRankEn(5) })}</li>
-          </ul>
-        </section>
-      </div>
-      <footer class="mission-briefing-footer">
-        <button type="button" class="mission-briefing-continue-btn">${t("missionBriefing.continue")}</button>
-      </footer>
+  root.setAttribute("aria-labelledby", "play-help-title");
+  root.innerHTML = `<div class="mission-briefing-panel play-help-panel">
+    <h2 id="play-help-title" class="mission-briefing-title">${t("playHelp.title")}</h2>
+    <p class="mission-briefing-lead">${t("playHelp.intro")}</p>
+    <div class="mission-briefing-scroll" tabindex="0">
+      <section class="mission-briefing-section play-help-start">
+        <h3 class="mission-briefing-h3">${t("playHelp.quickStart")}</h3>
+        <ol><li>${t("playHelp.step1")}</li><li>${t("playHelp.step2")}</li><li>${t("playHelp.step3")}</li></ol>
+      </section>
+      <section class="mission-briefing-section"><h3 class="mission-briefing-h3">${t("playHelp.keys")}</h3>
+        ${controlGuideHtml()}
+        <p>${t("playHelp.modeDetail")}</p>
+      </section>
+      <details open><summary>${t("playHelp.combat")}</summary><p>${t("playHelp.fireDetail")}</p></details>
+      <details><summary>${t("playHelp.systems")}</summary><p>${t("playHelp.radarDetail")}</p></details>
+      <details><summary>${t("playHelp.survival")}</summary><p>${t("playHelp.survivalDetail")}</p></details>
+      <details><summary>${t("playHelp.touch")}</summary><p>${t("playHelp.touchDetail")}</p></details>
     </div>
-  `;
-
-  const dateEl = root.querySelector(".mission-briefing-date") as HTMLElement | null;
-  if (dateEl) {
-    try {
-      dateEl.textContent = new Intl.DateTimeFormat("en-US", {
-        dateStyle: "medium",
-        timeStyle: "short",
-      }).format(new Date());
-    } catch {
-      dateEl.textContent = new Date().toISOString().slice(0, 16).replace("T", " ");
+    <p><a href="${import.meta.env.BASE_URL}manual.html" target="_blank" rel="noopener">Full player manual: ships, specifications &amp; tactics ↗</a></p>
+    <footer class="mission-briefing-footer"><span>${t("playHelp.liveNotice")}</span>
+      <button type="button" class="mission-briefing-continue-btn">${t("playHelp.close")}</button>
+    </footer>
+  </div>`;
+  const close = root.querySelector<HTMLButtonElement>(".mission-briefing-continue-btn")!;
+  const onKey = (event: KeyboardEvent) => {
+    // Reading help must not also steer, shoot or change the selected contact.
+    event.stopPropagation();
+    if (event.key === "Escape") { event.preventDefault(); close.click(); }
+    if (event.key === "Tab") {
+      const focusable = [...root.querySelectorAll<HTMLElement>("button, a[href], summary, [tabindex='0']")];
+      const first = focusable[0], last = focusable[focusable.length - 1];
+      if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last?.focus(); }
+      else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first?.focus(); }
     }
+  };
+  root.addEventListener("keydown", onKey);
+  try { await waitForDialog(root, close, { signal }); }
+  finally {
+    briefingOpen = false;
+    root.removeEventListener("keydown", onKey);
+    if (previousFocus?.isConnected) previousFocus.focus();
   }
-
-  const continueBtn = root.querySelector(".mission-briefing-continue-btn") as HTMLButtonElement;
-
-  await waitForDialog(root, continueBtn, { signal });
 }
-
-/** Zeigt das Briefing (z. B. beim Start). */
-export async function showMissionBriefingIfNeeded(): Promise<void> {
-await showMissionBriefing();
-}
+export async function showMissionBriefingIfNeeded(): Promise<void> { await showMissionBriefing(); }

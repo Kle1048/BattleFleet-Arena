@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { POLICY_FEATURES, POLICY_ACTIONS } from "@battlefleet/shared/rules";
+import { POLICY_FEATURES, POLICY_ACTIONS, DecisionTreeStrategy } from "@battlefleet/shared/rules";
 import { TrainingArena, TRAINING_SPEC } from "./TrainingArena.js";
 
 const a = new TrainingArena(), b = new TrainingArena();
@@ -62,3 +62,39 @@ try {
   assert(completed);
 } finally { longRound.close(); }
 console.log("Long training round, actual game points, death continuation and respawn accounting passed");
+
+assert.throws(() => new TrainingArena(undefined, "cautious", undefined, 0), /Evaluation duration/);
+assert.throws(() => new TrainingArena(undefined, "cautious", undefined, 300.5), /Evaluation duration/);
+let opponentDecisions = 0;
+const tournament = new TrainingArena(undefined, "objective", {
+  profile: "aggressive", decide: () => { opponentDecisions++; return "SEEK_SEA_CONTROL"; },
+}, 300);
+try {
+  assert.equal(tournament.specification.episodeSeconds, 300);
+  tournament.reset(81);
+  let result = tournament.step(8);
+  while (!result.terminated && !result.truncated) result = tournament.step(8);
+  assert.equal(result.info.seconds, 300);
+  assert(opponentDecisions > 100, "tournament executes the supplied opponent policy");
+} finally { tournament.close(); }
+console.log("Tournament opponent injection, live round length and duration validation passed");
+
+// Identical opponents must leave combat unchanged; only the explicit competitive
+// reward adds the opponent's actual score delta, including score gained on kills.
+const normalReward = new TrainingArena(undefined, "cautious", undefined, 300);
+const competitiveReward = new TrainingArena(undefined, "cautious", new DecisionTreeStrategy(), 300);
+try {
+  assert.deepEqual(normalReward.reset(91), competitiveReward.reset(91));
+  let previousOpponentScore = 0;
+  for (let i = 0; i < 3000; i++) {
+    const normal = normalReward.step(0), competitive = competitiveReward.step(0);
+    assert.deepEqual(normal.observation, competitive.observation);
+    assert.deepEqual(normal.info, competitive.info);
+    const delta = normal.info.opponentScore - previousOpponentScore;
+    assert(Math.abs(competitive.reward - (normal.reward - delta * 0.015)) < 1e-8);
+    previousOpponentScore = normal.info.opponentScore;
+    if (normal.truncated) break;
+  }
+  assert(previousOpponentScore > 0);
+} finally { normalReward.close(); competitiveReward.close(); }
+console.log("Competitive reward uses real opponent score without changing game mechanics");

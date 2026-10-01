@@ -53,5 +53,5 @@ presenter.present({ type: "airDefenseIntercept", payload: notice });
 assert.deepEqual(order, []);
 assert.equal(connectionErrorMessage(500, "offline"), "[500] offline");
 assert.equal(connectionClosedMessage(4002, "left_operational_area"), "Destroyed: left the Area of Operations. Reload the page to play again.");
-assert.equal(connectionClosedMessage(1000), "Verbindung beendet (1000). Seite neu laden.");
+assert.equal(connectionClosedMessage(1000), "Connection closed (1000). Reload the page.");
 console.log("air-defense presentation order, muzzle/fallback/tracking, world coordinates and disposal ok");

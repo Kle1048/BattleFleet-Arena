@@ -60,6 +60,7 @@ export function runFrameRuntimeStep<
   matchEnded: boolean;
   matchRemainingSecRaw: number;
   cockpit: CockpitOutput;
+  fireControlTargetId?: string | null;
   gameMessageHud: MessageOutput;
   gameAudio: AudioOutput;
   shortSessionIdForMessage: (sessionId: string) => string;
@@ -139,7 +140,7 @@ export function runFrameRuntimeStep<
       updateFrameInput({ me, inputSample, now, matchEnded, state, roomSendInput });
       updateFrameCockpit({ me, p, now, mySessionId, cfgMaxSpeed, matchEnded, matchRemainingSecRaw,
         playerList, torpedoList, adMissileSnapsScratch, adPlayerSnapshots, state, cockpit,
-        gameMessageHud, gameAudio, toShortSession });
+        gameMessageHud, gameAudio, toShortSession, fireControlTargetId: options.fireControlTargetId });
     },
   });
   pruneVisualRollSmoothed(visuals);

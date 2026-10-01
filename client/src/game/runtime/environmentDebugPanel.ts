@@ -113,15 +113,15 @@ export function createEnvironmentDebugPanel(
   const resetAll = document.createElement("button");
   resetAll.type = "button";
   resetAll.textContent = "Reset";
-  resetAll.title = "Umgebung + Schaum + Schiff + Kamera auf Defaults";
+  resetAll.title = "Reset environment, foam, ship and camera to defaults";
   resetAll.style.cssText =
     "background:#2a4a2a;color:#c8ffc8;border:1px solid rgba(130,220,150,0.45);" +
     "border-radius:5px;padding:2px 7px;cursor:pointer;font:11px system-ui,sans-serif;";
   const clearBrowserStorage = document.createElement("button");
   clearBrowserStorage.type = "button";
-  clearBrowserStorage.textContent = "Speicher leeren";
+  clearBrowserStorage.textContent = "Clear storage";
   clearBrowserStorage.title =
-    "Alle lokalen Einstellungen aus dem Browser entfernen und neu laden (wie ?resetLocal=1).";
+    "Remove all local settings from this browser and reload (same as ?resetLocal=1).";
   clearBrowserStorage.style.cssText =
     "background:#4a3a2a;color:#ffd4a8;border:1px solid rgba(220,160,100,0.55);" +
     "border-radius:5px;padding:2px 7px;cursor:pointer;font:11px system-ui,sans-serif;";
@@ -205,9 +205,9 @@ export function createEnvironmentDebugPanel(
     "border-radius:5px;padding:2px 6px;font:11px system-ui,sans-serif;max-width:180px;";
 
   /* ——— Tab: Umgebung ——— */
-  addSectionTitle(panelEnv, "Himmel & Licht", false);
+  addSectionTitle(panelEnv, "Sky & lighting", false);
   const skyLab = document.createElement("label");
-  skyLab.textContent = "Himmel (Sky)";
+  skyLab.textContent = "Sky";
   panelEnv.appendChild(skyLab);
   const skyWrap = document.createElement("div");
   skyWrap.style.cssText = "display:flex;justify-content:flex-end;";
@@ -237,17 +237,17 @@ export function createEnvironmentDebugPanel(
     env = { ...env, mieDirectionalG: v };
     bundle.applyEnvironmentTuning({ mieDirectionalG: v });
   });
-  const elevRef = addSlider(panelEnv, "Sonne Elev. (°)", -5, 85, 0.5, env.elevationDeg, (v) => {
+  const elevRef = addSlider(panelEnv, "Sun elevation (°)", -5, 85, 0.5, env.elevationDeg, (v) => {
     env = { ...env, elevationDeg: v };
     bundle.applyEnvironmentTuning({ elevationDeg: v });
   });
-  const aziRef = addSlider(panelEnv, "Sonne Azimut (°)", 0, 360, 1, env.azimuthDeg, (v) => {
+  const aziRef = addSlider(panelEnv, "Sun azimuth (°)", 0, 360, 1, env.azimuthDeg, (v) => {
     env = { ...env, azimuthDeg: v };
     bundle.applyEnvironmentTuning({ azimuthDeg: v });
   });
 
   const presetLab = document.createElement("label");
-  presetLab.textContent = "Licht-Preset";
+  presetLab.textContent = "Lighting preset";
   panelEnv.appendChild(presetLab);
   const presetSel = document.createElement("select");
   presetSel.style.cssText = selectStyle;
@@ -274,11 +274,11 @@ export function createEnvironmentDebugPanel(
     env = { ...env, ambientIntensityMul: v };
     bundle.applyEnvironmentTuning({ ambientIntensityMul: v });
   });
-  const sunMulRef = addSlider(panelEnv, "Sonne ×", 0.2, 2.2, 0.02, env.sunIntensityMul, (v) => {
+  const sunMulRef = addSlider(panelEnv, "Sun ×", 0.2, 2.2, 0.02, env.sunIntensityMul, (v) => {
     env = { ...env, sunIntensityMul: v };
     bundle.applyEnvironmentTuning({ sunIntensityMul: v });
   });
-  const fogRef = addSlider(panelEnv, "Nebel-Stärke", 0, 1, 0.02, env.fogStrength, (v) => {
+  const fogRef = addSlider(panelEnv, "Fog strength", 0, 1, 0.02, env.fogStrength, (v) => {
     env = { ...env, fogStrength: v };
     bundle.applyEnvironmentTuning({ fogStrength: v });
   });
@@ -307,7 +307,7 @@ export function createEnvironmentDebugPanel(
   });
 
   const wcLab = document.createElement("label");
-  wcLab.textContent = "Wasserfarbe";
+  wcLab.textContent = "Water color";
   panelWaterThree.appendChild(wcLab);
   const wcPick = document.createElement("input");
   wcPick.type = "color";
@@ -320,7 +320,7 @@ export function createEnvironmentDebugPanel(
   panelWaterThree.appendChild(wcPick);
 
   const wsLab = document.createElement("label");
-  wsLab.textContent = "Sonnenfarbe (Wasser)";
+  wsLab.textContent = "Sun color (water)";
   panelWaterThree.appendChild(wsLab);
   const wsPick = document.createElement("input");
   wsPick.type = "color";
@@ -333,7 +333,7 @@ export function createEnvironmentDebugPanel(
   panelWaterThree.appendChild(wsPick);
 
   const reflLab = document.createElement("label");
-  reflLab.textContent = "Reflexion RT (px)";
+  reflLab.textContent = "Reflection RT (px)";
   panelWaterThree.appendChild(reflLab);
   const reflWrap = document.createElement("div");
   reflWrap.style.cssText = "display:flex;align-items:center;gap:6px;justify-content:flex-end;";
@@ -348,7 +348,7 @@ export function createEnvironmentDebugPanel(
   reflSel.value = String(env.reflectionTextureSize);
   const reflNote = document.createElement("div");
   reflNote.style.cssText = "grid-column:1/-1;font-size:10px;color:#9ab;";
-  reflNote.textContent = "Reflexionsauflösung: Seite neu laden, damit sie greift.";
+  reflNote.textContent = "Reload the page to apply the reflection resolution.";
   reflNote.style.display = "none";
   reflSel.addEventListener("change", () => {
     env = { ...env, reflectionTextureSize: Number(reflSel.value) };
@@ -383,7 +383,7 @@ export function createEnvironmentDebugPanel(
 
   const ringsLabel = document.createElement("label");
   ringsLabel.textContent = "Range rings (100 m)";
-  ringsLabel.title = "Lokales Schiff: Kreise im Abstand 100 m (Reichweiten-Debug).";
+  ringsLabel.title = "Local ship: rings at 100 m intervals for range debugging.";
   panelShip.appendChild(ringsLabel);
   const ringsWrap = document.createElement("div");
   ringsWrap.style.cssText = "display:flex;align-items:center;justify-content:flex-end;gap:6px;";
@@ -418,9 +418,9 @@ export function createEnvironmentDebugPanel(
   panelShip.appendChild(islandPolyWrap);
 
   const mountAimLabel = document.createElement("label");
-  mountAimLabel.textContent = "Mount-Ziellinien";
+  mountAimLabel.textContent = "Mount aim lines";
   mountAimLabel.title =
-    "Linien von Geschütz-Sockets zum Zielpunkt (Maus/Aim); rein visuell, in localStorage gespeichert.";
+    "Lines from gun sockets to the aim point; visual only, saved in localStorage.";
   panelShip.appendChild(mountAimLabel);
   const mountAimWrap = document.createElement("div");
   mountAimWrap.style.cssText = "display:flex;align-items:center;justify-content:flex-end;gap:6px;";
@@ -436,8 +436,8 @@ export function createEnvironmentDebugPanel(
   panelShip.appendChild(mountAimWrap);
 
   const hitboxLabel = document.createElement("label");
-  hitboxLabel.textContent = "Hitbox (Drahtrahmen)";
-  hitboxLabel.title = "Server-Hitbox (AABB) als Debug-Overlay; wird in localStorage gespeichert.";
+  hitboxLabel.textContent = "Hitbox (wireframe)";
+  hitboxLabel.title = "Server hitbox (AABB) debug overlay; saved in localStorage.";
   panelShip.appendChild(hitboxLabel);
   const hitboxWrap = document.createElement("div");
   hitboxWrap.style.cssText = "display:flex;align-items:center;justify-content:flex-end;gap:6px;";
@@ -451,9 +451,9 @@ export function createEnvironmentDebugPanel(
   panelShip.appendChild(hitboxWrap);
 
   const wreckColLabel = document.createElement("label");
-  wreckColLabel.textContent = "Wrack-Kollision (Hitbox)";
+  wreckColLabel.textContent = "Wreck collision (hitbox)";
   wreckColLabel.title =
-    "Drahtmodell = dieselbe Hitbox-OBB wie Server (Sim-Punkt + Peilung). localStorage.";
+    "Wireframe matches the server hitbox OBB (simulation position and bearing). Saved locally.";
   panelShip.appendChild(wreckColLabel);
   const wreckColWrap = document.createElement("div");
   wreckColWrap.style.cssText = "display:flex;align-items:center;justify-content:flex-end;gap:6px;";
@@ -466,12 +466,12 @@ export function createEnvironmentDebugPanel(
   wreckColWrap.appendChild(wreckColToggle);
   panelShip.appendChild(wreckColWrap);
 
-  addSectionTitle(panelShip, "Match: Schiff wechseln (Debug)", true);
+  addSectionTitle(panelShip, "Match: change ship (debug)", true);
   const shipDbgHint = document.createElement("div");
   shipDbgHint.style.cssText =
     "grid-column:1/-1;font-size:10px;color:#8ab;line-height:1.35;margin-bottom:4px;";
   shipDbgHint.textContent =
-    "Nur im laufenden Spiel: Klasse per Server setzen (GLB, Magazin, maxHp). Ohne Raum: Konsole.";
+    "During a match: set the class through the server (model, magazine, maximum HP). Without a room: console output.";
   panelShip.appendChild(shipDbgHint);
   const shipDbgRow = document.createElement("div");
   shipDbgRow.style.cssText =
@@ -486,13 +486,13 @@ export function createEnvironmentDebugPanel(
     b.addEventListener("click", () => {
       const send = options?.getDebugShipClassSender?.();
       if (send) send(shipClass);
-      else console.warn("[BattleFleet] Debug-Schiff: noch nicht mit Raum verbunden.");
+      else console.warn("[BattleFleet] Debug ship: not connected to a room yet.");
     });
     shipDbgRow.appendChild(b);
   };
   mkShipDbgBtn("FAC", SHIP_CLASS_FAC);
-  mkShipDbgBtn("Zerstörer", SHIP_CLASS_DESTROYER);
-  mkShipDbgBtn("Kreuzer", SHIP_CLASS_CRUISER);
+  mkShipDbgBtn("Destroyer", SHIP_CLASS_DESTROYER);
+  mkShipDbgBtn("Cruiser", SHIP_CLASS_CRUISER);
   panelShip.appendChild(shipDbgRow);
 
   const shipFineRow = document.createElement("label");
@@ -501,9 +501,9 @@ export function createEnvironmentDebugPanel(
   const shipFineCheckbox = document.createElement("input");
   shipFineCheckbox.type = "checkbox";
   shipFineCheckbox.checked = false;
-  shipFineCheckbox.title = "Wenn aktiv: alle Schiff-Slider mit 1/10 des normalen Rasters (z. B. GLB-Y 0,1 statt 1).";
+  shipFineCheckbox.title = "Use one tenth of the normal step for all ship sliders (for example, GLB Y: 0.1 instead of 1).";
   const shipFineCaption = document.createElement("span");
-  shipFineCaption.textContent = "Feinschritte für Schiff-Slider (1/10 Raster)";
+  shipFineCaption.textContent = "Fine ship slider steps (1/10 increments)";
   shipFineRow.appendChild(shipFineCheckbox);
   shipFineRow.appendChild(shipFineCaption);
   panelShip.appendChild(shipFineRow);
@@ -535,7 +535,7 @@ export function createEnvironmentDebugPanel(
     numInput.min = String(s.min);
     numInput.max = String(s.max);
     numInput.step = "any";
-    numInput.title = "Wert direkt eintragen; Enter oder Tab zum Übernehmen.";
+    numInput.title = "Enter a value directly; press Enter or Tab to apply.";
     numInput.style.cssText =
       "width:88px;padding:2px 4px;font:11px system-ui,sans-serif;background:#0d1f2d;color:#cfefff;border:1px solid rgba(130,180,220,0.45);border-radius:4px;";
     numInput.value = String(currentShip[s.key]);
@@ -574,17 +574,17 @@ export function createEnvironmentDebugPanel(
   const shipManualHint = document.createElement("div");
   shipManualHint.style.cssText = "grid-column:1/-1;font-size:10px;color:#8ab;line-height:1.35;margin-top:4px;";
   shipManualHint.textContent =
-    "Zahlenfeld: Wert eintippen, mit Enter oder Fokus verlassen übernehmen (gleiche Grenzen / Raster wie der Slider).";
+    "Type a value and press Enter or leave the field to apply it. Limits and increments match the slider.";
   panelShip.appendChild(shipManualHint);
 
   /* ——— Tab: Kamera ——— */
   addSectionTitle(panelCam, "Follow Camera", false);
   const viewLabel = document.createElement("label");
-  viewLabel.textContent = "Ansicht";
+  viewLabel.textContent = "View";
   const viewSelect = document.createElement("select");
   viewSelect.style.cssText = selectStyle;
-  viewSelect.setAttribute("aria-label", "Kamera-Ansicht");
-  for (const [value, label] of [["map", "Kartenansicht"], ["thirdPerson", "Third-Person / Orbit"]]) {
+  viewSelect.setAttribute("aria-label", "Camera view");
+  for (const [value, label] of [["map", "Map view"], ["thirdPerson", "Third-Person / Orbit"]]) {
     const option = document.createElement("option");
     option.value = value!; option.textContent = label!;
     viewSelect.appendChild(option);
@@ -597,22 +597,22 @@ export function createEnvironmentDebugPanel(
   panelCam.append(viewLabel, viewSelect);
   const orbitHint = document.createElement("div");
   orbitHint.style.cssText = "grid-column:1/-1;font-size:11px;color:#9ed3ff;";
-  orbitHint.textContent = "Third-Person: Alt + linke Maustaste ziehen = umsehen; Mausrad = Zoom. Normale Klicks bleiben Waffensteuerung. Kartenparameter unten gelten nur in der Kartenansicht.";
+  orbitHint.textContent = "Third person: Alt + left-drag to look around; mouse wheel to zoom. Normal clicks still control weapons. Map settings below apply only to map view.";
   panelCam.appendChild(orbitHint);
   const recenterOrbit = document.createElement("button");
   recenterOrbit.type = "button";
-  recenterOrbit.textContent = "Orbit hinter Schiff ausrichten";
+  recenterOrbit.textContent = "Align orbit behind ship";
   recenterOrbit.style.gridColumn = "1/-1";
   recenterOrbit.addEventListener("click", resetThirdPersonCamera);
   panelCam.appendChild(recenterOrbit);
-  const orbitDistanceRef = addSlider(panelCam, "Orbit-Abstand", 80, 2000, 10, currentCamera.orbitDistance, (value) => {
+  const orbitDistanceRef = addSlider(panelCam, "Orbit distance", 80, 2000, 10, currentCamera.orbitDistance, (value) => {
     savePersistedFollowCameraTuning({ ...applyFollowCameraTuning({ orbitDistance: value }) });
   });
-  const orbitPitchRef = addSlider(panelCam, "Orbit-Neigung (°)", 8, 80, 1, currentCamera.orbitPitchDeg, (value) => {
+  const orbitPitchRef = addSlider(panelCam, "Orbit pitch (°)", 8, 80, 1, currentCamera.orbitPitchDeg, (value) => {
     savePersistedFollowCameraTuning({ ...applyFollowCameraTuning({ orbitPitchDeg: value }) });
   });
   const pitchLabel = document.createElement("label");
-  pitchLabel.textContent = "Kippwinkel (°)";
+  pitchLabel.textContent = "Pitch angle (°)";
   panelCam.appendChild(pitchLabel);
   const pitchWrap = document.createElement("div");
   pitchWrap.style.cssText = "display:flex;align-items:center;gap:6px;";
@@ -638,7 +638,7 @@ export function createEnvironmentDebugPanel(
   panelCam.appendChild(pitchWrap);
 
   const heightLabel = document.createElement("label");
-  heightLabel.textContent = "Kamera-Abstand (Höhe)";
+  heightLabel.textContent = "Camera distance (height)";
   panelCam.appendChild(heightLabel);
   const heightWrap = document.createElement("div");
   heightWrap.style.cssText = "display:flex;align-items:center;gap:6px;";
@@ -664,7 +664,7 @@ export function createEnvironmentDebugPanel(
   panelCam.appendChild(heightWrap);
 
   const modeLabel = document.createElement("label");
-  modeLabel.textContent = "Kartenrotation";
+  modeLabel.textContent = "Map rotation";
   panelCam.appendChild(modeLabel);
   const modeWrap = document.createElement("div");
   modeWrap.style.cssText = "display:flex;align-items:center;justify-content:flex-end;gap:6px;";
@@ -689,8 +689,8 @@ export function createEnvironmentDebugPanel(
   panelCam.appendChild(modeWrap);
 
   const lagLabel = document.createElement("label");
-  lagLabel.textContent = "Head-up Dreh-Verzögerung (s)";
-  lagLabel.title = "0 = sofort mitdrehen. Größer = Kamera folgt Kurven weicher (nur Head-up).";
+  lagLabel.textContent = "Heading-up rotation lag (s)";
+  lagLabel.title = "0 = rotate immediately. Higher values smooth camera turns (heading-up only).";
   panelCam.appendChild(lagLabel);
   const lagWrap = document.createElement("div");
   lagWrap.style.cssText = "display:flex;align-items:center;gap:6px;";
@@ -716,28 +716,28 @@ export function createEnvironmentDebugPanel(
   panelCam.appendChild(lagWrap);
 
   const smInit = getSoundMix();
-  addSectionTitle(panelSound, "Audio-Mix (×1 = Standard)", false);
+  addSectionTitle(panelSound, "Audio mix (×1 = default)", false);
   const smHint = document.createElement("div");
   smHint.style.cssText = "grid-column:1/-1;font-size:10px;color:#84b5d9;margin-bottom:4px;";
   smHint.textContent =
-    "Multiplikatoren auf die Programm-Basis: dynamische Hintergrundmusik, Motordauerton, SFX. Wert wird in localStorage gespeichert.";
+    "Multipliers for base audio levels: dynamic music, engine loop and sound effects. Saved in localStorage.";
   panelSound.appendChild(smHint);
-  const musMixRef = addSlider(panelSound, "Dynamische Musik", 0, 2.5, 0.05, smInit.music, (v) => {
+  const musMixRef = addSlider(panelSound, "Dynamic music", 0, 2.5, 0.05, smInit.music, (v) => {
     setSoundMix({ music: v });
   });
-  const engMixRef = addSlider(panelSound, "Motor-Loop", 0, 2.5, 0.05, smInit.engine, (v) => {
+  const engMixRef = addSlider(panelSound, "Engine loop", 0, 2.5, 0.05, smInit.engine, (v) => {
     setSoundMix({ engine: v });
   });
-  const sfxMixRef = addSlider(panelSound, "SFX (Waffen, Treffer, …)", 0, 2.5, 0.05, smInit.sfx, (v) => {
+  const sfxMixRef = addSlider(panelSound, "SFX (weapons, impacts, …)", 0, 2.5, 0.05, smInit.sfx, (v) => {
     setSoundMix({ sfx: v });
   });
 
   type TabId = "env" | "water" | "ship" | "cam" | "sound";
   const tabPanels: { id: TabId; label: string; el: HTMLDivElement }[] = [
-    { id: "env", label: "Umgebung", el: panelEnv },
-    { id: "water", label: "Wasser (Three)", el: panelWaterThree },
-    { id: "ship", label: "Schiff", el: panelShip },
-    { id: "cam", label: "Kamera", el: panelCam },
+    { id: "env", label: "Environment", el: panelEnv },
+    { id: "water", label: "Water (Three)", el: panelWaterThree },
+    { id: "ship", label: "Ship", el: panelShip },
+    { id: "cam", label: "Camera", el: panelCam },
     { id: "sound", label: "Sound", el: panelSound },
   ];
 
@@ -865,7 +865,7 @@ export function createEnvironmentDebugPanel(
   const hint = document.createElement("div");
   hint.style.cssText = "margin-top:6px;font-size:10px;color:#84b5d9;";
   hint.textContent =
-    "Werte werden lokal gespeichert. Tabs reduzieren die Höhe. „Speicher leeren“ entfernt alle gespeicherten Client-Werte und lädt neu.";
+    "Values are saved locally. Tabs keep the panel compact. Clear storage removes all saved client settings and reloads the page.";
   root.appendChild(hint);
 
   let expanded = false;

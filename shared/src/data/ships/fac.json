@@ -1,6 +1,6 @@
 {
   "profileId": "fac",
-  "labelDe": "Gepard-Klasse (Typ 143A)",
+  "labelDe": "Gepard class (Type 143A)",
   "hullGltfId": "gepard",
   "collisionHitbox": {
     "center": {

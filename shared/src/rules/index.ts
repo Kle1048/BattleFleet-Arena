@@ -36,7 +36,10 @@ export * from "../wrecks";
 
 /** Headless / client AI — `createBotController` + types for perception/planning. */
 export { createBotController } from "../bot/botController";
-export { RADAR_DETECTION_RANGE, ESM_BASE_DETECTION_RANGE, esmDetectionRange } from "../sensors";
+export { FIRE_CONTROL_TARGET_RANGE, PROJECTILE_DETECTION_RANGE, RADAR_DETECTION_RANGE, ESM_BASE_DETECTION_RANGE, esmDetectionRange,
+  VISUAL_DETECTION_RANGE, SMOKE_VISUAL_DETECTION_RANGE, DAMAGE_SMOKE_HP_RATIO,
+  SHIP_SENSOR_CONTRACT, SHIP_CONTACT_DISPLAY_RANGE, shipHasDamageSmoke,
+  radarDetectionRange, visualDetectionRange, canIdentifyShip } from "../sensors";
 export type { BotDecisionStrategy } from "../bot/decisionEngine";
 export { DecisionTreeStrategy } from "../bot/decisionEngine";
 export { LearnedPolicyStrategy, validatePolicyArtifact, encodePolicyObservation, policyLogits, POLICY_ACTIONS, POLICY_FEATURES, POLICY_VERSION } from "../bot/learnedPolicy";

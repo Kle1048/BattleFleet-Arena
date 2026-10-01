@@ -16,14 +16,14 @@ import {
   const a = radarBlipNormalized(0, 0, 0, 0, 400, RADAR_RANGE_WORLD);
   assert.ok(a);
   assert.ok(Math.abs(a!.nx) < 0.02);
-  assert.ok(a!.ny < -0.62 && a!.ny > -0.72);
+  assert.ok(Math.abs(a!.ny + 400 / RADAR_RANGE_WORLD) < 1e-9);
 }
 
 {
   // Steuerbord (+X): rechts auf dem Radar
   const b = radarBlipNormalized(0, 0, 0, 300, 0, RADAR_RANGE_WORLD);
   assert.ok(b);
-  assert.ok(b!.nx > 0.45);
+  assert.ok(Math.abs(b!.nx - 300 / RADAR_RANGE_WORLD) < 1e-9);
   assert.ok(Math.abs(b!.ny) < 0.02);
 }
 
@@ -34,11 +34,11 @@ import {
 }
 
 {
-  // ESM-Reichweite = 2× Suchrad: zwischen 600 m und 1200 m nur mit ESM-Range
-  const at900 = RADAR_RANGE_WORLD * 1.5;
-  assert.equal(radarBlipNormalized(0, 0, 0, 0, at900, RADAR_RANGE_WORLD), null);
-  assert.ok(radarBlipNormalized(0, 0, 0, 0, at900, RADAR_ESM_RANGE_WORLD));
-  assert.equal(RADAR_ESM_RANGE_WORLD, RADAR_RANGE_WORLD * 2);
+  // Display scale covers cruiser radar; ESM still uses the emitter-dependent range.
+  assert.equal(RADAR_RANGE_WORLD,2000);
+  assert.equal(RADAR_ESM_RANGE_WORLD,1600);
+  assert.ok(radarBlipNormalized(0,0,0,0,1800,RADAR_RANGE_WORLD));
+  assert.equal(radarBlipNormalized(0,0,0,0,1800,RADAR_ESM_RANGE_WORLD),null);
 }
 
 {
@@ -52,14 +52,14 @@ import {
   const n = radarBlipNormalizedNorthUp(0, 0, 0, 400, RADAR_RANGE_WORLD);
   assert.ok(n);
   assert.ok(Math.abs(n!.nx) < 0.02);
-  assert.ok(n!.ny < -0.62 && n!.ny > -0.72);
+  assert.ok(Math.abs(n!.ny + 400/RADAR_RANGE_WORLD) < 1e-9);
 }
 
 {
   // Ost (+dx) → nx positiv
   const e = radarBlipNormalizedNorthUp(0, 0, 300, 0, RADAR_RANGE_WORLD);
   assert.ok(e);
-  assert.ok(e!.nx > 0.45);
+  assert.ok(Math.abs(e!.nx - 300/RADAR_RANGE_WORLD) < 1e-9);
   assert.ok(Math.abs(e!.ny) < 0.02);
 }
 
@@ -67,8 +67,8 @@ import {
   // Kartenmitte (0,0) vom Schiff bei (100, -200): West (-nx) und Nord (-ny oben)
   const ctr = radarBlipNormalizedNorthUp(100, -200, 0, 0, RADAR_RANGE_WORLD);
   assert.ok(ctr);
-  assert.ok(ctr!.nx < -0.14 && ctr!.nx > -0.18);
-  assert.ok(ctr!.ny < -0.3 && ctr!.ny > -0.36);
+  assert.ok(Math.abs(ctr!.nx + 100/RADAR_RANGE_WORLD) < 1e-9);
+  assert.ok(Math.abs(ctr!.ny + 200/RADAR_RANGE_WORLD) < 1e-9);
 }
 
 {
@@ -93,7 +93,7 @@ import {
 {
   const scale = 46;
   // Außerhalb Reichweite: Einheitsrichtung × scale (hier fast nur Nord)
-  const far = radarMapCenterMarkerOffsetNorthUp(0, 900, scale, RADAR_RANGE_WORLD);
+  const far = radarMapCenterMarkerOffsetNorthUp(0, RADAR_RANGE_WORLD * 1.5, scale, RADAR_RANGE_WORLD);
   assert.ok(far);
   assert.ok(Math.abs(far!.mx) < 0.02);
   assert.ok(far!.my > 0);

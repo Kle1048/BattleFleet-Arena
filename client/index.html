@@ -746,6 +746,38 @@
         box-shadow: 0 4px 14px rgba(0, 0, 0, 0.35);
       }
       .mission-briefing-continue-btn:hover { filter: brightness(1.06); }
+      .play-help-panel { transform: none; max-width: 760px; max-height: 92dvh; }
+      .play-help-panel .mission-briefing-title { padding-top: 22px; }
+      .play-help-panel .mission-briefing-scroll { min-height: 0; font-size: 14px; }
+      .play-help-panel p, .play-help-panel li { line-height: 1.6; }
+      .play-help-start { background: #14384c; border-radius: 8px; padding: 14px 18px; }
+      .play-help-start ol { padding-left: 20px; }
+      .play-help-start li + li { margin-top: 10px; }
+      .play-help-panel details { border-top: 1px solid #62839b66; padding: 12px 0; }
+      .play-help-panel summary { cursor: pointer; font-size: 15px; font-weight: 600; }
+      .play-help-panel details p { margin-top: 10px; }
+      .play-help-panel .mission-briefing-footer { flex-wrap: wrap; gap: 12px; }
+      .play-help-panel .mission-briefing-footer span { font-size: 12px; color: #e1bd83; }
+      .control-guide-group h3 { font: 600 12px system-ui; color: #a8d6e9; margin: 12px 0 6px; }
+      .control-guide-group dl > div { display: grid; grid-template-columns: 92px 1fr; gap: 8px; margin: 5px 0; align-items: baseline; }
+      .control-guide-group dd { margin: 0; }
+      .control-guide-group kbd { font: 600 11px system-ui; color: #f4e7c0; }
+      .controls-help {
+        position: fixed; right: max(16px, env(safe-area-inset-right)); bottom: max(16px, env(safe-area-inset-bottom)); z-index: 25;
+        width: min(300px, calc(100vw - 32px)); color: #e5eff7; background: #081b2eed;
+        border: 1px solid #6085a277; border-radius: 9px; font: 12px system-ui;
+        box-shadow: 0 4px 20px #0004; pointer-events: auto;
+      }
+      .controls-help button { color: #e5eff7; cursor: pointer; font: 600 12px system-ui; }
+      .controls-help-header { display: flex; align-items: center; gap: 6px; padding-right: 8px; border-radius: 9px; background: #18364b; }
+      .controls-help-toggle { flex: 1; text-align: left; padding: 10px 12px; border: 0; border-radius: 9px; background: transparent; }
+      #controls-help-body { padding: 0 12px 12px; max-height: min(42dvh, 410px); overflow-y: auto; }
+      .controls-help-guide { flex-shrink: 0; padding: 5px 7px; background: #20445d; border: 1px solid #7191ab; border-radius: 5px; }
+      .controls-help button:focus-visible, .play-help-panel :focus-visible { outline: 2px solid #ffe58a; outline-offset: 2px; }
+      @media (pointer: coarse) {
+        .controls-help { bottom: max(180px, env(safe-area-inset-bottom)); width: min(270px, calc(100vw - 32px)); }
+        #controls-help-body { max-height: 30dvh; }
+      }
 
       .ship-editor-overlay {
         position: fixed; inset: 0; z-index: 400;
@@ -876,6 +908,13 @@
       .message-log-help:hover,
       .message-log-clear:hover {
         filter: brightness(1.1);
+      }
+      .message-log-fullscreen { font-size: 14px; line-height: 1; padding: 2px 5px; }
+      .message-log-fullscreen[aria-pressed="true"] { color: #ffe58a; border-color: #ffe58a; }
+      .message-log-fullscreen:disabled { opacity: .4; cursor: default; }
+      .fullscreen-beside-tac {
+        position: absolute; top: 0; right: calc(100% + 12px);
+        pointer-events: auto; font-size: 18px; padding: 6px;
       }
       .message-log-list {
         list-style: none; margin: 0; padding: 0;

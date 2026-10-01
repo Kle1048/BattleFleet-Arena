@@ -6,7 +6,7 @@ const root = fileURLToPath(new URL("../", import.meta.url));
 const profile = process.argv[2] ?? "standard";
 if (!["standard", "aggressive", "cautious", "objective", "mixed"].includes(profile)) throw new Error("Unknown local bot profile");
 const personalityPath = (name: string) => resolve(root,
-  `training/runs/personality-${name}-balanced${name === "objective" ? "-final" : ""}/policy.json`);
+  `training/runs/balance-20260930/final/${name}/policy.json`);
 delete process.env.BFA_BOT_POLICY_PATHS;
 if (profile === "mixed") {
   delete process.env.BFA_BOT_POLICY_PATH;

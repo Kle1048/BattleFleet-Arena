@@ -57,7 +57,7 @@ const PROFILE_FAC: ShipClassProfile = {
 
 const PROFILE_DESTROYER: ShipClassProfile = {
   id: SHIP_CLASS_DESTROYER,
-  labelDe: "Zerstörer",
+  labelDe: "Destroyer",
   baseMaxHp: ARTILLERY_PLAYER_MAX_HP,
   movementSpeedMul: 1,
   turnRateMul: 1,
@@ -73,7 +73,7 @@ const PROFILE_DESTROYER: ShipClassProfile = {
 
 const PROFILE_CRUISER: ShipClassProfile = {
   id: SHIP_CLASS_CRUISER,
-  labelDe: "Kreuzer",
+  labelDe: "Cruiser",
   baseMaxHp: Math.round(ARTILLERY_PLAYER_MAX_HP * 1.32),
   movementSpeedMul: 22 / DESTROYER_BASE_SPEED_KN,
   turnRateMul: 0.88,

@@ -13,12 +13,14 @@ export type MobileControlSample = {
 /** Ref-Objekt: `main` setzt `onNextFireControlTarget` nach `createFireControlChannel`. */
 export type MobileHudActions = {
   onNextFireControlTarget?: () => void;
+  onNearestFireControlTarget?: () => void;
+  onClearFireControlTarget?: () => void;
 };
 
 export type CreateMobileControlsOptions = {
   /** Maschinen-Telegraf (Gas/Ruder) — im Overlay über dem linken Dead-Zone-Layer. */
   telegraphRoot?: HTMLElement;
-  /** Softkey „nächstes Ziel“ — gleiche Logik wie Taste **F**. */
+  /** Zielauswahl und Kanal lösen — gleiche Logik wie R / F / C. */
   hudActions?: MobileHudActions;
 };
 
@@ -160,6 +162,23 @@ export function createMobileControls(options?: CreateMobileControlsOptions): {
     options?.hudActions?.onNextFireControlTarget?.();
   }));
 
+  const targetGrid = document.createElement("div");
+  targetGrid.style.cssText = "display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px;";
+  const btnNearestFc = createActionButton(t("mobile.btnNearestFireControl"));
+  btnNearestFc.setAttribute("aria-label", t("mobile.ariaNearestFireControl"));
+  const btnClearFc = createActionButton(t("mobile.btnClearFireControl"));
+  btnClearFc.setAttribute("aria-label", t("mobile.ariaClearFireControl"));
+  for (const btn of [btnNextFc, btnNearestFc, btnClearFc]) {
+    btn.style.minHeight = "46px";
+    btn.style.fontSize = "11px";
+    btn.style.padding = "6px";
+    btn.style.minWidth = "0";
+    btn.style.overflowWrap = "anywhere";
+  }
+  lifetime.defer(bindTapButton(btnNearestFc, () => options?.hudActions?.onNearestFireControlTarget?.()));
+  lifetime.defer(bindTapButton(btnClearFc, () => options?.hudActions?.onClearFireControlTarget?.()));
+  targetGrid.append(btnNextFc, btnNearestFc, btnClearFc);
+
   const ssmRow = document.createElement("div");
   ssmRow.style.cssText = "display:grid;grid-template-columns:1fr 1fr;gap:8px;width:100%;";
 
@@ -172,7 +191,7 @@ export function createMobileControls(options?: CreateMobileControlsOptions): {
   btnStb.style.color = "#c8ffd8";
 
   ssmRow.append(btnPort, btnStb);
-  actionGrid.append(btnNextFc, ssmRow, btnPrimary);
+  actionGrid.append(targetGrid, ssmRow, btnPrimary);
   root.appendChild(actionGrid);
 
   document.body.appendChild(root);

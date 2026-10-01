@@ -4,7 +4,7 @@
 
 export const PLAYER_DISPLAY_NAME_MAX_LEN = 24;
 
-const DEFAULT_NAME = "Spieler";
+const DEFAULT_NAME = "Player";
 
 /**
  * Trimmt, entfernt Steuerzeichen, kürzt. Leer → **Spieler**.

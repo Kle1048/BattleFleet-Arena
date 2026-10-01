@@ -4,8 +4,8 @@ import {
   sanitizePlayerDisplayName,
 } from "./displayName";
 
-assert.equal(sanitizePlayerDisplayName(""), "Spieler");
-assert.equal(sanitizePlayerDisplayName("   "), "Spieler");
+assert.equal(sanitizePlayerDisplayName(""), "Player");
+assert.equal(sanitizePlayerDisplayName("   "), "Player");
 assert.equal(sanitizePlayerDisplayName("  Anna  "), "Anna");
 assert.equal(sanitizePlayerDisplayName("a\n\tb"), "a b");
 const long = "x".repeat(PLAYER_DISPLAY_NAME_MAX_LEN + 8);
