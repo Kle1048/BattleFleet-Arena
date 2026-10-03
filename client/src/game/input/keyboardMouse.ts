@@ -4,9 +4,10 @@ import {
   canPrimaryArtilleryEngageAimAtWorldPoint,
   FEATURE_MINES_ENABLED,
 } from "@battlefleet/shared";
+import { applyShipDebugTuning, getShipDebugTuning } from "../runtime/shipDebugTuning";
 import { t } from "../../locale/t";
 import { createMachineryTelegraphLevers } from "./machineryTelegraphLevers";
-import { mergeAswmFireSide } from "./aswmKeyboardSide";
+import { mergeAswmFireSide, pointerAswmFireSide } from "./aswmKeyboardSide";
 import {
   createMobileControls,
   isMobileControlSurface,
@@ -26,13 +27,13 @@ export type InputSample = {
   aimWorldZ: number;
   /** True solange LMB gehalten oder Leertaste (Servertakt entscheidet über Cooldown / Dauerfeuer). */
   primaryFire: boolean;
-  /** True solange RMB (SSM zielrichtungsbasiert), Q/E (feste Rail Backbord/Steuerbord) oder Mobile-SSM-Tasten. */
+  /** True solange RMB (SSM Maus-Seite), Q/E (feste Rail Backbord/Steuerbord) oder Mobile-SSM-Tasten. */
   secondaryFire: boolean;
   /** Torpedo/Minen (Task 8): mittlere Maustaste gehalten oder T (wenn Feature aktiv). */
   torpedoFire: boolean;
   /** Suchrad an/aus über den HUD-Schalter (ESM-Sichtbarkeit für Gegner). */
   radarActive: boolean;
-  /** Feste SSM-Rail: Q = port, E = starboard (halten); Mobile-Softkeys; bei nur RMB ausgelassen → Zielrichtung am Server. */
+  /** Feste SSM-Rail: Q = port, E = starboard (halten); Mobile-Softkeys; RMB setzt die Seite aus dem ursprünglichen Maus-Zielpunkt. */
   aswmFireSide?: "port" | "starboard";
   /**
    * `false`: Server nutzt `throttle` / `rudderInput` (aktueller Stand).
@@ -137,6 +138,7 @@ export function createInputHandlers(
 
   const controlModeButton = document.createElement("button");
   controlModeButton.type = "button";
+  controlModeButton.className = "bfa-tele-control-mode";
   controlModeButton.style.cssText =
     "pointer-events:auto;align-self:flex-start;padding:4px 7px;border-radius:7px;border:1px solid rgba(200,170,110,0.55);background:rgba(8,13,19,0.86);color:rgba(235,241,245,0.92);font:10px ui-monospace,Cascadia Mono,Consolas,monospace;letter-spacing:0.02em;cursor:pointer;";
 
@@ -164,11 +166,21 @@ export function createInputHandlers(
   controlModeButton.addEventListener("click", toggleKeyboardControlMode);
   if (!mobileSurface) {
     telegraph.root.style.pointerEvents = "auto";
-    telegraph.root.appendChild(controlModeButton);
+    telegraph.root.insertBefore(controlModeButton, telegraph.root.firstChild);
   }
 
   const onDown = (e: KeyboardEvent): void => {
     if (disposed) return;
+    const element = e.target as HTMLElement | null;
+    if (element?.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(element?.tagName ?? "")) return;
+    if (e.code === "Tab" && !e.ctrlKey && !e.altKey && !e.metaKey && !e.shiftKey) {
+      e.preventDefault();
+      if (!e.repeat) applyShipDebugTuning({ showWeaponArc: !getShipDebugTuning().showWeaponArc });
+      return;
+    }
+    if (e.code === "KeyR" && !e.repeat && !e.ctrlKey && !e.altKey && !e.metaKey) {
+      e.preventDefault(); pendingRadarToggles++;
+    }
     keys.add(e.code);
     if (e.code === "Space") {
       e.preventDefault();
@@ -378,7 +390,7 @@ export function createInputHandlers(
       mobileAswmSide: mobile.aswmFireSide,
       keyQ: ssmKeyPort,
       keyE: ssmKeyStarboard,
-    });
+    }) ?? (self ? pointerAswmFireSide(self, aimWorldX, aimWorldZ) : undefined);
     return {
       throttle,
       rudderInput,

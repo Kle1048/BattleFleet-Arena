@@ -239,6 +239,7 @@ export function createSessionFrame(options: {
       matchRemainingSecRaw,
       cockpit,
       fireControlTargetId: fireControl.getTargetId(),
+      autofireEnabled: fireControl.isAutofireEnabled(),
       gameMessageHud,
       gameAudio,
       shortSessionIdForMessage,

@@ -5,6 +5,7 @@
 import type { CockpitHudUpdate } from "../presentation/CockpitModel";
 export type { CockpitHudUpdate } from "../presentation/CockpitModel";
 import { t } from "../../locale/t";
+import { shipSymbol, rankSymbol } from "./scoreboardSymbols";
 import { createDomWriter } from "./domWriter";
 import { SHIP_CONTACT_DISPLAY_RANGE as RADAR_RANGE_WORLD } from "@battlefleet/shared/rules";
 import {
@@ -33,24 +34,37 @@ export {
 export function createCockpitHud(opts?: {
   /** Suchrad wie **R** umschalten (Touch / Maus am HUD-Knopf). */
   onRadarToggle?: () => void;
+  speedParent?: Element;
 }): { update: (u: CockpitHudUpdate) => void; dispose(): void } {
   const radarRangeLabel = t("hud.radarRangeMeters", { m: RADAR_RANGE_WORLD });
   const wrap = document.createElement("div");
   wrap.className = "cockpit-hud-root";
   wrap.setAttribute("aria-label", t("hud.ariaRoot"));
   wrap.innerHTML = `
+    <div class="cockpit-match-timer" aria-label="Match time remaining" title="Match time remaining">
+      <span class="cockpit-match-time">—</span>
+    </div>
     <div class="cockpit-bridge" aria-label="${t("hud.ariaBridge")}">
       <div class="cockpit-bridge-stack">
         <div class="cockpit-panel cockpit-panel--bridge">
           <div class="cockpit-bridge-body">
           <div class="cockpit-readouts cockpit-readouts--bridge">
             <div class="cockpit-row">
-              <span class="cockpit-label">${t("hud.labelName")}</span>
-              <span class="cockpit-player-name">—</span>
-            </div>
-            <div class="cockpit-row">
               <span class="cockpit-label">${t("hud.labelClass")}</span>
               <span class="cockpit-ship-class">—</span>
+            </div>
+            <div class="cockpit-row cockpit-row-life hidden">
+              <span class="cockpit-label">${t("hud.labelStatus")}</span>
+              <span class="cockpit-life-status">—</span>
+            </div>
+            <div class="cockpit-row">
+              <span class="cockpit-label">${t("hud.labelScore")}</span>
+              <span class="cockpit-match-score"><span class="cockpit-score-val">0</span> <span class="cockpit-kills">(0)</span></span>
+            </div>
+            <div class="cockpit-scoreboard"><table aria-label="Current match standings"><thead><tr><th scope="col">#</th><th scope="col">Player</th><th scope="col">Class</th><th scope="col">Rank</th><th scope="col">Kills</th><th scope="col">Score</th></tr></thead><tbody class="cockpit-scoreboard-body"></tbody></table></div>
+            <div class="cockpit-row">
+              <span class="cockpit-label">${t("hud.labelName")}</span>
+              <span class="cockpit-player-name">—</span>
             </div>
             <div class="cockpit-row cockpit-row-rank">
               <span class="cockpit-label">${t("hud.labelRank")}</span>
@@ -59,18 +73,6 @@ export function createCockpitHud(opts?: {
             <div class="cockpit-row">
               <span class="cockpit-label">${t("hud.labelXp")}</span>
               <span class="cockpit-xp">—</span>
-            </div>
-            <div class="cockpit-row cockpit-row-life hidden">
-              <span class="cockpit-label">${t("hud.labelStatus")}</span>
-              <span class="cockpit-life-status">—</span>
-            </div>
-            <div class="cockpit-row">
-              <span class="cockpit-label">${t("hud.labelMatch")}</span>
-              <span class="cockpit-match-time">—</span>
-            </div>
-            <div class="cockpit-row">
-              <span class="cockpit-label">${t("hud.labelScore")}</span>
-              <span class="cockpit-match-score"><span class="cockpit-score-val">0</span> <span class="cockpit-kills">(0)</span></span>
             </div>
           </div>
           </div>
@@ -127,13 +129,24 @@ export function createCockpitHud(opts?: {
             <span class="cockpit-radar-esm-hint">${t("hud.radarEsmHint")}</span>
           </div>
         </div>
+        <div class="tac-target-status"><div class="tac-defense-heading">Target</div><div class="tac-target-row"><span class="tac-target-name">-</span><span class="tac-target-class"></span></div></div>
         <div class="cockpit-row cockpit-row-bar cockpit-hp-opz">
           <span class="cockpit-label">${t("hud.labelHp")}</span>
           <div class="cockpit-track cockpit-track-hp"><div class="cockpit-fill cockpit-fill-hp"></div></div>
         </div>
+        <div class="tac-gun-status">
+          <div class="tac-status-row"><span class="tac-defense-heading">Gun</span><span class="tac-auto">AUTO OFF</span></div>
+          <div class="tac-gun-checks"><span class="tac-range">RANGE —</span><span class="tac-arc">ARC —</span></div>
+        </div>
+        <div class="tac-air-defense"><div class="tac-defense-heading">Air Defence</div>
+          <div class="tac-status-row tac-softkill"><span>SOFTKILL</span><span class="tac-softkill-state"></span></div>
+          <div class="tac-status-row tac-ciws"><span>CIWS</span><span class="tac-ciws-state"></span></div>
+          <div class="tac-status-row tac-pdms"><span>PDMS</span><span class="tac-pdms-state"></span></div>
+          <div class="tac-status-row tac-sam"><span>SAM</span><span class="tac-sam-state"></span></div>
+        </div>
         <div class="cockpit-weapons-block">
           <div class="cockpit-row">
-            <span class="cockpit-label">${t("hud.labelAswmLoad")}</span>
+            <span class="tac-defense-heading">Anti Ship Missiles</span>
             <span class="cockpit-aswm-load-cd"></span>
           </div>
           <div class="cockpit-aswm-mag">
@@ -151,6 +164,24 @@ export function createCockpitHud(opts?: {
     </div>
   `;
 
+  const targetStatusEl = wrap.querySelector(".tac-target-status") as HTMLElement;
+  const targetNameEl = wrap.querySelector(".tac-target-name") as HTMLElement;
+  const targetClassEl = wrap.querySelector(".tac-target-class") as HTMLElement;
+  const gunStatusEl = wrap.querySelector(".tac-gun-status") as HTMLElement;
+  const autoEl = wrap.querySelector(".tac-auto") as HTMLElement;
+  const rangeEl = wrap.querySelector(".tac-range") as HTMLElement;
+  const arcEl = wrap.querySelector(".tac-arc") as HTMLElement;
+  const defenseEl = wrap.querySelector(".tac-air-defense") as HTMLElement;
+  const defenseRows = (["SOFTKILL", "CIWS", "PDMS", "SAM"] as const).map(system => ({ system,
+    row: wrap.querySelector(`.tac-${system.toLowerCase()}`) as HTMLElement,
+    state: wrap.querySelector(`.tac-${system.toLowerCase()}-state`) as HTMLElement,
+  }));
+  const scoreboardBody = wrap.querySelector(".cockpit-scoreboard-body") as HTMLElement;
+  let lastScoreboardKey = "";
+  const speedEl = document.createElement("div");
+  speedEl.className = "cockpit-speed-readout";
+  speedEl.setAttribute("aria-label", "Current speed in knots; negative means astern");
+  (opts?.speedParent ?? wrap).appendChild(speedEl);
   const playerNameEl = wrap.querySelector(".cockpit-player-name") as HTMLElement;
   const shipClassEl = wrap.querySelector(".cockpit-ship-class") as HTMLElement;
   const fillHp = wrap.querySelector(".cockpit-fill-hp") as HTMLElement;
@@ -320,10 +351,15 @@ export function createCockpitHud(opts?: {
       if (disposed) return;
       disposed = true;
       ownRadarStatusEl.removeEventListener("click", onRadarClick);
+      speedEl.remove();
       wrap.remove();
     },
     update({
+      targetStatus,
+      gunStatus,
+      airDefense = [],
       speed,
+      scoreboard = [],
       maxSpeed,
       headingRad,
       worldX,
@@ -355,7 +391,57 @@ export function createCockpitHud(opts?: {
       ssmRailLines,
     }: CockpitHudUpdate): void {
       if (disposed) return;
+      dom.text(targetNameEl, targetStatus?.name ?? "-");
+      dom.text(targetClassEl, targetStatus?.shipClass ?? "");
+      dom.attribute(targetStatusEl, "title", targetStatus ? `${targetStatus.name} · ${targetStatus.shipClass}` : "No target");
+      dom.attribute(targetStatusEl, "data-state", !targetStatus ? "neutral" : targetStatus.canEngage ? "active" : "warning");
+      dom.style(gunStatusEl, "display", gunStatus ? "" : "none");
+      dom.text(autoEl, gunStatus?.autofire ? "AUTO ON" : "AUTO OFF");
+      dom.attribute(autoEl, "data-state", gunStatus?.autofire ? "active" : "neutral");
+      for (const [el, label, value] of [[rangeEl, "RANGE", gunStatus?.inRange], [arcEl, "ARC", gunStatus?.inArc]] as const) {
+        dom.text(el, `${label} ${value == null ? "—" : value ? "YES" : "NO"}`);
+        dom.attribute(el, "data-state", value == null ? "neutral" : value ? "active" : "warning");
+      }
+      dom.style(defenseEl, "display", airDefense.length ? "" : "none");
+      for (const entry of defenseRows) {
+        const status = airDefense.find(item => item.system === entry.system)?.status;
+        dom.style(entry.row, "display", status ? "" : "none");
+        dom.text(entry.state, status ?? "");
+        dom.attribute(entry.state, "data-state", status === "Active" ? "active" : status === "Cooldown" || status === "Radar off" ? "warning" : "neutral");
+      }
+      const scoreboardKey = JSON.stringify(scoreboard);
+      if (scoreboardKey !== lastScoreboardKey) {
+        lastScoreboardKey = scoreboardKey;
+        scoreboardBody.replaceChildren();
+        scoreboard.forEach((player, index) => {
+          const row = document.createElement("tr");
+          if (player.isMe) row.className = "cockpit-scoreboard-me";
+          for (const [column, value] of [index + 1, player.name + (player.isMe ? " (you)" : ""), player.shipClass, player.rank, player.kills, player.score].entries()) {
+            const cell = document.createElement("td");
+            if (column === 2 || column === 3) {
+              cell.className = column === 2 ? "scoreboard-symbol scoreboard-symbol--ship" : "scoreboard-symbol scoreboard-symbol--rank";
+              const badge = document.createElement("span");
+              badge.setAttribute("role", "img");
+              badge.setAttribute("aria-label", String(value));
+              badge.setAttribute("title", String(value));
+              badge.setAttribute("tabindex", "0");
+              badge.innerHTML = column === 2 ? shipSymbol(player.shipClassId) : rankSymbol(player.level);
+              cell.appendChild(badge);
+            } else {
+              const text = document.createElement("span");
+              text.className = column === 1 ? "scoreboard-player-name" : "scoreboard-number";
+              text.textContent = String(value);
+              text.setAttribute("title", String(value));
+              cell.appendChild(text);
+            }
+            row.appendChild(cell);
+          }
+          scoreboardBody.appendChild(row);
+        });
+      }
+      dom.text(speedEl, `Speed ${Math.round(speed)} kn`);
       dom.text(playerNameEl, playerDisplayName);
+      dom.attribute(playerNameEl, "title", playerDisplayName);
       dom.text(shipClassEl, shipClassLabel);
 
       const courseRim = 42;
@@ -409,6 +495,7 @@ export function createCockpitHud(opts?: {
       dom.text(scoreValEl, `${score}`);
       dom.text(killsSpan, `(${kills})`);
       dom.text(rankEl, rankLabelEn);
+      dom.attribute(rankEl, "title", rankLabelEn);
       dom.text(xpEl, xpLine);
 
       dom.text(ownRadarStatusEl, ownRadarActive ? t("hud.radarOn") : t("hud.radarOff"));

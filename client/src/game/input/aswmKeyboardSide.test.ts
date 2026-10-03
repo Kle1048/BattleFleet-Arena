@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mergeAswmFireSide } from "./aswmKeyboardSide";
+import { mergeAswmFireSide, pointerAswmFireSide } from "./aswmKeyboardSide";
 
 assert.equal(
   mergeAswmFireSide({
@@ -57,3 +57,9 @@ assert.equal(
 );
 
 console.log("aswmKeyboardSide tests ok");
+
+for (const headingRad of [0, Math.PI / 2, Math.PI, -Math.PI / 2]) {
+  const self = { x: 40, z: -70, headingRad };
+  assert.equal(pointerAswmFireSide(self, self.x + Math.cos(headingRad) * 50, self.z - Math.sin(headingRad) * 50), "starboard");
+  assert.equal(pointerAswmFireSide(self, self.x - Math.cos(headingRad) * 50, self.z + Math.sin(headingRad) * 50), "port");
+}

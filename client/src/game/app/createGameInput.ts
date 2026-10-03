@@ -35,6 +35,10 @@ export function createGameInput(canvas: HTMLCanvasElement, camera: PerspectiveCa
         lifetime.defer(() => {
           mobileAimEngagement.self = null;
           mobileHudActions.onNextFireControlTarget = undefined;
+          mobileHudActions.onNearestFireControlTarget = undefined;
+          mobileHudActions.onClearFireControlTarget = undefined;
+          mobileHudActions.onToggleAutofire = undefined;
+          mobileHudActions.isAutofireEnabled = undefined;
         });
         return { input, mobileAimEngagement, mobileHudActions };
       } catch (error) { stopSession(); throw error; }

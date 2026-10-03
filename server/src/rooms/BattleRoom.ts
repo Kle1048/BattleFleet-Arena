@@ -3,7 +3,7 @@ import { performance } from "node:perf_hooks";
 import { randomUUID } from "node:crypto";
 import { BattleState } from "@battlefleet/shared/protocol/schema";
 import type { GameEventSink } from "@battlefleet/shared/protocol";
-import { sanitizePlayerDisplayName, SHIP_CLASS_FAC, SHIP_CLASS_DESTROYER, SHIP_CLASS_CRUISER } from "@battlefleet/shared/rules";
+import { MATCH_PHASE_ENDED, sanitizePlayerDisplayName, SHIP_CLASS_FAC, SHIP_CLASS_DESTROYER, SHIP_CLASS_CRUISER } from "@battlefleet/shared/rules";
 import { GameSimulation } from "../simulation/GameSimulation.js";
 import { createConfiguredBotPolicy } from "../application/botPolicy.js";
 import type { SimulationEnvironment } from "../simulation/SimulationEnvironment.js";
@@ -75,6 +75,7 @@ export class BattleRoom extends Room<BattleState> {
   private readonly resetBudget = new TokenBucket(0.2, 1);
   private readonly simulation: GameSimulation;
   private publisher!: SchemaPublisher;
+  private closedForMatchEnd = false;
   private readonly gameEvents: GameEventSink = {
     broadcast: (type, payload) => this.broadcast(type, payload),
     send: (id, type, payload) => this.clientsById.get(id)?.send(type, payload),
@@ -173,7 +174,18 @@ export class BattleRoom extends Room<BattleState> {
     this.lastCommsInputLogAtMsBySession.clear();
   }
 
-  private publish(): void { this.publisher.publish(this.simulation.state); }
+  private publish(): void {
+    this.publisher.publish(this.simulation.state);
+    const ended = this.state.matchPhase === MATCH_PHASE_ENDED;
+    if (ended === this.closedForMatchEnd) return;
+    this.closedForMatchEnd = ended;
+    // Continue leaves this room. Other players may keep viewing its results,
+    // but joinOrCreate must never send the next session back into that round.
+    // Explicit locking also prevents a departing player from reopening a full room.
+    void (ended ? this.lock() : this.unlock()).catch(error => {
+      console.error("[BattleRoom] matchmaking lock update failed room=%s", this.roomId, error);
+    });
+  }
 
   private allowMessage(client: Client, input: boolean): boolean {
     if (this.clientsById.get(client.sessionId) !== client) return false;
@@ -239,6 +251,10 @@ export class BattleRoom extends Room<BattleState> {
   }
 
   onJoin(client: Client, options?: { shipClass?: string; displayName?: string; playerToken?: string }) {
+    // A seat may have been reserved just before the final simulation tick.
+    if (this.simulation.state.matchPhase === MATCH_PHASE_ENDED) {
+      throw new ServerError(409, "This round has ended. Please join a new round.");
+    }
     if (isMaintenanceMode()) {
       throw new Error("Server is in maintenance mode.");
     }

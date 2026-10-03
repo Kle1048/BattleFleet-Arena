@@ -1,5 +1,25 @@
 # BattleFleet-Arena: Trainingslager
 
+## Im lokalen Netzwerk spielen
+
+LAN-Starter (IP-Adresse muss eine eigene private IPv4-Adresse sein):
+
+```powershell
+node training/play-local.mjs --profile mixed --lan 192.168.178.97
+```
+
+Andere Geräte im selben LAN öffnen `http://192.168.178.97:5173`. Der Starter
+baut den Webclient mit der passenden Spielserveradresse und stellt den Build auf
+Port 5173 bereit; der Spielserver bindet Port 2567 an dieselbe LAN-Adresse.
+Admin-Zugriff bleibt deaktiviert. Ohne `--lan` bleibt der lokale Entwicklungsstart
+auf 127.0.0.1 verfügbar. LAN-Starts zeigen Änderungen nach einem erneuten Build/Start.
+
+Die Firewallregel `BattleFleet-Arena-LAN-5173-2567` erlaubt ausschließlich Node,
+TCP 5173/2567, die angegebene lokale IP und Gegenstellen im lokalen Subnetz auf
+privaten Netzwerkprofilen. Bei geänderter IP lässt sie sich in einer administrativen
+PowerShell mit `./training/enable-lan-firewall.ps1 -LanAddress NEUE_IP` aktualisieren.
+Es wird keine Router-Portfreigabe benötigt oder eingerichtet.
+
 ## Aktuelle Sensorregeln: Sicht, Rauch und größere Radarreichweite
 
 Seit 01.10.2026 gelten für normale und neuronale Bots sowie die Kontaktanzeige:

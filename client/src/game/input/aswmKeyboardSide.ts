@@ -1,4 +1,4 @@
-/** Priorität: Mobile-SSM-Tasten, sonst Q/E (feste Rails), sonst Zielrichtung (RMB, kein Side). */
+/** Priorität: Mobile-SSM-Tasten, sonst Q/E (feste Rails), sonst Mausposition (RMB, vom Aufrufer ergänzt). */
 export function mergeAswmFireSide(opts: {
   mobileActive: boolean;
   mobileSecondaryFire: boolean;
@@ -12,4 +12,10 @@ export function mergeAswmFireSide(opts: {
   if (keyE && !keyQ) return "starboard";
   if (keyQ && keyE) return "port";
   return undefined;
+}
+
+/** Side of the original pointer in ship coordinates, independent of fire-control aim. */
+export function pointerAswmFireSide(self: { x: number; z: number; headingRad: number }, aimX: number, aimZ: number): "port" | "starboard" {
+  const localX = (aimX - self.x) * Math.cos(self.headingRad) - (aimZ - self.z) * Math.sin(self.headingRad);
+  return localX < 0 ? "port" : "starboard";
 }

@@ -404,6 +404,6 @@ export class GameSimulation {
       this.missiles.step(dt, now);
       this.mines.step(dt, now);
     }
-    this.defense.syncHud(this.state.missileList);
+    this.defense.syncHud(this.state.missileList, now);
   }
 }

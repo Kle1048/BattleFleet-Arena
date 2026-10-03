@@ -1,5 +1,6 @@
 import { fileURLToPath } from "node:url";
 import { resolve } from "node:path";
+import { isIP } from "node:net";
 import { MATCH_PASSIVE_XP_BASE, MATCH_PASSIVE_XP_INTERVAL_MS, SEA_CONTROL_XP_MULTIPLIER } from "@battlefleet/shared/rules";
 
 const root = fileURLToPath(new URL("../", import.meta.url));
@@ -18,9 +19,11 @@ if (profile === "mixed") {
 const participants = profile === "mixed" ? 5 : 3;
 process.env.BFA_DATA_DIR = resolve(root, "training/runs/local-play/server-data");
 process.env.BFA_MIN_ROOM_PLAYERS = String(participants);
-process.env.LISTEN_HOST = "127.0.0.1";
+const host = process.env.BFA_LOCAL_PLAY_HOST ?? "127.0.0.1";
+if (isIP(host) !== 4) throw new Error("Local play host must be an IPv4 address");
+process.env.LISTEN_HOST = host;
 process.env.PORT = "2567";
-process.env.BFA_ALLOWED_ORIGINS = "http://127.0.0.1:5173,http://localhost:5173";
+process.env.BFA_ALLOWED_ORIGINS = `http://${host}:5173,http://127.0.0.1:5173,http://localhost:5173`;
 delete process.env.BFA_ADMIN_TOKEN;
 
 // Validate the model before touching this test session's isolated configuration.

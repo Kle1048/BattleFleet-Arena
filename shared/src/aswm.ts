@@ -195,7 +195,7 @@ export function pickFixedSeaSkimmerLauncherWithAmmo(
 
 /**
  * Wie `pickFixedSeaSkimmerLauncherWithAmmo`, aber Seite **fest** vorgegeben (Mobile Softkeys).
- * Bei leerer gewünschter Seite: andere Seite, sonst `null`.
+ * Bei leerer gewünschter Seite: `null`; kein automatischer Seitenwechsel.
  */
 export function pickFixedSeaSkimmerLauncherWithAmmoForForcedSide(
   launchers: readonly FixedSeaSkimmerLauncherSpec[] | undefined,
@@ -207,28 +207,11 @@ export function pickFixedSeaSkimmerLauncherWithAmmoForForcedSide(
   const totalAmmo = ammoPort + ammoStarboard;
   if (totalAmmo <= 0) return null;
 
-  const paired = launchers.filter((L) => L.side === "port" || L.side === "starboard");
-  if (paired.length >= 2) {
-    const other: "port" | "starboard" = forced === "port" ? "starboard" : "port";
-    const forcedAmmo = forced === "port" ? ammoPort : ammoStarboard;
-    const otherAmmo = forced === "port" ? ammoStarboard : ammoPort;
-    if (forcedAmmo > 0) {
-      const hit = launchers.find((L) => L.side === forced);
-      if (hit) return hit;
-    }
-    if (otherAmmo > 0) {
-      const hit = launchers.find((L) => L.side === other);
-      if (hit) return hit;
-    }
-    return null;
-  }
-
-  for (const L of launchers) {
-    if (L.side === "centerline") return L;
-    if (L.side === "port" && ammoPort > 0) return L;
-    if (L.side === "starboard" && ammoStarboard > 0) return L;
-  }
-  return null;
+  const forcedAmmo = forced === "port" ? ammoPort : ammoStarboard;
+  const launcher = launchers.find(L => L.side === forced);
+  if (launcher) return forcedAmmo > 0 ? launcher : null;
+  // A genuine centerline installation has no port/starboard choice.
+  return launchers.find(L => L.side === "centerline") ?? null;
 }
 
 /** Fixed launch originates at the weapon model's muzzle, not a hand-authored clearance offset. */

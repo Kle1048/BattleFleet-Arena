@@ -2,7 +2,8 @@ import { t } from "../../locale/t";
 import { controlGuideHtml } from "../ui/controlGuide";
 import { isMobileControlSurface } from "../input/mobileControls";
 
-export function createControlsHelp(onShowHelp: () => void) {
+export function createControlsHelp(onShowHelp: () => void, parent: HTMLElement = document.body) {
+  if (isMobileControlSurface()) return { dispose() {} };
   const root = document.createElement("aside");
   root.className = "controls-help";
   root.setAttribute("aria-label", t("playHelp.keys"));
@@ -12,14 +13,10 @@ export function createControlsHelp(onShowHelp: () => void) {
     </div><div id="controls-help-body">${controlGuideHtml(true)}</div>`;
   const toggle = root.querySelector<HTMLButtonElement>(".controls-help-toggle")!;
   const body = root.querySelector<HTMLElement>("#controls-help-body")!;
-  if (isMobileControlSurface()) {
-    root.style.bottom = "222px";
-    body.style.maxHeight = "max(60px, calc(100dvh - 316px))";
-  }
   const guide = root.querySelector<HTMLButtonElement>(".controls-help-guide")!;
   const storageKey = "bfa.controlsHelp.hidden.v1";
-  let hidden = false;
-  try { hidden = localStorage.getItem(storageKey) === "true"; } catch { /* Optional preference. */ }
+  let hidden = true;
+  try { hidden = localStorage.getItem(storageKey) !== "false"; } catch { /* Optional preference. */ }
   const sync = () => {
     body.hidden = hidden;
     toggle.textContent = `${t("playHelp.keys")} ${hidden ? "+" : "−"}`;
@@ -33,7 +30,7 @@ export function createControlsHelp(onShowHelp: () => void) {
   };
   toggle.addEventListener("click", onToggle);
   guide.addEventListener("click", onShowHelp);
-  sync(); document.body.appendChild(root);
+  sync(); parent.appendChild(root);
   return { dispose() {
     toggle.removeEventListener("click", onToggle);
     guide.removeEventListener("click", onShowHelp);

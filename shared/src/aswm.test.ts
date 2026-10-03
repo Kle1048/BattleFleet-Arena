@@ -129,7 +129,8 @@ assert.ok(ASWM_ACQUIRE_HALF_ANGLE_RAD > 0.5 && ASWM_ACQUIRE_HALF_ANGLE_RAD < 0.5
   assert.equal(fp?.side, "port");
   const fs = pickFixedSeaSkimmerLauncherWithAmmoForForcedSide(paired, 0, 1, "starboard");
   assert.equal(fs?.side, "starboard");
-  assert.equal(pickFixedSeaSkimmerLauncherWithAmmoForForcedSide(paired, 0, 1, "port")?.side, "starboard");
+  assert.equal(pickFixedSeaSkimmerLauncherWithAmmoForForcedSide(paired, 0, 1, "port"), null);
+  assert.equal(pickFixedSeaSkimmerLauncherWithAmmoForForcedSide(paired, 1, 0, "starboard"), null);
 }
 
 {

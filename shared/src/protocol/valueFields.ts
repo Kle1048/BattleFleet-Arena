@@ -7,7 +7,7 @@ export const playerFields = [
   "secondaryCooldownSec", "torpedoCooldownSec", "score", "kills", "level", "xp", "shipClass",
   "displayName", "radarActive", "adHudIncomingAswm", "adHudCanCommitHardkill",
   "adHardkillCommitRemainingSec", "adHudRadarAffectsSam", "aswmRemainingPort", "aswmRemainingStarboard",
-  "deathAtMs", "killedBySessionId",
+  "deathAtMs", "killedBySessionId", "adCooldownMask",
 ] as const satisfies readonly (keyof PlayerValues)[];
 export const missileFields = ["missileId", "ownerId", "targetId", "x", "z", "headingRad"] as const satisfies readonly (keyof MissileValues)[];
 export const torpedoFields = ["torpedoId", "ownerId", "x", "z", "headingRad"] as const satisfies readonly (keyof TorpedoValues)[];

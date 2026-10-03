@@ -89,6 +89,7 @@ export function createParticipant(sessionId: string, displayName: string, player
     kills: 0,
     radarActive: true,
     adHudIncomingAswm: 0,
+    adCooldownMask: 0,
     adHudCanCommitHardkill: false,
     adHardkillCommitRemainingSec: 0,
     adHudRadarAffectsSam: false,

@@ -15,7 +15,7 @@ export function testParticipants(...ids: string[]) {
       torpedoCooldownSec: 0, lifeState: PlayerLifeState.Alive, respawnCountdownSec: 0,
       spawnProtectionSec: 0, score: 0, kills: 0, level: 1, xp: 0, shipClass: "fac",
       radarActive: true, adHudIncomingAswm: 0, adHudCanCommitHardkill: false,
-      adHardkillCommitRemainingSec: 0, adHudRadarAffectsSam: false,
+      adHardkillCommitRemainingSec: 0, adHudRadarAffectsSam: false, adCooldownMask: 0,
       aswmRemainingPort: 0, aswmRemainingStarboard: 0, deathAtMs: 0, killedBySessionId: "",
     };
     const row: ParticipantState = {

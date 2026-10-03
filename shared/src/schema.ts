@@ -62,6 +62,7 @@ export class PlayerState extends Schema implements PlayerValues {
   declare radarActive: boolean;
   /** Eingehende ASuM, die dieses Schiff als Luftverteidigungs-Ziel nutzen (~20 Hz). */
   declare adHudIncomingAswm: number;
+  declare adCooldownMask: number;
   /** True, wenn mindestens eine eingehende ASuM gemeldet wird (HUD / Hinweise). */
   declare adHudCanCommitHardkill: boolean;
   /** Legacy-Feld: Hardkill ist vollautomatisch; Wert bleibt 0. */
@@ -112,6 +113,7 @@ export class PlayerState extends Schema implements PlayerValues {
     this.displayName = "";
     this.radarActive = true;
     this.adHudIncomingAswm = 0;
+    this.adCooldownMask = 0;
     this.adHudCanCommitHardkill = false;
     this.adHardkillCommitRemainingSec = 0;
     this.adHudRadarAffectsSam = false;
@@ -155,6 +157,7 @@ defineTypes(PlayerState, {
   aswmRemainingStarboard: "number",
   deathAtMs: "number",
   killedBySessionId: "string",
+  adCooldownMask: "uint8",
 });
 
 /** Replizierte Lenkflugkörper (Task 7); Server autoritativ. */

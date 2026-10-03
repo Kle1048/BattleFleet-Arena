@@ -1,0 +1,268 @@
+/* Keep the established instruments; anchor secondary information at the edges. */
+body { --hud-edge: 12px; }
+body:has(.cockpit-hud-root) #title { display: none; }
+body .cockpit-bridge { left: max(var(--hud-edge), env(safe-area-inset-left)); top: max(var(--hud-edge), env(safe-area-inset-top)); }
+body .cockpit-opz { right: max(var(--hud-edge), env(safe-area-inset-right)); top: max(var(--hud-edge), env(safe-area-inset-top)); }
+body .cockpit-panel { box-shadow: 0 3px 12px #0004; }
+body .cockpit-panel--bridge { background: rgba(8, 22, 40, .88); }
+.cockpit-player-details { color: #c8dff5; font-size: 11px; }
+.cockpit-player-details summary { cursor: pointer; padding: 5px 0; }
+.cockpit-player-details .cockpit-row { margin-top: 6px; }
+body .cockpit-panel--opz { width: 264px; min-width: 264px; max-width: 264px; }
+body .cockpit-panel--opz > * { min-width: 0; max-width: 100%; }
+body .cockpit-panel--opz .cockpit-radar { width: 100%; }
+body .cockpit-panel--opz .cockpit-radar-bezel { width: 212px; height: 212px; flex: 0 0 auto; }
+body .hud-utility-dock .message-log-panel { max-height: none; }
+body #utility-body { padding-top: 8px; }
+body #utility-body [hidden], body #utility-body[hidden] { display: none !important; }
+body .utility-tabs { display: flex; gap: 4px; flex: 1; }
+body .utility-tabs button, body .utility-expand { border: 1px solid transparent; border-radius: 5px; background: transparent; color: #bed2e4; font: 600 12px system-ui; padding: 6px; cursor: pointer; }
+body .utility-tabs button[aria-selected="true"] { background: #20445d; border-color: #7191ab; color: #fff; }
+body .utility-expand { min-width: 24px; padding: 2px; font-size: 18px; }
+body #utility-panel-events { display: flex; flex-direction: column; }
+body #utility-panel-events .message-log-clear {
+  align-self: flex-end; appearance: none; box-sizing: border-box;
+  border: 0; border-radius: 5px; background: #183549; color: #bed2e4;
+  font: 600 12px/20px system-ui, sans-serif; letter-spacing: normal; text-transform: none;
+  min-height: 32px; padding: 6px 12px; box-shadow: none; filter: none;
+}
+body #utility-panel-events .message-log-clear:hover { background: #285675; color: #fff; filter: none; }
+body #utility-panel-events .message-log-clear:active { background: #20445d; }
+body #utility-panel-events .message-log-clear:focus-visible { outline: none; box-shadow: inset 0 0 0 2px #ffe58a; }
+body #utility-panel-events .message-log-list { max-height: 32dvh; overflow: auto; }
+.cockpit-speed-readout { color: #f5e3bd; font: 600 12px ui-monospace, monospace; font-variant-numeric: tabular-nums; white-space: nowrap; padding: 3px 0; }
+body .bfa-tele-l-root { left: max(var(--hud-edge), env(safe-area-inset-left)) !important; bottom: max(var(--hud-edge), env(safe-area-inset-bottom)) !important; }
+body .hud-utility-dock { position: fixed; left: max(var(--hud-edge), env(safe-area-inset-left)); top: max(var(--hud-edge), env(safe-area-inset-top)); z-index: 10001; width: max-content; max-width: min(350px, calc(100vw - 210px)); pointer-events: none; }
+/* The active content sets the width; the tab labels must not stretch the panel. */
+body .hud-utility-dock .message-log-head { contain: inline-size; display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 4px; }
+body .utility-tabs { display: flex; flex-wrap: wrap; gap: 2px; }
+body .utility-tabs button { display: grid; place-items: center; width: 26px; height: 28px; padding: 4px; }
+body .utility-tabs svg { width: 17px; height: 17px; pointer-events: none; }
+body .utility-tabs button:hover { color: #fff; background: #20445d; }
+body #utility-panel-player { width: 100%; max-width: none; min-width: 0; padding: 4px; background: none; border: 0; box-shadow: none; }
+body #utility-panel-score { padding: 6px; }
+body .hud-utility-dock:has(#utility-body:not([hidden]) #utility-panel-score:not([hidden])) { max-width: min(620px, calc(100vw - 24px)); }
+.cockpit-scoreboard { max-height: 45dvh; overflow: auto; }
+.cockpit-scoreboard table { border-collapse: collapse; font: 12px system-ui; color: #d7e8f5; }
+.cockpit-scoreboard th, .cockpit-scoreboard td { padding: 6px 8px; text-align: left; border-bottom: 1px solid #7191ab33; }
+.cockpit-scoreboard th { position: sticky; top: 0; background: #0b1d30; }
+.cockpit-scoreboard th:first-child, .cockpit-scoreboard td:first-child,
+.cockpit-scoreboard th:nth-last-child(-n+2), .cockpit-scoreboard td:nth-last-child(-n+2) { text-align: right; font-variant-numeric: tabular-nums; }
+.scoreboard-player-name { display: block; max-width: 145px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.scoreboard-number { display: block; max-width: 8ch; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cockpit-scoreboard-me { background: #20445d; color: #fff; }
+.cockpit-scoreboard .scoreboard-symbol { padding: 2px 4px; text-align: center; }
+.scoreboard-symbol span { display: inline-flex; vertical-align: middle; }
+.scoreboard-symbol svg { width: 30px; height: 24px; }
+.scoreboard-symbol--ship { color: #a8d6e9; }
+.scoreboard-symbol--rank { color: #e8cb83; }
+body #utility-panel-score .cockpit-row { margin-bottom: 8px; }
+body #utility-panel-performance #debug-overlay { display: block; background: none; color: #d7e8f5; padding: 0; max-width: none; }
+body #utility-panel-performance #debug-overlay .debug-overlay-compact-line { display: block; white-space: normal; }
+body .hud-utility-dock .controls-help { position: static; width: 100%; }
+body .hud-utility-dock .message-log-panel { width: auto; min-width: min(260px, calc(100vw - 210px)); max-width: 100%; max-height: none; background: rgba(8, 22, 40, .62); backdrop-filter: none; padding: 6px 8px; font-size: 12px; }
+body .hud-utility-dock .message-log-head { margin: 0; border: 0; padding: 0; }
+body .message-log-title { background: transparent; border: 0; color: #e5eff7; font: 600 12px system-ui; letter-spacing: normal; cursor: pointer; padding: 5px 3px; }
+body .message-log-list { margin-top: 8px; }
+body .message-log-list[hidden], body .message-log-clear[hidden] { display: none; }
+body .message-log-help, body .message-log-clear { font-size: 11px; padding: 5px 7px; }
+body .fullscreen-beside-tac { font-size: 18px; }
+body .message-log-help-icon { display: grid; place-items: center; width: 28px; height: 28px; padding: 4px; }
+body .message-log-help-icon svg { width: 17px; height: 17px; pointer-events: none; }
+body #debug-overlay.debug-overlay--minimal:not(.debug-overlay--warn-visible) { display: none; }
+body #debug-overlay.debug-overlay--minimal .debug-overlay-compact-line { display: none; }
+body .cockpit-match-timer {
+  position: absolute; top: max(var(--hud-edge), env(safe-area-inset-top)); left: 50%;
+  transform: translateX(-50%); min-width: 76px; padding: 6px 12px;
+  border: 0; background: transparent; text-shadow: 0 1px 3px #000, 0 0 6px #0008;
+  color: #e5eff7; font: 600 32px/44px ui-monospace, monospace;
+  font-variant-numeric: tabular-nums; text-align: center; pointer-events: none;
+}
+body .cockpit-match-timer .cockpit-match-time { font: inherit; color: inherit; }
+body .game-message-hud { top: calc(max(var(--hud-edge), env(safe-area-inset-top)) + 48px); }
+body .hud-utility-dock :focus-visible, .cockpit-player-details summary:focus-visible { outline: 2px solid #ffe58a; outline-offset: 2px; }
+/* One shared button geometry for tabs, disclosure, help and fullscreen. */
+body .hud-utility-dock { --panel-button-size: 28px; }
+body .hud-utility-dock .message-log-head { align-items: center; gap: 4px; }
+body .hud-utility-dock .utility-tabs,
+body .hud-utility-dock .message-log-actions { gap: 2px; align-items: center; }
+body .hud-utility-dock .message-log-head button {
+  display: grid; place-items: center; flex: 0 0 auto;
+  box-sizing: border-box; width: var(--panel-button-size); height: var(--panel-button-size);
+  min-width: var(--panel-button-size); min-height: var(--panel-button-size);
+  margin: 0; padding: 4px; border: 1px solid transparent; border-radius: 5px;
+  background: transparent; color: #bed2e4; opacity: 1; line-height: 1; cursor: pointer;
+}
+body .hud-utility-dock .message-log-head button svg { width: 17px; height: 17px; display: block; pointer-events: none; }
+body .hud-utility-dock .message-log-head button { appearance: none; box-shadow: none; }
+body .hud-utility-dock .message-log-head button:hover { background: #183549; border-color: transparent; color: #fff; }
+body .hud-utility-dock .message-log-head button[aria-selected="true"],
+body .hud-utility-dock .message-log-head button[aria-pressed="true"] { background: #285675; border-color: transparent; color: #fff; filter: none; }
+body .hud-utility-dock .message-log-head button:focus-visible { outline: none; box-shadow: inset 0 0 0 2px #ffe58a; }
+body .hud-utility-dock .message-log-head button:disabled { opacity: .4; cursor: default; }
+body #utility-panel-player .cockpit-readouts { display: grid; grid-template-columns: minmax(0, 1fr); row-gap: 2px; }
+body #utility-panel-player .cockpit-row { display: grid; grid-template-columns: 48px minmax(0, 160px); gap: 12px; margin: 0; line-height: 18px; align-items: baseline; }
+body #utility-panel-player .cockpit-row > span { line-height: inherit; }
+body #utility-panel-player .cockpit-row.hidden { display: none; }
+body #utility-panel-player .cockpit-row > :last-child { min-width: 0; max-width: 160px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; text-align: right; }
+body #utility-panel-events .message-log-text,
+body #utility-panel-performance { overflow-wrap: anywhere; }
+@media (max-height: 650px) and (min-width: 700px) and (pointer: fine) {
+  body .hud-utility-dock:has(#utility-body:not([hidden]) :is(#utility-panel-controls, #utility-panel-events):not([hidden])) { --utility-expanded-width: 520px; max-width: min(520px, calc(100vw - 210px)); }
+  body #utility-panel-controls { display: grid; grid-template-columns: 1fr 1.2fr; gap: 16px; }
+}
+@media (pointer: coarse), (hover: none) {
+  body .hud-utility-dock { --panel-button-size: 40px; }
+  body .hud-utility-dock { max-width: min(350px, calc(100vw - 140px)); }
+  body .hud-utility-dock .message-log-panel { min-width: min(260px, calc(100vw - 140px)); }
+  body .utility-tabs button { width: 40px; height: 40px; }
+  body .hud-utility-dock .message-log-panel { max-height: none; }
+  body .hud-utility-dock .message-log-head { flex-wrap: wrap; gap: 2px; }
+  body .message-log-title, body .message-log-help, body .message-log-clear { min-height: 40px; }
+  body .cockpit-speed-readout { font-size: 11px; }
+  body .game-message-hud { width: min(420px, 90vw); }
+}
+@media (max-width: 600px), (max-height: 500px) {
+  body .cockpit-panel--opz { width: 232px; min-width: 232px; max-width: 232px; }
+  body .cockpit-panel--opz .cockpit-radar-bezel { width: 184px; height: 184px; }
+}
+
+.tac-gun-status, .tac-air-defense { font: 12px/20px ui-monospace, monospace; color: #c8dff5; }
+.tac-status-row { display: flex; justify-content: space-between; gap: 12px; min-width: 0; }
+.tac-gun-checks { display: flex; justify-content: space-between; gap: 10px; font-size: 11px; white-space: nowrap; }
+.tac-defense-heading { font: 600 12px/20px system-ui; color: #9fb8d4; margin-bottom: 2px; }
+.cockpit-panel--opz [data-state="active"] { color: #79eda1; }
+.cockpit-panel--opz [data-state="warning"] { color: #ffe58a; }
+.cockpit-panel--opz [data-state="neutral"] { color: #9fb8d4; }
+
+.tac-target-status { width: 100%; min-width: 0; padding-bottom: 8px; border-bottom: 1px solid #7191ab33; font: 12px/20px system-ui; white-space: nowrap; }
+.tac-target-row { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; min-width: 0; }
+.tac-target-name { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; text-align: left; }
+.tac-target-class { flex: 0 0 auto; text-align: right; }
+body .cockpit-panel--opz .cockpit-radar { border-bottom-color: #7191ab33; }
+body .cockpit-panel--opz .cockpit-hp-opz { margin-top: 0; padding-top: 0; padding-bottom: 10px; border-bottom: 1px solid #7191ab33; }
+body .cockpit-panel--opz .cockpit-weapons-block { border-top: 0; padding-top: 0; }
+body .cockpit-panel--opz .cockpit-weapons-block > .cockpit-row { align-items: baseline; }
+
+
+/* Touch controls use physical CSS pixels, independently of scaled instruments. */
+body:has(.bfa-mobile-controls) .hud-utility-dock { --panel-button-size: 44px; max-width: min(350px, calc(100vw - 170px)); }
+body:has(.bfa-mobile-controls) .hud-utility-dock .message-log-panel { min-width: 0; background: rgba(8, 22, 40, .58); text-shadow: 0 1px 2px #000; }
+body:has(.bfa-mobile-controls) .hud-utility-dock .message-log-head { contain: none; grid-template-columns: 44px minmax(0, 1fr); }
+body:has(.bfa-mobile-controls) .hud-utility-dock .message-log-actions { grid-column: 2; justify-content: flex-end; }
+body:has(.bfa-mobile-controls) .hud-utility-dock .message-log-head button svg { width: 20px; height: 20px; }
+body:has(.bfa-mobile-controls) .bfa-tele-l-root { transform: none; display: grid; grid-template-columns: auto; align-items: end; gap: 6px; }
+body:has(.bfa-mobile-controls) .bfa-tele-panel--engine { grid-column: 1; grid-row: 1; justify-self: start; width: max-content; }
+body:has(.bfa-mobile-controls) .bfa-tele-panel--rudder { grid-column: 1 / -1; grid-row: 2; }
+body:has(.bfa-mobile-controls) .cockpit-panel--opz .tac-target-status,
+body:has(.bfa-mobile-controls) .cockpit-panel--opz .tac-gun-status,
+body:has(.bfa-mobile-controls) .cockpit-panel--opz .tac-air-defense { display: none !important; }
+body .mobile-fire-controls button[aria-pressed="true"] { color: #96ffc2 !important; border-color: #6ad896 !important; background: #17492e !important; }
+body .mobile-fire-controls button { height: 52px; min-height: 52px !important; box-sizing: border-box; line-height: 14px; border-radius: 6px !important; }
+body .mobile-fire-controls .mobile-assign-fc { font-size: 11px !important; padding: 4px !important; }
+body:has(.bfa-mobile-controls) .cockpit-panel--opz { background: linear-gradient(#091e17f2, #05120df2); border-color: #5ba67d88; }
+body:has(.bfa-mobile-controls) .cockpit-label,
+body:has(.bfa-mobile-controls) .tac-defense-heading,
+body:has(.bfa-mobile-controls) .tac-gun-status,
+body:has(.bfa-mobile-controls) .tac-air-defense { color: #8ac9a5; }
+
+@media (max-height: 500px) and (min-width: 600px) {
+  body:has(.bfa-mobile-controls) #utility-panel-player:not([hidden]) { display: block; }
+  body:has(.bfa-mobile-controls) #utility-panel-player .cockpit-readouts { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 2px 12px; }
+  body:has(.bfa-mobile-controls) #utility-panel-player .cockpit-player-details { display: contents; }
+  body:has(.bfa-mobile-controls) #utility-panel-player .cockpit-row { display: flex; justify-content: space-between; gap: 4px; margin: 0; min-width: 0; font-size: 11px; }
+  body:has(.bfa-mobile-controls) #utility-panel-player .cockpit-row.hidden { display: none; }
+  body:has(.bfa-mobile-controls) #utility-panel-player .cockpit-row > :last-child { max-width: 78px; }
+  body:has(.bfa-mobile-controls) .bfa-tele-track-v { height: 100px; }
+  body:has(.bfa-mobile-controls) .bfa-tele-ticks-v { min-height: 100px; }
+  body:has(.bfa-mobile-controls) .cockpit-opz { transform: none; }
+  body:has(.bfa-mobile-controls) .cockpit-panel--opz { display: grid; grid-template-columns: 124px minmax(0, 1fr); width: 310px; min-width: 310px; max-width: 310px; gap: 3px 8px; padding: 6px; max-height: calc(100dvh - 164px); overflow-y: auto; }
+  body:has(.bfa-mobile-controls) .cockpit-panel--opz .cockpit-radar { grid-column: 1; grid-row: 1 / span 5; align-self: start; border: 0; }
+  body:has(.bfa-mobile-controls) .cockpit-panel--opz .cockpit-radar-bezel { width: 122px; height: 122px; }
+  body:has(.bfa-mobile-controls) .cockpit-radar-head { flex-wrap: wrap; justify-content: center; }
+  body:has(.bfa-mobile-controls) .cockpit-own-radar-toggle { min-height: 44px; min-width: 76px; }
+  body:has(.bfa-mobile-controls) .cockpit-panel--opz > :not(.cockpit-radar) { grid-column: 2; }
+  body:has(.bfa-mobile-controls) .cockpit-panel--opz .cockpit-hp-opz { padding-bottom: 4px; }
+  body:has(.bfa-mobile-controls) .tac-target-status { padding-bottom: 4px; font-size: 11px; line-height: 16px; }
+  body:has(.bfa-mobile-controls) .tac-gun-status, body:has(.bfa-mobile-controls) .tac-air-defense { font-size: 11px; line-height: 16px; }
+  body:has(.bfa-mobile-controls) .tac-defense-heading { font-size: 11px; line-height: 16px; }
+  body:has(.bfa-mobile-controls) .cockpit-weapons-block { gap: 2px; }
+}
+
+@media (orientation: landscape) and (min-height: 501px) {
+  body:has(.bfa-mobile-controls) { --hud-ui-scale: .7; }
+  body:has(.bfa-mobile-controls) .hud-utility-dock { max-width: min(350px, calc(100vw - 190px)); }
+  body:has(.bfa-mobile-controls) .cockpit-own-radar-toggle { min-height: 44px; min-width: 90px; }
+}
+
+@media (orientation: landscape) and (max-height: 375px) {
+  body:has(.bfa-mobile-controls) .hud-utility-dock .message-log-panel { max-height: calc(100dvh - 24px); overflow-y: auto; }
+}
+
+/* Phone landscape: keep the tactical display narrow; weapon actions live below. */
+@media (orientation: landscape) and (max-height: 500px) {
+  body:has(.bfa-mobile-controls) .cockpit-opz { transform: none; }
+  body:has(.bfa-mobile-controls) .cockpit-panel--opz { display: flex; flex-direction: column; width: 184px; min-width: 184px; max-width: 184px; gap: 3px; padding: 6px; max-height: calc(100dvh - 146px); overflow-x: hidden; }
+  body:has(.bfa-mobile-controls) .cockpit-panel--opz .cockpit-radar { padding-bottom: 3px; margin-bottom: 0; }
+  body:has(.bfa-mobile-controls) .cockpit-panel--opz .cockpit-radar-bezel { width: 100px; height: 100px; }
+  body:has(.bfa-mobile-controls) .cockpit-radar-head { flex-wrap: nowrap; }
+  body:has(.bfa-mobile-controls) .cockpit-panel--opz .cockpit-hp-opz { padding-bottom: 0; border-bottom: 0; }
+  body .mobile-fire-controls { width: 184px !important; }
+}
+
+/* Auxiliary actions stay beside TAC, outside the status-panel navigation. */
+body .hud-utility-dock .message-log-head { grid-template-columns: auto minmax(0, 1fr); }
+body .hud-utility-dock .message-log-head:has(.message-log-clear:not([hidden])) { grid-template-columns: auto minmax(0, 1fr) auto; }
+body .hud-utility-dock .message-log-head .message-log-clear { width: auto; padding: 4px 8px; border: 0; background: #183549; font: 600 12px/20px system-ui, sans-serif; letter-spacing: normal; text-transform: none; }
+body .hud-utility-dock .message-log-head button[hidden] { display: none !important; }
+.tac-utility-actions { position: absolute; right: calc(100% + 8px); top: 0; display: flex; flex-direction: column; gap: 5px; pointer-events: auto; transform: scale(calc(1 / var(--hud-ui-scale))); transform-origin: top right; }
+body .tac-utility-actions button { display: grid; place-items: center; width: 32px; height: 32px; min-height: 32px; padding: 6px; border: 1px solid #7191ab66; border-radius: 5px; color: #bed2e4; background: #081628aa; cursor: pointer; }
+body .tac-utility-actions button svg { width: 18px; height: 18px; pointer-events: none; }
+body .tac-utility-actions button:disabled { opacity: .4; cursor: default; }
+body .tac-utility-actions button:focus-visible { outline: 2px solid #ffe58a; }
+body:has(.bfa-mobile-controls) .tac-utility-actions button { width: 44px; height: 44px; }
+@media (orientation: landscape) and (max-height: 500px) {
+  body:has(.bfa-mobile-controls) .tac-utility-actions { transform: none; }
+}
+
+/* Desktop HUD: all instruments and edge controls at 80% of their original size. */
+body:not(:has(.bfa-mobile-controls)) { --hud-ui-scale: .8; }
+body:not(:has(.bfa-mobile-controls)) .hud-utility-dock {
+  --panel-button-size: 28px;
+  width: calc(6 * var(--panel-button-size) + 30px);
+  transform: scale(var(--hud-ui-scale));
+  transform-origin: top left;
+}
+body:not(:has(.bfa-mobile-controls)) .hud-utility-dock .message-log-panel { min-width: 0; }
+body:not(:has(.bfa-mobile-controls)) .hud-utility-dock .message-log-head { contain: none; }
+body:not(:has(.bfa-mobile-controls)) .utility-tabs { flex-wrap: nowrap; }
+body:not(:has(.bfa-mobile-controls)) #utility-panel-player .cockpit-row { grid-template-columns: 48px minmax(0, 1fr); gap: 8px; }
+/* Tables and instructions may grow; ordinary information stays navigation-width. */
+body:not(:has(.bfa-mobile-controls)) .hud-utility-dock:has(#utility-body:not([hidden]) :is(#utility-panel-score, #utility-panel-controls):not([hidden])) { width: max-content; }
+body:not(:has(.bfa-mobile-controls)) .hud-utility-dock:has(#utility-body:not([hidden]) :is(#utility-panel-controls, #utility-panel-events):not([hidden])) { width: min(var(--utility-expanded-width, 350px), calc(100vw - 210px)); }
+body:not(:has(.bfa-mobile-controls)) .bfa-tele-l-root { transform: scale(var(--hud-ui-scale)); transform-origin: bottom left; }
+body:not(:has(.bfa-mobile-controls)) .cockpit-match-timer { transform: translateX(-50%) scale(var(--hud-ui-scale)); transform-origin: top center; }
+body:not(:has(.bfa-mobile-controls)) .tac-utility-actions { transform: none; }
+/* TAC only: another 20% smaller than the shared 80% desktop HUD. */
+body:not(:has(.bfa-mobile-controls)) .cockpit-opz { transform: scale(calc(var(--hud-ui-scale) * .8)); }
+/* Keep the adjacent help/fullscreen controls at the shared desktop size. */
+body:not(:has(.bfa-mobile-controls)) .cockpit-opz .tac-utility-actions { transform: scale(1.25); }
+
+/* Help stays above the HUD, with a scrollable body and a reachable footer. */
+body .mission-briefing-overlay { z-index: 2147483647; isolation: isolate; box-sizing: border-box; }
+body .play-help-panel { box-sizing: border-box; max-height: calc(100dvh - 32px); }
+body .play-help-panel :is(.mission-briefing-title, .mission-briefing-lead, .mission-briefing-footer) { flex-shrink: 0; }
+body .play-help-panel .control-guide-group dl { margin: 0; }
+body .play-help-panel .control-guide-group dl > div { grid-template-columns: minmax(72px, 92px) minmax(0, 1fr); gap: 8px; padding: 3px 0; margin: 0; }
+body .play-help-panel .control-guide-group dd { min-width: 0; overflow-wrap: anywhere; }
+body .play-help-panel details { margin: 8px 0; }
+body:has(.bfa-mobile-controls) .play-help-panel { transform: none; }
+body .class-picker-help-link { display: block; margin: 12px 0; color: #a8d6e9; font: 14px/20px system-ui, sans-serif; text-align: center; text-underline-offset: 3px; }
+body .class-picker-help-link:hover { color: #fff; }
+body .class-picker-help-link:focus-visible { outline: 2px solid #ffe58a; outline-offset: 3px; }
+@media (max-width: 480px) {
+  body .play-help-panel .mission-briefing-title { margin: 14px 16px 8px; }
+  body .play-help-panel .mission-briefing-lead { margin: 0 16px 12px; }
+  body .play-help-panel .mission-briefing-scroll { padding: 4px 16px 8px; }
+  body .play-help-panel .mission-briefing-footer { padding: 12px 16px; }
+}

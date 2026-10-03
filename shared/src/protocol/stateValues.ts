@@ -51,6 +51,8 @@ export interface PlayerValues {
   radarActive: boolean;
   /** Eingehende ASuM, die dieses Schiff als Luftverteidigungs-Ziel nutzen (~20 Hz). */
   adHudIncomingAswm: number;
+  /** Cooldown bits: CIWS=1, PDMS=2, SAM=4, SOFTKILL=8. Absent on older servers. */
+  adCooldownMask?: number;
   /** True, wenn mindestens eine eingehende ASuM gemeldet wird (HUD / Hinweise). */
   adHudCanCommitHardkill: boolean;
   /** Legacy-Feld: Hardkill ist vollautomatisch; Wert bleibt 0. */

@@ -5,7 +5,7 @@ import * as THREE from "three";
 import { createFireControlChannel } from "../input/fireControlChannel";
 import { createCockpitHud } from "../hud/cockpitHud";
 import { createMessageLog } from "../hud/messageLog";
-import { createControlsHelp } from "../hud/controlsHelp";
+import { isMobileControlSurface } from "../input/mobileControls";
 import { createDebugOverlay } from "../hud/debugOverlay";
 import { createBotController } from "@battlefleet/shared";
 import { createMatchEndHud } from "../hud/matchEndHud";
@@ -83,30 +83,49 @@ export function createSessionPresentation(options: {
   const debugShipSwitchRef: { send?: (id: ShipClassId) => void } = { send: connection.setDebugShipClass };
   function dispose() { startup.abort(); lifetime.dispose(); }
   try {
-    const cockpit = lifetime.use(createCockpitHud({ onRadarToggle: () => input.queueRadarToggle() }));
+    const cockpit = lifetime.use(createCockpitHud({ onRadarToggle: () => input.queueRadarToggle(), speedParent: document.querySelector(".bfa-tele-panel--engine") ?? undefined }));
     const bridgeEl = document.querySelector(".cockpit-bridge") as HTMLElement | null;
     const bridgeStackEl = document.querySelector(".cockpit-bridge-stack") as HTMLElement | null;
     const opzEl = document.querySelector(".cockpit-opz") as HTMLElement | null;
     if (!bridgeEl || !bridgeStackEl || !opzEl) {
       throw new Error(t("errors.cockpitHudMissing"));
     }
+    let stopAutofire = () => {};
     const openHelp = () => {
+      stopAutofire();
       void showMissionBriefing(startup.signal).catch(error => {
         if (!startup.signal.aborted) console.warn("Mission briefing failed", error);
       });
     };
-    lifetime.use(createControlsHelp(openHelp));
+    const utilityDock = document.createElement("div");
+    utilityDock.className = "hud-utility-dock";
+    document.body.appendChild(utilityDock);
+    lifetime.defer(() => utilityDock.remove());
+    const playerContent = bridgeStackEl.querySelector<HTMLElement>(".cockpit-panel--bridge")!;
+    const scoreContent = document.createElement("div");
+    const scoreboard = playerContent.querySelector(".cockpit-scoreboard");
+    if (scoreboard) scoreContent.appendChild(scoreboard);
+    const tacActions = document.createElement("div");
+    tacActions.className = "tac-utility-actions";
+    tacActions.setAttribute("aria-label", "Help and fullscreen");
+    opzEl.appendChild(tacActions);
+    lifetime.defer(() => tacActions.remove());
     const commsLog = createMessageLog({
-      parent: bridgeStackEl,
-      fullscreenParent: opzEl,
+      showControls: !isMobileControlSurface(),
+      helpParent: tacActions,
+      fullscreenParent: tacActions,
+      parent: utilityDock,
+      playerContent,
+      scoreContent,
       onShowHelp: openHelp,
     });
     lifetime.use(commsLog);
     commsLog.append({ text: t("messageLog.initialObjective") });
-    commsLog.append({ text: t("messageLog.initialControlsMove") });
-    commsLog.append({ text: t("messageLog.initialControlsFight") });
-    commsLog.append({ text: t("messageLog.initialControlsSystems") });
-    const debugOverlay = lifetime.use(createDebugOverlay({ parent: bridgeEl }));
+    const mobile = isMobileControlSurface();
+    commsLog.append({ text: t(mobile ? "messageLog.initialMobileMove" : "messageLog.initialControlsMove") });
+    commsLog.append({ text: t(mobile ? "messageLog.initialMobileFight" : "messageLog.initialControlsFight") });
+    commsLog.append({ text: t(mobile ? "messageLog.initialMobileSystems" : "messageLog.initialControlsSystems") });
+    const debugOverlay = lifetime.use(createDebugOverlay({ parent: commsLog.performanceParent }));
     lifetime.defer(installGlobalRuntimeErrorHandlers(debugOverlay));
     const botController = createBotController({ wallNow: Date.now, monotonicNow: () => performance.now() });
     const setBotEnabled = (enabled: boolean): void => {
@@ -257,11 +276,16 @@ export function createSessionPresentation(options: {
       onToast: (text, kind, durationMs) => gameMessageHud.showToast(text, kind, durationMs),
     });
     lifetime.use(fireControl);
+    stopAutofire = () => fireControl.setAutofire(false);
     lifetime.defer(() => {
+      mobileHudActions.onToggleAutofire = undefined;
+      mobileHudActions.isAutofireEnabled = undefined;
       mobileHudActions.onNextFireControlTarget = undefined;
       mobileHudActions.onNearestFireControlTarget = undefined;
       mobileHudActions.onClearFireControlTarget = undefined;
     });
+    mobileHudActions.onToggleAutofire = () => fireControl.setAutofire(!fireControl.isAutofireEnabled());
+    mobileHudActions.isAutofireEnabled = () => fireControl.isAutofireEnabled();
     mobileHudActions.onNearestFireControlTarget = () => fireControl.selectNearestTarget();
     mobileHudActions.onClearFireControlTarget = () => fireControl.clearTarget();
     mobileHudActions.onNextFireControlTarget = () => {

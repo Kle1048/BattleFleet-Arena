@@ -38,6 +38,7 @@ export function createFireControlChannel(options: {
   mySessionId: string;
   /** Spieler-Anzeige für Toasts */
   playerLabel: (p: { id: string; displayName?: string }) => string;
+  onAutofireChange?: (enabled: boolean) => void;
   onToast: (text: string, kind: "info" | "danger", durationMs: number) => void;
 }): {
   applyToInput: (
@@ -46,7 +47,9 @@ export function createFireControlChannel(options: {
     matchEnded: boolean,
   ) => InputSample;
   getTargetId: () => string | null;
-  /** Wie R: durch Ziele innerhalb von 800 m schalten. */
+  setAutofire: (enabled: boolean) => void;
+  isAutofireEnabled: () => boolean;
+  /** Wie F: durch Ziele innerhalb von 800 m schalten. */
   cycleNextTarget: () => void;
   selectNearestTarget: () => void;
   clearTarget: () => void;
@@ -57,6 +60,13 @@ export function createFireControlChannel(options: {
 
   let designatedTargetId: string | null = null;
   let disposed = false;
+  let autofire = false;
+  const setAutofire = (enabled: boolean) => {
+    if (disposed || autofire === enabled) return;
+    autofire = enabled;
+    options.onAutofireChange?.(enabled);
+  };
+  const onBlur = () => setAutofire(false);
 
   /** Zusätzlicher Faktor nur für die Darstellung (Hitbox-Umkreis bleibt Berechnungsbasis). */
   const RING_RADIUS_VISUAL_FACTOR = 1.2;
@@ -88,7 +98,7 @@ export function createFireControlChannel(options: {
     ringRoot.visible = on;
   };
 
-  const updateFireControlRing = (me: PlayerRow, target: PlayerRow): void => {
+  const updateFireControlRing = (me: PlayerRow, target: PlayerRow): boolean => {
     const hull = getAuthoritativeShipHullProfile(target.shipClass);
     const h = target.headingRad;
     const { cx, cz, radius } = shipHitboxFootprintCircumcircleWorldXZ(
@@ -109,6 +119,7 @@ export function createFireControlChannel(options: {
       target.z,
     );
     ringMat.color.setHex(canEngage ? RING_COLOR_IN_SECTOR : RING_COLOR_OUT_OF_SECTOR);
+    return canEngage;
   };
 
   const clearDesignation = (reason: "manual" | "lost"): void => {
@@ -203,9 +214,14 @@ export function createFireControlChannel(options: {
     if (disposed || e.repeat || e.defaultPrevented || e.ctrlKey || e.altKey || e.metaKey) return;
     const element = e.target as HTMLElement | null;
     if (element?.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(element?.tagName ?? "")) return;
-    if (e.code === "KeyF" || e.code === "KeyR") {
+    if (e.code === "CapsLock") {
+      e.preventDefault(); setAutofire(!autofire);
+      onToast(`Autofire ${autofire ? "ON" : "OFF"}`, "info", 2000);
+      return;
+    }
+    if (e.code === "KeyF") {
       e.preventDefault();
-      chooseTarget(e.code === "KeyF");
+      chooseTarget(false);
       return;
     }
     if (e.code !== "Escape" && e.code !== "KeyC") return;
@@ -218,14 +234,20 @@ export function createFireControlChannel(options: {
 
   canvas.addEventListener("pointerdown", onPointerDown);
   window.addEventListener("keydown", onKeyDown);
+  window.addEventListener("blur", onBlur);
 
   return {
     getTargetId: () => designatedTargetId,
+    setAutofire,
+    isAutofireEnabled: () => autofire,
     applyToInput(sample, players, matchEnded): InputSample {
       if (disposed) return sample;
       latestPlayers = Array.from(players);
       latestMatchEnded = matchEnded;
+      const ownShip = latestPlayers.find(p => p.id === mySessionId);
+      if (!ownShip || ownShip.lifeState === PlayerLifeState.AwaitingRespawn) setAutofire(false);
       if (matchEnded) {
+        setAutofire(false);
         setRingVisible(false);
         designatedTargetId = null;
         return sample;
@@ -255,11 +277,12 @@ export function createFireControlChannel(options: {
         return sample;
       }
 
-      updateFireControlRing(me, target);
+      const canEngage = updateFireControlRing(me, target);
       setRingVisible(true);
 
       return {
         ...sample,
+        primaryFire: sample.primaryFire || (autofire && canEngage),
         aimWorldX: target.x,
         aimWorldZ: target.z,
       };
@@ -273,6 +296,7 @@ export function createFireControlChannel(options: {
       latestPlayers = [];
       canvas.removeEventListener("pointerdown", onPointerDown);
       window.removeEventListener("keydown", onKeyDown);
+      window.removeEventListener("blur", onBlur);
       designatedTargetId = null;
       scene.remove(ringRoot);
       ringGeom.dispose();

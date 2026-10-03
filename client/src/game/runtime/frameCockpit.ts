@@ -1,4 +1,4 @@
-import { PlayerLifeState, PROGRESSION_MAX_LEVEL, SPEED_FEEL_FACTOR, normalizeShipClassId, shipClassIdForProgressionLevel, getShipClassProfile, progressionMovementScale, progressionXpToNextLevel, progressionNavalRankEn, launcherYawRadFromBow, esmDetectionRange, esmEmitterStrokeCss, resolveAirDefenseDefenderIdForMissile, getAswmMagazineFromProfile, type ShipClassId, type AirDefenseMissileSnapshot, type AirDefensePlayerSnapshot } from "@battlefleet/shared/rules";
+import { canPrimaryArtilleryEngageAimAtWorldPoint, equippedMount, ARTILLERY_MIN_RANGE, ARTILLERY_MAX_RANGE, listPrimaryArtilleryMountConfigs, mountSlotMuzzleWorld, isYawWithinMountFireSector, PlayerLifeState, PROGRESSION_MAX_LEVEL, SPEED_FEEL_FACTOR, normalizeShipClassId, shipClassIdForProgressionLevel, getShipClassProfile, progressionMovementScale, progressionXpToNextLevel, progressionNavalRankEn, launcherYawRadFromBow, esmDetectionRange, esmEmitterStrokeCss, resolveAirDefenseDefenderIdForMissile, getAswmMagazineFromProfile, type ShipClassId, type AirDefenseMissileSnapshot, type AirDefensePlayerSnapshot } from "@battlefleet/shared/rules";
 import type { FramePlayer, FrameRuntimeState, CockpitOutput, MessageOutput, AudioOutput, FrameOwnedTorpedo } from "./frameContracts";
 import { t } from "../../locale/t";
 import { FIRE_CONTROL_TARGET_RANGE as FIRE_CONTROL_RANGE_M } from "@battlefleet/shared/rules";
@@ -20,6 +20,7 @@ export function updateFrameCockpit(options: {
   adPlayerSnapshots: readonly AirDefensePlayerSnapshot[]; state: FrameCockpitState;
   cockpit: CockpitOutput; gameMessageHud: Pick<MessageOutput, "showToast">;
   fireControlTargetId?: string | null;
+  autofireEnabled?: boolean;
   gameAudio: Pick<AudioOutput, "levelUp">; toShortSession: (id: string) => string;
 }): void {
   const { me, p, now, mySessionId, cfgMaxSpeed, matchEnded, matchRemainingSecRaw, playerList,
@@ -142,7 +143,36 @@ export function updateFrameCockpit(options: {
     while (mainMountTrainRad > Math.PI) mainMountTrainRad -= Math.PI * 2;
     while (mainMountTrainRad < -Math.PI) mainMountTrainRad += Math.PI * 2;
 
+    const alive = me.hp > 0 && me.lifeState !== PlayerLifeState.AwaitingRespawn && !matchEnded;
+    const gunMounts = listPrimaryArtilleryMountConfigs(hullVis, profShip.artilleryArcHalfAngleRad);
+    const target = alive && radarVisible ? playerList.find(other => other.id === options.fireControlTargetId && other.hp > 0 && other.lifeState !== PlayerLifeState.AwaitingRespawn && Math.hypot(other.x - p.x, other.z - p.z) <= FIRE_CONTROL_RANGE_M) : undefined;
+    const bearing = target ? Math.atan2(target.x - p.x, target.z - p.z) - p.headingRad : 0;
+    const installed = new Set(hullVis?.mountSlots.map(slot => equippedMount(slot, hullVis!)?.weaponId));
+    const airDefense = (["softkill", "ciws", "pdms", "sam"] as const).filter(kind => kind === "softkill" || installed.has(kind)).map(kind => ({
+      system: kind.toUpperCase() as "CIWS" | "PDMS" | "SAM" | "SOFTKILL",
+      status: !alive ? "Offline" as const : kind === "sam" && me.radarActive === false ? "Radar off" as const :
+        me.adCooldownMask === undefined ? "—" as const : (me.adCooldownMask & ({ ciws: 1, pdms: 2, sam: 4, softkill: 8 }[kind])) ? "Cooldown" as const : "Active" as const,
+    }));
     cockpit.update({
+      targetStatus: target ? { name: target.displayName?.trim() || toShortSession(target.id),
+        shipClass: getShipClassProfile(normalizeShipClassId(target.shipClass)).labelDe,
+        canEngage: canPrimaryArtilleryEngageAimAtWorldPoint(p.x, p.z, p.headingRad, p.shipClass, target.x, target.z),
+      } : undefined,
+      gunStatus: gunMounts.length ? { autofire: !!options.autofireEnabled,
+        inRange: target ? gunMounts.some(mount => {
+          const muzzle = mountSlotMuzzleWorld(hullVis!, mount.slotId, p.x, p.z, p.headingRad, { x: target.x, z: target.z });
+          const distance = Math.hypot(target.x - muzzle.x, target.z - muzzle.z);
+          return distance >= ARTILLERY_MIN_RANGE && distance <= ARTILLERY_MAX_RANGE;
+        }) : null,
+        inArc: target ? gunMounts.some(mount => isYawWithinMountFireSector(bearing, mount.sector)) : null,
+      } : undefined,
+      airDefense,
+      scoreboard: playerList.map(player => ({
+        id: player.id, name: player.displayName?.trim() || toShortSession(player.id),
+        shipClass: getShipClassProfile(normalizeShipClassId(player.shipClass)).labelDe,
+        shipClassId: normalizeShipClassId(player.shipClass), level: player.level,
+        rank: progressionNavalRankEn(player.level), score: player.score, kills: player.kills, isMe: player.id === mySessionId,
+      })).sort((a, b) => b.score - a.score || b.kills - a.kills || a.id.localeCompare(b.id)),
       speed: speedKn,
       maxSpeed: maxSpeedKn,
       headingRad: p.headingRad,

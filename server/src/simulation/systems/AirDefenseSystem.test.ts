@@ -1,0 +1,32 @@
+import assert from "node:assert/strict";
+import { PlayerLifeState } from "@battlefleet/shared/rules";
+import { testParticipants } from "../testParticipants.js";
+import { AirDefenseSystem } from "./AirDefenseSystem.js";
+
+const participants = testParticipants("defender");
+const player = participants.players.get("defender")!;
+const row = participants.simulations.get("defender")!;
+const defense = new AirDefenseSystem(participants, { nowMs: () => 100, random: () => 0 },
+  { broadcast() {}, send() {} }, () => 1000);
+row.adCiwsNextAtMs = 200;
+row.adPdNextAtMs = 300;
+row.adSamNextAtMs = 400;
+defense.syncHud([], 100);
+assert.equal(player.adCooldownMask, 7);
+defense.syncHud([], 200);
+assert.equal(player.adCooldownMask, 6, "CIWS becomes active exactly at its deadline");
+defense.syncHud([], 300);
+assert.equal(player.adCooldownMask, 4, "PDMS cooldown clears independently");
+defense.syncHud([], 400);
+assert.equal(player.adCooldownMask, 0);
+row.adSoftkillLastUsedAtMs = 500;
+defense.syncHud([], 500);
+assert.equal(player.adCooldownMask, 8, "softkill starts its own cooldown");
+defense.syncHud([], 2999);
+assert.equal(player.adCooldownMask, 8);
+defense.syncHud([], 3000);
+assert.equal(player.adCooldownMask, 0, "softkill is ready at the deadline");
+player.lifeState = PlayerLifeState.AwaitingRespawn;
+defense.syncHud([], 100);
+assert.equal(player.adCooldownMask, 0, "dead ships do not retain cooldown indicators");
+console.log("authoritative air-defense HUD cooldown transitions ok");

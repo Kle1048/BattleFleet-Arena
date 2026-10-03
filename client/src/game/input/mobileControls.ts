@@ -13,6 +13,8 @@ export type MobileControlSample = {
 /** Ref-Objekt: `main` setzt `onNextFireControlTarget` nach `createFireControlChannel`. */
 export type MobileHudActions = {
   onNextFireControlTarget?: () => void;
+  onToggleAutofire?: () => void;
+  isAutofireEnabled?: () => boolean;
   onNearestFireControlTarget?: () => void;
   onClearFireControlTarget?: () => void;
 };
@@ -20,7 +22,7 @@ export type MobileHudActions = {
 export type CreateMobileControlsOptions = {
   /** Maschinen-Telegraf (Gas/Ruder) — im Overlay über dem linken Dead-Zone-Layer. */
   telegraphRoot?: HTMLElement;
-  /** Zielauswahl und Kanal lösen — gleiche Logik wie R / F / C. */
+  /** Zielauswahl und Kanal lösen — gleiche Logik wie Caps Lock / F / C. */
   hudActions?: MobileHudActions;
 };
 
@@ -120,6 +122,7 @@ export function createMobileControls(options?: CreateMobileControlsOptions): {
   const lifetime = createLifetime();
   const root = document.createElement("div");
   lifetime.defer(() => root.remove());
+  root.className = "bfa-mobile-controls";
   root.setAttribute("aria-label", t("mobile.ariaRoot"));
   root.style.cssText =
     "position:fixed;inset:0;z-index:9000;pointer-events:none;touch-action:none;" +
@@ -144,40 +147,51 @@ export function createMobileControls(options?: CreateMobileControlsOptions): {
   root.appendChild(deadRight);
 
   const actionGrid = document.createElement("div");
+  actionGrid.className = "mobile-fire-controls";
   actionGrid.style.cssText =
-    "position:fixed;right:12px;bottom:12px;z-index:4;" +
+    "position:fixed;right:max(12px,env(safe-area-inset-right));bottom:max(12px,env(safe-area-inset-bottom));z-index:4;" +
     "display:flex;flex-direction:column;gap:10px;align-items:stretch;" +
-    "width:min(54vw,280px);pointer-events:auto;";
+    "width:min(42vw,220px);pointer-events:auto;";
 
   const btnPrimary = createActionButton(t("mobile.btnFire"));
   btnPrimary.style.minHeight = "76px";
   btnPrimary.style.fontSize = "15px";
   btnPrimary.style.fontWeight = "800";
 
-  const btnNextFc = createActionButton(t("mobile.btnNextFireControl"));
-  btnNextFc.setAttribute("aria-label", t("mobile.ariaNextFireControl"));
+  const btnNextFc = createActionButton("Assign Fire Control Channel");
+  btnNextFc.className = "mobile-assign-fc";
+  btnNextFc.setAttribute("aria-label", "Assign Fire Control Channel");
   btnNextFc.style.minHeight = "46px";
   btnNextFc.style.fontSize = "11px";
   lifetime.defer(bindTapButton(btnNextFc, () => {
     options?.hudActions?.onNextFireControlTarget?.();
   }));
 
-  const targetGrid = document.createElement("div");
-  targetGrid.style.cssText = "display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px;";
-  const btnNearestFc = createActionButton(t("mobile.btnNearestFireControl"));
-  btnNearestFc.setAttribute("aria-label", t("mobile.ariaNearestFireControl"));
-  const btnClearFc = createActionButton(t("mobile.btnClearFireControl"));
+  const btnAutofire = createActionButton("Autofire OFF");
+  btnAutofire.setAttribute("aria-label", "Toggle gun autofire");
+  btnAutofire.setAttribute("aria-pressed", "false");
+  let lastAutofire = false;
+  const syncAutofire = () => {
+    const enabled = options?.hudActions?.isAutofireEnabled?.() ?? false;
+    if (enabled === lastAutofire) return;
+    lastAutofire = enabled;
+    btnAutofire.textContent = enabled ? "Autofire ON" : "Autofire OFF";
+    btnAutofire.setAttribute("aria-pressed", String(enabled));
+  };
+  const btnClearFc = createActionButton("Break FC");
   btnClearFc.setAttribute("aria-label", t("mobile.ariaClearFireControl"));
-  for (const btn of [btnNextFc, btnNearestFc, btnClearFc]) {
+  for (const btn of [btnAutofire, btnNextFc, btnClearFc]) {
     btn.style.minHeight = "46px";
     btn.style.fontSize = "11px";
     btn.style.padding = "6px";
     btn.style.minWidth = "0";
     btn.style.overflowWrap = "anywhere";
   }
-  lifetime.defer(bindTapButton(btnNearestFc, () => options?.hudActions?.onNearestFireControlTarget?.()));
+  lifetime.defer(bindTapButton(btnAutofire, () => { options?.hudActions?.onToggleAutofire?.(); syncAutofire(); }));
   lifetime.defer(bindTapButton(btnClearFc, () => options?.hudActions?.onClearFireControlTarget?.()));
-  targetGrid.append(btnNextFc, btnNearestFc, btnClearFc);
+  btnNextFc.style.minHeight = btnPrimary.style.minHeight;
+  btnNextFc.style.fontSize = "12px";
+  btnNextFc.style.fontWeight = btnPrimary.style.fontWeight;
 
   const ssmRow = document.createElement("div");
   ssmRow.style.cssText = "display:grid;grid-template-columns:1fr 1fr;gap:8px;width:100%;";
@@ -191,7 +205,11 @@ export function createMobileControls(options?: CreateMobileControlsOptions): {
   btnStb.style.color = "#c8ffd8";
 
   ssmRow.append(btnPort, btnStb);
-  actionGrid.append(targetGrid, ssmRow, btnPrimary);
+  const gunRow = document.createElement("div");
+  gunRow.className = "mobile-gun-controls";
+  gunRow.style.cssText = "display:grid;grid-template-columns:68px minmax(0,1fr);grid-auto-rows:1fr;gap:8px;width:100%;";
+  gunRow.append(btnAutofire, btnPrimary, btnClearFc, btnNextFc);
+  actionGrid.append(ssmRow, gunRow);
   root.appendChild(actionGrid);
 
   document.body.appendChild(root);
@@ -219,6 +237,7 @@ export function createMobileControls(options?: CreateMobileControlsOptions): {
 
   return {
     sample: () => {
+      syncAutofire();
       const secondaryFire = secondaryPort || secondaryStb;
       const aswmFireSide: "port" | "starboard" | undefined = secondaryFire
         ? secondaryPort

@@ -6,10 +6,23 @@
 export const en = {
   playHelp: {
     title: "How to play",
-    intro: "Take the central sea-control zone, keep moving and engage enemy ships. You steer the ship; weapons fire only when you press a fire button.",
+    intro: "Take the central sea-control zone, keep moving and engage enemy ships. Fire the gun manually or enable autofire on an assigned target. Missile defense works automatically.",
+    mobileStep2: "Tap Assign Fire Control Channel to select the nearest eligible contact within 800 m; tap again to cycle targets. A pale square on the radar marks your selected contact.",
+    mobileStep3: "Turn until the target is inside your gun sector, then hold Fire Gun or enable Autofire ON. Tap Break FC to release the target and tap the water to aim freely.",
+    mobileKeys: "Touch controls",
+    desktopKeys: "Keyboard & mouse",
+    throttleLever: "Throttle lever",
+    rudderLever: "Rudder lever",
+    mobileAim: "Tap the water to set your aiming point; tap a visible enemy to assign fire control",
+    autofire: "Toggle gun autofire on the assigned target; range, sector and reload still apply",
+    sectors: "Toggle weapon sectors",
+    zoom: "Zoom the map from its starting height down to 200 m",
+    displayDetail: "Player Data shows your ship, rank, XP and personal score. Score shows the round standings; Event Log shows battle events. Performance contains technical statistics. The Controls tab is available on desktop. On mobile, the tactical panel keeps radar, HP and SSM information; target, gun and air-defense details are hidden.",
+    lobbyClose: "Back to lobby",
+    lobbyNotice: "Enter battle when you are ready. Server settings can change round duration and scoring.",
     quickStart: "Your first minute",
     step1: "Move toward the centre marker on the tactical radar. Stay inside the marked arena boundary.",
-    step2: "Press F to select the nearest enemy within 800 m. A pale square on the radar marks your selected contact.",
+    step2: "Press F to select a target within 800 m; press F again to cycle targets. A pale square on the radar marks your selected contact.",
     step3: "Turn until the target is inside your weapon's firing arc, then hold Space to fire the gun. Use C to release the target and aim freely again.",
     movement: "Move & steer",
     combat: "Aim & fire",
@@ -23,22 +36,23 @@ export const en = {
     cycle: "Cycle contacts in range",
     clear: "Release fire-control target",
     gun: "Fire gun (hold)",
-    missile: "Launch anti-ship missile toward aim",
+    missile: "Launch from the mouse-pointer side; the rail has a fixed direction",
     rails: "Launch left / right missile rail",
     radar: "Search radar on / off",
     fullscreen: "Toggle fullscreen; Esc exits",
-    fireDetail: "Selecting a target steers your aim but does not fire. A green ring around the ship means the gun can engage; orange means it cannot. Turn your own ship or move closer. Reloads and empty magazines can also prevent firing. Fixed missile rails fire left or right of your bow; point the appropriate rail toward the enemy.",
-    radarDetail: "The tactical display is north-up. Larger ships can be detected farther away; smoke increases visual detection range. With search radar off, nearby visual contacts remain visible. ESM lines show bearings to emitting ships, not exact positions. Fire control selects a contact within 800 m; a pale square marks that target. Radar detection range is not weapon range.",
+    mobileFullscreen: "Toggle fullscreen when supported by your browser",
+    fireDetail: "Assigning fire control does not itself fire the gun. Autofire engages the assigned target when range, sector and reload allow. A green ring around the target means the gun can engage; orange means it cannot. Turn your ship or move closer. Fixed missile rails launch in class-specific directions: diagonal on the FAC, sideways on the destroyer and nearly forward on the cruiser. Align the appropriate rail with the target's expected position. Break FC does not recall missiles already in flight.",
+    radarDetail: "The tactical display is north-up. Detection depends on ship size and sensor type. With search radar off, nearby visual contacts remain visible; damaged ships can also be spotted by their smoke. Your active radar makes you detectable by ESM. ESM lines show bearings to emitting ships, not exact positions. Fire control selects a detected contact within 800 m; a pale square marks that target. Missiles can seek radar emissions. Radar detection range is not weapon range.",
     survival: "Objective & survival",
     survivalDetail: "Earn points over time, with a bonus in the central control zone, and through combat. Promotions unlock larger ships. If you are sunk, wait for the respawn countdown. Leaving the arena starts a destruction countdown. Avoid islands when enabled.",
     touch: "On a touch screen",
-    touchDetail: "Use the on-screen steering and weapon buttons. Next target cycles contacts; Nearest target selects the closest contact within 800 m; Clear target releases fire control. The RADAR and fullscreen buttons remain available in the HUD.",
+    touchDetail: "Move the throttle and rudder levers to steer; their settings remain after release. Tap the water to aim or an enemy to assign fire control. On the right, hold Fire Gun for manual gunfire. Autofire OFF / Autofire ON toggles automatic gunfire on the assigned target. Assign Fire Control Channel cycles eligible contacts within 800 m; Break FC clears the assignment. Hold Fire port SSM or Fire Stbd SSM to launch from that rail. RADAR, Help and fullscreen remain available in the HUD.",
     liveNotice: "Online play continues while this help is open.",
     close: "Back to game",
     keys: "Controls",
     hide: "Hide controls",
     show: "Show controls",
-    fullGuide: "Open full guide",
+    fullGuide: "How to play",
     mouse: "Mouse",
     leftMouse: "LMB / Space",
     rightMouse: "RMB",
@@ -67,12 +81,12 @@ export const en = {
     /** Reserved — `#hud` row 3 when help panel is shown again. */
     helpHudLine3: "Mouse move — aim line (firing arc toward the bow)",
     /** Reserved — `#hud` row 4 when help panel is shown again. */
-    helpHudLine4: "Space or left mouse button — primary / naval gun (hold; ~0.5 s cooldown)",
+    helpHudLine4: "Space or left mouse button — fire gun while held; reload depends on level",
     /** Reserved — `#hud` row 5 when help panel is shown again. */
-    helpHudLine5: "F — nearest contact within 800 m · R — cycle contacts · click an enemy ship to lock",
+    helpHudLine5: "F — cycle targets within 800 m · R — radar on/off · Caps Lock — autofire · click an enemy ship to lock",
     /** Reserved — `#hud` row 6 when help panel is shown again. */
     helpHudLine6:
-      "C, Esc or click water / sky — clear fire-control channel · Hold Q (port) / E (starboard) for fixed SSM rails, or right mouse for aim-based SSM",
+      "C, Esc or click water / sky — clear fire-control channel · Hold Q (port) / E (starboard) for fixed SSM rails, or right mouse for mouse-side SSM",
   },
 
   /** main.ts — hard failures before/during bootstrap. */
@@ -203,7 +217,7 @@ export const en = {
   messageLog: {
     enterFullscreen: "Enter fullscreen",
     exitFullscreen: "Exit fullscreen (Esc)",
-    fullscreenUnavailable: "Fullscreen unavailable in this browser view. Open the game in a browser tab and use F11.",
+    fullscreenUnavailable: "Fullscreen is unavailable in this browser view. Try opening the game in a browser that supports fullscreen.",
     /** messageLog.ts — root `aria-label` and header title. */
     panelTitle: "Comms",
     /** messageLog.ts — clear button label. */
@@ -219,12 +233,15 @@ export const en = {
       "Mission: take the central Sea Control area, destroy hostile ships, and survive to earn promotions.",
     /** main.ts — initial Comms line: short movement controls. */
     initialControlsMove: "Controls: WASD steers and drives; M toggles step mode; mouse aims.",
+    initialMobileMove: "Touch: move the throttle and rudder levers; tap water to aim. Help explains the controls.",
+    initialMobileFight: "Weapons: hold Fire Gun or enable Autofire ON on an assigned target. Fire port SSM / Fire Stbd SSM launches from that rail.",
+    initialMobileSystems: "Systems: Assign Fire Control Channel cycles contacts within 800 m; Break FC releases the target. RADAR toggles search radar.",
     /** main.ts — initial Comms line: short weapon controls. */
     initialControlsFight:
-      "Weapons: LMB / Space fires primary; RMB fires SSM at the locked target; Q / E fires port / starboard rails.",
+      "Weapons: LMB / Space fires primary; RMB fires SSM on the mouse-pointer side; Q / E fires port / starboard rails.",
     /** main.ts — initial Comms line: short systems controls. */
     initialControlsSystems:
-      "Systems: F selects the nearest contact, R cycles contacts within 800 m, C clears fire control. Use the RADAR button for search radar.",
+      "Systems: F cycles targets within 800 m, R toggles search radar, C clears fire control. Caps Lock toggles gun autofire on the assigned target.",
   },
 
   /** debugOverlay.ts — FPS / room / ping dev HUD. */
@@ -309,7 +326,7 @@ export const en = {
      * matchEndHud.ts — explanatory subtitle under title (rules + Continue behavior).
      */
     subtitle:
-      "FFA — win: highest score (passive + combat; center ×5). Kills count. \"Continue\": leave the room and reconnect.",
+      "FFA — highest score wins. Survival, time in the central zone and combat earn points. Continue leaves this room and joins a new round.",
     /** matchEndHud.ts — score table `aria-label`. */
     tableAria: "Scoreboard",
     /** matchEndHud.ts — table header: placement column. */
@@ -343,13 +360,13 @@ export const en = {
     /**
      * classPicker.ts — hint under title (FAC start).
      */
-    hint: "Optional: enter a display name and continue. Everyone starts as FAC (fast attack craft).",
+    hint: "Optional: enter a display name, then choose Enter battle. Everyone starts as FAC (fast attack craft).",
     /** classPicker.ts — label for name field. */
     nameCaption: "Enter Name",
     /** classPicker.ts — name input `placeholder`. */
     namePlaceholder: "e.g. Commander",
     /** classPicker.ts — submit button. */
-    continue: "Continue",
+    continue: "Enter battle",
   },
 
   /** missionBriefing.ts — pre-lobby narrative overlay. */
@@ -404,16 +421,16 @@ export const en = {
     /** missionBriefing.ts — text after LMB / Space spans (see template). */
     controlPrimarySuffix: "primary fire",
     /** missionBriefing.ts — text after `<kbd>RMB</kbd>` span. */
-    controlRmbSuffix: "SSM by aim (hold toward fire-control target)",
+    controlRmbSuffix: "SSM from the mouse-pointer side; fixed rail direction depends on ship class",
     /** missionBriefing.ts — text after `<kbd>Q</kbd>` / `<kbd>E</kbd>` spans. */
     controlSsmQeSuffix: "SSM fixed rail — port / starboard (hold)",
     /** missionBriefing.ts — text after `<kbd>T</kbd>` / MMB spans (only when mines feature is on). */
     controlMinesTeSuffix: "mine lay (hold; middle mouse also)",
     /** missionBriefing.ts — text after `<kbd>R</kbd>` span. */
-    controlRadarSuffix: "search radar on/off via the RADAR button",
+    controlRadarSuffix: "search radar on/off with R or the RADAR button",
     /** missionBriefing.ts — text after `<kbd>F</kbd>` span (fire-control channel). */
     controlFireControlSuffix:
-      "F: nearest contact · R: cycle contacts within 800 m · C: clear channel. Click a hull to lock; a small radar frame marks the designated target.",
+      "F: cycle targets within 800 m · R: radar on/off · Caps Lock: autofire · C: clear channel. Click a hull to lock; a small radar frame marks the designated target.",
     /** missionBriefing.ts — ship classes & progression ranks. */
     sectionShipsTitle: "Ship classes & progression",
     /**
@@ -425,7 +442,7 @@ export const en = {
      * missionBriefing.ts — destroyer line; `{rank}` = rank at level 3 unlock (`progressionNavalRankEn(3)`).
      */
     shipBulletDestroyer:
-      "Destroyer: balanced naval gun, torpedo, and SSM fit — the all-round workhorse. Unlocks at progression level 3 — {rank}.",
+      "Destroyer: balanced gun, SSM and automatic air-defense fit. Unlocks at progression level 3 — {rank}.",
     /**
      * missionBriefing.ts — cruiser line; `{rank}` = rank at level 5 unlock (`progressionNavalRankEn(5)`).
      */
@@ -440,19 +457,19 @@ export const en = {
     /** mobileControls.ts — root overlay `aria-label`. */
     ariaRoot: "Touch controls",
     /** mobileControls.ts — primary fire hold button. */
-    btnFire: "FIRE",
+    btnFire: "Fire Gun",
     /** mobileControls.ts — port SSM hold button. */
-    btnSsmPort: "Port SSM",
+    btnSsmPort: "Fire port SSM",
     /** mobileControls.ts — starboard SSM hold button. */
-    btnSsmStarboard: "Stbd SSM",
-    /** mobileControls.ts — tap: next fire-control target (same as key R). */
-    btnNextFireControl: "Next target",
+    btnSsmStarboard: "Fire Stbd SSM",
+    /** mobileControls.ts — tap: cycle fire-control target (same as key F). */
+    btnNextFireControl: "Assign Fire Control Channel",
     btnNearestFireControl: "Nearest target",
-    btnClearFireControl: "Clear target",
+    btnClearFireControl: "Break FC",
     ariaNearestFireControl: "Select nearest fire-control target within 800 m",
     ariaClearFireControl: "Clear fire-control target and aim freely",
     /** mobileControls.ts — `aria-label` for next fire-control target button. */
-    ariaNextFireControl: "Cycle next fire-control target (key R)",
+    ariaNextFireControl: "Assign or cycle fire-control target within 800 m",
   },
 
   /** hudRuntime.ts — dev-only lines on the debug overlay. */
@@ -536,7 +553,7 @@ export const en = {
     /** cockpitHud.ts — ship topology schematic subhead. */
     subheadTopology: "Topology",
     /** cockpitHud.ts — own radar button `title`. */
-    radarToggleTitle: "Search radar on/off",
+    radarToggleTitle: "Search radar on/off (R)",
     /** cockpitHud.ts — own radar button `aria-label`. */
     radarToggleAria: "Toggle search radar",
     /** cockpitHud.ts — `update()` primary/secondary ready state. */

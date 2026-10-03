@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { PerspectiveCamera } from "three";
 import { createGameInput } from "./createGameInput";
+import { getShipDebugTuning, applyShipDebugTuning } from "../runtime/shipDebugTuning";
 import { t } from "../../locale/t";
 import { applyFollowCameraTuning, getFollowCameraTuning, resetFollowCameraTuning } from "../runtime/followCameraTuning";
 
@@ -27,6 +28,12 @@ class Element extends Target {
   textContent = "";
   setAttribute() {}
   appendChild(child: Element) { this.children.push(child); child.parent = this; return child; }
+  get firstChild(): Element | null { return this.children[0] ?? null; }
+  insertBefore(child: Element, before: Element | null) {
+    const index = before ? this.children.indexOf(before) : this.children.length;
+    assert(index >= 0);
+    this.children.splice(index, 0, child); child.parent = this; return child;
+  }
   append(...children: Element[]) { children.forEach(child => this.appendChild(child)); }
   remove() { if (this.parent) this.parent.children = this.parent.children.filter(child => child !== this); }
   getBoundingClientRect() { return { left: 0, top: 0, width: 1280, height: 720 }; }
@@ -52,13 +59,47 @@ try {
     assert.equal(canvas.count(), 11);
     assert.equal(body.children.length, 1);
     assert.equal(session.input.sample().throttle, 0);
+    const mapWheel = (deltaY: number, deltaMode = 0) => canvas.dispatchEvent(
+      Object.assign(new Event("wheel", { cancelable: true }), { deltaY, deltaMode }));
+    mapWheel(-100);
+    assert(getFollowCameraTuning().heightAbovePivot < 900);
+    mapWheel(-10000);
+    mapWheel(-10000);
+    assert.equal(getFollowCameraTuning().heightAbovePivot, 200, "map zoom stops at 200 m");
+    mapWheel(10000, 1);
+    mapWheel(10000, 1);
+    assert.equal(getFollowCameraTuning().heightAbovePivot, 900, "map cannot zoom past the original overview");
+    mapWheel(-100);
+    applyShipDebugTuning({ showWeaponArc: false });
+    const tab = Object.assign(new Event("keydown", { cancelable: true }), { code: "Tab", repeat: false });
+    win.dispatchEvent(tab); assert(tab.defaultPrevented);
+    assert.equal(getShipDebugTuning().showWeaponArc, true);
+    win.dispatchEvent(Object.assign(new Event("keydown"), { code: "Tab", repeat: true }));
+    assert.equal(getShipDebugTuning().showWeaponArc, true, "holding Tab does not flicker sectors");
+    win.dispatchEvent(Object.assign(new Event("keydown"), { code: "Tab", repeat: false }));
+    assert.equal(getShipDebugTuning().showWeaponArc, false);
+    session.mobileAimEngagement.self = { x: 0, z: 0, headingRad: 0, shipClass: "fac" };
+    assert(session.input.sample().aswmFireSide, "mouse side is explicit before FC can overwrite aim");
+    win.dispatchEvent(Object.assign(new Event("keydown"), { code: "KeyQ" }));
+    assert.equal(session.input.sample().aswmFireSide, "port");
+    win.dispatchEvent(Object.assign(new Event("keyup"), { code: "KeyQ" }));
+    win.dispatchEvent(Object.assign(new Event("keydown"), { code: "KeyE" }));
+    assert.equal(session.input.sample().aswmFireSide, "starboard");
+    win.dispatchEvent(Object.assign(new Event("keyup"), { code: "KeyE" }));
     assert.equal(session.input.sample().primaryFire, false);
+    win.dispatchEvent(Object.assign(new Event("keydown"), { code: "KeyR", repeat: false }));
+    assert.equal(session.input.sample().radarActive, false);
+    win.dispatchEvent(Object.assign(new Event("keydown"), { code: "KeyR", repeat: true }));
+    assert.equal(session.input.sample().radarActive, false);
+    win.dispatchEvent(Object.assign(new Event("keydown"), { code: "KeyR", repeat: false }));
+    assert.equal(session.input.sample().radarActive, true);
     win.dispatchEvent(Object.assign(new Event("keydown"), { code: "KeyW" }));
     win.dispatchEvent(Object.assign(new Event("keydown"), { code: "Space" }));
     assert.equal(session.input.sample().throttle, 1);
     assert.equal(session.input.sample().primaryFire, true);
     session.mobileHudActions.onNextFireControlTarget = () => { throw new Error("stale session action"); };
     controls.stopSession(); controls.stopSession();
+    assert.equal(getFollowCameraTuning().heightAbovePivot, 900, "next session retains the original maximum");
     assert.equal(win.count(), 0);
     assert.equal(canvas.count(), 0);
     assert.equal(body.children.length, 0);
@@ -99,6 +140,20 @@ try {
     assert.equal(canvas.count(), 12); // Includes the session's mobile aim reticle.
     assert.equal(body.children.length, 2);
     assert.equal(session.input.sample().primaryFire, false);
+    let autofire = false, cycles = 0, clears = 0;
+    session.mobileHudActions.onToggleAutofire = () => { autofire = !autofire; };
+    session.mobileHudActions.isAutofireEnabled = () => autofire;
+    session.mobileHudActions.onNextFireControlTarget = () => { cycles++; };
+    session.mobileHudActions.onClearFireControlTarget = () => { clears++; };
+    const auto = created.slice(before).find(element => element.textContent === "Autofire OFF")!;
+    const cycle = created.slice(before).find(element => element.textContent === "Assign Fire Control Channel")!;
+    const clear = created.slice(before).find(element => element.textContent === "Break FC")!;
+    auto.dispatchEvent(new Event("click"));
+    assert.equal(autofire, true); assert.equal(auto.textContent, "Autofire ON");
+    autofire = false; session.input.sample();
+    assert.equal(auto.textContent, "Autofire OFF", "external safety reset updates the touch toggle");
+    cycle.dispatchEvent(new Event("click")); clear.dispatchEvent(new Event("click"));
+    assert.equal(cycles, 1); assert.equal(clears, 1);
     const primary = created.slice(before).find(element => element.textContent === t("mobile.btnFire"))!;
     primary.dispatchEvent(Object.assign(new Event("pointerdown"), { pointerId: 1 }));
     assert.equal(session.input.sample().primaryFire, true);
@@ -107,6 +162,9 @@ try {
     assert.equal(canvas.count(), 0);
     assert.equal(body.children.length, 0);
     assert.equal(primary.count(), 0, "detached mobile buttons release their listeners");
+    assert.equal(auto.count(), 0);
+    assert.equal(session.mobileHudActions.onToggleAutofire, undefined);
+    assert.equal(session.mobileHudActions.isAutofireEnabled, undefined);
     primary.dispatchEvent(Object.assign(new Event("pointerdown"), { pointerId: 1 }));
     assert.equal(session.input.sample().primaryFire, false);
   }

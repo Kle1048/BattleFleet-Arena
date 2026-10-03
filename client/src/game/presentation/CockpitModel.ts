@@ -25,6 +25,10 @@ export type CockpitSsmRailLine = {
 };
 
 export type CockpitHudUpdate = {
+  targetStatus?: { name: string; shipClass: string; canEngage: boolean };
+  gunStatus?: { autofire: boolean; inRange: boolean | null; inArc: boolean | null };
+  airDefense?: { system: "CIWS" | "PDMS" | "SAM" | "SOFTKILL"; status: "Active" | "Cooldown" | "Radar off" | "Offline" | "—" }[];
+  scoreboard?: { id: string; name: string; shipClass: string; shipClassId: ShipClassId; rank: string; level: number; score: number; kills: number; isMe: boolean }[];
   speed: number;
   maxSpeed: number;
   headingRad: number;

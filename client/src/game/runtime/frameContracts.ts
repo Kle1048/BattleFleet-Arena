@@ -12,7 +12,7 @@ export type FramePlayer = Pick<PlayerView,
   "respawnCountdownSec" | "spawnProtectionSec" | "secondaryCooldownSec" |
   "torpedoCooldownSec" | "score" | "kills" | "level" | "xp" | "shipClass" |
   "displayName" | "aswmRemainingPort" | "aswmRemainingStarboard"
-> & Partial<Pick<PlayerView, "deathAtMs" | "killedBySessionId" | "radarActive" | "adHudIncomingAswm">>;
+> & Partial<Pick<PlayerView, "deathAtMs" | "killedBySessionId" | "radarActive" | "adHudIncomingAswm" | "adCooldownMask">>;
 
 export type FrameMissile = Pick<MissileView, "missileId" | "ownerId" | "targetId" | "x" | "z" | "headingRad">;
 export type FrameTorpedo = Pick<TorpedoView, "torpedoId" | "x" | "z" | "headingRad">;

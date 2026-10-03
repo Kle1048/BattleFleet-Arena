@@ -3,6 +3,7 @@ import {
   canTakeArtillerySplashDamage,
   AD_SAM_RANGE_SQ,
   AD_SOFTKILL_RANGE_SQ,
+  AD_SOFTKILL_COOLDOWN_MS,
   AD_SOFTKILL_SAME_TARGET_REACQUIRE_BLOCK_MS,
   type AirDefenseHardkillLayer,
   applyHardkillCooldownAfterRoll,
@@ -119,7 +120,7 @@ export class AirDefenseSystem {
     return adDefenderId;
   }
 
-  syncHud(missiles: ReadSequence<MissileValues>): void {
+  syncHud(missiles: ReadSequence<MissileValues>, now: number): void {
     const incoming = this.adIncomingScratch;
     const radarHint = this.adRadarHintScratch;
     incoming.clear();
@@ -147,6 +148,10 @@ export class AirDefenseSystem {
       }
     }
     for (const p of this.participants.players.values()) {
+      const row = this.participants.simulations.get(p.id);
+      p.adCooldownMask = !row || p.lifeState === PlayerLifeState.AwaitingRespawn ? 0 :
+        (now < row.adCiwsNextAtMs ? 1 : 0) | (now < row.adPdNextAtMs ? 2 : 0) | (now < row.adSamNextAtMs ? 4 : 0) |
+        (row.adSoftkillLastUsedAtMs > 0 && now < row.adSoftkillLastUsedAtMs + AD_SOFTKILL_COOLDOWN_MS ? 8 : 0);
       if (p.lifeState === PlayerLifeState.AwaitingRespawn) {
         p.adHudIncomingAswm = 0;
         p.adHudCanCommitHardkill = false;

@@ -17,6 +17,10 @@ const events: string[] = [];
 const client = { sessionId: "human", send: (type: string) => { events.push(type); } } as unknown as Client;
 room.broadcast = (type: string | number) => { events.push(String(type)); };
 room.autoDispose = false; room.setPatchRate(null);
+// This fixture has no matchmaker listing; network locking is covered separately.
+const matchmakingTransitions: string[] = [];
+room.lock = async () => { matchmakingTransitions.push("lock"); };
+room.unlock = async () => { matchmakingTransitions.push("unlock"); };
 const handlers = new Map<string, (client: Client, payload: unknown) => void>();
 room.onMessage = ((type: string, callback: (client: Client, payload: unknown) => void) => {
   handlers.set(type, callback);
@@ -69,6 +73,7 @@ try {
   assert.equal(room.state.matchPhase, "ended");
   handlers.get("playAgain")!(client, {});
   assert.equal(room.state.matchPhase, "running");
+  assert.deepEqual(matchmakingTransitions, ["lock", "unlock"]);
   assert.equal(room.state.playerList.at(0), replica);
   assert.deepEqual(replica.toJSON(), domain, "player-triggered restart also publishes before returning");
   const decoded = new BattleState(); decoded.decode(room.state.encodeAll());

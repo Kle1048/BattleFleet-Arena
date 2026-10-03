@@ -1,8 +1,9 @@
-import { getFollowCameraTuning, savePersistedFollowCameraTuning } from "../runtime/followCameraTuning";
+import { applyFollowCameraTuning, getFollowCameraTuning, savePersistedFollowCameraTuning } from "../runtime/followCameraTuning";
 import { rotateThirdPersonCamera, zoomThirdPersonCamera } from "../runtime/thirdPersonCamera";
 
 /** Alt-drag reserves the gesture for the camera; ordinary clicks still fire. */
 export function createCameraOrbitInput(canvas: HTMLElement) {
+  const mapMaxHeight = Math.max(200, getFollowCameraTuning().heightAbovePivot);
   let pointer: number | null = null;
   let x = 0, y = 0;
   const enabled = () => getFollowCameraTuning().mode === "thirdPerson";
@@ -28,10 +29,17 @@ export function createCameraOrbitInput(canvas: HTMLElement) {
   };
   const up = (e: PointerEvent) => { if (e.pointerId === pointer) end(); };
   const wheel = (e: WheelEvent) => {
-    if (!enabled()) return;
+    if (e.ctrlKey || !Number.isFinite(e.deltaY)) return;
     e.preventDefault();
-    zoomThirdPersonCamera(e.deltaY * (e.deltaMode === 1 ? 16 : e.deltaMode === 2 ? 400 : 1));
-    savePersistedFollowCameraTuning({ ...getFollowCameraTuning() });
+    const delta = e.deltaY * (e.deltaMode === 1 ? 16 : e.deltaMode === 2 ? 400 : 1);
+    if (enabled()) {
+      zoomThirdPersonCamera(delta);
+      savePersistedFollowCameraTuning({ ...getFollowCameraTuning() });
+    } else {
+      const height = getFollowCameraTuning().heightAbovePivot;
+      applyFollowCameraTuning({ heightAbovePivot: Math.max(200, Math.min(mapMaxHeight,
+        height * Math.exp(Math.max(-1, Math.min(1, delta * 0.001))))) });
+    }
   };
   canvas.addEventListener("pointerdown", down);
   canvas.addEventListener("pointermove", move);
@@ -43,6 +51,8 @@ export function createCameraOrbitInput(canvas: HTMLElement) {
   return {
     dispose() {
       end();
+      // Each new round starts with the original overview and the same zoom limit.
+      applyFollowCameraTuning({ heightAbovePivot: mapMaxHeight });
       canvas.removeEventListener("pointerdown", down);
       canvas.removeEventListener("pointermove", move);
       canvas.removeEventListener("lostpointercapture", end);

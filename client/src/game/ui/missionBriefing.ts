@@ -2,11 +2,13 @@
 import { t } from "../../locale/t";
 import { waitForDialog } from "./dialogLifetime";
 import { controlGuideHtml } from "./controlGuide";
+import { isMobileControlSurface } from "../input/mobileControls";
 
 let briefingOpen = false;
-export async function showMissionBriefing(signal?: AbortSignal): Promise<void> {
+export async function showMissionBriefing(signal?: AbortSignal, inBattle = true): Promise<void> {
   if (briefingOpen || signal?.aborted) return;
   briefingOpen = true;
+  const mobile = isMobileControlSurface();
   const previousFocus = document.activeElement as HTMLElement | null;
   const root = document.createElement("div");
   root.className = "mission-briefing-overlay";
@@ -19,20 +21,18 @@ export async function showMissionBriefing(signal?: AbortSignal): Promise<void> {
     <div class="mission-briefing-scroll" tabindex="0">
       <section class="mission-briefing-section play-help-start">
         <h3 class="mission-briefing-h3">${t("playHelp.quickStart")}</h3>
-        <ol><li>${t("playHelp.step1")}</li><li>${t("playHelp.step2")}</li><li>${t("playHelp.step3")}</li></ol>
+        <ol><li>${t("playHelp.step1")}</li><li>${t(mobile ? "playHelp.mobileStep2" : "playHelp.step2")}</li><li>${t(mobile ? "playHelp.mobileStep3" : "playHelp.step3")}</li></ol>
       </section>
-      <section class="mission-briefing-section"><h3 class="mission-briefing-h3">${t("playHelp.keys")}</h3>
-        ${controlGuideHtml()}
-        <p>${t("playHelp.modeDetail")}</p>
+      <section class="mission-briefing-section"><h3 class="mission-briefing-h3">${t(mobile ? "playHelp.mobileKeys" : "playHelp.desktopKeys")}</h3>
+        ${controlGuideHtml(false, mobile)}
+        <p>${t(mobile ? "playHelp.touchDetail" : "playHelp.modeDetail")}</p>
       </section>
       <details open><summary>${t("playHelp.combat")}</summary><p>${t("playHelp.fireDetail")}</p></details>
-      <details><summary>${t("playHelp.systems")}</summary><p>${t("playHelp.radarDetail")}</p></details>
+      <details><summary>${t("playHelp.systems")}</summary><p>${t("playHelp.radarDetail")}</p><p>${t("playHelp.displayDetail")}</p></details>
       <details><summary>${t("playHelp.survival")}</summary><p>${t("playHelp.survivalDetail")}</p></details>
-      <details><summary>${t("playHelp.touch")}</summary><p>${t("playHelp.touchDetail")}</p></details>
     </div>
-    <p><a href="${import.meta.env.BASE_URL}manual.html" target="_blank" rel="noopener">Full player manual: ships, specifications &amp; tactics ↗</a></p>
-    <footer class="mission-briefing-footer"><span>${t("playHelp.liveNotice")}</span>
-      <button type="button" class="mission-briefing-continue-btn">${t("playHelp.close")}</button>
+    <footer class="mission-briefing-footer"><span>${t(inBattle ? "playHelp.liveNotice" : "playHelp.lobbyNotice")}</span>
+      <button type="button" class="mission-briefing-continue-btn">${t(inBattle ? "playHelp.close" : "playHelp.lobbyClose")}</button>
     </footer>
   </div>`;
   const close = root.querySelector<HTMLButtonElement>(".mission-briefing-continue-btn")!;
