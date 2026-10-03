@@ -3,7 +3,7 @@
 export function waitForDialog(
   root: HTMLElement,
   submit: HTMLElement,
-  options: { signal?: AbortSignal; enterInput?: HTMLElement } = {},
+  options: { signal?: AbortSignal; enterInput?: HTMLElement; canSubmit?: () => boolean } = {},
 ): Promise<void> {
   return new Promise((resolve, reject) => {
     let settled = false;
@@ -15,6 +15,7 @@ export function waitForDialog(
     };
     const finish = () => {
       if (settled) return;
+      if (options.canSubmit && !options.canSubmit()) return;
       settled = true;
       detach();
       resolve();

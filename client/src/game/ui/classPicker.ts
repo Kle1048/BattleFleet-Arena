@@ -13,7 +13,7 @@ export type ShipLobbyChoice = {
   displayName: string;
 };
 
-export async function pickShipLobbyChoice(signal?: AbortSignal): Promise<ShipLobbyChoice> {
+export async function pickShipLobbyChoice(signal?: AbortSignal, previousName = ""): Promise<ShipLobbyChoice> {
   const root = document.createElement("div");
   root.className = "class-picker-overlay";
   root.setAttribute("role", "dialog");
@@ -31,6 +31,7 @@ export async function pickShipLobbyChoice(signal?: AbortSignal): Promise<ShipLob
     </div>
   `;
   const nameInput = root.querySelector(".class-picker-name-input") as HTMLInputElement;
+  nameInput.value = previousName;
   const continueBtn = root.querySelector(".class-picker-continue-btn") as HTMLButtonElement;
   const helpLink = root.querySelector(".class-picker-help-link") as HTMLAnchorElement;
   const openHelp = (event: Event) => {

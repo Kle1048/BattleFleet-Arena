@@ -1,4 +1,5 @@
 import { performance } from "node:perf_hooks";
+import { isIP } from "node:net";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import type { RequestHandler } from "express";
 
@@ -29,13 +30,38 @@ export const MAX_SOCKET_CONNECTIONS = MAX_ROOMS * 16;
 export const MAX_MESSAGE_BYTES = 4096;
 export const MAX_MATCHMAKE_BYTES = 4096;
 
-/** Shared by HTTP and upgrade boundaries, bounded even under rotating addresses.
- * Socket peer only: untrusted X-Forwarded-For cannot mint additional budgets. */
+export function readTrustLoopbackProxy(env: NodeJS.ProcessEnv = process.env): boolean {
+  const value = env.BFA_TRUST_LOOPBACK_PROXY ?? "0";
+  if (value !== "0" && value !== "1") throw new Error("BFA_TRUST_LOOPBACK_PROXY must be 0 or 1");
+  return value === "1";
+}
+
+function canonicalIp(value: string): string | undefined {
+  if (isIP(value) === 4) return value;
+  if (isIP(value) !== 6 || value.includes("%")) return undefined;
+  const canonical = new URL(`http://[${value}]/`).hostname.slice(1, -1);
+  return canonical;
+}
+
+/** Only explicitly trusted loopback Nginx may supply its overwritten X-Real-IP.
+ * Never use an arbitrary client-supplied forwarding chain. */
+export function requestPeer(req: IncomingMessage, trustLoopback: boolean): string {
+  const peer = req.socket.remoteAddress ?? "unknown";
+  if (trustLoopback && ["127.0.0.1", "::1", "::ffff:127.0.0.1"].includes(peer)) {
+    const raw = req.headers["x-real-ip"];
+    const forwarded = typeof raw === "string" ? canonicalIp(raw) : undefined;
+    if (forwarded) return forwarded;
+  }
+  return canonicalIp(peer) ?? peer;
+}
+
+/** Shared by HTTP and upgrade boundaries, bounded even under rotating addresses. */
 export class RequestBudget {
   private readonly total: TokenBucket;
   private readonly peers = new Map<string, { bucket: TokenBucket; at: number }>();
   private nextSweep = 0;
-  constructor(private readonly now: () => number = () => performance.now(), private readonly capacity = 4096) {
+  constructor(private readonly now: () => number = () => performance.now(), private readonly capacity = 4096,
+    private readonly trustLoopbackProxy = false) {
     this.total = new TokenBucket(60, 120, now);
   }
   allow(req: IncomingMessage): boolean {
@@ -45,7 +71,7 @@ export class RequestBudget {
       for (const [key, peer] of this.peers) if (now - peer.at >= 60_000) this.peers.delete(key);
       this.nextSweep = now + 1000;
     }
-    const key = req.socket.remoteAddress ?? "unknown";
+    const key = requestPeer(req, this.trustLoopbackProxy);
     let peer = this.peers.get(key);
     if (!peer) {
       if (this.peers.size >= this.capacity) return false;

@@ -76,6 +76,8 @@ export class BattleRoom extends Room<BattleState> {
   private readonly simulation: GameSimulation;
   private publisher!: SchemaPublisher;
   private closedForMatchEnd = false;
+  private resultExpiry?: ReturnType<typeof setTimeout>;
+  protected get resultRetentionMs(): number { return 30_000; }
   private readonly gameEvents: GameEventSink = {
     broadcast: (type, payload) => this.broadcast(type, payload),
     send: (id, type, payload) => this.clientsById.get(id)?.send(type, payload),
@@ -156,6 +158,7 @@ export class BattleRoom extends Room<BattleState> {
     });
 
     this.setSimulationInterval((timeDelta) => {
+      if (this.closedForMatchEnd) return;
       const dtSec = timeDelta / 1000;
       const started = performance.now();
       try { this.physicsStep(dtSec); }
@@ -167,6 +170,7 @@ export class BattleRoom extends Room<BattleState> {
 
 
   onDispose(): void {
+    clearTimeout(this.resultExpiry);
     BattleRoom.activeRooms.delete(this);
     this.simulation.dispose();
     this.clientsById.clear();
@@ -179,6 +183,14 @@ export class BattleRoom extends Room<BattleState> {
     const ended = this.state.matchPhase === MATCH_PHASE_ENDED;
     if (ended === this.closedForMatchEnd) return;
     this.closedForMatchEnd = ended;
+    clearTimeout(this.resultExpiry);
+    this.resultExpiry = undefined;
+    if (ended) {
+      this.resultExpiry = setTimeout(() => {
+        void this.disconnect(4001).catch(error => console.error("[BattleRoom] result cleanup failed", error));
+      }, this.resultRetentionMs);
+      this.resultExpiry.unref();
+    }
     // Continue leaves this room. Other players may keep viewing its results,
     // but joinOrCreate must never send the next session back into that round.
     // Explicit locking also prevents a departing player from reopening a full room.

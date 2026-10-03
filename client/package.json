@@ -7,6 +7,7 @@
     "typecheck": "tsc --noEmit",
     "dev": "vite",
     "dev:editor": "vite --open /editor.html",
+    "prebuild": "node ../scripts/build-info.mjs",
     "build": "tsc --noEmit && vite build",
     "build:benchmark": "tsc --noEmit && vite build --config vite.benchmark.config.ts",
     "preview": "vite preview",

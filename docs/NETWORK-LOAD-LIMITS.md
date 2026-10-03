@@ -49,13 +49,26 @@ separate Token-Authentisierung und 16-KiB-Body-Grenze; sie werden nicht durch de
 
 ## Sicherheits- und Betriebsgrenzen
 
-IP-Budgets verwenden ausschließlich `socket.remoteAddress`. `X-Forwarded-For`
-wird bewusst nicht vertraut. Hinter einem Reverse Proxy teilen sich daher alle
-Nutzer dieses Proxys ein Peer-Budget: dort ergänzend echte Client-IP-Limits am
-Proxy konfigurieren und die Kapazität für den geplanten Betrieb abstimmen. Keine
-pauschale Aktivierung von `trust proxy` oder Vertrauen in frei gesetzte Header.
+IP-Budgets verwenden standardmäßig `socket.remoteAddress`. Für den vorhandenen
+lokalen Nginx muss beim nächsten VPS-Deployment in `/etc/battlefleet.env`
+`BFA_TRUST_LOOPBACK_PROXY=1` gesetzt werden. Voraussetzung: Node bleibt auf
+`LISTEN_HOST=127.0.0.1` und Nginx überschreibt den Header ausdrücklich mit
+`proxy_set_header X-Real-IP $remote_addr;` (nicht aus einem Client-Header).
+Nur bei aktivierter Option und einem Loopback-Socket-Peer wird eine gültige
+einzelne IP aus `X-Real-IP` verwendet. Andere Peers, ungültige/mehrfache Header
+und der Standard ohne Option verwenden weiterhin die Socket-Adresse.
+`X-Forwarded-For` bleibt unvertraut. Kein pauschales `trust proxy` aktivieren.
+Die globale Prozessgrenze bleibt auch im Proxy-Modus bestehen.
 Die Peer-Tabelle hält höchstens 4096 Einträge; nach 60 Sekunden Inaktivität werden
 Einträge freigegeben. Bei voller Tabelle werden neue Peers abgewiesen.
+
+Beendete Räume werden sofort für Beitritte gesperrt, führen keine weiteren
+Simulationsschritte aus und schließen spätestens nach 30 Sekunden ihre Clients
+(Close-Code 4001). Dadurch werden auch unbeaufsichtigte Ergebnisbildschirme
+freigegeben. Ein expliziter Rundenneustart löscht den alten Ablauf-Timer.
+Der Client erklärt den Rückweg in die Lobby. Fehlgeschlagene Beitritte behalten
+die App und den Namen; erneute Versuche erfolgen nur per Knopf nach 2/4/8 Sekunden
+Wartezeit (maximal 8), nie in einer automatischen Schleife.
 
 Grenzen gelten **pro Node-Prozess**, nicht clusterweit. Vier Räume/64 Clients sind
 eine Sicherheitsobergrenze, keine Leistungszusage. Die bestehenden Bot-/Spieler-

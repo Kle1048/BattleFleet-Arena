@@ -59,6 +59,7 @@ remoteLeave.room.onLeave.invoke(1006, "disconnected");
 await remote.ended;
 remote.dispose();
 assert.equal(released, 1);
+assert.match(remote.endNotice, /Connection lost/);
 assert.deepEqual(remoteLeave.counts(), { leaves: 0, closes: 0 });
 
 const broken = fixture();
@@ -72,3 +73,8 @@ assert.throws(() => createGameSession(heartbeatFailure.room, () => ({
 assert.equal(released, 2);
 assert.deepEqual(heartbeatFailure.counts(), { leaves: 1, closes: 1 });
 console.log("Session ownership: 20 joins/leaves, inert work, remote leave and startup rollback ok");
+const expiredFixture = fixture();
+const expired = createGameSession(expiredFixture.room, () => ({ frame() {}, present() {}, dispose() {} }));
+expiredFixture.room.onLeave.invoke(4001);
+await expired.ended;
+assert.match(expired.endNotice, /round has finished/);

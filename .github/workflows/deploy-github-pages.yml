@@ -40,11 +40,13 @@ jobs:
         run: npm test
 
       - name: Build all workspaces
+        # Publishing requires the accepted deterministic combat reference too.
+        run: npm run benchmark:combat && npm run build
         env:
           # Repo-Name anpassen, falls URL in Pages-Einstellungen abweicht (Groß/Kleinschreibung).
           VITE_BASE_PATH: /BattleFleet-Arena/
           VITE_COLYSEUS_URL: ${{ vars.VITE_COLYSEUS_URL }}
-        run: npm run build
+          VITE_FEEDBACK_URL: ${{ vars.VITE_FEEDBACK_URL }}
 
       - uses: actions/upload-pages-artifact@v3
         with:

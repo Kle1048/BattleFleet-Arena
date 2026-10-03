@@ -10,9 +10,10 @@ import { RequestBudget } from "./loadLimits.js";
 
 let now = 0, received = 0;
 const server = createServer(express());
+const requestBudget = new RequestBudget(() => now, 4096, true);
 const game = new OriginCheckedServer({ greet: false, gracefullyShutdown: false,
-  transport: new LimitedTransport({ server }),
-}, new Set(), new RequestBudget(() => now));
+  transport: new LimitedTransport({ server, verifyClient: info => requestBudget.allow(info.req) }),
+}, new Set(), requestBudget);
 class TestRoom extends Room {
   onCreate() { this.setPatchRate(null); this.onMessage("input", () => received++); }
 }
@@ -82,6 +83,15 @@ try {
     await response.arrayBuffer();
   }
   assert(limited, "matchmaking bypassing Express still has request limits");
+  now += 60_001;
+  for (let i = 0; i < 41; i++) {
+    const response = await fetch(base + "/matchmake/limits_test", { headers: { "x-real-ip": "198.51.100.1" } });
+    assert.equal(response.status === 429, i === 40);
+    await response.arrayBuffer();
+  }
+  const otherPlayer = await fetch(base + "/matchmake/limits_test", { headers: { "x-real-ip": "198.51.100.2" } });
+  assert.notEqual(otherPlayer.status, 429, "real HTTP clients behind loopback proxy have independent budgets");
+  await otherPlayer.arrayBuffer();
 } finally {
   for (const socket of sockets) if (socket.readyState !== WebSocket.CLOSED) socket.terminate();
   await game.gracefullyShutdown(false);

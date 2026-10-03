@@ -1,13 +1,15 @@
 import { createServer, type IncomingMessage } from "node:http";
 import express from "express";
 import { LimitedTransport } from "./limitedTransport.js";
-import { RequestBudget, requestLimitMiddleware, MAX_SOCKET_CONNECTIONS } from "./loadLimits.js";
+import { RequestBudget, requestLimitMiddleware, MAX_SOCKET_CONNECTIONS, readTrustLoopbackProxy } from "./loadLimits.js";
 import { isAllowedOrigin, OriginCheckedServer, publicOriginMiddleware, readAllowedOrigins } from "./serverSecurity.js";
 import { BattleRoom } from "./rooms/BattleRoom.js";
 import { registerAdminPanel } from "./adminPanel.js";
 import { topLeaderboard } from "./leaderboardStore.js";
-import { storageLifecycle } from "./application/storageServices.js";
+import { storageLifecycle, feedbackStore } from "./application/storageServices.js";
+import { FeedbackBudget, registerPublicFeedback } from "./feedback.js";
 import { createShutdown } from "./application/shutdown.js";
+import { publicReleaseInfo } from "./application/releaseInfo.js";
 
 const port = Number(process.env.PORT) || 2567;
 /** z. B. `::` für IPv6; Standard IPv4 alle Interfaces (zuverlässig mit 127.0.0.1-Client). */
@@ -21,14 +23,19 @@ app.use((_req, res, next) => {
 });
 app.disable("x-powered-by");
 const allowedOrigins = readAllowedOrigins();
-const requestBudget = new RequestBudget();
+const requestBudget = new RequestBudget(undefined, undefined, readTrustLoopbackProxy());
 registerAdminPanel(app, {
   activeRoomSummaries: () => BattleRoom.activeRoomSummaries(),
   restartActiveRounds: () => BattleRoom.restartActiveRounds(),
 });
 app.use(publicOriginMiddleware(allowedOrigins));
 app.use(requestLimitMiddleware(requestBudget));
+registerPublicFeedback(app, feedbackStore, new FeedbackBudget(readTrustLoopbackProxy()));
 app.use(express.json({ limit: "4kb" }));
+app.get("/api/version", (_req, res) => {
+  res.setHeader("Cache-Control", "no-store");
+  res.json(publicReleaseInfo());
+});
 
 app.get("/api/leaderboard", (req, res) => {
   const rawLimit = typeof req.query.limit === "string" ? Number.parseInt(req.query.limit, 10) : NaN;

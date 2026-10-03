@@ -1,6 +1,8 @@
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { defineConfig } from "vite";
+import { defineConfig, loadEnv } from "vite";
+import { readFileSync } from "node:fs";
+import { createHash } from "node:crypto";
 
 const root = fileURLToPath(new URL(".", import.meta.url));
 
@@ -16,7 +18,17 @@ function viteBase(): string {
 }
 
 /** Monorepo-Paket mit Schema + shipMovement (ohne vor build zu bundeln). */
-export default defineConfig({
+export default defineConfig(({ command, mode }) => {
+  const env = loadEnv(mode, root, "VITE_");
+  const clientConfigHash = createHash("sha256").update(JSON.stringify({
+    api: env.VITE_COLYSEUS_URL ?? "", base: viteBase(), feedback: env.VITE_FEEDBACK_URL ?? "",
+  })).digest("hex");
+  const build = command === "build" ? JSON.parse(readFileSync(path.resolve(root, "../build-info.json"), "utf8"))
+    : { id: "development", revision: "unknown", sourceHash: "unknown", dirty: true };
+  return {
+  define: {
+    __BFA_BUILD__: JSON.stringify({ id: build.id, revision: build.revision, sourceHash: build.sourceHash, dirty: build.dirty, clientConfigHash }),
+  },
   base: viteBase(),
   build: {
     rollupOptions: {
@@ -48,4 +60,5 @@ export default defineConfig({
      */
     host: true,
   },
+  };
 });

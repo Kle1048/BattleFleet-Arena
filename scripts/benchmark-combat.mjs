@@ -16,11 +16,16 @@ const simulationContentSha256 = fingerprintCombatContent(readCombatContent());
 const baseline = JSON.parse(readFileSync(new URL("./fixtures/combat-baseline.json", import.meta.url), "utf8"));
 if (!candidate) {
   assert.equal(baseline.formatVersion, 2, "Legacy model content baseline: explicit migration required");
+  assert.equal(baseline.botStrategy, "decision-tree", "Canonical bot strategy must be explicit");
   assert.deepEqual(simulationContentSha256, baseline.simulationContentSha256, "Gameplay/model spatial content changed; review before replacing the reference");
 }
 
 const directory = mkdtempSync(path.join(tmpdir(), "bfa-combat-bench-"));
 process.env.BFA_DATA_DIR = directory;
+// Canonical reference always uses rule-based bots, never an operator's local roster.
+delete process.env.BFA_BOT_POLICY_PATH;
+delete process.env.BFA_BOT_POLICY_PATHS;
+process.env.BFA_MAX_ROOMS = "1";
 const { BattleRoom } = await import("../server/src/rooms/BattleRoom.ts");
 const { updateAdminConfig } = await import("../server/src/adminConfig.ts");
 const { defaultConfig } = await import("../server/src/application/configValues.ts");
@@ -85,6 +90,7 @@ try {
   }
   samples.sort((a, b) => a - b);
   console.log(JSON.stringify({ formatVersion: 2, baselineCheck: candidate ? "SKIPPED: unapproved candidate" : "passed",
+    botStrategy: "decision-tree",
     scenario: "combat-11-humans-5-bots-canonical-open-water", islandsEnabled: false, seconds: 60, samples: samples.length,
     medianMs: samples[Math.floor(samples.length * 0.5)], p95Ms: samples[Math.floor(samples.length * 0.95)],
     p99Ms: samples[Math.floor(samples.length * 0.99)], events: Object.fromEntries(events), traceSha256: digest, simulationContentSha256 }));

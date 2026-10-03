@@ -4,7 +4,7 @@
   "type": "module",
   "scripts": {
     "dev": "tsx watch --include \"../shared/src/**\" --conditions=bfa-source src/index.ts",
-    "prebuild": "npm run build --prefix ../shared",
+    "prebuild": "node ../scripts/build-info.mjs && npm run build --prefix ../shared",
     "build": "tsc",
     "typecheck": "tsc --noEmit",
     "start": "node dist/index.js",

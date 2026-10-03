@@ -189,7 +189,7 @@ export const en = {
      * main.ts — `bootstrap().catch` fullscreen banner; `{url}` = Colyseus URL, `{detail}` = error text.
      */
     connectionFailed:
-      'Cannot connect ({url}): {detail} — start server: "npm run dev -w server".',
+      'The game could not start. Please reload the page. If the problem persists, report this error: {detail}',
     /**
      * main.ts — `debugOverlayForFatal.update` warn line; `{detail}` = error message.
      */
@@ -326,7 +326,7 @@ export const en = {
      * matchEndHud.ts — explanatory subtitle under title (rules + Continue behavior).
      */
     subtitle:
-      "FFA — highest score wins. Survival, time in the central zone and combat earn points. Continue leaves this room and joins a new round.",
+      "FFA — highest score wins. Survival, time in the central zone and combat earn points. Continue leaves this room to join a new round. Results close automatically after 30 seconds.",
     /** matchEndHud.ts — score table `aria-label`. */
     tableAria: "Scoreboard",
     /** matchEndHud.ts — table header: placement column. */

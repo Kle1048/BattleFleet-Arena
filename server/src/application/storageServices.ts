@@ -1,4 +1,5 @@
 import path from "node:path";
+import { FeedbackStore } from "../feedback.js";
 import { defaultConfig } from "./configValues.js";
 import { readMinTotalParticipantsFromEnv } from "../serverBotPopulation.js";
 import { JsonConfigRepository } from "../persistence/jsonConfigRepository.js";
@@ -15,18 +16,19 @@ const configRepository = new JsonConfigRepository(path.resolve(dataDir, "admin-c
 export const leaderboardRepository = new JsonLeaderboardRepository(path.resolve(dataDir, "leaderboard.json"));
 export const configService = new ConfigService(configRepository);
 export const matchResultService = new MatchResultService(leaderboardRepository);
-await Promise.all([configService.initialize(), leaderboardRepository.load()]);
+export const feedbackStore = new FeedbackStore(path.resolve(dataDir, "feedback.json"));
+await Promise.all([configService.initialize(), leaderboardRepository.load(), feedbackStore.load()]);
 
 export const storageLifecycle = {
   async flush(timeoutMs = 5000) {
-    await Promise.all([configRepository.queue.flush(timeoutMs), leaderboardRepository.queue.flush(timeoutMs)]);
+    await Promise.all([configRepository.queue.flush(timeoutMs), leaderboardRepository.queue.flush(timeoutMs), feedbackStore.queue.flush(timeoutMs)]);
   },
   async close(timeoutMs = 5000) {
-    await Promise.all([configRepository.queue.close(timeoutMs), leaderboardRepository.queue.close(timeoutMs)]);
+    await Promise.all([configRepository.queue.close(timeoutMs), leaderboardRepository.queue.close(timeoutMs), feedbackStore.queue.close(timeoutMs)]);
   },
   snapshot() {
     return { config: { queue: configRepository.queue.snapshot(), file: configRepository.file.snapshot() },
       leaderboard: { queue: leaderboardRepository.queue.snapshot(), file: leaderboardRepository.file.snapshot(), retries: leaderboardRepository.retryCount() },
-      matches: matchResultService.snapshot() };
+      feedback: { queue: feedbackStore.queue.snapshot(), file: feedbackStore.file.snapshot() }, matches: matchResultService.snapshot() };
   },
 };

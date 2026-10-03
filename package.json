@@ -13,7 +13,7 @@
     "models:export": "node --conditions=bfa-source --import tsx scripts/models/exportModel.ts",
     "models:build": "node --conditions=bfa-source --import tsx scripts/models/buildModelMetadata.ts --write",
     "models:check": "node --conditions=bfa-source --import tsx scripts/models/buildModelMetadata.ts --check",
-    "test": "npm run models:check && npm run test --workspaces",
+    "test": "node scripts/build-info.test.mjs && npm run models:check && npm run test --workspaces",
     "typecheck": "npm run typecheck --workspaces",
     "dev": "concurrently --kill-others -n server,client -c blue,green \"npm run dev -w server\" \"npm run dev -w client\"",
     "dev:client": "npm run dev -w client",

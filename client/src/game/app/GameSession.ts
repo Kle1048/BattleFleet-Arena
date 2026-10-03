@@ -35,6 +35,7 @@ export function createGameSession(
   const resources = createLifetime();
   let disposed = false;
   let connectionClosed = false;
+  let endNotice = "";
   let resolveEnded!: () => void;
   const ended = new Promise<void>(resolve => { resolveEnded = resolve; });
   let presentation: SessionPresentation;
@@ -72,6 +73,7 @@ export function createGameSession(
       onLeave(code, reason) {
         connectionClosed = true;
         connection.warning = connectionClosedMessage(code, reason);
+        endNotice = connection.warning;
         dispose();
       },
     }));
@@ -79,6 +81,9 @@ export function createGameSession(
 
   return {
     ended, dispose,
+    get endNotice() { return endNotice; },
+    get roomId() { return connection.roomId; },
+    get pingMs() { return connection.pingMs; },
     get disposed() { return disposed; },
     frame(now: number, dtMs: number) { if (!disposed) presentation.frame(now, dtMs); },
   };

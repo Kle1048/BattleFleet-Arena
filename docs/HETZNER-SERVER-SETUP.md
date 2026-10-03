@@ -170,6 +170,7 @@ WorkingDirectory=/opt/BattleFleet-Arena
 Environment=NODE_ENV=production
 Environment=PORT=2567
 Environment=LISTEN_HOST=127.0.0.1
+Environment=BFA_TRUST_LOOPBACK_PROXY=1
 EnvironmentFile=/etc/battlefleet.env
 ExecStart=/usr/bin/npm run start -w server
 Restart=on-failure
@@ -421,6 +422,7 @@ location / {
     proxy_pass http://127.0.0.1:2567;
     proxy_http_version 1.1;
     proxy_set_header Host $host;
+    proxy_set_header X-Real-IP $remote_addr;
     proxy_set_header Upgrade $http_upgrade;
     proxy_set_header Connection "upgrade";
     proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;

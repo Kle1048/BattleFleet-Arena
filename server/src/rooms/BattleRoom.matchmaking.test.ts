@@ -15,7 +15,9 @@ const { updateAdminConfig } = await import("../adminConfig.js");
 const { storageLifecycle } = await import("../application/storageServices.js");
 await updateAdminConfig({ minRoomPlayers: 1 });
 let now = 1_800_000_000_000;
+let retentionMs = 30_000;
 class TestBattleRoom extends BattleRoom {
+  protected override get resultRetentionMs() { return retentionMs; }
   constructor() { super({ nowMs: () => now, random: () => 0.5 }); }
   onCreate() { super.onCreate(); this.maxClients = 2; this.setSimulationInterval(); }
   finish() {
@@ -32,7 +34,7 @@ const address = http.address();
 assert(address && typeof address === "object");
 const client = new Client(`http://127.0.0.1:${address.port}`);
 async function eventually(check: () => boolean | Promise<boolean>) {
-  for (let attempt = 0; attempt < 100; attempt++) {
+  for (let attempt = 0; attempt < 500; attempt++) {
     if (await check()) return;
     await new Promise(resolve => setTimeout(resolve, 10));
   }
@@ -71,6 +73,32 @@ try {
   await rejoined.leave();
   await waiting.leave();
   await eventually(() => !matchMaker.getRoomById(oldRoom.roomId));
+  // Four abandoned result screens must eventually free the entire capacity.
+  retentionMs = 2000;
+  const abandoned: string[] = [];
+  const closed: number[] = [];
+  for (let i = 0; i < 4; i++) {
+    const connection = await client.joinOrCreate("round_test", { displayName: "waiting" });
+    connection.onMessage("*", () => {});
+    connection.onLeave(code => closed.push(code));
+    abandoned.push(connection.roomId);
+    (matchMaker.getRoomById(connection.roomId) as TestBattleRoom).finish();
+  }
+  await assert.rejects(client.joinOrCreate("round_test"), /capacity/);
+  await eventually(() => abandoned.every(id => !matchMaker.getRoomById(id)));
+  await eventually(() => closed.length === 4);
+  assert.deepEqual(closed, [4001, 4001, 4001, 4001]);
+  const fresh = await client.joinOrCreate("round_test");
+  fresh.onMessage("*", () => {});
+  assert.equal((matchMaker.getRoomById(fresh.roomId) as TestBattleRoom).state.matchPhase, MATCH_PHASE_RUNNING);
+  retentionMs = 50;
+  const restarted = matchMaker.getRoomById(fresh.roomId) as TestBattleRoom;
+  restarted.finish();
+  restarted.restartRoundFromAdmin();
+  await new Promise(resolve => setTimeout(resolve, 90));
+  assert.equal(matchMaker.getRoomById(fresh.roomId), restarted, "restart cancels the old result expiry");
+  assert.equal(restarted.clients.length, 1);
+  await fresh.leave();
 } finally {
   await game.gracefullyShutdown(false);
   await storageLifecycle.flush();

@@ -23,6 +23,9 @@ import { createGameInput } from "./createGameInput";
 import { createGameSession, type GameSession } from "./GameSession";
 import { createSessionPresentation } from "./createSessionPresentation";
 import { t } from "../../locale/t";
+import { retryJoin, joinFailureMessage } from "../runtime/retryJoin";
+import { showConnectionNotice } from "../ui/connectionNotice";
+import { mountBetaFeedback } from "../ui/betaFeedback";
 
 function getOrCreatePlayerToken(): string {
   const key = "bfa_player_token_v1";
@@ -53,6 +56,7 @@ export function createGameApp(root: HTMLElement) {
   let starting: Promise<void> | undefined;
   let sessionNumber = 0;
   let frameFailure: unknown;
+  let recentFps: number | null = null;
   const scheduler = createFrameScheduler(error => {
     frameFailure = error;
     dispose();
@@ -90,6 +94,10 @@ export function createGameApp(root: HTMLElement) {
     loadPersistedFollowCameraTuning();
     applyShipDebugTuning(loadPersistedShipTuning());
     mountSessionLoadBackdrop(t("sessionLoad.captionBoot"));
+    const serverUrl = colyseusHttpBase(import.meta.env.VITE_COLYSEUS_URL, window.location.hostname);
+    lifetime.use(mountBetaFeedback(__BFA_BUILD__, import.meta.env.VITE_FEEDBACK_URL, serverUrl, () => ({
+      roomId: activeSession?.roomId ?? null, pingMs: activeSession?.pingMs ?? null, fps: recentFps,
+    })));
 
     // Renderer construction is inside the startup error boundary, including WebGL failures.
     const renderer = lifetime.use(createGameRenderer(root));
@@ -104,16 +112,17 @@ export function createGameApp(root: HTMLElement) {
     lifetime.defer(bindRendererResize(bundle.camera, renderer));
     lifetime.use(installReflectionCameraLayerMask(renderer, bundle.camera));
     const controls = lifetime.use(createGameInput(renderer.domElement, bundle.camera));
-    const serverUrl = colyseusHttpBase(import.meta.env.VITE_COLYSEUS_URL, window.location.hostname);
     const client = createColyseusClient(serverUrl);
+    let previousName = "";
 
     while (!startup.signal.aborted) {
       mountSessionLoadBackdrop(t("sessionLoad.captionBoot"));
-      const lobby = await pickShipLobbyChoice(startup.signal);
+      const lobby = await pickShipLobbyChoice(startup.signal, previousName);
+      previousName = lobby.displayName;
       startup.signal.throwIfAborted();
       setSessionLoadBackdropCaption(t("sessionLoad.captionJoining"));
       gameAudio.unlockFromUserGesture();
-      const room = await acquireWithTimeout(
+      const room = await retryJoin(() => acquireWithTimeout(
         client.joinOrCreate("battle", {
           shipClass: lobby.shipClass,
           displayName: lobby.displayName,
@@ -124,10 +133,11 @@ export function createGameApp(root: HTMLElement) {
           timeoutMessage: t("bootstrap.joinServerTimeout", { url: serverUrl }),
           releaseLate: room => closeRoomConnection(room),
         },
-      );
+      ), (error, attempt) => showConnectionNotice(joinFailureMessage(error), startup.signal, attempt), startup.signal);
       if (startup.signal.aborted) { closeRoomConnection(room); break; }
       // The app retains input ownership even though each session gets fresh neutral controls.
       let roomHandedOff = false;
+      let endNotice = "";
       try {
         const input = controls.startSession();
         resetFollowCameraSmoothing();
@@ -141,13 +151,21 @@ export function createGameApp(root: HTMLElement) {
         gameAudio.startBackgroundAudio();
         void loadShipAssets(lobby.shipClass);
         removeSessionLoadBackdrop();
-        scheduler.start(activeSession.frame);
+        const session = activeSession;
+        let frames = 0, sampleAt = performance.now();
+        scheduler.start((now, dt) => {
+          session.frame(now, dt);
+          frames++;
+          if (now - sampleAt >= 1000) { recentFps = frames * 1000 / (now - sampleAt); frames = 0; sampleAt = now; }
+        });
         await activeSession.ended;
+        endNotice = activeSession?.endNotice ?? "";
       } catch (error) {
         if (!roomHandedOff) closeRoomConnection(room);
         throw error;
       } finally {
         scheduler.stop();
+        recentFps = null;
         activeSession?.dispose();
         activeSession = undefined;
         controls.stopSession();
@@ -161,6 +179,10 @@ export function createGameApp(root: HTMLElement) {
             programs: renderer.info.programs?.length ?? 0,
           }));
         }
+      }
+      if (endNotice && !startup.signal.aborted) {
+        mountSessionLoadBackdrop("");
+        await showConnectionNotice(endNotice, startup.signal);
       }
     }
     if (frameFailure !== undefined) throw frameFailure;

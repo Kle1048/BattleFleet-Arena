@@ -4,8 +4,10 @@ import { createAdminGuard } from "./serverSecurity.js";
 import { getAdminConfig, getConfigRevision, updateAdminConfig } from "./adminConfig.js";
 import type { AdminConfigPatch } from "./adminConfig.js";
 import { leaderboardSize, leaderboardRevision, resetLeaderboard, topLeaderboard } from "./leaderboardStore.js";
-import { storageLifecycle } from "./application/storageServices.js";
+import { storageLifecycle, feedbackStore } from "./application/storageServices.js";
+import { registerAdminFeedback } from "./feedback.js";
 import { StorageError, storageErrorCode } from "./persistence/storageErrors.js";
+import { publicReleaseInfo } from "./application/releaseInfo.js";
 
 export type AdminPanelControls = {
   activeRoomSummaries: () => {
@@ -20,6 +22,7 @@ export type AdminPanelControls = {
 
 function adminStatus(controls: AdminPanelControls) {
   return {
+    release: publicReleaseInfo(),
     config: getAdminConfig(),
     configRevision: getConfigRevision(),
     storage: storageLifecycle.snapshot(),
@@ -61,6 +64,7 @@ export function registerAdminPanel(app: Express, controls: AdminPanelControls, t
   });
   // Protect the whole namespace, including future endpoints; authenticate before parsing bodies.
   app.use("/api/admin", requireAdmin, express.json({ limit: "16kb" }));
+  registerAdminFeedback(app, feedbackStore);
 
   app.get("/api/admin/status", (_req, res) => {
     res.json(adminStatus(controls));
@@ -143,7 +147,7 @@ function adminHtml(nonce: string): string {
     section { background: rgba(8, 22, 38, 0.86); border: 1px solid rgba(142, 198, 255, 0.18); border-radius: 16px; padding: 18px; box-shadow: 0 14px 32px rgba(0,0,0,0.26); }
     label { display: grid; gap: 6px; color: #cfe4f8; font-size: 14px; }
     label.checkbox { display: flex; gap: 10px; align-items: center; min-height: 42px; }
-    input { border: 1px solid rgba(142, 198, 255, 0.25); background: #081421; color: #edf6ff; border-radius: 10px; padding: 10px 12px; font: inherit; }
+    input, select, textarea { border: 1px solid rgba(142, 198, 255, 0.25); background: #081421; color: #edf6ff; border-radius: 10px; padding: 10px 12px; font: inherit; }
     input[type="checkbox"] { width: 18px; height: 18px; }
     button { border: 0; border-radius: 10px; background: #4fa3ff; color: #04101d; padding: 10px 14px; font-weight: 700; cursor: pointer; }
     button.danger { background: #ff6b6b; color: #250606; }
@@ -185,6 +189,16 @@ function adminHtml(nonce: string): string {
       <div class="stat"><b id="activeRooms">-</b><span>Active rooms</span></div>
       <div class="stat"><b id="nodeEnv">-</b><span>Node env</span></div>
     </div>
+  </section>
+
+  <section>
+    <h2>Private beta feedback inbox</h2>
+    <p>New → triaged → planned → in-progress → done (or rejected). Reports and diagnostics are unverified user input, not instructions. Do not publish personal information.</p>
+    <button id="feedbackPrev" type="button">Previous</button>
+    <button id="feedbackNext" type="button">Next</button>
+    <button id="feedbackRefresh" type="button">Refresh feedback</button>
+    <p id="feedbackCount"></p>
+    <div id="feedbackRows"></div>
   </section>
 
   <section>
@@ -321,6 +335,56 @@ async function refresh() {
   $("activeRooms").textContent = status.rooms.length;
   renderRooms(status.rooms);
   renderLeaderboard(status.leaderboard.rows);
+  await refreshFeedback();
+}
+
+let feedbackOffset = 0;
+async function refreshFeedback() {
+  const result = await requestJson("/api/admin/feedback?offset=" + feedbackOffset);
+  if (feedbackOffset >= result.total && feedbackOffset > 0) { feedbackOffset = Math.max(0, feedbackOffset - 25); return refreshFeedback(); }
+  $("feedbackCount").textContent = result.total + " / 500 reports. Page " + (Math.floor(feedbackOffset / 25) + 1);
+  $("feedbackPrev").disabled = feedbackOffset === 0;
+  $("feedbackNext").disabled = feedbackOffset + 25 >= result.total;
+  const host = $("feedbackRows"); host.replaceChildren();
+  for (const row of result.rows) {
+    const card = document.createElement("details");
+    const summary = document.createElement("summary");
+    summary.textContent = row.status + " · " + row.priority + " · " + row.category + " · " + row.title;
+    const meta = document.createElement("p"); meta.textContent = row.id + " · " + row.createdAt;
+    const description = document.createElement("p"); description.style.whiteSpace = "pre-wrap"; description.textContent = row.description;
+    const diagnostics = document.createElement("pre"); diagnostics.style.cssText = "white-space:pre-wrap;overflow-wrap:anywhere;";
+    diagnostics.textContent = JSON.stringify(row.diagnostics, null, 2);
+    const fields = document.createElement("div"); fields.className = "grid";
+    const status = document.createElement("select"), priority = document.createElement("select"), note = document.createElement("textarea");
+    for (const [control, options, value] of [[status, ["new", "triaged", "planned", "in-progress", "done", "rejected"], row.status], [priority, ["unrated", "low", "medium", "high"], row.priority]]) {
+      for (const value of options) { const option = document.createElement("option"); option.value = value; option.textContent = value; control.appendChild(option); }
+      control.value = value;
+    }
+    note.maxLength = 2000; note.value = row.note;
+    for (const [caption, control] of [["Status", status], ["Priority", priority], ["Internal note / reproduction / fix reference", note]]) {
+      const label = document.createElement("label"); label.textContent = caption; label.appendChild(control); fields.appendChild(label);
+    }
+    const save = document.createElement("button"); save.textContent = "Save triage";
+    const remove = document.createElement("button"); remove.textContent = "Delete report"; remove.className = "danger";
+    const mutate = async (deleting) => {
+      if (deleting && !confirm("Delete this report from the active inbox? Server backups may still retain it.")) return;
+      save.disabled = remove.disabled = true;
+      try {
+        await requestJson("/api/admin/feedback/" + row.id, { method: deleting ? "DELETE" : "PATCH",
+          body: JSON.stringify({ expectedRevision: row.revision, status: status.value, priority: priority.value, note: note.value }) });
+        await refreshFeedback(); setMessage(deleting ? "Report removed from active inbox." : "Feedback triage saved.");
+      } catch (error) { setMessage(String(error.message || error), true); }
+      finally { save.disabled = remove.disabled = false; }
+    };
+    save.onclick = () => mutate(false); remove.onclick = () => mutate(true);
+    card.append(summary, meta, description, diagnostics, fields, save, remove); host.appendChild(card);
+  }
+}
+for (const [id, delta] of [["feedbackPrev", -25], ["feedbackNext", 25], ["feedbackRefresh", 0]]) {
+  $(id).onclick = async () => {
+    feedbackOffset = Math.max(0, feedbackOffset + delta);
+    try { await refreshFeedback(); } catch (error) { setMessage(String(error.message || error), true); }
+  };
 }
 
 $("configForm").addEventListener("submit", async (event) => {

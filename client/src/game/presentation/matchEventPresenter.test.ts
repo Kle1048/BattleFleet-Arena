@@ -52,6 +52,6 @@ presenter.present({ type: "airDefenseFire", payload: notice });
 presenter.present({ type: "airDefenseIntercept", payload: notice });
 assert.deepEqual(order, []);
 assert.equal(connectionErrorMessage(500, "offline"), "[500] offline");
-assert.equal(connectionClosedMessage(4002, "left_operational_area"), "Destroyed: left the Area of Operations. Reload the page to play again.");
-assert.equal(connectionClosedMessage(1000), "Connection closed (1000). Reload the page.");
+assert.equal(connectionClosedMessage(4002, "left_operational_area"), "Destroyed: left the Area of Operations. Return to the lobby to play again.");
+assert.equal(connectionClosedMessage(1000), "Connection lost (1000). You can return to the lobby and join again. Your previous ship cannot be resumed.");
 console.log("air-defense presentation order, muzzle/fallback/tracking, world coordinates and disposal ok");
