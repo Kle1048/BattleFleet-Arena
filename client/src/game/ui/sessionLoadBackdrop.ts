@@ -1,6 +1,6 @@
 /**
  * Vollflächiger Key-Art-Hintergrund während Bootstrap (Szene, Namensdialog, Assets, Join).
- * Bild: `public/assets/loading-hero.png` (siehe README neben der Datei).
+ * Bild: `public/assets/loading-hero-ocean-sunrise.webp`.
  */
 
 const BACKDROP_ID = "bfa-session-load-backdrop";
@@ -9,7 +9,7 @@ function heroUrl(): string {
   const base = import.meta.env.BASE_URL.endsWith("/")
     ? import.meta.env.BASE_URL
     : `${import.meta.env.BASE_URL}/`;
-  return `${base}assets/loading-hero.png`;
+  return `${base}assets/loading-hero-ocean-sunrise.webp`;
 }
 
 const FALLBACK_BG = `linear-gradient(
@@ -56,7 +56,7 @@ export function mountSessionLoadBackdrop(caption: string): void {
     applyHeroLayers(el, url);
   };
   probe.onerror = () => {
-    /* Kein Key-Art unter public/assets/loading-hero.png — nur Verlauf. */
+    /* Key-Art nicht verfügbar — nur Verlauf. */
   };
   probe.src = url;
 }
