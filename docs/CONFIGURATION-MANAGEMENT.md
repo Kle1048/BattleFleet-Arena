@@ -130,6 +130,23 @@ mitgeben. Ohne Nachweis bleibt der Dirty-Status `null` und die Kennung trägt
 `unverified`; fehlende Herkunft wird nicht als sauberer Release ausgegeben.
 Entwicklungsserver sind ausdrücklich als `development` gekennzeichnet.
 
+Die Spiel-Konsolen-APIs `window.__SCA` und `window.__BFA`, ihre Debug-Panels
+und die Aktivierung per `?debug=1` stehen nur im lokalen Vite-Entwicklungsmodus
+(`import.meta.env.DEV`) zur Verfügung. Reguläre Produktions-/Beta-Builds entfernen
+diese Zugänge beim Bündeln; es gibt keinen Browser-Speicher- oder URL-Override.
+Browser-Entwicklerwerkzeuge und reguläre Fehlerprotokolle bleiben verfügbar.
+Das ist keine Sicherheitsgrenze gegen manipulierte Clients: Servervalidierung
+und Admin-Authentifizierung bleiben unabhängig davon erforderlich.
+
+Auch der lokale Autopilot für das eigene Spielerschiff ist ausschließlich im
+Entwicklungsmodus aktivierbar: Taste `B`, `?bot=1` und der Debug-Panel-Schalter
+sind im Beta-/Produktionsbuild gesperrt. Die Implementierung bleibt für lokale
+Tests erhalten. Servergesteuerte Bots und die Feuerleitautomatik sind davon
+nicht betroffen. Änderung vom 4. Oktober 2026 auf Benutzerwunsch; nur Client-
+Aktivierung, keine Änderung von Kampfregeln, Bot-Policies oder Serverkonfiguration.
+Die Sperre wird mit dem nächsten autorisierten Frontend-Deployment wirksam;
+ein Code-Rollback stellt das vorherige Verhalten wieder her.
+
 Der Client enthält zusätzlich einen Fingerprint von API-Adresse, Base-Pfad und
 Feedback-Adresse. `GET /api/version` liefert öffentliche Server-Build-Metadaten,
 aktuelle Konfigurationsrevision/-Hash sowie Strategie und geordnete Hashes der

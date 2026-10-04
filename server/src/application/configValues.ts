@@ -10,7 +10,7 @@ import {
   SEA_CONTROL_XP_MULTIPLIER,
   SPAWN_PROTECTION_DURATION_MS,
 } from "@battlefleet/shared/rules";
-import { MAX_HUMAN_CLIENTS_IN_ROOM } from "../simulation/systems/botPopulation.js";
+import { DEFAULT_MIN_ROOM_PLAYERS, MAX_HUMAN_CLIENTS_IN_ROOM } from "../simulation/systems/botPopulation.js";
 
 export type AdminConfig = {
   matchDurationSec: number;
@@ -30,7 +30,7 @@ export type AdminConfig = {
 
 export type AdminConfigPatch = Partial<AdminConfig>;
 
-export function defaultConfig(matchDurationSec = MATCH_DURATION_SEC, minRoomPlayers = 10): AdminConfig {
+export function defaultConfig(matchDurationSec = MATCH_DURATION_SEC, minRoomPlayers = DEFAULT_MIN_ROOM_PLAYERS): AdminConfig {
   return {
     matchDurationSec: clampMatchDurationSec(matchDurationSec),
     minRoomPlayers: clampMinRoomPlayers(minRoomPlayers),

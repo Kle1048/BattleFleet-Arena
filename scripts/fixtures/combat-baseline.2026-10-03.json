@@ -1,8 +1,8 @@
 {
   "formatVersion": 2,
-  "description": "60 seconds, 11 moving humans and 5 rule-based server bots; seed 42; approved display-name-only change verified 2026-10-04",
-  "previousBaseline": "combat-baseline.2026-10-03.json",
-  "traceSha256": "6a7abc23426448794f90d4e93edcca7959d11578eeda20b5bb79f024a291d28c",
+  "description": "60 seconds, 11 moving humans and 5 rule-based server bots; seed 42; sensor/fire-control and HUD contract reviewed 2026-10-03",
+  "previousBaseline": "combat-baseline.2026-09-27.json",
+  "traceSha256": "b6aa65a596bb7c0c917e61f481ffbf73a81ca29202ce2454c2e5e37981f8a0d9",
   "simulationContentSha256": {
     "ships/fac.json": "580bc1dd9e785751852a27a8239c7460ba79883bce201c3ceb06650b7c73f9a4",
     "ships/destroyer.json": "11e606e1e47864eb9b148c2a36c904e2522f1cd565188fe6396d252b28c756c4",
@@ -24,18 +24,18 @@
   },
   "referenceRunsMs": [
     {
-      "median": 0.9599000000000615,
-      "p95": 1.7615000000000691
+      "median": 0.9120999999997821,
+      "p95": 1.5598999999999705
     },
     {
-      "median": 0.9339999999999691,
-      "p95": 1.7531999999998789
+      "median": 0.9184999999999945,
+      "p95": 1.5825000000000955
     },
     {
-      "median": 0.944400000000087,
-      "p95": 1.821999999999889
+      "median": 0.925199999999677,
+      "p95": 1.6725000000000136
     }
   ],
   "botStrategy": "decision-tree",
-  "review": "docs/BOT-NAMES.md"
+  "review": "docs/COMBAT-BASELINE-BETA.md"
 }

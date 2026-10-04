@@ -1,9 +1,10 @@
-import { applyFollowCameraTuning, getFollowCameraTuning, savePersistedFollowCameraTuning } from "../runtime/followCameraTuning";
+import { applyFollowCameraTuning, clampMapCameraHeight, DEFAULT_FOLLOW_CAMERA_TUNING, getFollowCameraTuning, savePersistedFollowCameraTuning } from "../runtime/followCameraTuning";
 import { rotateThirdPersonCamera, zoomThirdPersonCamera } from "../runtime/thirdPersonCamera";
 
 /** Alt-drag reserves the gesture for the camera; ordinary clicks still fire. */
 export function createCameraOrbitInput(canvas: HTMLElement) {
-  const mapMaxHeight = Math.max(200, getFollowCameraTuning().heightAbovePivot);
+  // Old saved heights may select the initial zoom, but never define its limits.
+  applyFollowCameraTuning({ heightAbovePivot: clampMapCameraHeight(getFollowCameraTuning().heightAbovePivot) });
   let pointer: number | null = null;
   let x = 0, y = 0;
   const enabled = () => getFollowCameraTuning().mode === "thirdPerson";
@@ -37,8 +38,8 @@ export function createCameraOrbitInput(canvas: HTMLElement) {
       savePersistedFollowCameraTuning({ ...getFollowCameraTuning() });
     } else {
       const height = getFollowCameraTuning().heightAbovePivot;
-      applyFollowCameraTuning({ heightAbovePivot: Math.max(200, Math.min(mapMaxHeight,
-        height * Math.exp(Math.max(-1, Math.min(1, delta * 0.001))))) });
+      applyFollowCameraTuning({ heightAbovePivot: clampMapCameraHeight(
+        height * Math.exp(Math.max(-1, Math.min(1, delta * 0.001)))) });
     }
   };
   canvas.addEventListener("pointerdown", down);
@@ -51,8 +52,8 @@ export function createCameraOrbitInput(canvas: HTMLElement) {
   return {
     dispose() {
       end();
-      // Each new round starts with the original overview and the same zoom limit.
-      applyFollowCameraTuning({ heightAbovePivot: mapMaxHeight });
+      // Each new round starts with the default overview, not an old saved limit.
+      applyFollowCameraTuning({ heightAbovePivot: DEFAULT_FOLLOW_CAMERA_TUNING.heightAbovePivot });
       canvas.removeEventListener("pointerdown", down);
       canvas.removeEventListener("pointermove", move);
       canvas.removeEventListener("lostpointercapture", end);

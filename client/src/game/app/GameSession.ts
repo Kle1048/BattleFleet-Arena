@@ -39,6 +39,7 @@ export function createGameSession(
   let resolveEnded!: () => void;
   const ended = new Promise<void>(resolve => { resolveEnded = resolve; });
   let presentation: SessionPresentation;
+  let source: BattleStateSource;
   const connection = {
     roomId: room.roomId, mySessionId: room.sessionId,
     pingMs: null as number | null, warning: "",
@@ -56,7 +57,7 @@ export function createGameSession(
   }
 
   try {
-    const source = subscriptions.use(createBattleStateAdapter(room, () => performance.now()));
+    source = subscriptions.use(createBattleStateAdapter(room, () => performance.now()));
     presentation = resources.use(createPresentation(source, connection));
     subscriptions.use(createRoomEventAdapter({
       room, now: () => performance.now(),
@@ -84,6 +85,7 @@ export function createGameSession(
     get endNotice() { return endNotice; },
     get roomId() { return connection.roomId; },
     get pingMs() { return connection.pingMs; },
+    get matchEnded() { return source.model.matchPhase === "ended"; },
     get disposed() { return disposed; },
     frame(now: number, dtMs: number) { if (!disposed) presentation.frame(now, dtMs); },
   };

@@ -32,6 +32,14 @@ for (let cycle = 0; cycle < 20; cycle++) {
     };
   });
   assert.deepEqual(sent, ["ping"]);
+  assert.equal(session.matchEnded, false);
+  room.state.matchPhase = "ended";
+  room.onStateChange.invoke(room.state);
+  assert.equal(session.matchEnded, true);
+  room.state.matchPhase = "running";
+  room.onStateChange.invoke(room.state);
+  assert.equal(session.matchEnded, false, "explicit round restart hides end-of-round UI");
+  states = 0;
   room.state.playerList.push(Object.assign(new PlayerState(), { id: "me" }));
   room.onStateChange.invoke(room.state);
   session.frame(100, 16);

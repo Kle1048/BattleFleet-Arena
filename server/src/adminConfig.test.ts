@@ -26,7 +26,7 @@ const {
 
 assert.deepEqual(getAdminConfig(), {
   matchDurationSec: 300,
-  minRoomPlayers: 10,
+  minRoomPlayers: 5,
   maintenanceMode: false,
   islandsEnabled: false,
   operationalAreaHalfExtent: 0,

@@ -129,12 +129,15 @@ export function createSessionPresentation(options: {
     lifetime.defer(installGlobalRuntimeErrorHandlers(debugOverlay));
     const botController = createBotController({ wallNow: Date.now, monotonicNow: () => performance.now() });
     const setBotEnabled = (enabled: boolean): void => {
-      if (enabled) botController.enable();
+      if (import.meta.env.DEV && enabled) botController.enable();
       else botController.disable();
     };
     const debugTools = createLazyResource(async () => {
-      const { createDebugTools } = await import("../runtime/debugTools");
-      return createDebugTools(bundle, { getDebugShipClassSender: () => debugShipSwitchRef.send }, setBotEnabled);
+      if (import.meta.env.DEV) {
+        const { createDebugTools } = await import("../runtime/debugTools");
+        return createDebugTools(bundle, { getDebugShipClassSender: () => debugShipSwitchRef.send }, setBotEnabled);
+      }
+      throw new Error("Debug tools are development-only");
     });
     lifetime.use(debugTools);
     document.getElementById("bottom-debug-dock")?.classList.add("bottom-debug-dock--hidden");
@@ -165,18 +168,18 @@ export function createSessionPresentation(options: {
     lifetime.use(matchEndHud);
     const joinedAt = performance.now();
 
-    const botAutoEnabled =
-      typeof window !== "undefined" &&
-      new URLSearchParams(window.location.search).get("bot") === "1";
-    if (botAutoEnabled) {
-      botController.enable();
+    // Local autopilot is a development tool, not a beta player control.
+    if (import.meta.env.DEV) {
+      if (new URLSearchParams(window.location.search).get("bot") === "1") {
+        setBotEnabled(true);
+      }
+      const onBotToggleKey = (e: KeyboardEvent): void => {
+        if (e.code !== "KeyB") return;
+        setBotEnabled(!botController.isEnabled());
+      };
+      window.addEventListener("keydown", onBotToggleKey);
+      lifetime.defer(() => window.removeEventListener("keydown", onBotToggleKey));
     }
-    const onBotToggleKey = (e: KeyboardEvent): void => {
-      if (e.code !== "KeyB") return;
-      setBotEnabled(!botController.isEnabled());
-    };
-    window.addEventListener("keydown", onBotToggleKey);
-    lifetime.defer(() => window.removeEventListener("keydown", onBotToggleKey));
     const cameraCullState = createCameraCullRuntimeState();
     let resolveAirDefenseMuzzleSeek: ((defenderId: string, slotId: string, layer: "sam" | "pd" | "ciws") => { x: number; y: number; z: number } | null) | undefined;
 
@@ -305,46 +308,49 @@ export function createSessionPresentation(options: {
       renderBotDebug: () => debugTools.get()?.renderBot(botController.getDebugState()),
     });
 
-    const scaConsoleApi = {
-      colyseusUrl: options.serverUrl,
-      get room() { return options.inspectConnection(); },
-      mySessionId,
-      get playerListLength(): number {
-        return model.playerList.length;
-      },
-      get stateSyncCount(): number {
-        return visualRuntime.getStateSyncCount();
-      },
-      get pingMs(): number | null {
-        return connection.pingMs;
-      },
-      /** Dev-Debug (FPS-Toggle, Diagnose, Bot, Environment): `true` einblenden, `false` nur FPS/Frame/Ping. */
-      showDevHud: (show = true) => {
-        if (lifetime.disposed) return;
-        debugOverlay.setDevPanelsVisible(show);
-        const dock = document.getElementById("bottom-debug-dock");
-        dock?.classList.toggle("bottom-debug-dock--hidden", !show);
-        dock?.setAttribute("aria-hidden", String(!show));
-        if (show) void debugTools.ensure().then((tools) => {
-          if (tools && !lifetime.disposed) document.getElementById("bottom-debug-dock")?.classList.toggle(
-            "bottom-debug-dock--hidden", !debugOverlay.getDevPanelsVisible(),
-          );
-        }).catch((error: unknown) => console.warn("[BattleFleet] Debug panels unavailable", error));
-      },
-      get devHudVisible(): boolean {
-        return debugOverlay.getDevPanelsVisible();
-      },
-    };
-    (window as unknown as { __SCA: typeof scaConsoleApi; __BFA?: typeof scaConsoleApi }).__SCA = scaConsoleApi;
-    /** @deprecated Prefer `window.__SCA`. */
-    (window as unknown as { __BFA?: typeof scaConsoleApi }).__BFA = scaConsoleApi;
-    lifetime.defer(() => {
-      const debugWindow = window as unknown as { __SCA?: typeof scaConsoleApi; __BFA?: typeof scaConsoleApi };
-      if (debugWindow.__SCA === scaConsoleApi) delete debugWindow.__SCA;
-      if (debugWindow.__BFA === scaConsoleApi) delete debugWindow.__BFA;
-      debugShipSwitchRef.send = undefined;
-    });
-    if (new URLSearchParams(window.location.search).get("debug") === "1") scaConsoleApi.showDevHud(true);
+    // Compile-time gate: no console API or URL activation in beta/release bundles.
+    if (import.meta.env.DEV) {
+      const scaConsoleApi = {
+        colyseusUrl: options.serverUrl,
+        get room() { return options.inspectConnection(); },
+        mySessionId,
+        get playerListLength(): number {
+          return model.playerList.length;
+        },
+        get stateSyncCount(): number {
+          return visualRuntime.getStateSyncCount();
+        },
+        get pingMs(): number | null {
+          return connection.pingMs;
+        },
+        /** Dev-Debug (FPS-Toggle, Diagnose, Bot, Environment): `true` einblenden, `false` nur FPS/Frame/Ping. */
+        showDevHud: (show = true) => {
+          if (lifetime.disposed) return;
+          debugOverlay.setDevPanelsVisible(show);
+          const dock = document.getElementById("bottom-debug-dock");
+          dock?.classList.toggle("bottom-debug-dock--hidden", !show);
+          dock?.setAttribute("aria-hidden", String(!show));
+          if (show) void debugTools.ensure().then((tools) => {
+            if (tools && !lifetime.disposed) document.getElementById("bottom-debug-dock")?.classList.toggle(
+              "bottom-debug-dock--hidden", !debugOverlay.getDevPanelsVisible(),
+            );
+          }).catch((error: unknown) => console.warn("[BattleFleet] Debug panels unavailable", error));
+        },
+        get devHudVisible(): boolean {
+          return debugOverlay.getDevPanelsVisible();
+        },
+      };
+      (window as unknown as { __SCA: typeof scaConsoleApi; __BFA?: typeof scaConsoleApi }).__SCA = scaConsoleApi;
+      /** @deprecated Prefer `window.__SCA`. */
+      (window as unknown as { __BFA?: typeof scaConsoleApi }).__BFA = scaConsoleApi;
+      lifetime.defer(() => {
+        const debugWindow = window as unknown as { __SCA?: typeof scaConsoleApi; __BFA?: typeof scaConsoleApi };
+        if (debugWindow.__SCA === scaConsoleApi) delete debugWindow.__SCA;
+        if (debugWindow.__BFA === scaConsoleApi) delete debugWindow.__BFA;
+        debugShipSwitchRef.send = undefined;
+      });
+      if (new URLSearchParams(window.location.search).get("debug") === "1") scaConsoleApi.showDevHud(true);
+    }
 
     warmupWeaponRendering(renderer, scene, camera, [artilleryFx.createWarmupMesh(), missileFx.createWarmupMesh()]);
     return { frame, present: eventPresenter.present, dispose };

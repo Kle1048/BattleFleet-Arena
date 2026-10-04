@@ -6,10 +6,13 @@ import type { BotDecisionStrategy } from "@battlefleet/shared/rules";
 
 const SPAWN_STAGGER_MS = 450;
 const REMOVE_STAGGER_MS = 1600;
-const HERO_NAMES = Object.freeze([
-  "Nelson", "Nimitz", "Yamamoto", "Togo", "Yi Sun-sin", "Horatio Hood", "Mahan", "Dönitz",
-  "Hipper", "Makarov", "Farragut", "Spruance", "Mikawa", "Leander", "Jellicoe", "Beatty",
-]);
+// Historical inspiration, not personality diagnoses; sources: docs/BOT-NAMES.md.
+const PROFILE_NAMES = {
+  standard: ["Nimitz", "Togo", "Yi Sun-sin", "Makarov", "Hipper"],
+  aggressive: ["Nelson", "Collingwood"],
+  cautious: ["Jellicoe"],
+  objective: ["Spruance"],
+} as const;
 
 type BotPorts = {
   environment: SimulationEnvironment;
@@ -26,6 +29,7 @@ export class BotSystem {
   readonly ids: ReadonlySet<string> = this.members;
   private readonly brains = new Map<string, ReturnType<typeof createBotController>>();
   private nextSerial = 1;
+  private readonly nameCounters = new Map<string, number>();
   private lastSpawnAtMs: number;
   private lastRemovalAtMs: number;
 
@@ -53,10 +57,14 @@ export class BotSystem {
   spawn(): void {
     const serial = this.nextSerial++;
     const id = `bfa_bot_${serial}_${this.ports.environment.random().toString(36).slice(2, 8)}`;
-    const hero = HERO_NAMES[(serial - 1) % HERO_NAMES.length] ?? "Admiral";
     const strategy = this.ports.createStrategy?.();
-    const label = strategy?.profile && strategy.profile !== "standard" ? strategy.profile : "Bot";
-    this.ports.joinParticipant(id, `${hero} (${label})`);
+    const profile = strategy?.profile ?? "standard";
+    const names = PROFILE_NAMES[profile];
+    const count = this.nameCounters.get(profile) ?? 0;
+    this.nameCounters.set(profile, count + 1);
+    const hero = names[count % names.length];
+    const occurrence = Math.floor(count / names.length) + 1;
+    this.ports.joinParticipant(id, occurrence === 1 ? hero : `${hero} ${occurrence}`);
     this.members.add(id);
     const brain = createBotController({ wallNow: this.ports.environment.nowMs, monotonicNow: this.ports.diagnosticNowMs }, strategy);
     brain.enable();

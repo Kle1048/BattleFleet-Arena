@@ -1,5 +1,12 @@
 const STORAGE_KEY = "bfa.followCameraTuning.v1";
 
+/** Gameplay zoom limits, independent of browser-persisted camera/debug settings. */
+export const MAP_CAMERA_HEIGHT_LIMITS = { min: 200, max: 900 } as const;
+
+export function clampMapCameraHeight(height: number): number {
+  return Math.max(MAP_CAMERA_HEIGHT_LIMITS.min, Math.min(MAP_CAMERA_HEIGHT_LIMITS.max, height));
+}
+
 export type FollowCameraTuning = {
   mode: "map" | "thirdPerson";
   orbitDistance: number;
@@ -26,7 +33,7 @@ export const DEFAULT_FOLLOW_CAMERA_TUNING: Readonly<FollowCameraTuning> = {
   orbitPitchDeg: 18,
   pitchDeg: 70,
   northUp: true,
-  heightAbovePivot: 900,
+  heightAbovePivot: MAP_CAMERA_HEIGHT_LIMITS.max,
   headUpYawLagSec: 0.2,
 };
 

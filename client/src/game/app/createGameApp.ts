@@ -95,7 +95,7 @@ export function createGameApp(root: HTMLElement) {
     applyShipDebugTuning(loadPersistedShipTuning());
     mountSessionLoadBackdrop(t("sessionLoad.captionBoot"));
     const serverUrl = colyseusHttpBase(import.meta.env.VITE_COLYSEUS_URL, window.location.hostname);
-    lifetime.use(mountBetaFeedback(__BFA_BUILD__, import.meta.env.VITE_FEEDBACK_URL, serverUrl, () => ({
+    const feedback = lifetime.use(mountBetaFeedback(__BFA_BUILD__, import.meta.env.VITE_FEEDBACK_URL, serverUrl, () => ({
       roomId: activeSession?.roomId ?? null, pingMs: activeSession?.pingMs ?? null, fps: recentFps,
     })));
 
@@ -117,7 +117,9 @@ export function createGameApp(root: HTMLElement) {
 
     while (!startup.signal.aborted) {
       mountSessionLoadBackdrop(t("sessionLoad.captionBoot"));
+      feedback.setVisible(true);
       const lobby = await pickShipLobbyChoice(startup.signal, previousName);
+      feedback.setVisible(false);
       previousName = lobby.displayName;
       startup.signal.throwIfAborted();
       setSessionLoadBackdropCaption(t("sessionLoad.captionJoining"));
@@ -155,6 +157,7 @@ export function createGameApp(root: HTMLElement) {
         let frames = 0, sampleAt = performance.now();
         scheduler.start((now, dt) => {
           session.frame(now, dt);
+          feedback.setVisible(session.matchEnded);
           frames++;
           if (now - sampleAt >= 1000) { recentFps = frames * 1000 / (now - sampleAt); frames = 0; sampleAt = now; }
         });
@@ -168,6 +171,7 @@ export function createGameApp(root: HTMLElement) {
         recentFps = null;
         activeSession?.dispose();
         activeSession = undefined;
+        feedback.setVisible(false);
         controls.stopSession();
         gameAudio.stopSession();
         if (params.get("debug") === "1") {

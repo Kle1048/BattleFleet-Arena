@@ -8,11 +8,15 @@ import {
 {
   const prev = process.env.BFA_MIN_ROOM_PLAYERS;
   delete process.env.BFA_MIN_ROOM_PLAYERS;
-  assert.equal(readMinTotalParticipantsFromEnv(), 10);
+  assert.equal(readMinTotalParticipantsFromEnv(), 5);
+  for (let humans = 0; humans <= 6; humans++) {
+    assert.equal(desiredServerBotCount(readMinTotalParticipantsFromEnv(), humans),
+      humans === 0 ? 0 : Math.max(0, 5 - humans));
+  }
   process.env.BFA_MIN_ROOM_PLAYERS = "6";
   assert.equal(readMinTotalParticipantsFromEnv(), 6);
   process.env.BFA_MIN_ROOM_PLAYERS = "0";
-  assert.equal(readMinTotalParticipantsFromEnv(), 10);
+  assert.equal(readMinTotalParticipantsFromEnv(), 5);
   if (prev === undefined) delete process.env.BFA_MIN_ROOM_PLAYERS;
   else process.env.BFA_MIN_ROOM_PLAYERS = prev;
 }

@@ -3,7 +3,7 @@ import { PerspectiveCamera } from "three";
 import { createGameInput } from "./createGameInput";
 import { getShipDebugTuning, applyShipDebugTuning } from "../runtime/shipDebugTuning";
 import { t } from "../../locale/t";
-import { applyFollowCameraTuning, getFollowCameraTuning, resetFollowCameraTuning } from "../runtime/followCameraTuning";
+import { applyFollowCameraTuning, getFollowCameraTuning, loadPersistedFollowCameraTuning, resetFollowCameraTuning } from "../runtime/followCameraTuning";
 
 class Target extends EventTarget {
   listeners = new Map<string, Set<EventListenerOrEventListenerObject>>();
@@ -106,6 +106,35 @@ try {
     assert.equal(session.mobileHudActions.onNextFireControlTarget, undefined);
     assert.equal(session.input.sample().primaryFire, false);
   }
+  // Simulate different browsers with legacy saved heights and wheel delta units.
+  for (const savedHeight of [80, 200, 350, 900, 1500, 5000]) {
+    for (const deltaMode of [0, 1, 2]) {
+      resetFollowCameraTuning();
+      Object.defineProperty(globalThis, "localStorage", { configurable: true, value: {
+        getItem: (key: string) => key === "bfa.followCameraTuning.v1"
+          ? JSON.stringify({ heightAbovePivot: savedHeight, northUp: false, pitchDeg: 60 }) : null,
+        setItem() {},
+      } });
+      loadPersistedFollowCameraTuning();
+      controls.startSession();
+      assert.equal(getFollowCameraTuning().heightAbovePivot, Math.max(200, Math.min(900, savedHeight)));
+      assert.equal(getFollowCameraTuning().northUp, false, "other saved camera preferences survive");
+      assert.equal(getFollowCameraTuning().pitchDeg, 60);
+      for (const [deltaY, expected] of [[10000, 900], [-10000, 200], [10000, 900]]) {
+        for (let step = 0; step < 3; step++) {
+          canvas.dispatchEvent(Object.assign(new Event("wheel", { cancelable: true }), { deltaY, deltaMode }));
+        }
+        assert.equal(getFollowCameraTuning().heightAbovePivot, expected,
+          `fixed zoom limits with saved height ${savedHeight} and delta mode ${deltaMode}`);
+      }
+      controls.stopSession();
+      assert.equal(getFollowCameraTuning().heightAbovePivot, 900, "rejoin restores the default overview");
+      assert.equal(win.count(), 0);
+      assert.equal(canvas.count(), 0);
+    }
+  }
+  Object.defineProperty(globalThis, "localStorage", { configurable: true, value: { getItem: () => null, setItem() {} } });
+  resetFollowCameraTuning();
   applyFollowCameraTuning({ mode: "thirdPerson" });
   const orbitSession = controls.startSession();
   canvas.dispatchEvent(Object.assign(new Event("pointerdown", { cancelable: true }), {

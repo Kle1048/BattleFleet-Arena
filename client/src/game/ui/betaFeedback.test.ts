@@ -5,6 +5,7 @@ class Element extends EventTarget {
   children: Element[] = [];
   style: Record<string, string> = {};
   textContent = ""; value = ""; removed = false; checked = false;
+  hidden = false;
   onclick?: () => void | Promise<void>;
   setAttribute() {}
   append(...children: Element[]) { this.children.push(...children); }
@@ -41,6 +42,11 @@ try {
     () => ({ roomId: null, fps: null, pingMs: null }));
   assert.equal(calls, 0, "mount must not fetch or report");
   const button = body.children[0]!;
+  assert(button.hidden, "hidden during startup/join");
+  button.dispatchEvent(new Event("click"));
+  assert.equal(calls, 0, "hidden button cannot open the form");
+  feedback.setVisible(true); // lobby / round results
+  assert(!button.hidden);
   button.dispatchEvent(new Event("click"));
   button.dispatchEvent(new Event("click"));
   assert.equal(calls, 1, "only one modal/request");
@@ -64,10 +70,17 @@ try {
   await send.onclick!(); assert.equal(submissions.length, 2, "receipt prevents accidental duplicate send");
   await panel.children[7]!.onclick!();
   assert(modal.removed); assert(signal!.aborted);
+  button.dispatchEvent(new Event("click"));
+  const reopened = body.children.at(-1)!;
+  feedback.setVisible(false); // running round / explicit restart
+  assert(button.hidden); assert(reopened.removed); assert(signal!.aborted);
+  button.dispatchEvent(new Event("click"));
+  assert.equal(calls, 4, "running round cannot open feedback");
+  feedback.setVisible(true); assert(!button.hidden, "returning to lobby restores button");
   feedback.dispose(); feedback.dispose();
   assert(button.removed);
   button.dispatchEvent(new Event("click"));
-  assert.equal(calls, 3, "disposed button cannot start new requests");
+  assert.equal(calls, 4, "disposed button cannot start new requests");
   await new Promise(resolve => setTimeout(resolve, 0));
 } finally {
   for (const [key, descriptor] of originals) {

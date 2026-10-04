@@ -30,7 +30,7 @@ try {
   const first = config.patch({ minRoomPlayers: 3 });
   const second = config.patch({ passiveXpBase: 9 });
   await gate;
-  assert.equal(config.snapshot().config.minRoomPlayers, 10, "uncommitted writes must not reach rules");
+  assert.equal(config.snapshot().config.minRoomPlayers, 5, "uncommitted writes must not reach rules");
   assert.equal(config.snapshot().revision, 0);
   let turns = 0;
   for (let i = 0; i < 5; i++) await new Promise<void>(resolve => setTimeout(() => { turns++; resolve(); }, 0));

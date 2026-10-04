@@ -7,12 +7,13 @@ export function mountBetaFeedback(build: { id: string; dirty: boolean | null }, 
   let cancelFetch: AbortController | undefined;
   let cancelSubmit: AbortController | undefined;
   const button = document.createElement("button");
+  button.hidden = true;
   button.type = "button";
   button.textContent = `Beta ${build.id.slice(0,12)}${build.dirty !== false ? "*" : ""} · Feedback`;
   button.style.cssText = "position:fixed;right:8px;top:8px;z-index:350;padding:6px 9px;background:#152638;color:#eef6ff;border:1px solid #8696a8;border-radius:6px;font:12px system-ui;cursor:pointer;";
-  const close = () => { cancelFetch?.abort(); cancelSubmit?.abort(); modal?.remove(); modal = undefined; if (!disposed) button.focus(); };
+  const close = () => { cancelFetch?.abort(); cancelSubmit?.abort(); modal?.remove(); modal = undefined; if (!disposed && !button.hidden) button.focus(); };
   const open = () => {
-    if (disposed || modal) return;
+    if (disposed || button.hidden || modal) return;
     const root = modal = document.createElement("div");
     root.className = "class-picker-overlay";
     root.style.zIndex = "10000";
@@ -111,5 +112,12 @@ export function mountBetaFeedback(build: { id: string; dirty: boolean | null }, 
       .finally(() => clearTimeout(timeout));
   };
   button.addEventListener("click", open); document.body.appendChild(button);
-  return { dispose() { if (disposed) return; disposed = true; close(); button.removeEventListener("click", open); button.remove(); } };
+  return {
+    setVisible(visible: boolean) {
+      if (disposed || button.hidden === !visible) return;
+      button.hidden = !visible;
+      if (!visible) close();
+    },
+    dispose() { if (disposed) return; disposed = true; close(); button.removeEventListener("click", open); button.remove(); },
+  };
 }

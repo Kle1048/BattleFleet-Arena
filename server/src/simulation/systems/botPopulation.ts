@@ -1,6 +1,9 @@
 /** Max. echte WebSocket-Clients pro `BattleRoom` — muss zu `maxClients` passen. */
 export const MAX_HUMAN_CLIENTS_IN_ROOM = 16;
 
+/** One human plus four bots; subsequent humans replace bots. */
+export const DEFAULT_MIN_ROOM_PLAYERS = 5;
+
 /** Obergrenze Server-Bots pro Raum (unabhängig von `BFA_MIN_ROOM_PLAYERS`). */
 export const MAX_SERVER_BOTS = 5;
 
